@@ -1,0 +1,128 @@
+[gd_scene load_steps=6 format=3 uid="uid://main_menu_01"]
+
+[ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_main_menu"]
+
+[sub_resource type="StyleBoxFlat" id="title_style"]
+bg_color = Color(0.1, 0.08, 0.05, 0.85)
+border_width_bottom = 2
+border_color = Color(0.6, 0.45, 0.2, 1.0)
+
+[sub_resource type="StyleBoxFlat" id="menu_btn_style"]
+bg_color = Color(0.15, 0.11, 0.07, 0.9)
+border_width_left = 2
+border_width_right = 2
+border_width_top = 2
+border_width_bottom = 2
+border_color = Color(0.55, 0.4, 0.2, 1.0)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+
+[sub_resource type="StyleBoxFlat" id="menu_btn_hover"]
+bg_color = Color(0.22, 0.16, 0.10, 0.95)
+border_width_left = 2
+border_width_right = 2
+border_width_top = 2
+border_width_bottom = 2
+border_color = Color(0.8, 0.65, 0.25, 1.0)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main_menu")
+
+[node name="BackgroundPanel" type="Panel" parent="."]
+layout_mode = 0
+offset_right = 1920
+offset_bottom = 1080
+
+[node name="TitleContainer" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 300
+offset_top = 200
+offset_right = 1620
+offset_bottom = 380
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="TitleContainer"]
+layout_mode = 2
+text = "维多利亚伦敦探案"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 52
+theme_override_colors/font_color = Color(0.9, 0.8, 0.4, 1.0)
+
+[node name="SubtitleLabel" type="Label" parent="TitleContainer"]
+layout_mode = 2
+text = "SHERLOCK HOLMES"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(0.55, 0.45, 0.3, 1.0)
+
+[node name="DividerLine" type="HSeparator" parent="TitleContainer"]
+layout_mode = 2
+
+[node name="MenuContainer" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 710
+offset_top = 450
+offset_right = 1210
+offset_bottom = 750
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="StartBtn" type="Button" parent="MenuContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "开始游戏"
+theme_override_styles/normal = SubResource("menu_btn_style")
+theme_override_styles/hover = SubResource("menu_btn_hover")
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(0.9, 0.8, 0.4, 1.0)
+
+[node name="ContinueBtn" type="Button" parent="MenuContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "继续游戏"
+theme_override_styles/normal = SubResource("menu_btn_style")
+theme_override_styles/hover = SubResource("menu_btn_hover")
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(0.9, 0.8, 0.4, 1.0)
+
+[node name="SettingsBtn" type="Button" parent="MenuContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "设置"
+theme_override_styles/normal = SubResource("menu_btn_style")
+theme_override_styles/hover = SubResource("menu_btn_hover")
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(0.9, 0.8, 0.4, 1.0)
+
+[node name="QuitBtn" type="Button" parent="MenuContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "退出游戏"
+theme_override_styles/normal = SubResource("menu_btn_style")
+theme_override_styles/hover = SubResource("menu_btn_hover")
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(0.9, 0.8, 0.4, 1.0)
+
+[node name="VersionLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 20
+offset_top = 1040
+offset_right = 200
+offset_bottom = 1068
+text = "v0.1.0"
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.3, 0.25, 0.2, 1.0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]

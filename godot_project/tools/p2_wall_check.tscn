@@ -1,0 +1,65 @@
+[gd_scene load_steps=3 format=3 uid="uid://p2_wall_check"]
+
+[ext_resource type="Script" path="res://tools/p2_wall_check.gd" id="1_check"]
+[ext_resource type="Script" path="res://scripts/clue/reasoning_wall_ui.gd" id="2_wall"]
+
+[node name="P2WallCheck" type="Node"]
+script = ExtResource("1_check")
+
+[node name="ReasoningWall" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("2_wall")
+
+[node name="CluePanel" type="Control" parent="ReasoningWall"]
+layout_mode = 0
+offset_right = 250
+offset_bottom = 880
+
+[node name="BoardArea" type="Control" parent="ReasoningWall"]
+layout_mode = 0
+offset_left = 260
+offset_top = 60
+offset_right = 1460
+offset_bottom = 880
+
+[node name="BoardLabel" type="Label" parent="ReasoningWall/BoardArea"]
+layout_mode = 0
+offset_left = 10
+offset_top = -40
+offset_right = 300
+offset_bottom = -10
+text = "推理板"
+
+[node name="VerifyButton" type="Button" parent="ReasoningWall"]
+layout_mode = 0
+offset_left = 1500
+offset_top = 900
+offset_right = 1700
+offset_bottom = 950
+text = "验证推理"
+
+[node name="ResultLabel" type="Label" parent="ReasoningWall"]
+layout_mode = 0
+offset_left = 500
+offset_top = 900
+offset_right = 1480
+offset_bottom = 950
+text = ""
+
+[node name="MilestonePopup" type="Panel" parent="ReasoningWall"]
+layout_mode = 0
+offset_left = 700
+offset_top = 400
+offset_right = 1220
+offset_bottom = 500
+
+[node name="Label" type="Label" parent="ReasoningWall/MilestonePopup"]
+layout_mode = 0
+offset_left = 20
+offset_top = 20
+offset_right = 500
+offset_bottom = 80
+text = ""

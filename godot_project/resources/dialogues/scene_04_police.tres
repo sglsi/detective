@@ -1,0 +1,712 @@
+[gd_resource type="Resource" script_class="DialogueResource" load_steps=45 format=3 uid="uid://307aa5308f0e"]
+
+[ext_resource type="Script" path="res://resources/dialogues/dialogue_resource.gd" id="1_resource"]
+[ext_resource type="Script" path="res://resources/dialogues/dialogue_node_resource.gd" id="2_node"]
+
+
+[sub_resource type="Resource" id="node_0"]
+script = ExtResource("2_node")
+node_id = "s4_start"
+speaker = "兰斯警士"
+text = "我已经在局里全都报告过了！……（福尔摩斯把玩半镑金币）那我就从头再讲一遍。"
+mood = "不高兴"
+trigger = "auto"
+next_nodes = ["s4_step1_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_1"]
+script = ExtResource("2_node")
+node_id = "s4_step1_start"
+speaker = "system"
+text = "【六步闭环 Step 1】观察发现 —— 巡警兰斯叙述案发经过"
+mood = "guide"
+trigger = "guide"
+next_nodes = ["s4_step1_easy", "s4_step1_normal", "s4_step1_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 1
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_2"]
+script = ExtResource("2_node")
+node_id = "s4_step1_easy"
+speaker = "system"
+text = "夜里两点巡逻到布瑞克斯顿路，看见空屋窗口有灯光，推门进去发现尸体，吹警笛叫来摩契和另外两个警察。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s4_step2_start"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_3"]
+script = ExtResource("2_node")
+node_id = "s4_step1_normal"
+speaker = "system"
+text = "（同 EASY）夜里两点巡逻发现空屋灯光与尸体，叫来同伴。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s4_step2_start"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_4"]
+script = ExtResource("2_node")
+node_id = "s4_step1_hard"
+speaker = "system"
+text = "（无提示——自行从兰斯叙述中提取有效信息）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s4_step2_start"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_5"]
+script = ExtResource("2_node")
+node_id = "s4_step2_start"
+speaker = "system"
+text = "【六步闭环 Step 2】工具操作 —— 锁定关键细节"
+mood = "guide"
+trigger = "guide"
+next_nodes = ["s4_step2_easy", "s4_step2_normal", "s4_step2_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 2
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_6"]
+script = ExtResource("2_node")
+node_id = "s4_step2_easy"
+speaker = "福尔摩斯"
+text = "逐一追问：他高个子、红脸、棕色外衣、没有马鞭。注意——兰斯说醉汉没有马鞭，但现场勘查凶手应该有马鞭。那个人就是凶手！"
+mood = "指导"
+trigger = "auto"
+next_nodes = ["s4_step3_start"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_7"]
+script = ExtResource("2_node")
+node_id = "s4_step2_normal"
+speaker = "system"
+text = "可选追问方向（70%概率提示）：外貌/衣着/是否持物/有无马车。选对关键问题→获得完整醉汉特征。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s4_step3_start"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_8"]
+script = ExtResource("2_node")
+node_id = "s4_step2_hard"
+speaker = "system"
+text = "（玩家自行选择追问；无关问题兰斯不再重复）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s4_step3_start"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_9"]
+script = ExtResource("2_node")
+node_id = "s4_step3_start"
+speaker = "system"
+text = "【六步闭环 Step 3】数据记录 —— 把发现记进侦探笔记"
+mood = "guide"
+trigger = "note"
+next_nodes = ["s4_step3_easy", "s4_step3_normal", "s4_step3_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 3
+is_step_entry = true
+stage_direction = ""
+note_text = "笔记：醉汉=高个/红脸/棕衣/无马鞭；与凶手特征吻合"
+
+
+[sub_resource type="Resource" id="node_10"]
+script = ExtResource("2_node")
+node_id = "s4_step3_easy"
+speaker = "福尔摩斯"
+text = "笔记已自动填入：高个子、红脸、棕色外衣、无马鞭——与现场推断的凶手特征高度吻合。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s4_step4_prompt"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_11"]
+script = ExtResource("2_node")
+node_id = "s4_step3_normal"
+speaker = "system"
+text = "在侦探笔记记录：醉汉特征，对比凶手特征（身高6英尺+/红脸/方头靴/可能马鞭）。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s4_step4_prompt"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_12"]
+script = ExtResource("2_node")
+node_id = "s4_step3_hard"
+speaker = "system"
+text = "（空白笔记，自由记录）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s4_step4_prompt"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_13"]
+script = ExtResource("2_node")
+node_id = "s4_step4_prompt"
+speaker = "system"
+text = "（测量与记录完成）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s4_step4_easy", "s4_step4_normal", "s4_step4_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 4
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_14"]
+script = ExtResource("2_node")
+node_id = "s4_step4_easy"
+speaker = "福尔摩斯"
+text = "知识库「犯罪心理」：凶手返回现场的行为模式——遗失重要物品→返回寻找。想想我们在现场发现的戒指。"
+mood = "指导"
+trigger = "knowledge"
+next_nodes = ["s4_step5_prompt"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_15"]
+script = ExtResource("2_node")
+node_id = "s4_step4_normal"
+speaker = "system"
+text = "知识库可选查阅（非强制）。"
+mood = "guide"
+trigger = "optional"
+next_nodes = ["s4_step5_prompt"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_16"]
+script = ExtResource("2_node")
+node_id = "s4_step4_hard"
+speaker = "system"
+text = "（无提示）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s4_step5_prompt"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_17"]
+script = ExtResource("2_node")
+node_id = "s4_step5_prompt"
+speaker = "system"
+text = "【六步闭环 Step 5】假设形成 —— 把线索串成结论"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s4_step5_easy", "s4_step5_normal", "s4_step5_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_18"]
+script = ExtResource("2_node")
+node_id = "s4_step5_easy"
+speaker = "福尔摩斯"
+text = "高个子、红脸、棕色外衣——和你在现场推断的凶手特征完全吻合。他是谁？"
+mood = "指导"
+trigger = "auto"
+next_nodes = ["s4_hypo_choice"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_19"]
+script = ExtResource("2_node")
+node_id = "s4_step5_normal"
+speaker = "system"
+text = "拖拽线索到假设板，自行判断醉汉与案件关系。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s4_hypo_choice"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_20"]
+script = ExtResource("2_node")
+node_id = "s4_step5_hard"
+speaker = "system"
+text = "（推理墙开启，无引导）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s4_hypo_choice"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_21"]
+script = ExtResource("2_node")
+node_id = "s4_hypo_choice"
+speaker = "system"
+text = "关于那个醉汉，你的判断是："
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s4_hypo_right", "s4_hypo_b", "s4_hypo_c", "s4_hypo_d"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_22"]
+script = ExtResource("2_node")
+node_id = "s4_hypo_right"
+speaker = "福尔摩斯"
+text = "聪明！那个醉汉就是凶手——兰斯，你完美地错过了一个升任警长的机会！"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s4_step6_prompt"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_23"]
+script = ExtResource("2_node")
+node_id = "s4_hypo_b"
+speaker = "福尔摩斯"
+text = "一个过路人？那他的特征为何与凶手完全吻合？重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s4_hypo_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_24"]
+script = ExtResource("2_node")
+node_id = "s4_hypo_c"
+speaker = "福尔摩斯"
+text = "同伙？现场足迹只有两人，无第二人。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s4_hypo_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_25"]
+script = ExtResource("2_node")
+node_id = "s4_hypo_d"
+speaker = "福尔摩斯"
+text = "线索不会说谎——特征吻合即同一人。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s4_hypo_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_26"]
+script = ExtResource("2_node")
+node_id = "s4_step6_prompt"
+speaker = "system"
+text = "【六步闭环 Step 6】验证修正 —— 去推理墙验证你的结论"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s4_step6_normal", "s4_step6_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_27"]
+script = ExtResource("2_node")
+node_id = "s4_step6_normal"
+speaker = "system"
+text = "线索收集完毕，去推理墙验证你的假设。"
+mood = "guide"
+trigger = "neutral"
+next_nodes = ["s4_step6_verified", "s4_step6_supported", "s4_step6_insufficient", "s4_step6_contradictory"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 6
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_28"]
+script = ExtResource("2_node")
+node_id = "s4_step6_hard"
+speaker = "system"
+text = "（无验证提示，玩家自行判断何时证据充分）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s4_step6_verified", "s4_step6_supported", "s4_step6_insufficient", "s4_step6_contradictory"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 6
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_29"]
+script = ExtResource("2_node")
+node_id = "s4_step6_verified"
+speaker = "福尔摩斯"
+text = "那个醉汉就是凶手！特征完全吻合——高个、红脸、棕衣、无马鞭。"
+mood = "自信"
+trigger = "milestone"
+next_nodes = ["s4_conclude"]
+difficulty_filter = 0
+verify_filter = "VERIFIED"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = "【里程碑】醉汉=凶手 解锁 ⭐"
+
+
+[sub_resource type="Resource" id="node_30"]
+script = ExtResource("2_node")
+node_id = "s4_step6_supported"
+speaker = "福尔摩斯"
+text = "方向对了，但证据链还不够完整。回去再看看关键线索。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s4_step1_start"]
+difficulty_filter = 0
+verify_filter = "SUPPORTED"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_31"]
+script = ExtResource("2_node")
+node_id = "s4_step6_insufficient"
+speaker = "福尔摩斯"
+text = "证据不足，需要更多观察。重新梳理。"
+mood = "严肃"
+trigger = "auto"
+next_nodes = ["s4_step1_start"]
+difficulty_filter = 0
+verify_filter = "INSUFFICIENT"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_32"]
+script = ExtResource("2_node")
+node_id = "s4_step6_contradictory"
+speaker = "福尔摩斯"
+text = "你的结论和证据自相矛盾。重想。"
+mood = "严肃"
+trigger = "auto"
+next_nodes = ["s4_step1_start"]
+difficulty_filter = 0
+verify_filter = "CONTRADICTORY"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_33"]
+script = ExtResource("2_node")
+node_id = "s4_conclude"
+speaker = "福尔摩斯"
+text = "他为何去而复返？戒指——他回来是为了取回掉落的戒指。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s4_return_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_34"]
+script = ExtResource("2_node")
+node_id = "s4_return_choice"
+speaker = "system"
+text = "醉汉（凶手）返回现场的原因是："
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s4_return_right", "s4_return_b", "s4_return_c", "s4_return_d"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_35"]
+script = ExtResource("2_node")
+node_id = "s4_return_right"
+speaker = "福尔摩斯"
+text = "正确——回来寻找失落的戒指。他一定会在晚报招领栏寻找，几小时内你就能见到他。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s4_branch_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_36"]
+script = ExtResource("2_node")
+node_id = "s4_return_b"
+speaker = "福尔摩斯"
+text = "回来看警方进度？那何必装醉逃走？重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s4_return_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_37"]
+script = ExtResource("2_node")
+node_id = "s4_return_c"
+speaker = "福尔摩斯"
+text = "挑衅警方？他当时吓得要命，没那胆量。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s4_return_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_38"]
+script = ExtResource("2_node")
+node_id = "s4_return_d"
+speaker = "福尔摩斯"
+text = "自负？他慌不择路才装醉，谈不上自负。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s4_return_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_39"]
+script = ExtResource("2_node")
+node_id = "s4_branch_choice"
+speaker = "system"
+text = "是否在晚报刊登失物招领启事？"
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s4_branch_publish", "s4_branch_skip"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_40"]
+script = ExtResource("2_node")
+node_id = "s4_branch_publish"
+speaker = "福尔摩斯"
+text = "刊登启事——当晚在贝克街等待「失主」，识破伪装的老太婆，发动贝克街分队。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s4_end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_41"]
+script = ExtResource("2_node")
+node_id = "s4_branch_skip"
+speaker = "福尔摩斯"
+text = "不发布——直接去马车站调查新换的马蹄铁，车主登记名「杰弗森·霍普」。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s4_end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_42"]
+script = ExtResource("2_node")
+node_id = "s4_end"
+speaker = "system"
+text = "【场景四结束】醉汉=凶手确认 · 戒指线索与贝克街分队已铺开"
+mood = "milestone"
+trigger = "milestone"
+next_nodes = ["end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = "线索墙更新：醉汉=凶手/戒指"
+
+
+[resource]
+script = ExtResource("1_resource")
+scene_id = "scene_04"
+scene_name = "劳瑞斯顿花园街（巡警兰斯问询）"
+phase_id = "phase1"
+phase_name = "醉汉特征与凶手身份推理"
+exploration_step = 0
+easy_start_node = "s4_start"
+normal_start_node = "s4_start"
+hard_start_node = "s4_start"
+nodes = [SubResource("node_0"), SubResource("node_1"), SubResource("node_2"), SubResource("node_3"), SubResource("node_4"), SubResource("node_5"), SubResource("node_6"), SubResource("node_7"), SubResource("node_8"), SubResource("node_9"), SubResource("node_10"), SubResource("node_11"), SubResource("node_12"), SubResource("node_13"), SubResource("node_14"), SubResource("node_15"), SubResource("node_16"), SubResource("node_17"), SubResource("node_18"), SubResource("node_19"), SubResource("node_20"), SubResource("node_21"), SubResource("node_22"), SubResource("node_23"), SubResource("node_24"), SubResource("node_25"), SubResource("node_26"), SubResource("node_27"), SubResource("node_28"), SubResource("node_29"), SubResource("node_30"), SubResource("node_31"), SubResource("node_32"), SubResource("node_33"), SubResource("node_34"), SubResource("node_35"), SubResource("node_36"), SubResource("node_37"), SubResource("node_38"), SubResource("node_39"), SubResource("node_40"), SubResource("node_41"), SubResource("node_42")]
+knowledge_domains = ["犯罪心理：凶手返回现场", "足迹与体态推断"]
+milestone_name = "醉汉即凶手"
+score_observation = 1
+score_reasoning = 1
+score_insight = 1
+badge_check = "SCENE4_POLICE_DONE"
+completion_event = ""

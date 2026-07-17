@@ -1,0 +1,87 @@
+## 场景一：贝克街221B实验室 — 教学关对话数据
+## 格式：每个节点 = { id, speaker, text, mood, trigger, next }
+
+# ===== 阶段1：初次见面 =====
+1|福尔摩斯|（上下打量华生，停顿片刻）……阿富汗军医。|自信|auto|2
+2|华生|什么？|吃惊|auto|3
+3|福尔摩斯|我说，你是一名刚从阿富汗回来的军医。我说对了吗？|从容|auto|4
+4|华生|您……您怎么知道的？我们刚认识不到十秒钟。|惊讶|auto|5
+5|福尔摩斯|（转向玩家视角）这位新朋友显然不相信。不如——你来告诉他我是怎么看出来的？|神秘|auto|6
+6|system|新手教程：第一次观察 —— 找出4条线索，证明"华生是阿富汗军医"|hint|auto|tutorial_start
+
+# ===== 教程环节：六步探索闭环 =====
+tutorial_start|system|移动视角，观察华生身上的细节。可观察部位：手腕、左臂、面色、站姿。|guide|auto|tutorial_observe
+tutorial_observe|system|点击华生身上的可交互区域开始观察。|hint|auto|step1
+
+# Step 1: 观察发现
+step1_wrist_found|system|发现：华生手腕有明显的肤色对比——手掌白净，手腕以上被晒黑。|clue|auto|step2_wrist
+step1_arm_found|system|发现：华生左臂动作僵硬，似有旧伤。|clue|auto|step2_arm
+step1_face_found|system|发现：华生面容憔悴，眼下有黑眼圈。|clue|auto|step2_face
+step1_posture_found|system|发现：华生站姿挺拔，带有明显的军人气质。|clue|auto|step2_posture
+
+# Step 2: 工具操作 (放大镜)
+step2_wrist|福尔摩斯|先别急着下结论。用放大镜仔细看看——细节藏在不起眼的地方。|指导|auto|step3_wrist
+step2_arm|福尔摩斯|注意他的左臂——那是旧伤还是新伤？|提示|auto|step3_arm
+step2_face|福尔摩斯|面容不会说谎。疾病、疲惫、压力——全写在了脸上。|提示|auto|step3_face
+step2_posture|福尔摩斯|站姿是最诚实的履历表。一个人如何站立，就透露了他曾在哪里服役。|提示|auto|step3_posture
+
+# Step 3: 数据记录 → 侦探笔记
+step3_wrist|system|侦探笔记已更新：手腕肤色对比——长期热带地区日晒特征。|note|auto|step3_wrist_done
+step3_arm|system|侦探笔记已更新：左臂僵硬——疑似肩部旧伤，与战场负伤一致。|note|auto|step3_arm_done
+step3_face|system|侦探笔记已更新：面容憔悴——疾病初愈或长期疲劳的典型表现。|note|auto|step3_face_done
+step3_posture|system|侦探笔记已更新：军人站姿——正规军队服役的标志性体态。|note|auto|step3_posture_done
+
+# Step 4: 知识检索 (可选)
+step4_prompt|system|去知识库查查？不确定的时候，知识是推理的燃料。|hint|optional|step4_entries
+step4_entries|system|知识库 > 人体观察：①肤色与日晒的关系 ②战伤痕迹识别 ③职业体态特征|knowledge|auto|step5_prompt
+
+# Step 5: 假设形成 (可选)
+step5_prompt|system|去推理墙建个假设？把线索串起来，就是推理。|hint|optional|step5_wall
+step5_wall|system|拖拽"刚从热带回来"+"军人气质"到假设板 → 生成假设："可能是热带地区的军人？"|guide|auto|step5_done
+step5_done|福尔摩斯|在有全部证据之前就下结论，是最大的错误。但我们可以先有个猜测。|思考|auto|step6_prompt
+
+# Step 6: 验证修正 (必做)
+step6_prompt|system|线索集齐了！去推理墙验证你的结论吧。|hint|auto|step6_verify
+step6_verify_verified|system|【四级验证】证据充分 · 已确认 ✓ —— 刚从热带回来 + 左臂负伤 + 面容憔悴 + 军人气质 → 结论：阿富汗军医|milestone|auto|step6_done
+step6_verify_supported|system|【四级验证】证据基本支持 → 方向对了，但还有细节漏掉了。再回去看看？|hint|auto|step1
+step6_done|福尔摩斯|（满意）你看，四条线索指向同一个结论。这就是回溯推理的力量——从结果倒推原因，把碎片拼成一幅完整的画。|自信|auto|tutorial_end
+
+# ===== 阶段1结束对话 =====
+tutorial_end|system|【里程碑点亮】"初识推理" 解锁 ⭐|milestone|auto|post_tutorial
+post_tutorial|华生|（目瞪口呆）这……太不可思议了。仅仅从这些细节，就能看出这么多？|敬佩|auto|holmes_explain
+holmes_explain|福尔摩斯|不错的初次表演。大多数人看到的只是表象，而侦探看到的是——历史。军人 + 医生 + 热带 + 负伤 = 阿富汗军医。这不是什么魔法，只是系统化的观察和推理。|从容|auto|watson_reply
+watson_reply|华生|系统化……听着像一门科学。|思考|auto|holmes_close
+holmes_close|福尔摩斯|它就是一门科学。只是大多数人不懂得运用。|微笑|auto|hudson_enter
+hudson_enter|赫德森太太|福尔摩斯先生，茶来了。哦，华生医生，欢迎您。|温和|auto|phase2_intro
+
+# ===== 阶段2：信使到访 =====
+phase2_intro|system|门铃响起……|sfx|auto|messenger_enter
+messenger_enter|福尔摩斯|让他进来吧，谢谢你，女士。|从容|auto|messenger_speak
+messenger_speak|信使|（递信封，露出手背文身）福尔摩斯先生，这是特白厄斯·葛莱森警官给您的信。|正式|auto|holmes_observe
+holmes_observe|福尔摩斯|（瞥了一眼信使手背，漫不经心）谢谢。您曾经是海军陆战队军士吧。|自信|auto|messenger_surprise
+messenger_surprise|信使|（惊讶）啊，您怎么知道我是海军陆战队的军士？|吃惊|auto|holmes_to_player
+holmes_to_player|福尔摩斯|（转向玩家）又一个练习机会。这次，你来试试？|狡黠|auto|phase2_start
+
+# ===== 阶段2：信使观察练习 =====
+phase2_start|system|第二次观察挑战：验证"信使是海军陆战队军士"。6个可观察点（含2个干扰项）。|hint|auto|p2_step1
+p2_step1|system|可观察点：手背文身 ✓ / 络腮胡 ✓ / 站姿 ✓ / 神态 ✓ / 戒指 ✗（干扰）/ 鞋子 ✗（干扰）|guide|auto|p2_step6_prompt
+
+# Step 6: 验证
+p2_step6_prompt|system|去推理墙验证你的结论。|hint|auto|p2_verify
+p2_verify_verified|system|【四级验证】已确认 ✓ —— 手背锚文身 + 军人式胡须 + 昂首挺胸 + 发号施令神态 → 结论：海军陆战队军士|milestone|auto|p2_done
+p2_verify_supported|system|【四级验证】证据基本支持 —— 方向正确，但证据链还不够完整。再试试？|hint|auto|p2_step1
+p2_done|福尔摩斯|（微微点头）还不赖。|自信|auto|letter_reveal
+
+# ===== 委托信 =====
+letter_reveal|福尔摩斯|（拆开信封，快速扫视）有意思。葛莱森警官在劳瑞斯顿花园街发现了一具尸体。|严肃|auto|case_offer
+case_offer|福尔摩斯|他请我去帮忙。华生医生，你愿意一同前往吗？这将是一堂最生动的推理课。|期待|auto|player_choice
+
+# ===== 分支 B-01：承接/拒绝案件 =====
+player_choice|system|是否承接此案？|choice|auto|choice_branch
+accept_case|华生|当然！这正是我来伦敦的目的——见识真正的侦探工作。|兴奋|auto|accept_close
+accept_close|福尔摩斯|很好。穿上外套，我们出发。记住：观察是第一位的，结论是最后才下的。|坚定|auto|scene_end
+decline_case|华生|我……我想我还需要一些时间适应。|犹豫|auto|decline_close
+decline_close|福尔摩斯|没关系。当你准备好了，随时来找我。贝克街的门永远为你敞开。|从容|auto|scene_end
+
+# ===== 场景结束 =====
+scene_end|system|场景一完成 —— 调查进度已更新：案件承接完成。|milestone|auto|end

@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>维多利亚伦敦探案 — 场景一教学关原型</title>
+<style>
+:root {
+  --bg-dark: #1a1410;
+  --bg-panel: #221b14;
+  --gold: #c9a84c;
+  --gold-light: #e8d48b;
+  --text: #e8ddc8;
+  --text-dim: #8a7d6b;
+  --brown: #5a3e2b;
+  --red: #8b2500;
+  --green: #4a8b3f;
+  --blue: #4a7a9b;
+  --highlight: rgba(255,200,50,0.4);
+  --glow: rgba(255,255,255,0.08);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  background: var(--bg-dark);
+  color: var(--text);
+  overflow: hidden;
+  height: 100vh; height: 100dvh;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+#app {
+  display: flex; flex-direction: column;
+  height: 100vh; height: 100dvh;
+  max-width: 480px; margin: 0 auto;
+  position: relative;
+}
+
+/* ===== 顶部栏 ===== */
+#topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: var(--bg-panel);
+  border-bottom: 2px solid var(--gold);
+  z-index: 10; flex-shrink: 0;
+}
+#topbar .title { font-size: 14px; color: var(--gold); font-weight: bold; }
+#topbar .time { font-size: 11px; color: var(--text-dim); }
+#topbar .menu-btn { font-size: 20px; color: var(--gold); background: none; border: none; cursor: pointer; padding: 4px 8px; }
+
+/* ===== 场景视图 ===== */
+#scene-view {
+  flex: 1; position: relative; overflow: hidden;
+  background: radial-gradient(ellipse at center, #2a2018 0%, #0d0a06 100%);
+}
+#scene-bg {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+}
+#scene-label {
+  font-size: 16px; color: var(--gold); margin-bottom: 16px;
+  text-align: center; padding: 0 20px;
+}
+#scene-room {
+  width: 90%; max-width: 360px; height: 55%;
+  border: 2px solid var(--brown); border-radius: 8px;
+  background: linear-gradient(180deg, #1e1812 0%, #16120c 100%);
+  position: relative; overflow: hidden;
+  box-shadow: inset 0 0 60px rgba(0,0,0,0.5);
+}
+#scene-room .room-label {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  font-size: 11px; color: var(--text-dim);
+}
+
+/* ===== 热点标记 ===== */
+.hotspot {
+  position: absolute; border-radius: 50%;
+  cursor: pointer; z-index: 5;
+  transition: transform 0.2s, opacity 0.3s;
+}
+.hotspot:active { transform: scale(1.3); }
+.hotspot.easy-highlight {
+  background: var(--highlight); border: 2px solid rgba(255,200,50,0.8);
+  animation: pulse 1.5s infinite;
+}
+.hotspot.normal-glow {
+  background: var(--glow); border: 1px solid rgba(255,255,255,0.15);
+}
+.hotspot.hard-hidden {
+  background: transparent; border: none;
+}
+.hotspot.found { opacity: 0; pointer-events: none; }
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 5px rgba(255,200,50,0.3); }
+  50% { box-shadow: 0 0 20px rgba(255,200,50,0.7); }
+}
+
+/* ===== 工具栏 ===== */
+#toolbar {
+  position: absolute; bottom: 20px; right: 10px;
+  display: flex; gap: 8px; z-index: 8;
+}
+#toolbar button {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--bg-panel); border: 2px solid var(--brown);
+  font-size: 24px; cursor: pointer; color: var(--gold);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+#toolbar button.active { border-color: var(--gold); background: var(--brown); }
+#toolbar button:active { transform: scale(0.9); }
+
+/* ===== 放大镜覆盖层 ===== */
+#magnifier {
+  position: absolute; width: 100px; height: 100px;
+  border: 3px solid var(--gold); border-radius: 50%;
+  pointer-events: none; z-index: 20; display: none;
+  background: rgba(0,0,0,0.3);
+  box-shadow: 0 0 30px rgba(201,168,76,0.4);
+}
+
+/* ===== 对话面板 ===== */
+#dialogue-panel {
+  flex-shrink: 0; background: var(--bg-panel);
+  border-top: 2px solid var(--gold);
+  padding: 12px; min-height: 140px;
+  position: relative; z-index: 10;
+}
+#dialogue-speaker {
+  font-size: 13px; color: var(--gold); font-weight: bold; margin-bottom: 6px;
+}
+#dialogue-text {
+  font-size: 15px; line-height: 1.5; color: var(--text);
+  min-height: 40px;
+}
+#dialogue-hint {
+  position: absolute; bottom: 8px; right: 12px;
+  font-size: 12px; color: var(--text-dim);
+  animation: blink 1.5s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+#choices {
+  display: flex; flex-direction: column; gap: 8px; margin-top: 8px;
+}
+#choices button {
+  background: var(--brown); border: 1px solid var(--gold);
+  color: var(--text); padding: 10px; border-radius: 6px;
+  font-size: 14px; cursor: pointer; text-align: left;
+}
+#choices button:active { background: var(--gold); color: var(--bg-dark); }
+
+/* ===== 侦探笔记弹窗 ===== */
+#notebook {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+  z-index: 30; display: none; flex-direction: column;
+  padding: 20px; overflow-y: auto;
+}
+#notebook h3 { color: var(--gold); text-align: center; margin-bottom: 16px; font-size: 18px; }
+#notebook .entry {
+  background: var(--bg-panel); border: 1px solid var(--brown);
+  border-radius: 8px; padding: 12px; margin-bottom: 10px;
+}
+#notebook .entry .label { font-size: 13px; color: var(--gold); margin-bottom: 4px; }
+#notebook .entry .desc { font-size: 14px; color: var(--text); }
+#notebook .entry .slider-group { margin-top: 8px; }
+#notebook .entry input[type=range] { width: 100%; accent-color: var(--gold); }
+#notebook .entry .slider-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); }
+#notebook button {
+  background: var(--gold); color: var(--bg-dark); border: none;
+  padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold;
+  cursor: pointer; margin-top: 8px;
+}
+#notebook button:active { opacity: 0.8; }
+
+/* ===== 推理墙弹窗 ===== */
+#reasoning-wall {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+  z-index: 35; display: none; flex-direction: column;
+  padding: 16px;
+}
+#reasoning-wall h3 { color: var(--gold); text-align: center; font-size: 16px; margin-bottom: 12px; }
+#reasoning-wall .clue-cards {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+  min-height: 80px; padding: 8px; border: 1px dashed var(--brown);
+  border-radius: 8px; background: rgba(255,255,255,0.02);
+}
+#reasoning-wall .clue-card {
+  background: var(--brown); color: var(--text); padding: 8px 12px;
+  border-radius: 6px; font-size: 12px; cursor: grab;
+  border: 1px solid var(--gold); touch-action: none;
+}
+#reasoning-wall .clue-card:active { cursor: grabbing; }
+#reasoning-wall .board {
+  flex: 1; border: 2px solid var(--gold); border-radius: 8px;
+  padding: 8px; margin-bottom: 12px; min-height: 120px;
+  background: rgba(201,168,76,0.05);
+  display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start;
+  overflow-y: auto;
+}
+#reasoning-wall .board-label {
+  font-size: 11px; color: var(--text-dim); text-align: center;
+  width: 100%; margin-top: 20px;
+}
+#reasoning-wall .board .clue-card { cursor: pointer; }
+#reasoning-wall .result {
+  text-align: center; font-size: 15px; padding: 12px;
+  border-radius: 8px; margin-bottom: 10px; font-weight: bold;
+}
+#reasoning-wall .result.verified { background: rgba(74,139,63,0.2); color: #5bdb5b; }
+#reasoning-wall .result.supported { background: rgba(201,168,76,0.2); color: var(--gold-light); }
+#reasoning-wall .result.insufficient { background: rgba(180,120,50,0.2); color: #e8a040; }
+#reasoning-wall .result.contradictory { background: rgba(139,37,0,0.2); color: #e84040; }
+#reasoning-wall .btns { display: flex; gap: 8px; }
+#reasoning-wall .btns button {
+  flex: 1; padding: 12px; border-radius: 8px; font-size: 14px;
+  font-weight: bold; cursor: pointer; border: none;
+}
+#reasoning-wall .btns .verify-btn { background: var(--gold); color: var(--bg-dark); }
+#reasoning-wall .btns .close-btn { background: var(--bg-panel); color: var(--text); border: 1px solid var(--brown); }
+#reasoning-wall .btns button:active { opacity: 0.8; }
+
+/* ===== 里程碑弹窗 ===== */
+#milestone-popup {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: var(--bg-panel); border: 2px solid var(--gold);
+  border-radius: 12px; padding: 24px; z-index: 50; display: none;
+  text-align: center; min-width: 250px;
+}
+#milestone-popup .icon { font-size: 48px; margin-bottom: 8px; }
+#milestone-popup .text { color: var(--gold); font-size: 16px; font-weight: bold; }
+#milestone-popup.show { display: block; animation: fadeIn 0.5s; }
+@keyframes fadeIn { from{opacity:0;transform:translate(-50%,-50%) scale(0.8);} to{opacity:1;transform:translate(-50%,-50%) scale(1);} }
+
+/* ===== 通知 ===== */
+#notification {
+  position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+  background: var(--bg-panel); border: 1px solid var(--gold);
+  border-radius: 8px; padding: 8px 16px; z-index: 40; display: none;
+  font-size: 13px; color: var(--gold-light); white-space: nowrap;
+  max-width: 90%; text-align: center;
+}
+
+/* ===== 难度选择面板 ===== */
+#difficulty-panel {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+  z-index: 60; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+}
+#difficulty-panel h2 { color: var(--gold); font-size: 22px; }
+#difficulty-panel p { color: var(--text-dim); font-size: 14px; text-align: center; max-width: 300px; }
+#difficulty-panel button {
+  width: 240px; padding: 14px; border-radius: 8px;
+  font-size: 16px; font-weight: bold; cursor: pointer; border: 2px solid var(--gold);
+  background: var(--bg-panel); color: var(--gold);
+}
+#difficulty-panel button:active { background: var(--gold); color: var(--bg-dark); }
+
+/* ===== 案件承接选择 ===== */
+#case-choice {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+  z-index: 45; display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+}
+#case-choice h3 { color: var(--gold); font-size: 18px; text-align: center; max-width: 300px; }
+#case-choice button {
+  width: 220px; padding: 14px; border-radius: 8px;
+  font-size: 15px; font-weight: bold; cursor: pointer; border: 2px solid var(--gold);
+  background: var(--bg-panel); color: var(--gold);
+}
+#case-choice button.accept { background: var(--gold); color: var(--bg-dark); }
+#case-choice button:active { opacity: 0.8; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- 顶部栏 -->
+  <div id="topbar">
+    <span class="title">贝克街221B · 实验室</span>
+    <span class="time" id="time-display">DAY 1 上午10:30</span>
+    <button class="menu-btn" onclick="toggleUI()">☰</button>
+  </div>
+
+  <!-- 场景视图 -->
+  <div id="scene-view">
+    <div id="scene-bg">
+      <div id="scene-label">福尔摩斯私人化学实验室</div>
+      <div id="scene-room">
+        <span class="room-label">点击人物身上的细节进行观察</span>
+      </div>
+    </div>
+    <!-- 工具栏 -->
+    <div id="toolbar" style="display:none;">
+      <button id="btn-magnifier" onclick="selectTool('magnifier')" title="放大镜">🔍</button>
+      <button id="btn-tape" onclick="selectTool('tape')" title="卷尺">📏</button>
+    </div>
+    <!-- 放大镜 -->
+    <div id="magnifier"></div>
+  </div>
+
+  <!-- 对话面板 -->
+  <div id="dialogue-panel" onclick="advanceDialogue()">
+    <div id="dialogue-speaker"></div>
+    <div id="dialogue-text"></div>
+    <div id="dialogue-hint">▼ 点击继续</div>
+    <div id="choices"></div>
+  </div>
+</div>
+
+<!-- 侦探笔记 -->
+<div id="notebook">
+  <h3>📓 侦探笔记</h3>
+  <div id="notebook-entries"></div>
+  <button onclick="closeNotebook()">记录完成 ✓</button>
+</div>
+
+<!-- 推理墙 -->
+<div id="reasoning-wall">
+  <h3>🔍 贝克街221B 推理板</h3>
+  <div>线索库（点击卡片添加到推理板）</div>
+  <div class="clue-cards" id="clue-bank"></div>
+  <div>推理板（已添加的线索）</div>
+  <div class="board" id="clue-board">
+    <div class="board-label">将线索拖放到此处构建推理链</div>
+  </div>
+  <div class="result" id="verify-result"></div>
+  <div class="btns">
+    <button class="verify-btn" onclick="verifyReasoning()">验证推理</button>
+    <button class="close-btn" onclick="closeReasoningWall()">关闭</button>
+  </div>
+</div>
+
+<!-- 里程碑弹窗 -->
+<div id="milestone-popup">
+  <div class="icon">🏆</div>
+  <div class="text" id="milestone-text"></div>
+</div>
+
+<!-- 通知 -->
+<div id="notification"></div>
+
+<!-- 难度选择 -->
+<div id="difficulty-panel">
+  <h2>选择难度模式</h2>
+  <p>不同难度下提示方式和工具辅助程度不同</p>
+  <button onclick="startGame('easy')">🔰 简单 — 引导式</button>
+  <button onclick="startGame('normal')">⚖️ 普通 — 平衡</button>
+  <button onclick="startGame('hard')">💀 困难 — 硬核推理</button>
+</div>
+
+<!-- 案件承接 -->
+<div id="case-choice">
+  <h3>是否承接此案？</h3>
+  <button class="accept" onclick="acceptCase()">承接案件 — 出发！</button>
+  <button onclick="declineCase()">暂时拒绝</button>
+</div>
+
+<script>
+// ==================== 游戏状态 ====================
+let difficulty = 'normal';
+let tutorialPhase = 0; // 0=华生观察, 1=信使观察
+let currentStep = 'observe'; // observe/tool/record/verify
+let activeTool = null;
+let observedHotspots = [];
+let recordedClues = [];
+let boardClues = [];
+
+const hotspotDefs = {
+  wrist:  { name:'手腕', desc:'手腕有明显肤色对比——手掌白净，手腕以上晒黑', x:55, y:35, size:36, tool:'magnifier', phase:0, correct:true },
+  arm:    { name:'左臂', desc:'左臂动作僵硬，似有肩部旧伤，与战场负伤一致', x:35, y:50, size:40, tool:'magnifier', phase:0, correct:true },
+  face:   { name:'面色', desc:'面容憔悴，眼下有黑眼圈——疾病初愈或长期疲劳', x:65, y:20, size:34, tool:'magnifier', phase:0, correct:true },
+  posture:{ name:'站姿', desc:'站姿挺拔，带有明显的军人气质——正规军队服役标志', x:50, y:75, size:44, tool:'magnifier', phase:0, correct:true },
+  // 信使阶段
+  tattoo: { name:'手背文身', desc:'蓝色大锚文身——海员/海军特征', x:25, y:55, size:30, tool:'magnifier', phase:1, correct:true },
+  beard:  { name:'络腮胡', desc:'修剪整齐的军人式胡须', x:60, y:22, size:32, tool:'magnifier', phase:1, correct:true },
+  mposture:{ name:'信使站姿', desc:'昂首挺胸——典型的军人站姿', x:45, y:70, size:38, tool:'magnifier', phase:1, correct:true },
+  expression:{ name:'神态', desc:'自信发号施令的神态——军士气质', x:70, y:18, size:30, tool:'magnifier', phase:1, correct:true },
+  ring:   { name:'戒指', desc:'普通戒指，与军人身份无关', x:80, y:58, size:26, tool:'magnifier', phase:1, correct:false },
+  shoes:  { name:'鞋子', desc:'普通皮鞋，无法判断职业', x:40, y:88, size:28, tool:'magnifier', phase:1, correct:false },
+};
+
+// ==================== 对话数据 ====================
+const dialogueData = [
+  { id:'start', speaker:'福尔摩斯', text:'（上下打量华生，停顿片刻）……阿富汗军医。', mood:'自信' },
+  { id:'2', speaker:'华生', text:'什么？', mood:'吃惊' },
+  { id:'3', speaker:'福尔摩斯', text:'我说，你是一名刚从阿富汗回来的军医。我说对了吗？', mood:'从容' },
+  { id:'4', speaker:'华生', text:'您……您怎么知道的？我们刚认识不到十秒钟。', mood:'惊讶' },
+  { id:'5', speaker:'福尔摩斯', text:'（转向你）这位新朋友显然不相信。不如——你来告诉他我是怎么看出来的？', mood:'神秘', action:'start_observe' },
+  { id:'6', speaker:'系统', text:'新手教程：找出4条线索，证明"华生是阿富汗军医"。点击华生身上的细节开始观察。', mood:'hint', action:'show_hotspots' },
+];
+
+const dialoguePhase2 = [
+  { id:'p2_1', speaker:'福尔摩斯', text:'不错的初次表演。大多数人看到的只是表象，而侦探看到的是——历史。', mood:'自信' },
+  { id:'p2_2', speaker:'福尔摩斯', text:'军人 + 医生 + 热带 + 负伤 = 阿富汗军医。这不是什么魔法，只是系统化的观察和推理。', mood:'从容' },
+  { id:'p2_3', speaker:'华生', text:'系统化……听着像一门科学。', mood:'思考' },
+  { id:'p2_4', speaker:'福尔摩斯', text:'它就是一门科学。只是大多数人不懂得运用。', mood:'微笑' },
+  { id:'p2_5', speaker:'赫德森太太', text:'福尔摩斯先生，茶来了。哦，华生医生，欢迎您。', mood:'温和' },
+  { id:'p2_6', speaker:'系统', text:'门铃响起……一位信使到访。', mood:'sfx' },
+  { id:'p2_7', speaker:'信使', text:'福尔摩斯先生，这是特白厄斯·葛莱森警官给您的信。', mood:'正式' },
+  { id:'p2_8', speaker:'福尔摩斯', text:'（瞥了一眼信使手背）谢谢。您曾经是海军陆战队军士吧。', mood:'自信' },
+  { id:'p2_9', speaker:'信使', text:'啊，您怎么知道我是海军陆战队的军士？', mood:'吃惊' },
+  { id:'p2_10', speaker:'福尔摩斯', text:'（转向你）又一个练习机会。这次，你来试试？', mood:'狡黠', action:'start_phase2' },
+];
+
+const dialoguePostPhase2 = [
+  { id:'pp_1', speaker:'系统', text:'【里程碑解锁】🏆 "初识推理"', mood:'milestone' },
+  { id:'pp_2', speaker:'福尔摩斯', text:'（拆开信封，快速扫视）有意思。葛莱森警官在劳瑞斯顿花园街发现了一具尸体。', mood:'严肃' },
+  { id:'pp_3', speaker:'福尔摩斯', text:'他请我去帮忙。华生医生，你愿意一同前往吗？这将是一堂最生动的推理课。', mood:'期待', action:'show_case_choice' },
+];
+
+let dialogueQueue = [];
+let dialogueIndex = 0;
+
+// ==================== DOM 元素 ====================
+const $ = id => document.getElementById(id);
+const sceneRoom = $('scene-room');
+const dialogueSpeaker = $('dialogue-speaker');
+const dialogueText = $('dialogue-text');
+const dialogueHint = $('dialogue-hint');
+const choicesDiv = $('choices');
+const toolbar = $('toolbar');
+const magnifier = $('magnifier');
+const notebook = $('notebook');
+const notebookEntries = $('notebook-entries');
+const reasoningWall = $('reasoning-wall');
+const clueBank = $('clue-bank');
+const clueBoard = $('clue-board');
+const verifyResult = $('verify-result');
+const sceneLabel = $('scene-label');
+const timeDisplay = $('time-display');
+
+// ==================== 游戏启动 ====================
+function startGame(diff) {
+  difficulty = diff;
+  $('difficulty-panel').style.display = 'none';
+  showNotification('难度: ' + (diff==='easy'?'简单':diff==='normal'?'普通':'困难'));
+  renderHotspots(0);
+  playDialogue(dialogueData);
+}
+
+function renderHotspots(phase) {
+  // 清除旧热点
+  sceneRoom.querySelectorAll('.hotspot').forEach(h => h.remove());
+  
+  Object.entries(hotspotDefs).forEach(([id, def]) => {
+    if (def.phase !== phase) return;
+    if (observedHotspots.includes(id)) return;
+    
+    const el = document.createElement('div');
+    el.className = 'hotspot';
+    el.id = 'hs-' + id;
+    el.style.left = def.x + '%';
+    el.style.top = def.y + '%';
+    el.style.width = def.size + 'px';
+    el.style.height = def.size + 'px';
+    
+    if (difficulty === 'easy') {
+      el.classList.add('easy-highlight');
+    } else if (difficulty === 'normal') {
+      el.classList.add('normal-glow');
+    } else {
+      el.classList.add('hard-hidden');
+    }
+    
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onHotspotClick(id, def);
+    });
+    
+    sceneRoom.appendChild(el);
+  });
+}
+
+function onHotspotClick(id, def) {
+  if (currentStep !== 'observe') return;
+  if (observedHotspots.includes(id)) return;
+  
+  observedHotspots.push(id);
+  const el = $('hs-' + id);
+  if (el) el.classList.add('found');
+  
+  showNotification('发现: ' + def.name);
+  
+  // 进入工具操作步骤
+  currentStep = 'tool';
+  toolbar.style.display = 'flex';
+  
+  if (difficulty === 'easy') {
+    showNotification('试试用放大镜观察');
+    $('btn-magnifier').classList.add('active');
+  } else if (difficulty === 'normal') {
+    showNotification('选择一个工具来检查');
+  }
+  // hard: 无提示
+}
+
+function selectTool(toolName) {
+  if (currentStep !== 'tool') return;
+  
+  activeTool = toolName;
+  $('btn-magnifier').classList.toggle('active', toolName === 'magnifier');
+  $('btn-tape').classList.toggle('active', toolName === 'tape');
+  
+  if (toolName === 'magnifier') {
+    showNotification('移动放大镜到目标区域');
+    // 模拟放大镜效果
+    magnifier.style.display = 'block';
+    magnifier.style.left = '40%';
+    magnifier.style.top = '40%';
+    
+    setTimeout(() => {
+      magnifier.style.display = 'none';
+      completeToolUse();
+    }, 1500);
+  } else if (toolName === 'tape') {
+    showNotification('拖拽卷尺测量');
+    setTimeout(() => completeToolUse(), 1000);
+  }
+}
+
+function completeToolUse() {
+  toolbar.style.display = 'none';
+  activeTool = null;
+  $('btn-magnifier').classList.remove('active');
+  $('btn-tape').classList.remove('active');
+  
+  // Step 3: 数据记录 → 打开侦探笔记
+  currentStep = 'record';
+  openNotebook();
+}
+
+function openNotebook() {
+  notebookEntries.innerHTML = '';
+  
+  observedHotspots.forEach(id => {
+    const def = hotspotDefs[id];
+    if (!def || !def.correct) return;
+    
+    const div = document.createElement('div');
+    div.className = 'entry';
+    div.innerHTML = `
+      <div class="label">📌 ${def.name}</div>
+      <div class="desc">${def.desc}</div>
+      ${difficulty !== 'hard' ? `
+      <div class="slider-group">
+        <div class="slider-label"><span>不明显</span><span>非常明显</span></div>
+        <input type="range" min="0" max="10" value="8" oninput="this.nextElementSibling.textContent=this.value">
+        <span style="color:var(--gold);font-size:12px;">8</span>
+      </div>` : `
+      <textarea style="width:100%;height:50px;background:var(--bg-dark);color:var(--text);border:1px solid var(--brown);border-radius:4px;padding:6px;font-size:13px;" placeholder="记录你的观察……"></textarea>`}
+    `;
+    notebookEntries.appendChild(div);
+  });
+  
+  notebook.style.display = 'flex';
+}
+
+function closeNotebook() {
+  notebook.style.display = 'none';
+  
+  // 记录已确认的线索
+  observedHotspots.forEach(id => {
+    if (!recordedClues.includes(id)) {
+      recordedClues.push(id);
+    }
+  });
+  
+  // 检查是否收集足够线索进入验证
+  const correctCount = recordedClues.filter(id => hotspotDefs[id]?.correct !== false).length;
+  const required = tutorialPhase === 0 ? 4 : 4;
+  
+  if (correctCount >= required) {
+    currentStep = 'verify';
+    showNotification('线索充足！去推理墙验证你的结论（按下方对话区或点击推理墙按钮）');
+  }
+  
+  showNotification('侦探笔记已更新 (' + recordedClues.length + ' 条记录)');
+}
+
+function openReasoningWall() {
+  clueBank.innerHTML = '';
+  clueBoard.innerHTML = '<div class="board-label">将线索从上方点击添加到推理板</div>';
+  verifyResult.textContent = '';
+  verifyResult.className = 'result';
+  
+  recordedClues.forEach(id => {
+    const def = hotspotDefs[id];
+    if (!def) return;
+    
+    const card = document.createElement('div');
+    card.className = 'clue-card';
+    card.textContent = (def.correct === false ? '⚠️ ' : '') + def.name + ': ' + def.desc.substring(0, 15) + '...';
+    card.addEventListener('click', () => {
+      if (boardClues.includes(id)) return;
+      boardClues.push(id);
+      
+      const boardCard = card.cloneNode(true);
+      boardCard.addEventListener('click', () => {
+        boardClues = boardClues.filter(bid => bid !== id);
+        boardCard.remove();
+        updateBoardPlaceholder();
+      });
+      clueBoard.appendChild(boardCard);
+      updateBoardPlaceholder();
+    });
+    clueBank.appendChild(card);
+  });
+  
+  reasoningWall.style.display = 'flex';
+}
+
+function updateBoardPlaceholder() {
+  const placeholder = clueBoard.querySelector('.board-label');
+  if (boardClues.length > 0 && placeholder) {
+    placeholder.remove();
+  }
+  if (boardClues.length === 0 && !clueBoard.querySelector('.board-label')) {
+    const p = document.createElement('div');
+    p.className = 'board-label';
+    p.textContent = '将线索从上方点击添加到推理板';
+    clueBoard.appendChild(p);
+  }
+}
+
+function verifyReasoning() {
+  const correctOnBoard = boardClues.filter(id => hotspotDefs[id]?.correct !== false).length;
+  const wrongOnBoard = boardClues.filter(id => hotspotDefs[id]?.correct === false).length;
+  const total = boardClues.length;
+  
+  let resultClass, resultText;
+  
+  if (correctOnBoard >= 4 && wrongOnBoard === 0) {
+    resultClass = 'verified';
+    resultText = '✅ 证据充分 · 已确认\n' + 
+      (tutorialPhase === 0 ? '刚从热带回来 + 左臂负伤 + 面容憔悴 + 军人气质 → 结论：阿富汗军医' :
+       '手背锚文身 + 军人式胡须 + 昂首挺胸 + 发号施令神态 → 结论：海军陆战队军士');
+    showMilestone(tutorialPhase === 0 ? '初识推理' : '观察大师');
+    if (tutorialPhase === 0) {
+      setTimeout(() => advanceToPhase2(), 2000);
+    } else {
+      setTimeout(() => completePhase2(), 2000);
+    }
+  } else if (correctOnBoard >= 3 && wrongOnBoard <= 1) {
+    resultClass = 'supported';
+    resultText = '⚠️ 证据基本支持\n方向正确，但证据链还不够完整。再试试？';
+  } else if (correctOnBoard >= 1) {
+    resultClass = 'insufficient';
+    resultText = '🔶 证据不足\n需要更多线索来支撑结论。';
+  } else {
+    resultClass = 'contradictory';
+    resultText = '❌ 证据矛盾\n部分线索之间存在矛盾，请重新审视。';
+  }
+  
+  verifyResult.textContent = resultText;
+  verifyResult.className = 'result ' + resultClass;
+}
+
+function closeReasoningWall() {
+  reasoningWall.style.display = 'none';
+}
+
+function advanceToPhase2() {
+  tutorialPhase = 1;
+  closeReasoningWall();
+  boardClues = [];
+  observedHotspots = [];
+  recordedClues = [];
+  currentStep = 'observe';
+  sceneLabel.textContent = '信使到访 — 第二次观察练习';
+  timeDisplay.textContent = 'DAY 1 上午10:45';
+  
+  showNotification('出色！第二次挑战：验证"信使是海军陆战队军士"');
+  renderHotspots(1);
+  playDialogue(dialoguePhase2);
+}
+
+function completePhase2() {
+  closeReasoningWall();
+  boardClues = [];
+  currentStep = 'done';
+  sceneLabel.textContent = '案件承接';
+  playDialogue(dialoguePostPhase2);
+}
+
+function showCaseChoice() {
+  $('case-choice').style.display = 'flex';
+}
+
+function acceptCase() {
+  $('case-choice').style.display = 'none';
+  sceneLabel.textContent = '✅ 场景一完成 — 案件已承接';
+  timeDisplay.textContent = 'DAY 1 上午11:00';
+  showNotification('调查进度已更新：案件承接完成。准备前往劳瑞斯顿花园街！');
+  playDialogue([
+    { id:'end1', speaker:'福尔摩斯', text:'很好。穿上外套，我们出发。记住：观察是第一位的，结论是最后才下的。', mood:'坚定' },
+    { id:'end2', speaker:'系统', text:'🎉 场景一教学关完成！六步探索闭环验证通过。案件将在后续场景中展开。', mood:'milestone' },
+  ]);
+}
+
+function declineCase() {
+  $('case-choice').style.display = 'none';
+  playDialogue([
+    { id:'dec1', speaker:'华生', text:'我……我想我还需要一些时间适应。', mood:'犹豫' },
+    { id:'dec2', speaker:'福尔摩斯', text:'没关系。当你准备好了，随时来找我。贝克街的门永远为你敞开。', mood:'从容' },
+    { id:'dec3', speaker:'系统', text:'教学关完成。你可以随时重新开始或选择承接案件。', mood:'hint' },
+  ]);
+}
+
+// ==================== 对话系统 ====================
+function playDialogue(data) {
+  dialogueQueue = data;
+  dialogueIndex = 0;
+  showNextDialogue();
+}
+
+function showNextDialogue() {
+  if (dialogueIndex >= dialogueQueue.length) {
+    dialogueSpeaker.textContent = '';
+    dialogueText.textContent = '';
+    dialogueHint.style.display = 'none';
+    return;
+  }
+  
+  const node = dialogueQueue[dialogueIndex];
+  dialogueSpeaker.textContent = node.speaker === '系统' ? '' : node.speaker;
+  
+  // 打字机效果
+  typeText(node.text, () => {
+    dialogueHint.style.display = 'block';
+    if (node.action) handleAction(node.action);
+  });
+  
+  dialogueIndex++;
+}
+
+function typeText(text, callback) {
+  dialogueText.textContent = '';
+  let i = 0;
+  const speed = 25;
+  function tick() {
+    if (i < text.length) {
+      dialogueText.textContent += text[i];
+      i++;
+      setTimeout(tick, speed);
+    } else if (callback) {
+      callback();
+    }
+  }
+  tick();
+}
+
+function advanceDialogue() {
+  if (dialogueIndex >= dialogueQueue.length) {
+    // 对话结束
+    if (currentStep === 'verify' && tutorialPhase === 0) {
+      openReasoningWall();
+    } else if (currentStep === 'verify' && tutorialPhase === 1) {
+      openReasoningWall();
+    }
+    return;
+  }
+  
+  choicesDiv.innerHTML = '';
+  showNextDialogue();
+}
+
+function handleAction(action) {
+  switch(action) {
+    case 'start_observe':
+    case 'show_hotspots':
+      renderHotspots(0);
+      currentStep = 'observe';
+      sceneLabel.textContent = '点击华生身上的可交互区域开始观察';
+      break;
+    case 'start_phase2':
+      renderHotspots(1);
+      currentStep = 'observe';
+      showNotification('第二次观察挑战：6个可观察点（含2个干扰项）。验证"信使是海军陆战队军士"。');
+      break;
+    case 'show_case_choice':
+      showCaseChoice();
+      break;
+  }
+}
+
+// ==================== 通知 ====================
+let notifyTimer;
+function showNotification(msg) {
+  const el = $('notification');
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(notifyTimer);
+  notifyTimer = setTimeout(() => el.style.display = 'none', 2500);
+}
+
+// ==================== 里程碑 ====================
+function showMilestone(name) {
+  $('milestone-text').textContent = '【里程碑解锁】' + name;
+  $('milestone-popup').classList.add('show');
+  setTimeout(() => $('milestone-popup').classList.remove('show'), 2500);
+}
+
+// ==================== UI 切换 ====================
+function toggleUI() {
+  const hidden = $('topbar').style.display === 'none';
+  $('topbar').style.display = hidden ? 'flex' : 'none';
+  $('dialogue-panel').style.display = hidden ? 'block' : 'none';
+  toolbar.style.display = hidden && currentStep === 'tool' ? 'flex' : 'none';
+}
+
+// ==================== 全局点击 ====================
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#dialogue-panel') && dialogueIndex < dialogueQueue.length) {
+    // 对话面板点击已由 advanceDialogue 处理
+  }
+});
+
+// 推理墙按钮（侧栏替代）
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'r' || e.key === 'R') {
+    if (reasoningWall.style.display === 'flex') closeReasoningWall();
+    else if (recordedClues.length > 0) openReasoningWall();
+  }
+  if (e.key === 'h' || e.key === 'H') toggleUI();
+});
+
+// 触摸推理墙按钮 — 双击场景视图
+let lastTap = 0;
+sceneRoom.addEventListener('click', (e) => {
+  if (e.target.classList.contains('hotspot')) return;
+  const now = Date.now();
+  if (now - lastTap < 300 && recordedClues.length > 0) {
+    openReasoningWall();
+  }
+  lastTap = now;
+});
+</script>
+</body>
+</html>

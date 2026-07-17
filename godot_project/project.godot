@@ -1,0 +1,67 @@
+; 维多利亚伦敦探案项目 - Godot 4.7 项目配置
+; 2026-07-14
+
+config_version=5
+
+[application]
+config/name="维多利亚伦敦探案"
+config/description="以福尔摩斯第一视角，体验19世纪维多利亚时代伦敦的推理探案过程"
+config/version="0.1.0"
+config/api_base_url=""
+run/main_scene="res://scenes/boot.tscn"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+
+[display]
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/mode=2
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[input_devices]
+pointing/emulate_touch_from_mouse=true
+
+[autoload]
+Boot="*res://autoload/boot.gd"
+CaseEventBus="*res://autoload/case_event_bus.gd"
+SceneEventBus="*res://autoload/scene_event_bus.gd"
+DialogueEventBus="*res://autoload/dialogue_event_bus.gd"
+ClueEventBus="*res://autoload/clue_event_bus.gd"
+UIEventBus="*res://autoload/ui_event_bus.gd"
+MapEventBus="*res://autoload/map_event_bus.gd"
+SystemEventBus="*res://autoload/system_event_bus.gd"
+GameManager="*res://autoload/game_manager.gd"
+CaseManager="*res://autoload/case_manager.gd"
+DifficultyManager="*res://autoload/difficulty_manager.gd"
+ClueSystem="*res://autoload/clue_system.gd"
+StarRatingSystem="*res://autoload/star_rating_system.gd"
+SaveManager="*res://autoload/save_manager.gd"
+AuthManager="*res://autoload/auth_manager.gd"
+APIManager="*res://autoload/api_manager.gd"
+UIManager="*res://autoload/ui_manager.gd"
+SettingsManager="*res://autoload/settings_manager.gd"
+AudioManager="*res://autoload/audio_manager.gd"
+APIConfig="*res://config/api_config.gd"
+FrameworkTest="*res://autoload/framework_test.gd"
+
+[editor_plugins]
+enabled=PackedStringArray()
+
+[input]
+ui_accept={ "action": [ { "key": "Enter" }, { "key": "Space" } ] }
+ui_cancel={ "action": [ { "key": "Escape" } ] }
+ui_up={ "action": [ { "key": "Up" }, { "key": "W" } ] }
+ui_down={ "action": [ { "key": "Down" }, { "key": "S" } ] }
+ui_left={ "action": [ { "key": "Left" }, { "key": "A" } ] }
+ui_right={ "action": [ { "key": "Right" }, { "key": "D" } ] }
+interact={ "action": [ { "key": "E" }, { "key": "Mouse 1" } ] }
+open_map={ "action": [ { "key": "M" } ] }
+open_notebook={ "action": [ { "key": "N" } ] }
+open_inventory={ "action": [ { "key": "I" } ] }
+open_reasoning={ "action": [ { "key": "R" } ] }
+toggle_ui={ "action": [ { "key": "H" } ] }
+quick_save={ "action": [ { "key": "F5" } ] }
+quick_load={ "action": [ { "key": "F9" } ] }

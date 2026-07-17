@@ -1,0 +1,26 @@
+[gd_scene load_steps=2 format=3 uid="uid://b1uiframeexample001"]
+
+[ext_resource type="Texture2D" path="res://assets/ui/textures/frame_brass.png" id="1_frame"]
+
+[node name="UIFrameExample" type="Control"]
+layout_mode = 3
+
+[node name="Frame" type="NinePatchRect" parent="."]
+texture = ExtResource("1_frame")
+patch_margin_left = 24
+patch_margin_top = 24
+patch_margin_right = 24
+patch_margin_bottom = 24
+offset_right = 480
+offset_bottom = 320
+
+[node name="Label" type="Label" parent="Frame"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "维多利亚推理"
+horizontal_alignment = 1
+vertical_alignment = 1

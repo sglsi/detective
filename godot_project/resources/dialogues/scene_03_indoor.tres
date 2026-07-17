@@ -1,0 +1,728 @@
+[gd_resource type="Resource" script_class="DialogueResource" load_steps=46 format=3 uid="uid://772492c879da"]
+
+[ext_resource type="Script" path="res://resources/dialogues/dialogue_resource.gd" id="1_resource"]
+[ext_resource type="Script" path="res://resources/dialogues/dialogue_node_resource.gd" id="2_node"]
+
+
+[sub_resource type="Resource" id="node_0"]
+script = ExtResource("2_node")
+node_id = "s3_easy_intro"
+speaker = "system"
+text = "（轻引导提示：本案关键在「无伤痕的尸体」与「墙上的血字」。先观察，福尔摩斯会等你先想。）"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s3_start"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_1"]
+script = ExtResource("2_node")
+node_id = "s3_start"
+speaker = "福尔摩斯"
+text = "屋里静悄悄的，只有一具尸体。让我们从他身上找线索。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_body1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_2"]
+script = ExtResource("2_node")
+node_id = "s3_body1"
+speaker = "system"
+text = "死者约四十三四岁，中等身材，黑鬈发，短硬胡子，穿背心与黑呢礼服，身旁有整洁礼帽。紧握双拳、两臂伸开、双腿交叠，临死前有过痛苦挣扎，脸上露出忿恨恐怖的神情。"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s3_body2"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = "特写"
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_3"]
+script = ExtResource("2_node")
+node_id = "s3_body2"
+speaker = "福尔摩斯"
+text = "你们肯定没有伤痕吗？……那么，这些血迹一定是另一个人的，也许是凶手的。"
+mood = "严肃"
+trigger = "auto"
+next_nodes = ["s3_body3"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_4"]
+script = ExtResource("2_node")
+node_id = "s3_body3"
+speaker = "福尔摩斯"
+text = "死者脸上那忿恨与害怕的神情，使我深信他在临死前已料到自己的命运。那么——他是怎么死的？"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_5"]
+script = ExtResource("2_node")
+node_id = "s3_q1"
+speaker = "system"
+text = "请判断死者的死因（可记录在线索墙）："
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s3_q1_right", "s3_q1_a", "s3_q1_b", "s3_q1_d"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_6"]
+script = ExtResource("2_node")
+node_id = "s3_q1_right"
+speaker = "福尔摩斯"
+text = "正确。他是被迫服毒而死的——脸上那紧张激动的表情出卖了他。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s3_items_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_7"]
+script = ExtResource("2_node")
+node_id = "s3_q1_a"
+speaker = "福尔摩斯"
+text = "恐惧不会在脸上留下那种忿恨。再想想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_8"]
+script = ExtResource("2_node")
+node_id = "s3_q1_b"
+speaker = "福尔摩斯"
+text = "没有伤痕、没有病征描述，自然死亡说不通。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_9"]
+script = ExtResource("2_node")
+node_id = "s3_q1_d"
+speaker = "福尔摩斯"
+text = "「被杀」太笼统。他具体怎么死的？重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_10"]
+script = ExtResource("2_node")
+node_id = "s3_items_start"
+speaker = "葛莱森警长"
+text = "金表、阿尔伯特金链、共济会金戒指、虎头狗金别针、俄国皮名片夹（E.J.D.）、七英镑十三先令、礼帽、薄伽丘《十日谈》、两封信。"
+mood = "中性"
+trigger = "auto"
+next_nodes = ["s3_items1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_11"]
+script = ExtResource("2_node")
+node_id = "s3_items1"
+speaker = "system"
+text = "两封信：一封寄给德雷伯，一封给斯特兰森——都从盖恩轮船公司寄来，通知他们从利物浦起程的日期。"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s3_items2"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_12"]
+script = ExtResource("2_node")
+node_id = "s3_items2"
+speaker = "福尔摩斯"
+text = "可见这个倒霉的家伙正准备回纽约去。而信，藏着下一个线索……"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_letter"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_13"]
+script = ExtResource("2_node")
+node_id = "s3_letter"
+speaker = "福尔摩斯"
+text = "那封信是寄到什么地方的？……你们可曾调查过斯特兰森这个人吗？"
+mood = "指导"
+trigger = "auto"
+next_nodes = ["s3_letter1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_14"]
+script = ExtResource("2_node")
+node_id = "s3_letter1"
+speaker = "福尔摩斯"
+text = "没有问到关键问题？你不能再发个电报吗？"
+mood = "严肃"
+trigger = "auto"
+next_nodes = ["s3_blood"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_15"]
+script = ExtResource("2_node")
+node_id = "s3_blood"
+speaker = "雷斯垂德警长"
+text = "瞧瞧这个！墙上花纸剥落处，用鲜血潦草写着：RACHE。葛莱森说这是一个女人名字 RACHEL，等全案清楚定能发现叫 RACHEL 的女人。"
+mood = "中性"
+trigger = "auto"
+next_nodes = ["s3_blood1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = "特写"
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_16"]
+script = ExtResource("2_node")
+node_id = "s3_blood1"
+speaker = "福尔摩斯"
+text = "这字迹，是昨夜惨案中另一个人写的。你怎么看 RACHE？"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q2"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_17"]
+script = ExtResource("2_node")
+node_id = "s3_q2"
+speaker = "system"
+text = "你如何看待墙上的血字（可记录在线索墙）："
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s3_q2_right", "s3_q2_a", "s3_q2_b", "s3_q2_c"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_18"]
+script = ExtResource("2_node")
+node_id = "s3_q2_right"
+speaker = "福尔摩斯"
+text = "正是。德语中 RACHE 是复仇之意——别浪费时间去找 RACHEL 女士了。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s3_profile_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_19"]
+script = ExtResource("2_node")
+node_id = "s3_q2_a"
+speaker = "福尔摩斯"
+text = "若真有 RACHEL，为何凶手写下半个名字便停手？可疑。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q2"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_20"]
+script = ExtResource("2_node")
+node_id = "s3_q2_b"
+speaker = "福尔摩斯"
+text = "社会党圈套？字迹仿德文印刷体，更像个人复仇。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q2"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_21"]
+script = ExtResource("2_node")
+node_id = "s3_q2_c"
+speaker = "福尔摩斯"
+text = "暂不厘清含义，正中凶手下怀。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q2"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_22"]
+script = ExtResource("2_node")
+node_id = "s3_profile_start"
+speaker = "福尔摩斯"
+text = "凶手是个男人，身高六英尺多，正当中年，脚小，穿方头靴，抽印度特里其雪茄，与被害者同坐一辆四轮马车，红脸，右手指甲长。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s3_profile1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_23"]
+script = ExtResource("2_node")
+node_id = "s3_profile1"
+speaker = "福尔摩斯"
+text = "那么，这是一件什么样的案子？"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q3"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_24"]
+script = ExtResource("2_node")
+node_id = "s3_q3"
+speaker = "system"
+text = "经过前期调查，你认为这是一件什么样的案件（可记录在线索墙）："
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s3_q3_right", "s3_q3_b", "s3_q3_c", "s3_q3_d"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_25"]
+script = ExtResource("2_node")
+node_id = "s3_q3_right"
+speaker = "福尔摩斯"
+text = "谋杀。而且是有预谋的复仇——不是图财。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s3_ring_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_26"]
+script = ExtResource("2_node")
+node_id = "s3_q3_b"
+speaker = "福尔摩斯"
+text = "钱袋分文未少，何来抢劫？重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q3"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_27"]
+script = ExtResource("2_node")
+node_id = "s3_q3_c"
+speaker = "福尔摩斯"
+text = "激情犯罪不会如此周密布置血字与马车。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q3"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_28"]
+script = ExtResource("2_node")
+node_id = "s3_q3_d"
+speaker = "福尔摩斯"
+text = "证据已指向谋杀。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q3"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_29"]
+script = ExtResource("2_node")
+node_id = "s3_ring_start"
+speaker = "福尔摩斯"
+text = "搬运尸体时掉落一只女人的结婚金戒指（朴素），内径刻有 L·F（露茜·费里尔）。"
+mood = "中性"
+trigger = "auto"
+next_nodes = ["s3_ring1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = "特写"
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_30"]
+script = ExtResource("2_node")
+node_id = "s3_ring1"
+speaker = "福尔摩斯"
+text = "这只戒指有什么作用？"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q4"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_31"]
+script = ExtResource("2_node")
+node_id = "s3_q4"
+speaker = "system"
+text = "这只戒指有什么作用（可记录在线索墙）："
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s3_q4_right", "s3_q4_a", "s3_q4_b", "s3_q4_c"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_32"]
+script = ExtResource("2_node")
+node_id = "s3_q4_right"
+speaker = "福尔摩斯"
+text = "正确。这是凶手带在身边、准备送给其情人的戒指——也是他落下的破绽。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s3_lans_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_33"]
+script = ExtResource("2_node")
+node_id = "s3_q4_a"
+speaker = "福尔摩斯"
+text = "受害者在场却无此物？重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q4"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_34"]
+script = ExtResource("2_node")
+node_id = "s3_q4_b"
+speaker = "福尔摩斯"
+text = "若受害人准备送情人，何必在自己尸体旁掉落？重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q4"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_35"]
+script = ExtResource("2_node")
+node_id = "s3_q4_c"
+speaker = "福尔摩斯"
+text = "凶手身边之物，却掉到案发现场——为何？重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q4"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_36"]
+script = ExtResource("2_node")
+node_id = "s3_lans_start"
+speaker = "福尔摩斯"
+text = "现在我要和发现尸体的警察谈一谈。雷斯垂德：他叫约翰·兰斯，肯宁顿公园门路奥德利大院四十六号。"
+mood = "中性"
+trigger = "auto"
+next_nodes = ["s3_lans1"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_37"]
+script = ExtResource("2_node")
+node_id = "s3_lans1"
+speaker = "福尔摩斯"
+text = "兰斯说门口有个烂醉的醉汉。这个醉汉，和本案是什么关系？"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q5"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_38"]
+script = ExtResource("2_node")
+node_id = "s3_q5"
+speaker = "system"
+text = "玩家判断：这个醉汉与本案的关系（可记录在线索墙）："
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s3_q5_right", "s3_q5_a", "s3_q5_b", "s3_q5_c"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_39"]
+script = ExtResource("2_node")
+node_id = "s3_q5_right"
+speaker = "福尔摩斯"
+text = "正是！那个醉汉就是凶手——兰斯完美地错过了一个升任警长的机会。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s3_end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_40"]
+script = ExtResource("2_node")
+node_id = "s3_q5_a"
+speaker = "福尔摩斯"
+text = "无关？可他的描述与现场高度吻合。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q5"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_41"]
+script = ExtResource("2_node")
+node_id = "s3_q5_b"
+speaker = "福尔摩斯"
+text = "路人或许能提供线索，但更可能是当事人。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q5"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_42"]
+script = ExtResource("2_node")
+node_id = "s3_q5_c"
+speaker = "福尔摩斯"
+text = "同伙？可现场只有一人进出。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s3_q5"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_43"]
+script = ExtResource("2_node")
+node_id = "s3_end"
+speaker = "system"
+text = "【场景三结束 —— 室内勘查完成】线索墙更新 · 强迫服毒 / RACHE=复仇 / 凶手红脸方头靴 / 女人戒指L·F / 醉汉即凶手"
+mood = "milestone"
+trigger = "milestone"
+next_nodes = ["end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = "线索墙更新：服毒/复仇/红脸方头靴/戒指L·F/醉汉即凶手"
+
+
+[resource]
+script = ExtResource("1_resource")
+scene_id = "scene_03"
+scene_name = "劳瑞斯顿花园街三号（室内）"
+phase_id = "phase1"
+phase_name = "室内尸体与物证勘查"
+exploration_step = 0
+easy_start_node = "s3_easy_intro"
+normal_start_node = "s3_start"
+hard_start_node = "s3_start"
+nodes = [SubResource("node_0"), SubResource("node_1"), SubResource("node_2"), SubResource("node_3"), SubResource("node_4"), SubResource("node_5"), SubResource("node_6"), SubResource("node_7"), SubResource("node_8"), SubResource("node_9"), SubResource("node_10"), SubResource("node_11"), SubResource("node_12"), SubResource("node_13"), SubResource("node_14"), SubResource("node_15"), SubResource("node_16"), SubResource("node_17"), SubResource("node_18"), SubResource("node_19"), SubResource("node_20"), SubResource("node_21"), SubResource("node_22"), SubResource("node_23"), SubResource("node_24"), SubResource("node_25"), SubResource("node_26"), SubResource("node_27"), SubResource("node_28"), SubResource("node_29"), SubResource("node_30"), SubResource("node_31"), SubResource("node_32"), SubResource("node_33"), SubResource("node_34"), SubResource("node_35"), SubResource("node_36"), SubResource("node_37"), SubResource("node_38"), SubResource("node_39"), SubResource("node_40"), SubResource("node_41"), SubResource("node_42"), SubResource("node_43")]
+knowledge_domains = ["法医学：服毒征象", "德语与血字密码", "足迹与体态推断", "维多利亚时期物证"]
+milestone_name = "室内勘查推理"
+score_observation = 1
+score_reasoning = 1
+score_insight = 0
+badge_check = "SCENE3_INDOOR_DONE"
+completion_event = ""
