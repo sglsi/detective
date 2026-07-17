@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>维多利亚伦敦探案 — 对话树编辑器</title>
+<style>
+  :root {
+    --bg-dark: #1a1410; --bg-panel: #221b14; --bg-input: #2c241b;
+    --gold: #c9a84c; --gold-light: #e8d48b; --text: #e8ddc8;
+    --text-dim: #8a7d6b; --brown: #5a3e2b; --red: #8b2500; --green: #4a8b3f; --blue: #4a7a9b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Georgia','Times New Roman',serif; background:var(--bg-dark); color:var(--text); height:100vh; overflow:hidden; }
+  #app { display:flex; height:100vh; }
+  /* 左侧文件列表 */
+  #sidebar { width:240px; background:var(--bg-panel); border-right:2px solid var(--gold); display:flex; flex-direction:column; }
+  #sidebar h2 { font-size:14px; color:var(--gold); padding:10px; border-bottom:1px solid var(--brown); }
+  #file-list { flex:1; overflow-y:auto; }
+  .file-item { padding:8px 12px; cursor:pointer; border-bottom:1px solid #2c241b; font-size:13px; }
+  .file-item:hover { background:var(--bg-input); }
+  .file-item.active { background:var(--brown); color:var(--gold-light); }
+  /* 中间节点树 */
+  #tree-panel { width:320px; background:var(--bg-panel); border-right:1px solid var(--brown); display:flex; flex-direction:column; }
+  #tree-panel h2 { font-size:14px; color:var(--gold); padding:10px; border-bottom:1px solid var(--brown); }
+  #node-list { flex:1; overflow-y:auto; }
+  .node-item { padding:7px 10px; cursor:pointer; border-bottom:1px solid #2c241b; font-size:12px; }
+  .node-item:hover { background:var(--bg-input); }
+  .node-item.active { background:var(--brown); }
+  .node-id { color:var(--gold); font-weight:bold; }
+  .node-speaker { color:var(--blue); }
+  .node-text { color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:280px; }
+  .badge { display:inline-block; font-size:10px; padding:1px 4px; border-radius:3px; margin-left:4px; }
+  .badge-step { background:var(--green); color:#fff; }
+  .badge-verify { background:var(--red); color:#fff; }
+  /* 右侧属性编辑 */
+  #editor-panel { flex:1; display:flex; flex-direction:column; padding:16px; overflow-y:auto; }
+  #editor-panel h2 { font-size:16px; color:var(--gold); margin-bottom:12px; }
+  .field { margin-bottom:12px; }
+  .field label { display:block; font-size:12px; color:var(--text-dim); margin-bottom:4px; }
+  .field input, .field textarea, .field select {
+    width:100%; background:var(--bg-input); border:1px solid var(--brown);
+    color:var(--text); padding:8px; border-radius:4px; font-family:inherit; font-size:13px;
+  }
+  .field textarea { min-height:80px; resize:vertical; }
+  .row { display:flex; gap:10px; }
+  .row .field { flex:1; }
+  .btn { background:var(--red); color:#fff; border:none; padding:10px 20px; border-radius:4px; cursor:pointer; font-size:14px; font-family:inherit; }
+  .btn:hover { background:#a8320a; }
+  .btn-secondary { background:var(--brown); }
+  .btn-secondary:hover { background:#6e4a33; }
+  #toast { position:fixed; bottom:20px; right:20px; background:var(--green); color:#fff; padding:12px 20px; border-radius:4px; opacity:0; transition:opacity .3s; }
+  #toast.show { opacity:1; }
+  #stats { font-size:12px; color:var(--text-dim); padding:8px 12px; border-top:1px solid var(--brown); }
+  .meta-line { font-size:11px; color:var(--text-dim); padding:4px 12px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <h2>📁 对话资源文件</h2>
+    <div id="file-list"></div>
+    <div id="stats"></div>
+  </div>
+  <div id="tree-panel">
+    <h2>🌳 节点树</h2>
+    <div id="node-list"></div>
+  </div>
+  <div id="editor-panel">
+    <h2>✏️ 节点属性编辑</h2>
+    <div id="editor-form">
+      <p style="color:var(--text-dim)">请选择一个节点进行编辑</p>
+    </div>
+    <div class="row" style="margin-top:16px;">
+      <button class="btn" onclick="saveFile()">💾 保存文件</button>
+      <button class="btn btn-secondary" onclick="validateFile()">🔍 校验结构</button>
+    </div>
+    <div id="validate-result" style="margin-top:12px; font-size:13px;"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const API = 'http://localhost:3000/api/editor';
+let currentFile = null;
+let currentNodes = [];
+let currentMeta = {};
+let currentExt = [];
+let currentResource = {};
+let selectedNodeIdx = -1;
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+async function loadFiles() {
+  const res = await fetch(`${API}/files`);
+  const data = await res.json();
+  const list = document.getElementById('file-list');
+  list.innerHTML = '';
+  data.files.forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    div.textContent = f.name;
+    div.onclick = () => loadFile(f.name);
+    list.appendChild(div);
+  });
+  document.getElementById('stats').textContent = `共 ${data.files.length} 个文件`;
+}
+
+async function loadFile(name) {
+  currentFile = name;
+  const res = await fetch(`${API}/file?name=${encodeURIComponent(name)}`);
+  const data = await res.json();
+  currentNodes = data.nodes;
+  currentMeta = data.meta || {};
+  currentExt = data.extResources || [];
+  currentResource = data.resource || {};
+  // 高亮
+  document.querySelectorAll('.file-item').forEach(el => {
+    el.classList.toggle('active', el.textContent === name);
+  });
+  renderTree();
+  showStats(data.stats);
+  // 默认选中第一个
+  selectNode(0);
+}
+
+function showStats(stats) {
+  if (!stats) return;
+  const s = document.getElementById('stats');
+  s.innerHTML = `节点: ${stats.node_count} ｜ 步入口: ${stats.step_entries}<br>` +
+    `说话人: ${stats.speakers.join(', ')}<br>` +
+    `验证分支: ${stats.verify_branches.length ? stats.verify_branches.join(', ') : '无'}`;
+}
+
+function renderTree() {
+  const list = document.getElementById('node-list');
+  list.innerHTML = '';
+  currentNodes.forEach((n, i) => {
+    const div = document.createElement('div');
+    div.className = 'node-item' + (i === selectedNodeIdx ? ' active' : '');
+    let badges = '';
+    if (n.is_step_entry && n.exploration_step > 0) badges += '<span class="badge badge-step">步</span>';
+    if (n.verify_filter) badges += `<span class="badge badge-verify">${n.verify_filter}</span>`;
+    div.innerHTML = `<div><span class="node-id">${n.node_id}</span>${badges}</div>` +
+      `<div class="node-speaker">${n.speaker || '—'}</div>` +
+      `<div class="node-text">${n.text || ''}</div>`;
+    div.onclick = () => selectNode(i);
+    list.appendChild(div);
+  });
+}
+
+function selectNode(idx) {
+  selectedNodeIdx = idx;
+  renderTree();
+  const n = currentNodes[idx];
+  if (!n) return;
+  const form = document.getElementById('editor-form');
+  form.innerHTML = `
+    <div class="field"><label>节点 ID</label><input id="f_node_id" value="${esc(n.node_id)}"></div>
+    <div class="row">
+      <div class="field"><label>说话人</label><input id="f_speaker" value="${esc(n.speaker)}"></div>
+      <div class="field"><label>情绪 (mood)</label><input id="f_mood" value="${esc(n.mood)}"></div>
+    </div>
+    <div class="field"><label>对话文本</label><textarea id="f_text">${esc(n.text)}</textarea></div>
+    <div class="row">
+      <div class="field"><label>触发 (trigger)</label><input id="f_trigger" value="${esc(n.trigger)}"></div>
+      <div class="field"><label>难度筛选 (0全/1易/2普/3难)</label>
+        <select id="f_difficulty">
+          ${[0,1,2,3,4,5].map(d=>`<option value="${d}" ${n.difficulty_filter==d?'selected':''}>${d}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field"><label>验证筛选</label>
+        <select id="f_verify">
+          ${['','VERIFIED','SUPPORTED','INSUFFICIENT','CONTRADICTORY'].map(v=>`<option value="${v}" ${n.verify_filter==v?'selected':''}>${v||'(无)'}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>探索步骤 (1-6)</label><input id="f_step" type="number" value="${n.exploration_step}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>步入口 (is_step_entry)</label>
+        <select id="f_step_entry"><option value="true" ${n.is_step_entry?'selected':''}>是</option><option value="false" ${!n.is_step_entry?'selected':''}>否</option></select>
+      </div>
+      <div class="field"><label>下一步节点 (逗号分隔)</label><input id="f_next" value="${esc((n.next_nodes||[]).join(', '))}"></div>
+    </div>
+    <div class="field"><label>舞台提示 (stage_direction)</label><input id="f_stage" value="${esc(n.stage_direction)}"></div>
+    <div class="field"><label>笔记 (note_text)</label><input id="f_note" value="${esc(n.note_text)}"></div>
+    <button class="btn btn-secondary" onclick="applyNode()">✓ 应用修改到节点</button>
+  `;
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function applyNode() {
+  if (selectedNodeIdx < 0) return;
+  const n = currentNodes[selectedNodeIdx];
+  n.node_id = document.getElementById('f_node_id').value;
+  n.speaker = document.getElementById('f_speaker').value;
+  n.mood = document.getElementById('f_mood').value;
+  n.text = document.getElementById('f_text').value;
+  n.trigger = document.getElementById('f_trigger').value;
+  n.difficulty_filter = parseInt(document.getElementById('f_difficulty').value, 10);
+  n.verify_filter = document.getElementById('f_verify').value;
+  n.exploration_step = parseInt(document.getElementById('f_step').value, 10) || 0;
+  n.is_step_entry = document.getElementById('f_step_entry').value === 'true';
+  n.next_nodes = document.getElementById('f_next').value.split(',').map(s=>s.trim()).filter(Boolean);
+  n.stage_direction = document.getElementById('f_stage').value;
+  n.note_text = document.getElementById('f_note').value;
+  renderTree();
+  toast('已应用修改到节点 ' + n.node_id);
+}
+
+async function saveFile() {
+  if (!currentFile) return toast('请先选择文件');
+  const res = await fetch(`${API}/file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: currentFile, nodes: currentNodes, meta: currentMeta, extResources: currentExt, resource: currentResource })
+  });
+  const data = await res.json();
+  if (res.ok) toast('✅ ' + data.message + '（' + data.node_count + ' 节点）');
+  else toast('❌ ' + data.error);
+}
+
+async function validateFile() {
+  if (!currentFile) return toast('请先选择文件');
+  const res = await fetch(`${API}/validate?name=${encodeURIComponent(currentFile)}`);
+  const data = await res.json();
+  const el = document.getElementById('validate-result');
+  if (data.valid) {
+    el.innerHTML = `<span style="color:var(--green)">✅ 结构有效：</span> 节点 ${data.node_count}，无悬空引用`;
+  } else {
+    el.innerHTML = `<span style="color:var(--red)">❌ 发现问题：</span><br>` +
+      data.dangling_refs.map(d=>`• ${d}`).join('<br>');
+  }
+}
+
+// 初始化
+loadFiles();
+</script>
+</body>
+</html>

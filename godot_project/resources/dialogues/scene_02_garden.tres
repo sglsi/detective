@@ -1,0 +1,712 @@
+[gd_resource type="Resource" script_class="DialogueResource" load_steps=45 format=3 uid="uid://834b6edf8af2"]
+
+[ext_resource type="Script" path="res://resources/dialogues/dialogue_resource.gd" id="1_resource"]
+[ext_resource type="Script" path="res://resources/dialogues/dialogue_node_resource.gd" id="2_node"]
+
+
+[sub_resource type="Resource" id="node_0"]
+script = ExtResource("2_node")
+node_id = "s2_start"
+speaker = "福尔摩斯"
+text = "马上就要到案件现场了，现在先让我在周边侦测一下，看看有没有重要线索。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s2_watson_q"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_1"]
+script = ExtResource("2_node")
+node_id = "s2_watson_q"
+speaker = "华生"
+text = "福尔摩斯，你在看什么？这里只有乱七八糟的脚印。"
+mood = "困惑"
+trigger = "auto"
+next_nodes = ["s2_holmes_a"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_2"]
+script = ExtResource("2_node")
+node_id = "s2_holmes_a"
+speaker = "福尔摩斯"
+text = "昨夜一点钟开始下雨，之前一星期都是晴天……有意思，非常有意思。华生，观察的艺术在于看到别人看不到的东西。"
+mood = "微笑"
+trigger = "auto"
+next_nodes = ["s2_step1_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_3"]
+script = ExtResource("2_node")
+node_id = "s2_step1_start"
+speaker = "system"
+text = "【六步闭环 Step 1】观察发现 —— 勘查花园中的车辙与脚印"
+mood = "guide"
+trigger = "guide"
+next_nodes = ["s2_step1_easy", "s2_step1_normal", "s2_step1_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 1
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_4"]
+script = ExtResource("2_node")
+node_id = "s2_step1_easy"
+speaker = "system"
+text = "半引导：留意地面上成排的车辙印迹与零散的脚印——先用「观察」点击它们，看看能发现什么。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s2_step1_observe_done"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_5"]
+script = ExtResource("2_node")
+node_id = "s2_step1_normal"
+speaker = "system"
+text = "微光：花园小径上有车辙与脚印的痕迹……自己找找看。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s2_step1_observe_done"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_6"]
+script = ExtResource("2_node")
+node_id = "s2_step1_hard"
+speaker = "system"
+text = "（无提示——自行在场景中寻找可交互的痕迹）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s2_step1_observe_done"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_7"]
+script = ExtResource("2_node")
+node_id = "s2_step1_observe_done"
+speaker = "system"
+text = "（等待玩家点击：车轮印 / 马蹄印 / 行人脚印）"
+mood = "neutral"
+trigger = "click"
+next_nodes = ["s2_step2_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_8"]
+script = ExtResource("2_node")
+node_id = "s2_step2_start"
+speaker = "福尔摩斯"
+text = "先别急着下结论。细节藏在不起眼的地方——用合适的工具量一量这些印迹。"
+mood = "指导"
+trigger = "auto"
+next_nodes = ["s2_step2_easy", "s2_step2_normal", "s2_step2_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 2
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_9"]
+script = ExtResource("2_node")
+node_id = "s2_step2_easy"
+speaker = "system"
+text = "系统建议：用「卷尺」测量车轮印的间距与深度。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s2_step3_start"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_10"]
+script = ExtResource("2_node")
+node_id = "s2_step2_normal"
+speaker = "system"
+text = "工具选择：放大镜 / 卷尺——请选用合适的工具测量。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s2_step3_start"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_11"]
+script = ExtResource("2_node")
+node_id = "s2_step2_hard"
+speaker = "system"
+text = "（工具选择界面，无提示）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s2_step3_start"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_12"]
+script = ExtResource("2_node")
+node_id = "s2_step3_start"
+speaker = "system"
+text = "【六步闭环 Step 3】数据记录 —— 把测量结果记进侦探笔记"
+mood = "guide"
+trigger = "note"
+next_nodes = ["s2_step3_easy", "s2_step3_normal", "s2_step3_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 3
+is_step_entry = true
+stage_direction = ""
+note_text = "观察记录：车轮印间距/马蹄铁新旧/步伐距离"
+
+
+[sub_resource type="Resource" id="node_13"]
+script = ExtResource("2_node")
+node_id = "s2_step3_easy"
+speaker = "福尔摩斯"
+text = "记录下车轮印间距 3.8 英尺、右前蹄刚换新蹄铁——笔记已自动填入，确认程度即可。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s2_step4_prompt"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_14"]
+script = ExtResource("2_node")
+node_id = "s2_step3_normal"
+speaker = "system"
+text = "在侦探笔记中记录：车轮印间距、蹄铁新旧、步伐距离（0-10 滑杆）。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s2_step4_prompt"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_15"]
+script = ExtResource("2_node")
+node_id = "s2_step3_hard"
+speaker = "system"
+text = "（空白笔记，自由记录）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s2_step4_prompt"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_16"]
+script = ExtResource("2_node")
+node_id = "s2_step4_prompt"
+speaker = "system"
+text = "（测量与记录完成）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s2_step4_easy", "s2_step4_normal", "s2_step4_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 4
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_17"]
+script = ExtResource("2_node")
+node_id = "s2_step4_easy"
+speaker = "福尔摩斯"
+text = "去知识库看看「伦敦出租马车规格」——出租马车轴距约 4 英尺，比私家马车窄。"
+mood = "指导"
+trigger = "knowledge"
+next_nodes = ["s2_step5_prompt"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_18"]
+script = ExtResource("2_node")
+node_id = "s2_step4_normal"
+speaker = "system"
+text = "知识库可选查阅（非强制）。"
+mood = "guide"
+trigger = "optional"
+next_nodes = ["s2_step5_prompt"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_19"]
+script = ExtResource("2_node")
+node_id = "s2_step4_hard"
+speaker = "system"
+text = "（无提示——知识库可自行从菜单打开）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s2_step5_prompt"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_20"]
+script = ExtResource("2_node")
+node_id = "s2_step5_prompt"
+speaker = "system"
+text = "【六步闭环 Step 5】假设形成 —— 把线索串成结论"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s2_step5_easy", "s2_step5_normal", "s2_step5_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_21"]
+script = ExtResource("2_node")
+node_id = "s2_step5_easy"
+speaker = "福尔摩斯"
+text = "把线索串起来：轴距窄、双道平行轮印——拖到假设板上。你认为这是哪种马车？"
+mood = "指导"
+trigger = "auto"
+next_nodes = ["s2_hypothesis_choice"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_22"]
+script = ExtResource("2_node")
+node_id = "s2_step5_normal"
+speaker = "system"
+text = "拖拽「轴距较窄」+「车轮印」到假设板 → 形成初步假设。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s2_hypothesis_choice"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_23"]
+script = ExtResource("2_node")
+node_id = "s2_step5_hard"
+speaker = "system"
+text = "（推理墙开启，无任何引导）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s2_hypothesis_choice"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_24"]
+script = ExtResource("2_node")
+node_id = "s2_hypothesis_choice"
+speaker = "system"
+text = "关于发现的马车印迹，请选择你的结论（可记录在线索墙）："
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s2_cab_right", "s2_cab_b", "s2_cab_c", "s2_cab_d"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_25"]
+script = ExtResource("2_node")
+node_id = "s2_cab_right"
+speaker = "福尔摩斯"
+text = "正是！这是一辆出租四轮马车——凶手是乘出租马车到达现场的。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s2_step6_prompt"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_26"]
+script = ExtResource("2_node")
+node_id = "s2_cab_b"
+speaker = "福尔摩斯"
+text = "私家马车轴距通常在 5 英尺以上。再看看车轮印间距。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s2_hypothesis_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_27"]
+script = ExtResource("2_node")
+node_id = "s2_cab_c"
+speaker = "福尔摩斯"
+text = "农用马车不会出现在伦敦街道的命案现场。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s2_hypothesis_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_28"]
+script = ExtResource("2_node")
+node_id = "s2_cab_d"
+speaker = "福尔摩斯"
+text = "马车类型关系到凶手身份，不能「无所谓」。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s2_hypothesis_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_29"]
+script = ExtResource("2_node")
+node_id = "s2_step6_prompt"
+speaker = "system"
+text = "【六步闭环 Step 6】验证修正 —— 去推理墙验证你的结论"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s2_step6_normal", "s2_step6_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_30"]
+script = ExtResource("2_node")
+node_id = "s2_step6_normal"
+speaker = "system"
+text = "线索收集完毕，去推理墙验证你的假设。"
+mood = "guide"
+trigger = "neutral"
+next_nodes = ["s2_step6_verified", "s2_step6_supported", "s2_step6_insufficient", "s2_step6_contradictory"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 6
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_31"]
+script = ExtResource("2_node")
+node_id = "s2_step6_hard"
+speaker = "system"
+text = "（无验证提示，玩家自行判断何时证据充分）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s2_step6_verified", "s2_step6_supported", "s2_step6_insufficient", "s2_step6_contradictory"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 6
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_32"]
+script = ExtResource("2_node")
+node_id = "s2_step6_verified"
+speaker = "福尔摩斯"
+text = "你看，轴距窄、右前蹄新换、马蹄印零乱——四条线索指向同一个结论：凶手乘出租马车而来，且马车夫与凶手很可能是同一人。"
+mood = "自信"
+trigger = "milestone"
+next_nodes = ["s2_conclude_cabman"]
+difficulty_filter = 0
+verify_filter = "VERIFIED"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = "【里程碑】现场足迹推理 解锁 ⭐"
+
+
+[sub_resource type="Resource" id="node_33"]
+script = ExtResource("2_node")
+node_id = "s2_step6_supported"
+speaker = "福尔摩斯"
+text = "方向对了，但证据链还不够完整。回去再看看车辙与蹄印。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s2_step1_start"]
+difficulty_filter = 0
+verify_filter = "SUPPORTED"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_34"]
+script = ExtResource("2_node")
+node_id = "s2_step6_insufficient"
+speaker = "福尔摩斯"
+text = "证据不足，需要更多观察。重新勘查花园。"
+mood = "严肃"
+trigger = "auto"
+next_nodes = ["s2_step1_start"]
+difficulty_filter = 0
+verify_filter = "INSUFFICIENT"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_35"]
+script = ExtResource("2_node")
+node_id = "s2_step6_contradictory"
+speaker = "福尔摩斯"
+text = "你的结论和证据自相矛盾。重想。"
+mood = "严肃"
+trigger = "auto"
+next_nodes = ["s2_step1_start"]
+difficulty_filter = 0
+verify_filter = "CONTRADICTORY"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_36"]
+script = ExtResource("2_node")
+node_id = "s2_conclude_cabman"
+speaker = "福尔摩斯"
+text = "马夫若不在屋内，他能在哪儿？若有人认为在有第三者面前犯案荒谬，那么——马车夫与凶手是同一人。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s2_choice2_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_37"]
+script = ExtResource("2_node")
+node_id = "s2_choice2_start"
+speaker = "system"
+text = "玩家判断：这个「醉汉般的马车夫」与凶手是什么关系？（可记录在线索墙）"
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s2_choice2_right", "s2_choice2_b", "s2_choice2_c", "s2_choice2_d"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_38"]
+script = ExtResource("2_node")
+node_id = "s2_choice2_right"
+speaker = "福尔摩斯"
+text = "聪明。马车夫即凶手——他后来返回现场，只为取回一枚掉落的戒指。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s2_end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_39"]
+script = ExtResource("2_node")
+node_id = "s2_choice2_b"
+speaker = "福尔摩斯"
+text = "马车夫后来离开？可现场再无第二人进出。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s2_choice2_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_40"]
+script = ExtResource("2_node")
+node_id = "s2_choice2_c"
+speaker = "福尔摩斯"
+text = "若两人同行，何必让车夫在外等候？重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s2_choice2_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_41"]
+script = ExtResource("2_node")
+node_id = "s2_choice2_d"
+speaker = "福尔摩斯"
+text = "一行两人？现场足迹只有两人，且车夫不在屋内。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s2_choice2_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_42"]
+script = ExtResource("2_node")
+node_id = "s2_end"
+speaker = "system"
+text = "【场景二结束 —— 室外勘查完成】线索墙更新 · 出租马车 / 马车夫即凶手"
+mood = "milestone"
+trigger = "milestone"
+next_nodes = ["end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = "线索墙更新：出租马车 / 马车夫即凶手"
+
+
+[resource]
+script = ExtResource("1_resource")
+scene_id = "scene_02"
+scene_name = "劳瑞斯顿花园街三号（室外）"
+phase_id = "phase1"
+phase_name = "花园外围与车辙勘查"
+exploration_step = 0
+easy_start_node = "s2_start"
+normal_start_node = "s2_start"
+hard_start_node = "s2_start"
+nodes = [SubResource("node_0"), SubResource("node_1"), SubResource("node_2"), SubResource("node_3"), SubResource("node_4"), SubResource("node_5"), SubResource("node_6"), SubResource("node_7"), SubResource("node_8"), SubResource("node_9"), SubResource("node_10"), SubResource("node_11"), SubResource("node_12"), SubResource("node_13"), SubResource("node_14"), SubResource("node_15"), SubResource("node_16"), SubResource("node_17"), SubResource("node_18"), SubResource("node_19"), SubResource("node_20"), SubResource("node_21"), SubResource("node_22"), SubResource("node_23"), SubResource("node_24"), SubResource("node_25"), SubResource("node_26"), SubResource("node_27"), SubResource("node_28"), SubResource("node_29"), SubResource("node_30"), SubResource("node_31"), SubResource("node_32"), SubResource("node_33"), SubResource("node_34"), SubResource("node_35"), SubResource("node_36"), SubResource("node_37"), SubResource("node_38"), SubResource("node_39"), SubResource("node_40"), SubResource("node_41"), SubResource("node_42")]
+knowledge_domains = ["伦敦出租马车规格", "蹄铁与马匹特征", "足迹与步伐分析"]
+milestone_name = "现场足迹推理"
+score_observation = 1
+score_reasoning = 1
+score_insight = 0
+badge_check = "SCENE2_GARDEN_DONE"
+completion_event = ""

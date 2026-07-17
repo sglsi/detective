@@ -1,0 +1,648 @@
+[gd_resource type="Resource" script_class="DialogueResource" load_steps=41 format=3 uid="uid://8afc43aea1a8"]
+
+[ext_resource type="Script" path="res://resources/dialogues/dialogue_resource.gd" id="1_resource"]
+[ext_resource type="Script" path="res://resources/dialogues/dialogue_node_resource.gd" id="2_node"]
+
+
+[sub_resource type="Resource" id="node_0"]
+script = ExtResource("2_node")
+node_id = "s8_start"
+speaker = "维金斯"
+text = "先生，马车已经喊到了，就在下边！贝克街分队报告：杰弗森·霍普已定位。"
+mood = "兴奋"
+trigger = "auto"
+next_nodes = ["s8_step1_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_1"]
+script = ExtResource("2_node")
+node_id = "s8_step1_start"
+speaker = "system"
+text = "【六步闭环 Step 1】观察发现 —— 贝克街分队报告霍普位置"
+mood = "guide"
+trigger = "guide"
+next_nodes = ["s8_step1_easy", "s8_step1_normal", "s8_step1_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 1
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_2"]
+script = ExtResource("2_node")
+node_id = "s8_step1_easy"
+speaker = "system"
+text = "福尔摩斯设计诱捕：假装需要车夫帮忙搬箱子，把霍普骗上楼，用手铐将其擒获。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s8_step2_start"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_3"]
+script = ExtResource("2_node")
+node_id = "s8_step1_normal"
+speaker = "system"
+text = "（同 EASY）福尔摩斯佯装搬箱，诱使马车夫上前帮忙，趁其不备铐住。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s8_step2_start"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_4"]
+script = ExtResource("2_node")
+node_id = "s8_step1_hard"
+speaker = "system"
+text = "（无提示，自行体会诱捕策略的精妙）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s8_step2_start"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_5"]
+script = ExtResource("2_node")
+node_id = "s8_step2_start"
+speaker = "system"
+text = "【六步闭环 Step 2】工具操作 —— 锁定关键细节"
+mood = "guide"
+trigger = "guide"
+next_nodes = ["s8_step2_easy", "s8_step2_normal", "s8_step2_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 2
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_6"]
+script = ExtResource("2_node")
+node_id = "s8_step2_easy"
+speaker = "福尔摩斯"
+text = "钢手铐咔嚓一响，马车夫正是杰弗森·霍普——杀死德雷伯与斯特兰森的凶手落网。"
+mood = "指导"
+trigger = "auto"
+next_nodes = ["s8_step3_start"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_7"]
+script = ExtResource("2_node")
+node_id = "s8_step2_normal"
+speaker = "system"
+text = "复盘擒获过程，自行总结策略关键点。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s8_step3_start"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_8"]
+script = ExtResource("2_node")
+node_id = "s8_step2_hard"
+speaker = "system"
+text = "（玩家自行复盘，无关提问不再重复）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s8_step3_start"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_9"]
+script = ExtResource("2_node")
+node_id = "s8_step3_start"
+speaker = "system"
+text = "【六步闭环 Step 3】数据记录 —— 把发现记进侦探笔记"
+mood = "guide"
+trigger = "note"
+next_nodes = ["s8_step3_easy", "s8_step3_normal", "s8_step3_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 3
+is_step_entry = true
+stage_direction = ""
+note_text = "笔记：诱捕成功/凶手=杰弗森·霍普/主动脉瘤症"
+
+
+[sub_resource type="Resource" id="node_10"]
+script = ExtResource("2_node")
+node_id = "s8_step3_easy"
+speaker = "福尔摩斯"
+text = "笔记已自动填入：以智取胜，凶手身份确认。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s8_step4_prompt"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_11"]
+script = ExtResource("2_node")
+node_id = "s8_step3_normal"
+speaker = "system"
+text = "在侦探笔记记录：抓捕策略与凶手身份。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s8_step4_prompt"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_12"]
+script = ExtResource("2_node")
+node_id = "s8_step3_hard"
+speaker = "system"
+text = "（空白笔记，自由记录）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s8_step4_prompt"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_13"]
+script = ExtResource("2_node")
+node_id = "s8_step4_prompt"
+speaker = "system"
+text = "（测量与记录完成）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s8_step4_easy", "s8_step4_normal", "s8_step4_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 4
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_14"]
+script = ExtResource("2_node")
+node_id = "s8_step4_easy"
+speaker = "福尔摩斯"
+text = "知识库「审讯心理学」「连环复仇动机」：二十年追踪的执念。"
+mood = "指导"
+trigger = "knowledge"
+next_nodes = ["s8_step5_prompt"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_15"]
+script = ExtResource("2_node")
+node_id = "s8_step4_normal"
+speaker = "system"
+text = "知识库可选查阅（非强制）。"
+mood = "guide"
+trigger = "optional"
+next_nodes = ["s8_step5_prompt"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_16"]
+script = ExtResource("2_node")
+node_id = "s8_step4_hard"
+speaker = "system"
+text = "（无提示）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s8_step5_prompt"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_17"]
+script = ExtResource("2_node")
+node_id = "s8_step5_prompt"
+speaker = "system"
+text = "【六步闭环 Step 5】假设形成 —— 把线索串成结论"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s8_step5_easy", "s8_step5_normal", "s8_step5_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_18"]
+script = ExtResource("2_node")
+node_id = "s8_step5_easy"
+speaker = "福尔摩斯"
+text = "从马蹄铁到戒指，从伪装到第二被害人——所有线索都指向同一个人。"
+mood = "指导"
+trigger = "auto"
+next_nodes = ["s8_hypo_choice"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_19"]
+script = ExtResource("2_node")
+node_id = "s8_step5_normal"
+speaker = "system"
+text = "拖拽线索到假设板，确认最终结论。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s8_hypo_choice"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_20"]
+script = ExtResource("2_node")
+node_id = "s8_step5_hard"
+speaker = "system"
+text = "（推理墙开启，无引导）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s8_hypo_choice"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_21"]
+script = ExtResource("2_node")
+node_id = "s8_hypo_choice"
+speaker = "system"
+text = "对于本案真凶，你的最终结论是："
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s8_hypo_right", "s8_hypo_b", "s8_hypo_c", "s8_hypo_d"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_22"]
+script = ExtResource("2_node")
+node_id = "s8_hypo_right"
+speaker = "福尔摩斯"
+text = "正确！凶手就是杰弗森·霍普——为露茜·费里尔复仇二十年。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s8_step6_prompt"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_23"]
+script = ExtResource("2_node")
+node_id = "s8_hypo_b"
+speaker = "福尔摩斯"
+text = "另有其人？所有物证都指向霍普。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s8_hypo_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_24"]
+script = ExtResource("2_node")
+node_id = "s8_hypo_c"
+speaker = "福尔摩斯"
+text = "或许是误判？血字 RACHE、药丸、戒指环环相扣。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s8_hypo_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_25"]
+script = ExtResource("2_node")
+node_id = "s8_hypo_d"
+speaker = "福尔摩斯"
+text = "线索不会说谎——霍普即凶手。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s8_hypo_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_26"]
+script = ExtResource("2_node")
+node_id = "s8_step6_prompt"
+speaker = "system"
+text = "【六步闭环 Step 6】验证修正 —— 去推理墙验证你的结论"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s8_step6_normal", "s8_step6_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_27"]
+script = ExtResource("2_node")
+node_id = "s8_step6_normal"
+speaker = "system"
+text = "线索收集完毕，去推理墙验证你的假设。"
+mood = "guide"
+trigger = "neutral"
+next_nodes = ["s8_step6_verified", "s8_step6_supported", "s8_step6_insufficient", "s8_step6_contradictory"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 6
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_28"]
+script = ExtResource("2_node")
+node_id = "s8_step6_hard"
+speaker = "system"
+text = "（无验证提示，玩家自行判断何时证据充分）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s8_step6_verified", "s8_step6_supported", "s8_step6_insufficient", "s8_step6_contradictory"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 6
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_29"]
+script = ExtResource("2_node")
+node_id = "s8_step6_verified"
+speaker = "福尔摩斯"
+text = "凶手身份确认：杰弗森·霍普——本案真相大白。"
+mood = "自信"
+trigger = "milestone"
+next_nodes = ["s8_conclude"]
+difficulty_filter = 0
+verify_filter = "VERIFIED"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = "【里程碑】连环追踪 解锁 ⭐"
+
+
+[sub_resource type="Resource" id="node_30"]
+script = ExtResource("2_node")
+node_id = "s8_step6_supported"
+speaker = "福尔摩斯"
+text = "方向对了，但证据链还不够完整。回去再看看关键线索。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s8_step1_start"]
+difficulty_filter = 0
+verify_filter = "SUPPORTED"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_31"]
+script = ExtResource("2_node")
+node_id = "s8_step6_insufficient"
+speaker = "福尔摩斯"
+text = "证据不足，需要更多观察。重新梳理。"
+mood = "严肃"
+trigger = "auto"
+next_nodes = ["s8_step1_start"]
+difficulty_filter = 0
+verify_filter = "INSUFFICIENT"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_32"]
+script = ExtResource("2_node")
+node_id = "s8_step6_contradictory"
+speaker = "福尔摩斯"
+text = "你的结论和证据自相矛盾。重想。"
+mood = "严肃"
+trigger = "auto"
+next_nodes = ["s8_step1_start"]
+difficulty_filter = 0
+verify_filter = "CONTRADICTORY"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_33"]
+script = ExtResource("2_node")
+node_id = "s8_conclude"
+speaker = "杰弗森·霍普"
+text = "我得了主动脉瘤症，活不长了……但我在死前，要把这件事交代明白。"
+mood = "平静"
+trigger = "auto"
+next_nodes = ["s8_confess_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_34"]
+script = ExtResource("2_node")
+node_id = "s8_confess_choice"
+speaker = "system"
+text = "福尔摩斯点评：法律不是唯一的正义。本案结局取决于你的整体表现——"
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s8_end_legend", "s8_end_great", "s8_end_pass", "s8_end_trainee"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_35"]
+script = ExtResource("2_node")
+node_id = "s8_end_legend"
+speaker = "福尔摩斯"
+text = "【传奇结局】你的推理令人印象深刻——观察⭐⭐⭐ 推理⭐⭐⭐ 洞察⭐⭐⭐，总星9/9 PERFECT！推理大师实至名归。"
+mood = "赞赏"
+trigger = "milestone"
+next_nodes = ["end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = "徽章：KEEN_EYE/MASTER_DEDUCER/DEPTH_SEEKER/PERFECT_SCORE"
+
+
+[sub_resource type="Resource" id="node_36"]
+script = ExtResource("2_node")
+node_id = "s8_end_great"
+speaker = "福尔摩斯"
+text = "【杰出结局】你的推理很强，案件告破——总星6~7/9。继续磨练，推理大师离你不远。"
+mood = "满意"
+trigger = "milestone"
+next_nodes = ["end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = "徽章：FIRST_CASE_CLEAR"
+
+
+[sub_resource type="Resource" id="node_37"]
+script = ExtResource("2_node")
+node_id = "s8_end_pass"
+speaker = "福尔摩斯"
+text = "【合格结局】推理很强，但观察与逻辑还需提升——总星5/9。继续努力！"
+mood = "鼓励"
+trigger = "milestone"
+next_nodes = ["end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = "徽章：FIRST_CASE_CLEAR"
+
+
+[sub_resource type="Resource" id="node_38"]
+script = ExtResource("2_node")
+node_id = "s8_end_trainee"
+speaker = "福尔摩斯"
+text = "【见习结局】离真相还差一点，但思路值得推荐——总星≤4/9。回到线索墙重新梳理吧。"
+mood = "温和"
+trigger = "milestone"
+next_nodes = ["end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = "徽章：FIRST_CASE_CLEAR"
+
+
+[resource]
+script = ExtResource("1_resource")
+scene_id = "scene_08"
+scene_name = "起居室（最终对决）"
+phase_id = "phase1"
+phase_name = "诱捕凶手与真相揭示"
+exploration_step = 0
+easy_start_node = "s8_start"
+normal_start_node = "s8_start"
+hard_start_node = "s8_start"
+nodes = [SubResource("node_0"), SubResource("node_1"), SubResource("node_2"), SubResource("node_3"), SubResource("node_4"), SubResource("node_5"), SubResource("node_6"), SubResource("node_7"), SubResource("node_8"), SubResource("node_9"), SubResource("node_10"), SubResource("node_11"), SubResource("node_12"), SubResource("node_13"), SubResource("node_14"), SubResource("node_15"), SubResource("node_16"), SubResource("node_17"), SubResource("node_18"), SubResource("node_19"), SubResource("node_20"), SubResource("node_21"), SubResource("node_22"), SubResource("node_23"), SubResource("node_24"), SubResource("node_25"), SubResource("node_26"), SubResource("node_27"), SubResource("node_28"), SubResource("node_29"), SubResource("node_30"), SubResource("node_31"), SubResource("node_32"), SubResource("node_33"), SubResource("node_34"), SubResource("node_35"), SubResource("node_36"), SubResource("node_37"), SubResource("node_38")]
+knowledge_domains = ["审讯心理学", "连环复仇动机", "毒理学基础"]
+milestone_name = "连环追踪"
+score_observation = 1
+score_reasoning = 1
+score_insight = 1
+badge_check = "SCENE8_FINALE_DONE"
+completion_event = ""

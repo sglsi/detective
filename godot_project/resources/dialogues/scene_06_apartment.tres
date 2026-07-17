@@ -1,0 +1,664 @@
+[gd_resource type="Resource" script_class="DialogueResource" load_steps=42 format=3 uid="uid://9f76e956650d"]
+
+[ext_resource type="Script" path="res://resources/dialogues/dialogue_resource.gd" id="1_resource"]
+[ext_resource type="Script" path="res://resources/dialogues/dialogue_node_resource.gd" id="2_node"]
+
+
+[sub_resource type="Resource" id="node_0"]
+script = ExtResource("2_node")
+node_id = "s6_start"
+speaker = "葛莱森警长"
+text = "福尔摩斯先生！我从死者那顶帽子查到帽店，顺藤摸瓜找到了陶尔魁里卡彭蒂耶公寓的德雷伯！"
+mood = "得意"
+trigger = "auto"
+next_nodes = ["s6_step1_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_1"]
+script = ExtResource("2_node")
+node_id = "s6_step1_start"
+speaker = "system"
+text = "【六步闭环 Step 1】观察发现 —— 卡彭蒂耶太太与爱莉丝的证词"
+mood = "guide"
+trigger = "guide"
+next_nodes = ["s6_step1_easy", "s6_step1_normal", "s6_step1_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 1
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_2"]
+script = ExtResource("2_node")
+node_id = "s6_step1_easy"
+speaker = "system"
+text = "卡彭蒂耶太太脸色苍白；爱莉丝红着眼。德雷伯八点离开，赶九点一刻去利物浦的火车。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s6_step2_start"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_3"]
+script = ExtResource("2_node")
+node_id = "s6_step1_normal"
+speaker = "system"
+text = "（同 EASY）卡彭蒂耶太太叙述德雷伯入住三周、调戏爱莉丝、被儿子阿瑟赶走。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s6_step2_start"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_4"]
+script = ExtResource("2_node")
+node_id = "s6_step1_hard"
+speaker = "system"
+text = "（无提示，自行从证词中抓取不在场与体型信息）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s6_step2_start"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 1
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_5"]
+script = ExtResource("2_node")
+node_id = "s6_step2_start"
+speaker = "system"
+text = "【六步闭环 Step 2】工具操作 —— 锁定关键细节"
+mood = "guide"
+trigger = "guide"
+next_nodes = ["s6_step2_easy", "s6_step2_normal", "s6_step2_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 2
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_6"]
+script = ExtResource("2_node")
+node_id = "s6_step2_easy"
+speaker = "福尔摩斯"
+text = "注意墙上照片：卡彭蒂耶中尉清秀、消瘦——与现场方头靴印的强壮大个子完全不符；身高约5.8英尺，低于现场推断的6英尺。"
+mood = "指导"
+trigger = "auto"
+next_nodes = ["s6_step3_start"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_7"]
+script = ExtResource("2_node")
+node_id = "s6_step2_normal"
+speaker = "system"
+text = "对比照片中人物特征与现场推断的凶手特征，自行判断。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s6_step3_start"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_8"]
+script = ExtResource("2_node")
+node_id = "s6_step2_hard"
+speaker = "system"
+text = "（玩家自行观察照片，无关提问不再重复）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s6_step3_start"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_9"]
+script = ExtResource("2_node")
+node_id = "s6_step3_start"
+speaker = "system"
+text = "【六步闭环 Step 3】数据记录 —— 把发现记进侦探笔记"
+mood = "guide"
+trigger = "note"
+next_nodes = ["s6_step3_easy", "s6_step3_normal", "s6_step3_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 3
+is_step_entry = true
+stage_direction = ""
+note_text = "笔记：卡彭蒂耶中尉=消瘦/5.8英尺/海军；与凶手(强壮/6英尺+/方头靴)不符"
+
+
+[sub_resource type="Resource" id="node_10"]
+script = ExtResource("2_node")
+node_id = "s6_step3_easy"
+speaker = "福尔摩斯"
+text = "笔记已自动填入：体型、身高、不在场证明——与凶手特征不符。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s6_step4_prompt"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_11"]
+script = ExtResource("2_node")
+node_id = "s6_step3_normal"
+speaker = "system"
+text = "在侦探笔记记录：体型/身高/不在场证明。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s6_step4_prompt"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_12"]
+script = ExtResource("2_node")
+node_id = "s6_step3_hard"
+speaker = "system"
+text = "（空白笔记，自由记录）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s6_step4_prompt"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 3
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_13"]
+script = ExtResource("2_node")
+node_id = "s6_step4_prompt"
+speaker = "system"
+text = "（测量与记录完成）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s6_step4_easy", "s6_step4_normal", "s6_step4_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 4
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_14"]
+script = ExtResource("2_node")
+node_id = "s6_step4_easy"
+speaker = "福尔摩斯"
+text = "知识库「犯罪动机与不在场证明」：动机≠罪行，如何排除有动机的嫌疑人。"
+mood = "指导"
+trigger = "knowledge"
+next_nodes = ["s6_step5_prompt"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_15"]
+script = ExtResource("2_node")
+node_id = "s6_step4_normal"
+speaker = "system"
+text = "知识库可选查阅（非强制）。"
+mood = "guide"
+trigger = "optional"
+next_nodes = ["s6_step5_prompt"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_16"]
+script = ExtResource("2_node")
+node_id = "s6_step4_hard"
+speaker = "system"
+text = "（无提示）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s6_step5_prompt"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_17"]
+script = ExtResource("2_node")
+node_id = "s6_step5_prompt"
+speaker = "system"
+text = "【六步闭环 Step 5】假设形成 —— 把线索串成结论"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s6_step5_easy", "s6_step5_normal", "s6_step5_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_18"]
+script = ExtResource("2_node")
+node_id = "s6_step5_easy"
+speaker = "福尔摩斯"
+text = "有动机不等于有罪。照片里的清瘦中尉，和现场强壮的凶手根本不是一个人。"
+mood = "指导"
+trigger = "auto"
+next_nodes = ["s6_hypo_choice"]
+difficulty_filter = 1
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_19"]
+script = ExtResource("2_node")
+node_id = "s6_step5_normal"
+speaker = "system"
+text = "拖拽线索到假设板，自行判断卡彭蒂耶中尉是否为凶手。"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s6_hypo_choice"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_20"]
+script = ExtResource("2_node")
+node_id = "s6_step5_hard"
+speaker = "system"
+text = "（推理墙开启，无引导）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s6_hypo_choice"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_21"]
+script = ExtResource("2_node")
+node_id = "s6_hypo_choice"
+speaker = "system"
+text = "对于葛莱森「卡彭蒂耶中尉是凶手」的推测，你的判断是："
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s6_hypo_right", "s6_hypo_b", "s6_hypo_c", "s6_hypo_d"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_22"]
+script = ExtResource("2_node")
+node_id = "s6_hypo_right"
+speaker = "福尔摩斯"
+text = "正确！体型、身高、不在场证明都不符——卡彭蒂耶中尉并非凶手。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s6_step6_prompt"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_23"]
+script = ExtResource("2_node")
+node_id = "s6_hypo_b"
+speaker = "福尔摩斯"
+text = "认同葛莱森？照片里的清瘦身材骗不了人。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s6_hypo_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_24"]
+script = ExtResource("2_node")
+node_id = "s6_hypo_c"
+speaker = "福尔摩斯"
+text = "也许是双胞胎？毫无证据。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s6_hypo_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_25"]
+script = ExtResource("2_node")
+node_id = "s6_hypo_d"
+speaker = "福尔摩斯"
+text = "线索不会说谎——体型差异决定性。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s6_hypo_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 5
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_26"]
+script = ExtResource("2_node")
+node_id = "s6_step6_prompt"
+speaker = "system"
+text = "【六步闭环 Step 6】验证修正 —— 去推理墙验证你的结论"
+mood = "guide"
+trigger = "auto"
+next_nodes = ["s6_step6_normal", "s6_step6_hard"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_27"]
+script = ExtResource("2_node")
+node_id = "s6_step6_normal"
+speaker = "system"
+text = "线索收集完毕，去推理墙验证你的假设。"
+mood = "guide"
+trigger = "neutral"
+next_nodes = ["s6_step6_verified", "s6_step6_supported", "s6_step6_insufficient", "s6_step6_contradictory"]
+difficulty_filter = 2
+verify_filter = ""
+exploration_step = 6
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_28"]
+script = ExtResource("2_node")
+node_id = "s6_step6_hard"
+speaker = "system"
+text = "（无验证提示，玩家自行判断何时证据充分）"
+mood = "neutral"
+trigger = "auto"
+next_nodes = ["s6_step6_verified", "s6_step6_supported", "s6_step6_insufficient", "s6_step6_contradictory"]
+difficulty_filter = 3
+verify_filter = ""
+exploration_step = 6
+is_step_entry = true
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_29"]
+script = ExtResource("2_node")
+node_id = "s6_step6_verified"
+speaker = "福尔摩斯"
+text = "卡彭蒂耶中尉嫌疑排除——凶手是更强壮的高个男人。"
+mood = "自信"
+trigger = "milestone"
+next_nodes = ["s6_conclude"]
+difficulty_filter = 0
+verify_filter = "VERIFIED"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = "【里程碑】排除冤案 解锁 ⭐"
+
+
+[sub_resource type="Resource" id="node_30"]
+script = ExtResource("2_node")
+node_id = "s6_step6_supported"
+speaker = "福尔摩斯"
+text = "方向对了，但证据链还不够完整。回去再看看关键线索。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s6_step1_start"]
+difficulty_filter = 0
+verify_filter = "SUPPORTED"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_31"]
+script = ExtResource("2_node")
+node_id = "s6_step6_insufficient"
+speaker = "福尔摩斯"
+text = "证据不足，需要更多观察。重新梳理。"
+mood = "严肃"
+trigger = "auto"
+next_nodes = ["s6_step1_start"]
+difficulty_filter = 0
+verify_filter = "INSUFFICIENT"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_32"]
+script = ExtResource("2_node")
+node_id = "s6_step6_contradictory"
+speaker = "福尔摩斯"
+text = "你的结论和证据自相矛盾。重想。"
+mood = "严肃"
+trigger = "auto"
+next_nodes = ["s6_step1_start"]
+difficulty_filter = 0
+verify_filter = "CONTRADICTORY"
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_33"]
+script = ExtResource("2_node")
+node_id = "s6_conclude"
+speaker = "福尔摩斯"
+text = "卡彭蒂耶的不在场证明需要核实——去找他的老战友威廉·哈珀。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s6_alibi_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_34"]
+script = ExtResource("2_node")
+node_id = "s6_alibi_choice"
+speaker = "system"
+text = "是否追查威廉·哈珀的不在场证词？"
+mood = "guide"
+trigger = "choice"
+next_nodes = ["s6_alibi_right", "s6_alibi_b", "s6_alibi_c", "s6_alibi_d"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_35"]
+script = ExtResource("2_node")
+node_id = "s6_alibi_right"
+speaker = "威廉·哈珀"
+text = "当晚我和卡彭蒂耶聊了很久，一直到下雨才各自回家——他绝不可能在那个时间作案。"
+mood = "诚恳"
+trigger = "auto"
+next_nodes = ["s6_end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_36"]
+script = ExtResource("2_node")
+node_id = "s6_alibi_b"
+speaker = "福尔摩斯"
+text = "直接逮捕？证据还差一环。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s6_alibi_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_37"]
+script = ExtResource("2_node")
+node_id = "s6_alibi_c"
+speaker = "福尔摩斯"
+text = "转向斯特兰森？先排除眼前这个更稳妥。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s6_alibi_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_38"]
+script = ExtResource("2_node")
+node_id = "s6_alibi_d"
+speaker = "福尔摩斯"
+text = "放任不管？他会成为永远的疑点。重想。"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s6_alibi_choice"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_39"]
+script = ExtResource("2_node")
+node_id = "s6_end"
+speaker = "system"
+text = "【场景六结束】卡彭蒂耶中尉嫌疑排除 · 调查转向斯特兰森"
+mood = "milestone"
+trigger = "milestone"
+next_nodes = ["end"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = "线索墙更新：排除卡彭蒂耶/追查斯特兰森"
+
+
+[resource]
+script = ExtResource("1_resource")
+scene_id = "scene_06"
+scene_name = "卡彭蒂耶公寓（排除嫌疑）"
+phase_id = "phase1"
+phase_name = "嫌疑辨析与佐证排查"
+exploration_step = 0
+easy_start_node = "s6_start"
+normal_start_node = "s6_start"
+hard_start_node = "s6_start"
+nodes = [SubResource("node_0"), SubResource("node_1"), SubResource("node_2"), SubResource("node_3"), SubResource("node_4"), SubResource("node_5"), SubResource("node_6"), SubResource("node_7"), SubResource("node_8"), SubResource("node_9"), SubResource("node_10"), SubResource("node_11"), SubResource("node_12"), SubResource("node_13"), SubResource("node_14"), SubResource("node_15"), SubResource("node_16"), SubResource("node_17"), SubResource("node_18"), SubResource("node_19"), SubResource("node_20"), SubResource("node_21"), SubResource("node_22"), SubResource("node_23"), SubResource("node_24"), SubResource("node_25"), SubResource("node_26"), SubResource("node_27"), SubResource("node_28"), SubResource("node_29"), SubResource("node_30"), SubResource("node_31"), SubResource("node_32"), SubResource("node_33"), SubResource("node_34"), SubResource("node_35"), SubResource("node_36"), SubResource("node_37"), SubResource("node_38"), SubResource("node_39")]
+knowledge_domains = ["犯罪动机与不在场证明", "体态与足迹推断"]
+milestone_name = "排除冤案"
+score_observation = 1
+score_reasoning = 1
+score_insight = 1
+badge_check = "SCENE6_APARTMENT_DONE"
+completion_event = ""

@@ -1,0 +1,57 @@
+name: CI
+
+# P3 模块 11 — 三套测试（后端 Node / Godot headless / Python）自动运行，防回归。
+# 触发：push 到主分支、以及所有 PR。
+on:
+  push:
+    branches: [main, master, dev]
+  pull_request:
+
+env:
+  # 须与项目实际 Godot 版本一致（godot_project/project.godot 中记录为 4.7.stable）。
+  # 若 4.7.stable 未在 GitHub Releases 公开发布，请将此处改为已发布的版本，
+  # 或改用组织内部的 Godot 缓存/镜像。
+  GODOT_VERSION: "4.7.stable"
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install Godot headless
+        run: |
+          GV="${GODOT_VERSION}"
+          ASSET="Godot_v${GV}_linux.x86_64.zip"
+          URL="https://github.com/godotengine/godot/releases/download/${GV}/${ASSET}"
+          echo "Downloading Godot ${GV} from ${URL}"
+          curl -fSL "$URL" -o godot.zip || {
+            echo "::error::无法下载 Godot ${GV}。请确认该版本已在 GitHub Releases 发布，"
+            echo "        或修改 env.GODOT_VERSION 为已发布版本，或改用内部镜像。"
+            exit 1
+          }
+          unzip -o godot.zip
+          mv "Godot_v${GV}_linux.x86_64" godot
+          chmod +x godot
+          ./godot --version
+
+      - name: Run CI suites (backend + godot + python)
+        # run_ci.sh 为本地与 CI 共用的单一真相源，自动启动后端、跑三套测试并汇总。
+        run: GODOT_BIN="$PWD/godot" bash scripts/run_ci.sh

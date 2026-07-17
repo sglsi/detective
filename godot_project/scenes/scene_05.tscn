@@ -1,0 +1,366 @@
+[gd_scene load_steps=12 format=3 uid="uid://p2_scene_05"]
+
+[ext_resource type="Script" path="res://scripts/scene/scene_05.gd" id="1_game_scene"]
+[ext_resource type="Script" path="res://scripts/scene/scene_controller.gd" id="2_scene_ctrl"]
+[ext_resource type="Script" path="res://scripts/dialogue/dialogue_renderer.gd" id="3_dialogue"]
+[ext_resource type="Script" path="res://scripts/tool/tool_bar.gd" id="4_toolbar"]
+[ext_resource type="Script" path="res://scripts/clue/reasoning_wall_ui.gd" id="5_reasoning"]
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+bg_color = Color(0.12, 0.10, 0.08, 0.95)
+border_width_left = 2
+border_width_right = 2
+border_width_top = 2
+border_width_bottom = 2
+border_color = Color(0.5, 0.4, 0.25, 1.0)
+
+[sub_resource type="StyleBoxFlat" id="topbar_style"]
+bg_color = Color(0.15, 0.12, 0.09, 0.95)
+border_width_bottom = 3
+border_color = Color(0.6, 0.45, 0.2, 1.0)
+
+[sub_resource type="StyleBoxFlat" id="dialogue_style"]
+bg_color = Color(0.18, 0.14, 0.10, 0.95)
+border_width_top = 2
+border_color = Color(0.55, 0.40, 0.20, 1.0)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+
+[sub_resource type="StyleBoxFlat" id="button_style"]
+bg_color = Color(0.25, 0.18, 0.10, 0.9)
+border_width_left = 1
+border_width_right = 1
+border_width_top = 1
+border_width_bottom = 1
+border_color = Color(0.6, 0.45, 0.2, 1.0)
+
+[sub_resource type="StyleBoxFlat" id="tool_btn_style"]
+bg_color = Color(0.3, 0.22, 0.12, 0.9)
+border_width_left = 1
+border_width_right = 1
+border_width_top = 1
+border_width_bottom = 1
+border_color = Color(0.7, 0.55, 0.25, 1.0)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+
+[node name="GameScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_game_scene")
+
+[node name="SceneView" type="Control" parent="."]
+layout_mode = 0
+offset_right = 1920
+offset_bottom = 1080
+
+[node name="SceneController" type="Node2D" parent="SceneView"]
+script = ExtResource("2_scene_ctrl")
+
+[node name="SceneViewContainer" type="Control" parent="SceneView/SceneController"]
+layout_mode = 0
+offset_right = 1920
+offset_bottom = 1080
+
+[node name="HotspotLayer" type="Control" parent="SceneView/SceneController/SceneViewContainer"]
+layout_mode = 0
+offset_right = 1920
+offset_bottom = 1080
+mouse_filter = 2
+
+[node name="ToolOverlay" type="Control" parent="SceneView/SceneController"]
+layout_mode = 0
+offset_right = 1920
+offset_bottom = 1080
+
+[node name="UI" type="Control" parent="."]
+layout_mode = 0
+offset_right = 1920
+offset_bottom = 1080
+
+# --- 顶部栏 ---
+[node name="TopBar" type="Panel" parent="UI"]
+layout_mode = 0
+offset_right = 1920
+offset_bottom = 60
+theme_override_styles/panel = SubResource("topbar_style")
+
+[node name="SceneTitle" type="Label" parent="UI/TopBar"]
+layout_mode = 0
+offset_left = 60
+offset_top = 12
+offset_right = 600
+offset_bottom = 48
+text = "贝克街221B — 福尔摩斯私人实验室"
+theme_override_font_sizes/font_size = 24
+theme_override_colors/font_color = Color(0.85, 0.75, 0.45, 1.0)
+
+[node name="TimeLabel" type="Label" parent="UI/TopBar"]
+layout_mode = 0
+offset_left = 1700
+offset_top = 15
+offset_right = 1880
+offset_bottom = 45
+text = "DAY 1  上午10:30"
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.6, 0.55, 0.4, 1.0)
+
+[node name="MenuBtn" type="Button" parent="UI/TopBar"]
+layout_mode = 0
+offset_left = 1840
+offset_top = 12
+offset_right = 1900
+offset_bottom = 48
+text = "☰"
+theme_override_styles/normal = SubResource("button_style")
+
+# --- 侧栏 ---
+[node name="SidePanel" type="Control" parent="UI"]
+layout_mode = 0
+offset_left = 10
+offset_top = 80
+offset_right = 120
+offset_bottom = 600
+
+# --- 对话面板 ---
+[node name="DialoguePanel" type="Panel" parent="UI"]
+layout_mode = 0
+offset_left = 0
+offset_top = 880
+offset_right = 1920
+offset_bottom = 1080
+theme_override_styles/panel = SubResource("dialogue_style")
+
+[node name="DialogueRenderer" type="Control" parent="UI/DialoguePanel"]
+layout_mode = 0
+offset_left = 20
+offset_top = 10
+offset_right = 1900
+offset_bottom = 190
+script = ExtResource("3_dialogue")
+
+[node name="SpeakerLabel" type="Label" parent="UI/DialoguePanel/DialogueRenderer"]
+layout_mode = 0
+offset_left = 100
+offset_top = 5
+offset_right = 400
+offset_bottom = 35
+text = ""
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.85, 0.75, 0.45, 1.0)
+
+[node name="TextLabel" type="RichTextLabel" parent="UI/DialoguePanel/DialogueRenderer"]
+layout_mode = 0
+offset_left = 100
+offset_top = 40
+offset_right = 1700
+offset_bottom = 160
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+theme_override_font_sizes/normal_font_size = 18
+theme_override_colors/default_color = Color(0.9, 0.85, 0.75, 1.0)
+
+[node name="Portrait" type="TextureRect" parent="UI/DialoguePanel/DialogueRenderer"]
+layout_mode = 0
+offset_left = 10
+offset_top = 5
+offset_right = 85
+offset_bottom = 175
+expand_mode = 1
+stretch_mode = 4
+
+[node name="ContinueHint" type="Label" parent="UI/DialoguePanel/DialogueRenderer"]
+layout_mode = 0
+offset_left = 1800
+offset_top = 150
+offset_right = 1900
+offset_bottom = 180
+text = "▼"
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.5, 0.5, 0.4, 1.0)
+
+[node name="ChoicesContainer" type="VBoxContainer" parent="UI/DialoguePanel/DialogueRenderer"]
+layout_mode = 0
+offset_left = 100
+offset_top = 170
+offset_right = 900
+offset_bottom = 190
+theme_override_constants/separation = 5
+
+[node name="StepIndicator" type="Label" parent="UI/DialoguePanel/DialogueRenderer"]
+layout_mode = 0
+offset_left = 1600
+offset_top = 5
+offset_right = 1900
+offset_bottom = 35
+text = ""
+horizontal_alignment = 2
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.5, 0.9, 0.5, 1.0)
+visible = false
+
+[node name="DifficultyBadge" type="Label" parent="UI/DialoguePanel/DialogueRenderer"]
+layout_mode = 0
+offset_left = 1450
+offset_top = 5
+offset_right = 1590
+offset_bottom = 35
+text = ""
+horizontal_alignment = 2
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.7, 0.7, 0.5, 1.0)
+visible = false
+
+[node name="SystemHintLabel" type="Label" parent="UI/DialoguePanel/DialogueRenderer"]
+layout_mode = 0
+offset_left = 100
+offset_top = 165
+offset_right = 900
+offset_bottom = 190
+text = ""
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.6, 0.8, 0.6, 1.0)
+visible = false
+
+[node name="DialoguePanel" type="Panel" parent="UI/DialoguePanel/DialogueRenderer"]
+layout_mode = 0
+offset_left = 0
+offset_top = 0
+offset_right = 1900
+offset_bottom = 190
+theme_override_styles/panel = SubResource("panel_style")
+
+# --- 工具栏 ---
+[node name="ToolBar" type="Control" parent="UI"]
+layout_mode = 0
+offset_left = 1400
+offset_top = 80
+offset_right = 1720
+offset_bottom = 220
+script = ExtResource("4_toolbar")
+
+[node name="ToolPanel" type="Panel" parent="UI/ToolBar"]
+layout_mode = 0
+offset_left = 0
+offset_top = 0
+offset_right = 320
+offset_bottom = 140
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="MagnifierBtn" type="Button" parent="UI/ToolBar/ToolPanel"]
+layout_mode = 0
+offset_left = 20
+offset_top = 20
+offset_right = 300
+offset_bottom = 70
+text = "🔍 放大镜"
+theme_override_styles/normal = SubResource("tool_btn_style")
+theme_override_font_sizes/font_size = 18
+
+[node name="TapeBtn" type="Button" parent="UI/ToolBar/ToolPanel"]
+layout_mode = 0
+offset_left = 20
+offset_top = 80
+offset_right = 300
+offset_bottom = 130
+text = "📏 卷尺"
+theme_override_styles/normal = SubResource("tool_btn_style")
+theme_override_font_sizes/font_size = 18
+
+# --- 推理墙 ---
+[node name="ReasoningWall" type="Control" parent="UI"]
+layout_mode = 0
+offset_left = 100
+offset_top = 100
+offset_right = 1820
+offset_bottom = 980
+script = ExtResource("5_reasoning")
+
+[node name="CluePanel" type="Control" parent="UI/ReasoningWall"]
+layout_mode = 0
+offset_left = 0
+offset_top = 0
+offset_right = 250
+offset_bottom = 880
+
+[node name="BoardArea" type="Control" parent="UI/ReasoningWall"]
+layout_mode = 0
+offset_left = 260
+offset_top = 60
+offset_right = 1460
+offset_bottom = 880
+
+[node name="BoardLabel" type="Label" parent="UI/ReasoningWall/BoardArea"]
+layout_mode = 0
+offset_left = 10
+offset_top = -40
+offset_right = 300
+offset_bottom = -10
+text = "贝克街221B 推理板"
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(0.85, 0.75, 0.45, 1.0)
+
+[node name="VerifyButton" type="Button" parent="UI/ReasoningWall"]
+layout_mode = 0
+offset_left = 1500
+offset_top = 900
+offset_right = 1700
+offset_bottom = 950
+text = "验证推理"
+theme_override_styles/normal = SubResource("tool_btn_style")
+theme_override_font_sizes/font_size = 18
+
+[node name="ResultLabel" type="Label" parent="UI/ReasoningWall"]
+layout_mode = 0
+offset_left = 500
+offset_top = 900
+offset_right = 1480
+offset_bottom = 950
+text = ""
+theme_override_font_sizes/font_size = 18
+
+[node name="MilestonePopup" type="Panel" parent="UI/ReasoningWall"]
+layout_mode = 0
+offset_left = 700
+offset_top = 400
+offset_right = 1220
+offset_bottom = 500
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Label" type="Label" parent="UI/ReasoningWall/MilestonePopup"]
+layout_mode = 0
+offset_left = 20
+offset_top = 20
+offset_right = 500
+offset_bottom = 80
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 24
+theme_override_colors/font_color = Color(1, 0.8, 0.2, 1.0)
+
+# --- 通知区域 ---
+[node name="NotificationArea" type="Control" parent="UI"]
+layout_mode = 0
+offset_left = 600
+offset_top = 60
+offset_right = 1320
+offset_bottom = 100
+
+[node name="NotificationLabel" type="Label" parent="UI/NotificationArea"]
+layout_mode = 0
+offset_left = 0
+offset_top = 0
+offset_right = 720
+offset_bottom = 40
+text = ""
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.9, 0.8, 0.4, 1.0)

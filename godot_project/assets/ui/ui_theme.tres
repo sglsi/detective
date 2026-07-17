@@ -1,0 +1,31 @@
+[gd_resource type="Theme" format=3 uid="uid://b1victorianui0001"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.102, 0.078, 0.063, 1)
+border_color = Color(0.788, 0.659, 0.298, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
+bg_color = Color(0.353, 0.243, 0.169, 1)
+border_color = Color(0.788, 0.659, 0.298, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+
+[resource]
+default_font_size = 18
+default_color = Color(0.91, 0.866, 0.784, 1)
+Panel/style = SubResource("StyleBoxFlat_panel")
+Button/style = SubResource("StyleBoxFlat_button")
