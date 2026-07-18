@@ -16,8 +16,8 @@ class_name ReasoningWallUI
 
 # ============ 状态机枚举 ============
 
-## 线索四态机
-enum ClueState {
+## 线索库四态机（WallClueState，独立于此项目全局生命周期枚举 ClueSystem.ClueState）
+enum WallClueState {
 	UNDISCOVERED,  # 未发现：场景中已存在，玩家尚未获取
 	COLLECTED,     # 已收集：交互/对话/检验获取，纳入线索库
 	VERIFIED,      # 已验证：双源印证/工具检验，确认可靠
@@ -53,7 +53,7 @@ enum RelationType {
 class Clue:
 	var id: String = ""
 	var name: String = ""
-	var state: int = ClueState.COLLECTED
+	var state: int = WallClueState.COLLECTED
 	var relation_tags: Array = []   # 指向其支持的假设 id
 	var attribute_tags: Array = []   # 属性标签（直接物证/目击证词/干扰...）
 	var card: Panel = null
@@ -194,7 +194,7 @@ func _on_clue_discovered(clue_id: String) -> void:
 	var c = Clue.new()
 	c.id = clue_id
 	c.name = _clue_display_name(clue_id)
-	c.state = ClueState.COLLECTED
+	c.state = WallClueState.COLLECTED
 	c.relation_tags = _CASE_CLUES.get(clue_id, {}).get("rel", [])
 	c.attribute_tags = _CASE_CLUES.get(clue_id, {}).get("attr", [])
 	c.card = _create_clue_card(c)
@@ -244,16 +244,16 @@ func _create_clue_card(c: Clue) -> Panel:
 
 func _clue_border_color(c: Clue) -> Color:
 	match c.state:
-		ClueState.VERIFIED: return Color(0.2, 0.9, 0.2, 1.0)
-		ClueState.EXPIRED: return Color(0.5, 0.5, 0.5, 1.0)
+		WallClueState.VERIFIED: return Color(0.2, 0.9, 0.2, 1.0)
+		WallClueState.EXPIRED: return Color(0.5, 0.5, 0.5, 1.0)
 		_: return Color(0.6, 0.5, 0.3, 1.0)
 
 func _clue_state_name(state: int) -> String:
 	match state:
-		ClueState.UNDISCOVERED: return "未发现"
-		ClueState.COLLECTED: return "已收集"
-		ClueState.VERIFIED: return "已验证"
-		ClueState.EXPIRED: return "信息失效"
+		WallClueState.UNDISCOVERED: return "未发现"
+		WallClueState.COLLECTED: return "已收集"
+		WallClueState.VERIFIED: return "已验证"
+		WallClueState.EXPIRED: return "信息失效"
 		_: return "已收集"
 
 func _clue_display_name(clue_id: String) -> String:
@@ -328,7 +328,7 @@ func _link_clue_to_hypothesis(clue_id: String, hypo_id: String) -> void:
 		_paint_hypothesis(h)
 	# 线索若作为支持证据关联，则视为已验证
 	if rel == RelationType.SUPPORT:
-		_set_clue_state(c, ClueState.VERIFIED)
+		_set_clue_state(c, WallClueState.VERIFIED)
 	print("[ReasoningWall] 关联 %s → %s (%s)" % [c.name, h.title, _relation_name(rel)])
 	_refresh_lines()
 	queue_redraw()
