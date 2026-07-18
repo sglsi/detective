@@ -123,6 +123,38 @@ const HOTSPOT_TABLES := {
 	],
 }
 
+# 场景 -> 真实美术资源映射表（P5-3：TextureRect 替换占位 ColorRect，避免逐幕硬编码）
+const SCENE_ART := {
+	"sc_01_lab": "res://assets/scenes/sc_01_lab.png",
+	"sc_02_garden": "res://assets/scenes/sc_02_garden.png",
+	"sc_03_indoor": "res://assets/scenes/sc_03_indoor.png",
+	"sc_04_police": "res://assets/scenes/sc_04_police.png",
+	"sc_05_parlor": "res://assets/scenes/sc_05_parlor.png",
+	"sc_06_apartment": "res://assets/scenes/sc_06_apartment.png",
+	"sc_07_hotel": "res://assets/scenes/sc_07_hotel.png",
+	"sc_08_finale": "res://assets/scenes/sc_08_finale.png",
+}
+const SCENE_TITLE := {
+	"sc_01_lab": "贝克街221B — 福尔摩斯私人实验室",
+	"sc_02_garden": "劳瑞斯顿花园街三号 — 室外花园",
+	"sc_03_indoor": "劳瑞斯顿花园街三号 — 室内前室",
+	"sc_04_police": "布瑞克斯顿路 — 巡警兰斯问询",
+	"sc_05_parlor": "贝克街221B — 会客厅（伪装识破）",
+	"sc_06_apartment": "陶尔魁里卡彭蒂耶公寓",
+	"sc_07_hotel": "郝黎代旅馆 — 第二被害人",
+	"sc_08_finale": "贝克街221B — 起居室（最终对决）",
+}
+const SCENE_TINT := {
+	"sc_01_lab": Color(0.10, 0.08, 0.05, 0.30),
+	"sc_02_garden": Color(0.08, 0.12, 0.10, 0.35),
+	"sc_03_indoor": Color(0.14, 0.08, 0.10, 0.40),
+	"sc_04_police": Color(0.08, 0.08, 0.14, 0.35),
+	"sc_05_parlor": Color(0.12, 0.10, 0.08, 0.30),
+	"sc_06_apartment": Color(0.08, 0.10, 0.08, 0.35),
+	"sc_07_hotel": Color(0.12, 0.06, 0.08, 0.40),
+	"sc_08_finale": Color(0.10, 0.08, 0.06, 0.35),
+}
+
 # 场景视图容器
 @onready var scene_view_container: Control = $SceneViewContainer
 @onready var hotspot_layer: Control = $SceneViewContainer/HotspotLayer
@@ -193,83 +225,66 @@ func load_scene(scene_id: String) -> void:
 	SceneEventBus.emit_signal("scene_loaded", scene_id)
 
 func _setup_scene_view(scene_id: String = "sc_01_lab") -> void:
-	# 清除旧内容
+	# 清除旧内容（保留热点层，它始终位于顶层交互）
 	for child in scene_view_container.get_children():
 		if child != hotspot_layer:
 			child.queue_free()
 	
-	# 场景背景（按场景切换色调）
-	var bg = ColorRect.new()
-	bg.size = Vector2(1920, 1080)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	scene_view_container.add_child(bg)
-	scene_view_container.move_child(bg, 0)
+	# 真实场景背景图：P5-3 从 .png 资源加载，替代原有 emoji ColorRect 占位
+	var bg_path: String = SCENE_ART.get(scene_id, "")
+	if not bg_path.is_empty() and ResourceLoader.exists(bg_path):
+		var bg := TextureRect.new()
+		bg.name = "SceneBackground"
+		bg.texture = load(bg_path)
+		bg.size = Vector2(1920, 1080)
+		bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		bg.expand_mode = TextureRect.EXPAND_KEEP_SIZE
+		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		scene_view_container.add_child(bg)
+		scene_view_container.move_child(bg, 0)
+	else:
+		# 纹理缺失时的回退：保持原色块，避免崩溃
+		var bg := ColorRect.new()
+		bg.name = "SceneBackground"
+		bg.size = Vector2(1920, 1080)
+		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bg.color = Color(0.15, 0.12, 0.08, 1.0)
+		scene_view_container.add_child(bg)
+		scene_view_container.move_child(bg, 0)
+	
+	# 氛围着色叠层：统一维多利亚煤气灯调性，半透明覆盖在背景之上
+	var tint := ColorRect.new()
+	tint.name = "SceneTint"
+	tint.size = Vector2(1920, 1080)
+	tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tint.color = SCENE_TINT.get(scene_id, Color(0.1, 0.08, 0.06, 0.30))
+	scene_view_container.add_child(tint)
+	scene_view_container.move_child(tint, 1)
 	
 	# 场景标题
-	var label = Label.new()
+	var label := Label.new()
+	label.name = "SceneTitle"
 	label.add_theme_font_size_override("font_size", 32)
 	label.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45))
 	label.position = Vector2(50, 30)
+	label.text = SCENE_TITLE.get(scene_id, "场景")
 	scene_view_container.add_child(label)
 	
-	match scene_id:
-		"sc_02_garden":
-			bg.color = Color(0.10, 0.14, 0.10)   # 阴雨花园 · 冷绿
-			label.text = "劳瑞斯顿花园街三号 — 室外花园"
-			_draw_placeholder("🌳 命案现场外围 · 车辙与脚印", Vector2(760, 300), Color(0.3, 0.4, 0.3, 0.7))
-		"sc_03_indoor":
-			bg.color = Color(0.16, 0.10, 0.12)   # 室内凶宅 · 暗红
-			label.text = "劳瑞斯顿花园街三号 — 室内前室"
-			_draw_placeholder("🏚 空屋凶案现场", Vector2(800, 300), Color(0.4, 0.25, 0.28, 0.7))
-		"sc_04_police":
-			bg.color = Color(0.12, 0.10, 0.14)   # 巡警问询 · 夜蓝
-			label.text = "布瑞克斯顿路 — 巡警兰斯问询"
-			_draw_placeholder("👮 案发空屋与醉汉线索", Vector2(760, 300), Color(0.3, 0.35, 0.45, 0.7))
-		"sc_05_parlor":
-			bg.color = Color(0.14, 0.12, 0.10)   # 会客厅 · 暖灰
-			label.text = "贝克街221B — 会客厅（伪装识破）"
-			_draw_placeholder("🕵 老太婆与招领广告", Vector2(760, 300), Color(0.4, 0.35, 0.28, 0.7))
-		"sc_06_apartment":
-			bg.color = Color(0.12, 0.13, 0.11)   # 公寓 · 灰绿
-			label.text = "陶尔魁里卡彭蒂耶公寓"
-			_draw_placeholder("📷 帽店溯源与合影排查", Vector2(760, 300), Color(0.32, 0.4, 0.3, 0.7))
-		"sc_07_hotel":
-			bg.color = Color(0.15, 0.10, 0.10)   # 旅馆 · 暗红
-			label.text = "郝黎代旅馆 — 第二被害人"
-			_draw_placeholder("💊 门缝血迹与药丸实验", Vector2(760, 300), Color(0.45, 0.28, 0.28, 0.7))
-		"sc_08_finale":
-			bg.color = Color(0.13, 0.11, 0.09)   # 起居室 · 暗金
-			label.text = "贝克街221B — 起居室（最终对决）"
-			_draw_placeholder("⛓ 诱捕杰弗森·霍普", Vector2(760, 300), Color(0.45, 0.35, 0.2, 0.7))
-		_:
-			bg.color = Color(0.15, 0.12, 0.08)   # 贝克街 · 暖棕
-			label.text = "贝克街221B — 福尔摩斯私人实验室"
-			var watson = ColorRect.new()
-			watson.name = "WatsonSilhouette"
-			watson.size = Vector2(200, 500)
-			watson.position = Vector2(800, 280)
-			watson.color = Color(0.25, 0.22, 0.18, 0.8)
-			scene_view_container.add_child(watson)
-			var watson_label = Label.new()
-			watson_label.text = "👤 华生医生"
-			watson_label.position = Vector2(840, 800)
-			watson_label.add_theme_font_size_override("font_size", 16)
-			watson_label.add_theme_color_override("font_color", Color(0.7, 0.65, 0.5))
-			scene_view_container.add_child(watson_label)
-
-func _draw_placeholder(text: String, pos: Vector2, col: Color) -> void:
-	var rect = ColorRect.new()
-	rect.name = "ScenePlaceholder"
-	rect.size = Vector2(320, 360)
-	rect.position = pos
-	rect.color = col
-	scene_view_container.add_child(rect)
-	var lbl = Label.new()
-	lbl.text = text
-	lbl.position = pos + Vector2(20, 160)
-	lbl.add_theme_font_size_override("font_size", 16)
-	lbl.add_theme_color_override("font_color", Color(0.75, 0.7, 0.6))
-	scene_view_container.add_child(lbl)
+	# 教程场景：华生剪影（保留原教学视觉）
+	if scene_id == "sc_01_lab":
+		var watson = ColorRect.new()
+		watson.name = "WatsonSilhouette"
+		watson.size = Vector2(200, 500)
+		watson.position = Vector2(800, 280)
+		watson.color = Color(0.25, 0.22, 0.18, 0.8)
+		scene_view_container.add_child(watson)
+		var watson_label = Label.new()
+		watson_label.name = "WatsonLabel"
+		watson_label.text = "👤 华生医生"
+		watson_label.position = Vector2(840, 800)
+		watson_label.add_theme_font_size_override("font_size", 16)
+		watson_label.add_theme_color_override("font_color", Color(0.7, 0.65, 0.5))
+		scene_view_container.add_child(watson_label)
 
 # ============ 阶段1：华生观察热点 ============
 

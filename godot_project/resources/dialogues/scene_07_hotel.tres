@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueResource" load_steps=42 format=3 uid="uid://6cc02e6805fa"]
+[gd_resource type="Resource" script_class="DialogueResource" load_steps=46 format=3 uid="uid://6cc02e6805fa"]
 
 [ext_resource type="Script" path="res://resources/dialogues/dialogue_resource.gd" id="1_resource"]
 [ext_resource type="Script" path="res://resources/dialogues/dialogue_node_resource.gd" id="2_node"]
@@ -11,7 +11,7 @@ speaker = "福尔摩斯"
 text = "斯特兰森没跑掉——房门反锁，强行进入后发现他又是一具尸体，墙上同样写着 RACHE。"
 mood = "严肃"
 trigger = "auto"
-next_nodes = ["s7_step1_start"]
+next_nodes = ["s7_watson_react"]
 difficulty_filter = 0
 verify_filter = ""
 exploration_step = 0
@@ -139,7 +139,7 @@ speaker = "system"
 text = "（玩家自行勘验，无关提问不再重复）"
 mood = "neutral"
 trigger = "auto"
-next_nodes = ["s7_step3_start"]
+next_nodes = ["s7_watson_pill"]
 difficulty_filter = 3
 verify_filter = ""
 exploration_step = 2
@@ -267,7 +267,7 @@ speaker = "system"
 text = "（无提示）"
 mood = "neutral"
 trigger = "auto"
-next_nodes = ["s7_step5_prompt"]
+next_nodes = ["s7_watson_question"]
 difficulty_filter = 3
 verify_filter = ""
 exploration_step = 4
@@ -523,7 +523,7 @@ speaker = "福尔摩斯"
 text = "你的结论和证据自相矛盾。重想。"
 mood = "严肃"
 trigger = "auto"
-next_nodes = ["s7_step1_start"]
+next_nodes = ["s7_watson_close"]
 difficulty_filter = 0
 verify_filter = "CONTRADICTORY"
 exploration_step = 6
@@ -644,6 +644,70 @@ stage_direction = ""
 note_text = "线索墙更新：药丸毒杀/同一凶手"
 
 
+[sub_resource type="Resource" id="node_40"]
+script = ExtResource("2_node")
+node_id = "s7_watson_react"
+speaker = "华生"
+text = "又是一具尸体……而且同样的 RACHE。凶手简直在向我们挑衅。"
+mood = "凝重"
+trigger = "auto"
+next_nodes = ["s7_step1_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_41"]
+script = ExtResource("2_node")
+node_id = "s7_watson_pill"
+speaker = "华生"
+text = "这个药丸盒很可疑——两粒珍珠灰的药丸，一粒应该剧毒，另一粒却无毒。凶手给了死者一个「选择」？"
+mood = "疑惑"
+trigger = "auto"
+next_nodes = ["s7_step3_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 2
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_42"]
+script = ExtResource("2_node")
+node_id = "s7_watson_question"
+speaker = "华生"
+text = "如果两次命案都是同一人所为，他为何对德雷伯用毒，对斯特兰森却用刀？这背后一定有某种……仪式感？"
+mood = "思考"
+trigger = "auto"
+next_nodes = ["s7_step5_prompt"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 4
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_43"]
+script = ExtResource("2_node")
+node_id = "s7_watson_close"
+speaker = "华生"
+text = "上帝裁决……两粒药丸，一个选择。这个杰弗森·霍普，不仅是个复仇者，还是个审判者。"
+mood = "疲惫"
+trigger = "auto"
+next_nodes = ["s7_step1_start"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 6
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
 [resource]
 script = ExtResource("1_resource")
 scene_id = "scene_07"
@@ -654,7 +718,7 @@ exploration_step = 0
 easy_start_node = "s7_start"
 normal_start_node = "s7_start"
 hard_start_node = "s7_start"
-nodes = [SubResource("node_0"), SubResource("node_1"), SubResource("node_2"), SubResource("node_3"), SubResource("node_4"), SubResource("node_5"), SubResource("node_6"), SubResource("node_7"), SubResource("node_8"), SubResource("node_9"), SubResource("node_10"), SubResource("node_11"), SubResource("node_12"), SubResource("node_13"), SubResource("node_14"), SubResource("node_15"), SubResource("node_16"), SubResource("node_17"), SubResource("node_18"), SubResource("node_19"), SubResource("node_20"), SubResource("node_21"), SubResource("node_22"), SubResource("node_23"), SubResource("node_24"), SubResource("node_25"), SubResource("node_26"), SubResource("node_27"), SubResource("node_28"), SubResource("node_29"), SubResource("node_30"), SubResource("node_31"), SubResource("node_32"), SubResource("node_33"), SubResource("node_34"), SubResource("node_35"), SubResource("node_36"), SubResource("node_37"), SubResource("node_38"), SubResource("node_39")]
+nodes = [SubResource("node_0"), SubResource("node_1"), SubResource("node_2"), SubResource("node_3"), SubResource("node_4"), SubResource("node_5"), SubResource("node_6"), SubResource("node_7"), SubResource("node_8"), SubResource("node_9"), SubResource("node_10"), SubResource("node_11"), SubResource("node_12"), SubResource("node_13"), SubResource("node_14"), SubResource("node_15"), SubResource("node_16"), SubResource("node_17"), SubResource("node_18"), SubResource("node_19"), SubResource("node_20"), SubResource("node_21"), SubResource("node_22"), SubResource("node_23"), SubResource("node_24"), SubResource("node_25"), SubResource("node_26"), SubResource("node_27"), SubResource("node_28"), SubResource("node_29"), SubResource("node_30"), SubResource("node_31"), SubResource("node_32"), SubResource("node_33"), SubResource("node_34"), SubResource("node_35"), SubResource("node_36"), SubResource("node_37"), SubResource("node_38"), SubResource("node_39"), SubResource("node_40"), SubResource("node_41"), SubResource("node_42"), SubResource("node_43")]
 knowledge_domains = ["南美箭毒生物碱", "连环杀手行为模式", "毒理学基础"]
 milestone_name = "毒理学家"
 score_observation = 1
