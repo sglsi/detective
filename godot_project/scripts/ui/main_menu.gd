@@ -47,10 +47,25 @@ func _check_save() -> void:
 	if GameManager.is_guest:
 		has_save = FileAccess.file_exists("user://save_game.json")
 	else:
-		has_save = false  # TODO: 检查云端存档
-	
+		has_save = await _check_cloud_save()
+
 	continue_btn.visible = has_save
 	continue_btn.disabled = not has_save
+
+## 检查云端是否存在存档（不触网，供 _check_save 调用）
+func _check_cloud_save() -> bool:
+	var resp = await SaveManager.get_cloud_saves()
+	return _parse_cloud_save_present(resp)
+
+## 解析云端存档列表响应，判定是否存在存档
+## 兼容后端两种返回结构：{ "saves": [...] } 与 { "data": { "saves": [...] } }
+func _parse_cloud_save_present(resp: Dictionary) -> bool:
+	var saves: Array = []
+	if resp.has("data") and resp["data"] is Dictionary:
+		saves = resp["data"].get("saves", [])
+	elif resp.has("saves"):
+		saves = resp["saves"]
+	return saves.size() > 0
 
 func _play_enter_animation() -> void:
 	if anim_player and anim_player.has_animation("fade_in"):
@@ -81,7 +96,10 @@ func _on_continue_pressed() -> void:
 func _on_settings_pressed() -> void:
 	AudioManager.play_sfx("ui_click.wav")
 	UIManager.open_screen(UIManager.UIScreen.SETTINGS)
-	# TODO: 打开设置界面
+	# 打开真实设置面板（纯代码构建，绑定 SettingsManager 真实键）
+	var panel = SettingsPanel.new()
+	panel.closed.connect(panel.queue_free)
+	get_tree().root.add_child(panel)
 
 func _on_quit_pressed() -> void:
 	AudioManager.play_sfx("ui_click.wav")
