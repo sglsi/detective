@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "clue_note"
+name = "报纸婚姻启事"
+description = "剪报上刊登的寻人/婚姻启事，与盐湖城摩门教社群相关。"
+category = "文件"
+location = "案卷档案"
+discovery_condition = "查阅旧报纸档案"
+observation = "启事署名指向摩门教长老，征婚对象为年轻女子。"
+analysis = "串联起盐湖城的逼婚旧事，为动机溯源提供文献线索。"
+related_clues = ["clue_lucy", "clue_mormon"]
+related_npcs = ["lucy_ferrier"]
+timeline_position = 4.0
+importance = 2
+is_key_evidence = false
+state = 0
+discovery_time = ""

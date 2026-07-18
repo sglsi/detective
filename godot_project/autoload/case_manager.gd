@@ -12,20 +12,39 @@ func _ready() -> void:
 	pass
 
 func load_case(case_id: String) -> Dictionary:
-	var case_data = load("res://data/cases/%s.tres" % case_id)
+	var path = "res://data/cases/%s.tres" % case_id
+	if not ResourceLoader.exists(path):
+		return {}
+	var c = load(path)
+	if c == null:
+		return {}
 	current_case = {
 		"id": case_id,
-		"title": "",
-		"scenes": [],
-		"clues": [],
-		"npcs": [],
+		"title": c.title if c is CaseData else "",
+		"scenes": c.scenes if c is CaseData else [],
+		"clues": c.clues if c is CaseData else [],
+		"npcs": c.npcs if c is CaseData else [],
 	}
 	CaseEventBus.emit_signal("case_loaded", case_id)
 	return current_case
 
 func get_case_list() -> Array:
 	var cases: Array = []
-	# TODO: 扫描 data/cases/ 目录获取可用案件列表
+	var dir = DirAccess.open("res://data/cases/")
+	if dir == null:
+		return cases
+	dir.list_dir_begin()
+	var fname = dir.get_next()
+	while fname != "":
+		if fname.ends_with(".tres") and not fname.begins_with("."):
+			var c = load("res://data/cases/" + fname)
+			if c != null:
+				cases.append({
+					"id": c.id if c is CaseData else fname.get_basename(),
+					"title": c.title if (c is CaseData and c.title != "") else fname.get_basename(),
+				})
+		fname = dir.get_next()
+	dir.list_dir_end()
 	return cases
 
 func set_scene(scene_id: String) -> void:

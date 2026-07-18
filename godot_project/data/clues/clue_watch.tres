@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "clue_watch"
+name = "德雷伯的怀表"
+description = "死者怀表停在案发时刻，表壳内侧藏有女子小像。"
+category = "物证"
+location = "劳瑞斯顿花园街3号"
+discovery_condition = "勘验尸体随身物"
+observation = "表针停在某一时刻，内盖小像为一年轻女子。"
+analysis = "怀表时间可校准案发时序；女子小像呼应戒指上的 L.F.。"
+related_clues = ["clue_drebber_body", "clue_ring"]
+related_npcs = ["enoch_drebber"]
+timeline_position = 1.2
+importance = 2
+is_key_evidence = false
+state = 0
+discovery_time = ""

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "clue_hope"
+name = "车夫杰斐逊·霍普"
+description = "证词与追踪：马车夫霍普正是复仇者，尾随两名受害者到伦敦。"
+category = "证言"
+location = "伦敦街头"
+discovery_condition = "锁定并讯问车夫"
+observation = "霍普熟悉两名死者行程，且对盐湖城往事了如指掌。"
+analysis = "真相收束：霍普即书写血字之人，动机源于露西之死的旧恨。"
+related_clues = ["clue_lucy", "clue_rache", "clue_pill"]
+related_npcs = ["jefferson_hope"]
+timeline_position = 5.0
+importance = 5
+is_key_evidence = true
+state = 0
+discovery_time = ""

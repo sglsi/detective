@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "clue_pill"
+name = "两粒药丸"
+description = "现场发现一只盒子，内装两粒外观相同的药丸，其中一粒含毒。"
+category = "物证"
+location = "博斯科姆比旅馆"
+discovery_condition = "勘查斯坦格森房间"
+observation = "一粒遇试剂变红（有毒），另一粒无毒，凶手令受害者自选。"
+analysis = "体现凶手的报复仪式感——以命运抉择方式行凶，对应盐湖城旧怨。"
+related_clues = ["clue_stangerson_body"]
+related_npcs = ["jefferson_hope"]
+timeline_position = 3.2
+importance = 5
+is_key_evidence = true
+state = 0
+discovery_time = ""

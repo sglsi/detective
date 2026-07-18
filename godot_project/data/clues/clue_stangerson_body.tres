@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "clue_stangerson_body"
+name = "斯坦格森尸体"
+description = "约瑟夫·斯坦格森死于旅馆，喉部一刀，墙上同样有血字。"
+category = "物证"
+location = "博斯科姆比旅馆"
+discovery_condition = "勘查第二现场"
+observation = "喉部利刃伤，身旁散落药丸盒，墙上血字 RACHE 再现。"
+analysis = "与德雷伯案为同一凶手；药丸盒指向以毒丸择一杀人。"
+related_clues = ["clue_pill"]
+related_npcs = ["joseph_stangerson"]
+timeline_position = 3.0
+importance = 3
+is_key_evidence = false
+state = 0
+discovery_time = ""

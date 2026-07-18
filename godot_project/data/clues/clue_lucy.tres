@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "clue_lucy"
+name = "露西之死"
+description = "证词：露西·费里尔被迫嫁入摩门教长老家庭后郁郁而终。"
+category = "证言"
+location = "盐湖城（回忆）"
+discovery_condition = "听取霍普供述"
+observation = "露西婚前已心属猎人杰斐逊·霍普，婚后不久病逝。"
+analysis = "构成霍普复仇的核心动机——为爱人向摩门教势力追讨血债。"
+related_clues = ["clue_mormon", "clue_hope", "clue_ring"]
+related_npcs = ["lucy_ferrier", "jefferson_hope"]
+timeline_position = 4.5
+importance = 4
+is_key_evidence = false
+state = 0
+discovery_time = ""
