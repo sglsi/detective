@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "clue_ring"
+name = "现场女子戒指"
+description = "死者身旁发现的一枚刻字女子戒指，内侧有名字缩写。"
+category = "物证"
+location = "劳瑞斯顿花园街3号"
+discovery_condition = "勘验尸体周围地面"
+observation = "戒指崭新，尺寸偏小，内侧刻有 L.F. 缩写。"
+analysis = "戒指暗示死者与某位女性（露西·费里尔）的婚姻关联，可能是凶手掉落。"
+related_clues = ["clue_rache", "clue_lucy"]
+related_npcs = ["lucy_ferrier"]
+timeline_position = 1.5
+importance = 4
+is_key_evidence = true
+state = 0
+discovery_time = ""

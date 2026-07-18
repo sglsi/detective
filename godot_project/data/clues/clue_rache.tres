@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "clue_rache"
+name = "墙上的血字RACHE"
+description = "死者身旁的墙壁上，用鲜血写成的德文单词 RACHE（复仇）。"
+category = "痕迹"
+location = "劳瑞斯顿花园街3号"
+discovery_condition = "进入案发现场主厅"
+observation = "血字位置低于常人肩部，笔迹歪斜，似由矮个子仰头书写。"
+analysis = "RACHE 是德文复仇之意；书写高度暗示凶手身材矮小，且刻意留下标记。"
+related_clues = ["clue_ring", "clue_footprint"]
+related_npcs = ["jefferson_hope"]
+timeline_position = 1.0
+importance = 5
+is_key_evidence = true
+state = 0
+discovery_time = ""

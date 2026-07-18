@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "clue_footprint"
+name = "方头靴脚印"
+description = "现场泥地上的一串方头靴脚印，伴有一名矮个男子的步伐痕迹。"
+category = "痕迹"
+location = "劳瑞斯顿花园街3号门外"
+discovery_condition = "勘验门外泥地"
+observation = "脚印为方头靴，步幅短，同行的还有另一双大码靴印。"
+analysis = "矮个方头靴者即书写血字之人；另一双大码靴指向受害者同行者。"
+related_clues = ["clue_rache", "clue_stick"]
+related_npcs = ["jefferson_hope"]
+timeline_position = 2.0
+importance = 4
+is_key_evidence = false
+state = 0
+discovery_time = ""

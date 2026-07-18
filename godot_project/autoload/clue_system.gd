@@ -12,35 +12,25 @@ enum ClueState {
 	LINKED
 }
 
-# 15字段线索数据结构
-class ClueData:
-	var id: String
-	var name: String
-	var description: String
-	var category: String           # 物证/证言/文件/痕迹
-	var location: String           # 发现地点
-	var discovery_condition: String # 发现条件
-	var observation: String        # 观察记录
-	var analysis: String           # 分析结果
-	var related_clues: Array       # 关联线索ID列表
-	var related_npcs: Array        # 关联NPC列表
-	var timeline_position: float   # 时间线位置
-	var importance: int            # 重要度 1-5
-	var is_key_evidence: bool      # 是否关键证据
-	var state: ClueState
-	var discovery_time: String
+# 线索数据结构见 data/clue_data.gd（class_name ClueData extends Resource，15 字段）
+# 全局统一使用 ClueData 资源类；res://data/clues/<id>.tres 即其实例。
 
-var discovered_clues: Dictionary = {}  # clue_id -> ClueData
+var discovered_clues: Dictionary = {}  # clue_id -> ClueData（已发现/已加载的线索实例）
+var clue_catalog: Dictionary = {}      # clue_id -> ClueData（全部线索定义，启动预载，真实数据来源）
 var clue_count: int = 0
 
 func _ready() -> void:
-	pass
+	_load_catalog()
 
 func load_clue(clue_id: String) -> ClueData:
 	if discovered_clues.has(clue_id):
 		return discovered_clues[clue_id]
-	var clue_data = load("res://data/clues/%s.tres" % clue_id)
-	# TODO: 从 .tres 资源中解析 ClueData
+	var path = "res://data/clues/%s.tres" % clue_id
+	if not ResourceLoader.exists(path):
+		return null
+	var res = load(path)
+	if res is ClueData:
+		return res
 	return null
 
 func discover_clue(clue_id: String) -> void:
@@ -71,8 +61,45 @@ func get_discovered_count() -> int:
 	return clue_count
 
 func get_total_clues() -> int:
-	# TODO: 从案件数据中获取总线索数
-	return 45  # 血字的研究：45条线索
+	# 动态统计 data/clues/ 下真实 .tres 线索资源数量（不再硬编码）
+	var dir = DirAccess.open("res://data/clues/")
+	if dir == null:
+		return clue_catalog.size()
+	var count = 0
+	dir.list_dir_begin()
+	var fname = dir.get_next()
+	while fname != "":
+		if fname.ends_with(".tres") and not fname.begins_with("."):
+			count += 1
+		fname = dir.get_next()
+	dir.list_dir_end()
+	return count
+
+## 获取全部线索定义（真实数据来源，供推理墙/UI 消费）
+func get_all_clue_definitions() -> Dictionary:
+	return clue_catalog
+
+## 按 ID 获取单条线索定义（未定义返回 null）
+func get_clue_definition(clue_id: String) -> ClueData:
+	if clue_catalog.has(clue_id):
+		return clue_catalog[clue_id]
+	return null
+
+## 启动预载：扫描 data/clues/ 全部 .tres 构建线索目录
+func _load_catalog() -> void:
+	var dir = DirAccess.open("res://data/clues/")
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var fname = dir.get_next()
+	while fname != "":
+		if fname.ends_with(".tres") and not fname.begins_with("."):
+			var cd = load("res://data/clues/" + fname)
+			if cd is ClueData:
+				var key = cd.id if cd.id != "" else fname.get_basename()
+				clue_catalog[key] = cd
+		fname = dir.get_next()
+	dir.list_dir_end()
 
 ## 存档：导出所有已发现线索的状态（clue_id -> ClueState 整数）
 func get_clue_states() -> Dictionary:

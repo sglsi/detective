@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CaseData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/case_data.gd" id="1_case"]
+
+[resource]
+script = ExtResource("1_case")
+id = "blood_study"
+title = "血字的研究"
+scenes = ["scene_01", "scene_02", "scene_03", "scene_04", "scene_05", "scene_06", "scene_07", "scene_08"]
+clues = ["clue_rache", "clue_ring", "clue_footprint", "clue_stick", "clue_drebber_body", "clue_stangerson_body", "clue_pill", "clue_note", "clue_lucy", "clue_hope", "clue_mormon", "clue_watch"]
+npcs = ["jefferson_hope", "lucy_ferrier", "enoch_drebber", "joseph_stangerson", "sherlock_holmes", "john_watson", "gregson", "lestrade"]

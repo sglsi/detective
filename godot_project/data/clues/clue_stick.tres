@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "clue_stick"
+name = "墙边小木棍"
+description = "血字旁倚墙放置的一截小木棍，似用来够高书写。"
+category = "痕迹"
+location = "劳瑞斯顿花园街3号"
+discovery_condition = "勘验血字附近"
+observation = "木棍顶端沾有少量血迹，长度恰可够到血字高度。"
+analysis = "佐证血字由矮个者借助木棍书写，进一步坐实凶手身材特征。"
+related_clues = ["clue_footprint"]
+related_npcs = ["jefferson_hope"]
+timeline_position = 2.2
+importance = 2
+is_key_evidence = false
+state = 0
+discovery_time = ""

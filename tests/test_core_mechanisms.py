@@ -132,19 +132,27 @@ def test_4_star_rating(s):
 
 
 def test_5_clue_system(s):
-    """线索五态机"""
+    """线索五态机 + 真实数据解析（P5-2：ClueData 提升为全局 Resource 类，数据驱动计数）"""
     cs = read("autoload/clue_system.gd")
-    
+    cd = read("data/clue_data.gd")
+
     s.check("ClueState 枚举(5态)", all(v in cs for v in ["UNDISCOVERED","DISCOVERED","RECORDED","ANALYZED","LINKED"]))
-    s.check("ClueData 类定义", "class ClueData" in cs)
-    s.check("15字段: id/name/description", "var id" in cs and "var name" in cs and "var description" in cs)
-    s.check("15字段: category/location", "var category" in cs and "var location" in cs)
-    s.check("15字段: importance/is_key_evidence", "var importance" in cs and "var is_key_evidence" in cs)
-    s.check("15字段: state/discovery_time", "var state" in cs and "var discovery_time" in cs)
+    # P5-2：ClueData 从 ClueSystem 内嵌类提升为全局 Resource 资源类，定义在 data/clue_data.gd
+    s.check("ClueData 全局资源类定义", "class_name ClueData" in cd and "extends Resource" in cd)
+    s.check("15字段: id/name/description", all(x in cd for x in ["@export var id","@export var name","@export var description"]))
+    s.check("15字段: category/location", all(x in cd for x in ["@export var category","@export var location"]))
+    s.check("15字段: importance/is_key_evidence", all(x in cd for x in ["@export var importance","@export var is_key_evidence"]))
+    s.check("15字段: state/discovery_time", all(x in cd for x in ["@export var state","@export var discovery_time"]))
     s.check("discover_clue() UNDISCOVERED→DISCOVERED", "ClueState.DISCOVERED" in cs)
     s.check("record_clue() DISCOVERED→RECORDED", "ClueState.RECORDED" in cs)
     s.check("link_clues() →LINKED", "ClueState.LINKED" in cs)
-    s.check("总线索数=45", "return 45" in cs)
+    # 数据驱动计数：不再硬编码 45，改为扫描 data/clues/ 真实资源数量
+    s.check("总线索数=目录真实.tres数量", "return 45" not in cs and "get_total_clues" in cs and "DirAccess.open" in cs)
+    # P5-2 种子数据落地验证
+    clues_dir = os.path.join(GD, "data", "clues")
+    clues = [f for f in os.listdir(clues_dir) if f.endswith(".tres")] if os.path.isdir(clues_dir) else []
+    s.check("data/clues/ 真实线索资源≥12", len(clues) >= 12, f"实际{len(clues)}条")
+    s.check("clue_rache.tres 关键证据已生成", file_exists("data/clues/clue_rache.tres"))
 
 
 def test_6_event_buses(s):
