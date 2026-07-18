@@ -28,12 +28,33 @@ func play_bgm(bgm_path: String, fade_in: float = 1.0) -> void:
 	var stream = load("res://assets/audio/bgm/%s" % bgm_path)
 	if stream:
 		bgm_player.stream = stream
-		bgm_player.play()
-		# TODO: fade_in 效果
+		if fade_in > 0.0:
+			# 淡入：从静音(-80dB) tween 到满音量(0dB)
+			bgm_player.volume_db = -80.0
+			bgm_player.play()
+			_fade_volume(bgm_player, 0.0, fade_in)
+		else:
+			bgm_player.volume_db = 0.0
+			bgm_player.play()
 
 func stop_bgm(fade_out: float = 1.0) -> void:
+	if fade_out > 0.0 and bgm_player.playing:
+		# 淡出：音量拉到静音后再停止并复位
+		var tw := _fade_volume(bgm_player, -80.0, fade_out)
+		tw.finished.connect(_stop_bgm_now)
+	else:
+		_stop_bgm_now()
+
+func _stop_bgm_now() -> void:
 	bgm_player.stop()
+	bgm_player.volume_db = 0.0
 	current_bgm = ""
+
+## 通用音量淡变：把 player.volume_db 在 duration 秒内 tween 到 to_db，返回该 Tween 便于链式绑定 finished
+func _fade_volume(player: AudioStreamPlayer, to_db: float, duration: float) -> Tween:
+	var tw := create_tween()
+	tw.tween_property(player, "volume_db", to_db, duration)
+	return tw
 
 func play_sfx(sfx_path: String) -> void:
 	var stream = load("res://assets/audio/sfx/%s" % sfx_path)

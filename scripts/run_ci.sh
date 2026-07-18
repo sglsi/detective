@@ -72,6 +72,16 @@ if "$GODOT" --headless --script res://tools/p5_5_clue_state_unit_test.gd 2>&1 | 
 else
   bad "p5_5_clue_state_unit_test"; "$GODOT" --headless --script res://tools/p5_5_clue_state_unit_test.gd 2>&1 | tail -15
 fi
+if "$GODOT" --headless --script res://tools/p5_6_audio_fade_test.gd 2>&1 | grep -q "P5_6_AUDIO_OK"; then
+  ok "p5_6_audio_fade_test (音频淡入淡出)"
+else
+  bad "p5_6_audio_fade_test"; "$GODOT" --headless --script res://tools/p5_6_audio_fade_test.gd 2>&1 | tail -15
+fi
+if "$GODOT" --headless --script res://tools/p5_6_ui_test.gd 2>&1 | grep -q "P5_6_UI_OK"; then
+  ok "p5_6_ui_test (主菜单云端检查 + 设置面板)"
+else
+  bad "p5_6_ui_test"; "$GODOT" --headless --script res://tools/p5_6_ui_test.gd 2>&1 | tail -15
+fi
 
 # ---------- 3. Python 套件 ----------
 # 注：test_core_mechanisms 原 7 项【历史基线】失败已修复（脆弱字符串匹配断言对齐真实实现：
