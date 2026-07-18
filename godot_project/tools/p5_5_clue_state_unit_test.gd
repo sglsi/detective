@@ -5,8 +5,8 @@ extends SceneTree
 #
 # 被测对象：ClueSystem 的线索五态机（clue_system.gd 中 enum ClueState）
 #   UNDISCOVERED=0, DISCOVERED=1, RECORDED=2, ANALYZED=3, LINKED=4
-# （注意：reasoning_wall_ui.gd 另有一套同名 ClueState {COLLECTED,VERIFIED,EXPIRED,UNDISCOVERED}，
-#   属设计层状态模型不一致，已在验证报告中作为新发现记录；本测试只针对 clue_system.gd 的五态机。）
+# （注：reasoning_wall_ui.gd 原有一套同名 ClueState {COLLECTED,VERIFIED,EXPIRED,UNDISCOVERED}，
+#   已在 P5-5b 统一为 WallClueState 消除同名遮蔽；两套本就是不同维度的状态机，保留各自独立。本测试只针对 clue_system.gd 的五态机。）
 #
 # 覆盖断言（共 12 项）：
 #   T1 discover → DISCOVERED 且 get_discovered_count 自 0 增至 1
@@ -20,7 +20,7 @@ extends SceneTree
 #   godot --headless --script res://tools/p5_5_clue_state_unit_test.gd
 # 成功哨兵：CLUE_STATE_UNIT_OK
 
-# 镜像 clue_system.gd 的 ClueState 枚举整数值（避免与 ReasoningWallUI.ClueState 同名冲突）
+# 镜像 clue_system.gd 的 ClueState 枚举整数值（const 镜像，避免对枚举路径的硬编码依赖）
 const S_UNDISCOVERED := 0
 const S_DISCOVERED   := 1
 const S_RECORDED     := 2

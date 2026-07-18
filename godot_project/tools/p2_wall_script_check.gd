@@ -122,7 +122,7 @@ func _run_checks() -> void:
 	var clue_states = r.get("clue_states", {})
 	var verified_clues = 0
 	for cid in clue_states:
-		if clue_states[cid] == 2:  # ClueState.VERIFIED = 2
+		if clue_states[cid] == 2:  # WallClueState.VERIFIED = 2
 			verified_clues += 1
 	if verified_clues >= 5:
 		_pass("线索四态机：%d 条支持线索标记为 VERIFIED" % verified_clues)

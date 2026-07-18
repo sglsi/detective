@@ -57,7 +57,7 @@ func _ready() -> void:
 	# 7) 线索四态机：支持线索被标记为 VERIFIED
 	var verified_clues = 0
 	for cid in r["clue_states"]:
-		if r["clue_states"][cid] == ReasoningWallUI.ClueState.VERIFIED:
+		if r["clue_states"][cid] == ReasoningWallUI.WallClueState.VERIFIED:
 			verified_clues += 1
 	if verified_clues >= 5:
 		_pass("线索四态机：%d 条支持线索标记为 VERIFIED" % verified_clues)
