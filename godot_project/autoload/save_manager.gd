@@ -234,19 +234,23 @@ func update_case_progress(case_id: String, progress: Dictionary) -> void:
 # ============ 辅助方法（预留接口） ============
 
 func _get_dialogue_progress() -> Dictionary:
-	# TODO: 从 DialogueManager 获取对话进度
+	if DialogueProgress:
+		return DialogueProgress.get_dialogue_progress()
 	return {}
 
 func _get_clue_states() -> Dictionary:
-	# TODO: 从 ClueSystem 获取所有线索状态
+	if ClueSystem:
+		return ClueSystem.get_clue_states()
 	return {}
 
 func _get_unlocked_locations() -> Array:
-	# TODO: 从 MapManager 获取已解锁地点
+	if MapManager:
+		return MapManager.get_unlocked_locations()
 	return []
 
 func _get_completed_milestones() -> Array:
-	# TODO: 从 GameManager 获取已完成的里程碑
+	if GameManager:
+		return GameManager.get_completed_milestones()
 	return []
 
 func _get_settings_snapshot() -> Dictionary:
@@ -255,17 +259,17 @@ func _get_settings_snapshot() -> Dictionary:
 	return {}
 
 func _restore_dialogue_progress(data: Dictionary) -> void:
-	# TODO: 恢复到 DialogueManager
-	pass
+	if DialogueProgress:
+		DialogueProgress.restore_dialogue_progress(data)
 
 func _restore_clue_states(data: Dictionary) -> void:
-	# TODO: 恢复到 ClueSystem
-	pass
+	if ClueSystem:
+		ClueSystem.restore_clue_states(data)
 
 func _restore_unlocked_locations(data: Array) -> void:
-	# TODO: 恢复到 MapManager
-	pass
+	if MapManager:
+		MapManager.restore_unlocked_locations(data)
 
 func _restore_completed_milestones(data: Array) -> void:
-	# TODO: 恢复到 GameManager
-	pass
+	if GameManager:
+		GameManager.restore_milestones(data)

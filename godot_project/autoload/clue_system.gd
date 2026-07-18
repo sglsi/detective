@@ -73,3 +73,20 @@ func get_discovered_count() -> int:
 func get_total_clues() -> int:
 	# TODO: 从案件数据中获取总线索数
 	return 45  # 血字的研究：45条线索
+
+## 存档：导出所有已发现线索的状态（clue_id -> ClueState 整数）
+func get_clue_states() -> Dictionary:
+	var states: Dictionary = {}
+	for clue_id in discovered_clues.keys():
+		states[clue_id] = discovered_clues[clue_id].state
+	return states
+
+## 存档：从字典恢复线索状态（不依赖 .tres 解析，直接重建内存态）
+func restore_clue_states(states: Dictionary) -> void:
+	discovered_clues.clear()
+	for clue_id in states.keys():
+		var cd = ClueData.new()
+		cd.id = clue_id
+		cd.state = int(states[clue_id])
+		discovered_clues[clue_id] = cd
+	clue_count = discovered_clues.size()
