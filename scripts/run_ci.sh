@@ -29,7 +29,7 @@ fi
 kill $SRV 2>/dev/null; wait $SRV 2>/dev/null
 
 # ---------- 2. Godot headless 套件 ----------
-step "2/3 Godot headless 套件 (smoke / art / wall)"
+step "2/3 Godot headless 套件 (smoke / art / wall / p5)"
 cd "$ROOT/godot_project"
 "$GODOT" --headless --import >/tmp/ci_import.log 2>&1 || bad "godot import 警告(可忽略)"
 if "$GODOT" --headless --script res://tools/smoke_load_check.gd 2>&1 | grep -q "SMOKE_ALL_OK"; then
@@ -38,7 +38,7 @@ else
   bad "smoke_load_check"; "$GODOT" --headless --script res://tools/smoke_load_check.gd 2>&1 | tail -15
 fi
 if "$GODOT" --headless --script res://tools/p3_art_check.gd 2>&1 | grep -q "ART_CHECK_OK"; then
-  ok "p3_art_check (头像/UI/9-slice/主题)"
+  ok "p3_art_check (头像/UI/9-slice/场景背景)"
 else
   bad "p3_art_check"; "$GODOT" --headless --script res://tools/p3_art_check.gd 2>&1 | tail -15
 fi
@@ -56,6 +56,16 @@ if "$GODOT" --headless --script res://tools/p5_clue_data_test.gd 2>&1 | grep -q 
   ok "p5_clue_data_test (线索/案件数据解析)"
 else
   bad "p5_clue_data_test"; "$GODOT" --headless --script res://tools/p5_clue_data_test.gd 2>&1 | tail -15
+fi
+if "$GODOT" --headless --script res://tools/p5_3_scene_art_test.gd 2>&1 | grep -q "SCENE_ART_OK"; then
+  ok "p5_3_scene_art_test (场景背景真实美术)"
+else
+  bad "p5_3_scene_art_test"; "$GODOT" --headless --script res://tools/p5_3_scene_art_test.gd 2>&1 | tail -15
+fi
+if "$GODOT" --headless --script res://tools/p5_4_dialogue_patch_test.gd 2>&1 | grep -q "DIALOGUE_PATCH_OK"; then
+  ok "p5_4_dialogue_patch_test (场景3六步/验证 + 场景7华生)"
+else
+  bad "p5_4_dialogue_patch_test"; "$GODOT" --headless --script res://tools/p5_4_dialogue_patch_test.gd 2>&1 | tail -15
 fi
 
 # ---------- 3. Python 套件 ----------

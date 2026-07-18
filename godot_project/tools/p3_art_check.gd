@@ -70,6 +70,18 @@ func _process(_delta: float) -> bool:
 	var ex = load("res://scenes/ui_frame_example.tscn")
 	_check("ui_frame_example.tscn", ex)
 
+	# 7. P5-3 场景背景图（8 张 Victorian gaslight 氛围插画）
+	var scenes = [
+		"sc_01_lab", "sc_02_garden", "sc_03_indoor", "sc_04_police",
+		"sc_05_parlor", "sc_06_apartment", "sc_07_hotel", "sc_08_finale",
+	]
+	for sid in scenes:
+		var path = "res://assets/scenes/" + sid + ".png"
+		var tex = load(path)
+		_check("scene:" + sid, tex)
+		if tex != null:
+			print("     scene size = " + str(tex.get_size()))
+
 	if failures.is_empty():
 		print("ART_CHECK_OK")
 	else:
