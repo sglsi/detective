@@ -1,11 +1,20 @@
 name: CI
 
 # P3 模块 11 — 三套测试（后端 Node / Godot headless / Python）自动运行，防回归。
-# 触发：push 到主分支、以及所有 PR。
+# 触发：push 到主分支、所有 PR、每日定时复跑（cron）、以及手动 dispatch。
 on:
   push:
     branches: [main, master, dev]
   pull_request:
+  schedule:
+    # 每日 02:07 UTC 定时复跑，捕获依赖/资源静默退化；分钟避开整点以降低 runner 峰值
+    - cron: "7 2 * * *"
+  workflow_dispatch:
+
+# 同一 ref 的并发运行互相取消，避免重复占用与结果互相覆盖
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # 须与项目实际 Godot 版本一致（godot_project/project.godot 中记录为 4.7.stable）。
