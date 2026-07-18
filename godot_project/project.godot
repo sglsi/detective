@@ -46,6 +46,8 @@ SettingsManager="*res://autoload/settings_manager.gd"
 AudioManager="*res://autoload/audio_manager.gd"
 APIConfig="*res://config/api_config.gd"
 FrameworkTest="*res://autoload/framework_test.gd"
+MapManager="*res://autoload/map_manager.gd"
+DialogueProgress="*res://autoload/dialogue_progress.gd"
 
 [editor_plugins]
 enabled=PackedStringArray()

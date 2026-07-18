@@ -47,6 +47,11 @@ if "$GODOT" --headless --script res://tools/p2_wall_script_check.gd 2>&1 | grep 
 else
   bad "p2_wall_script_check"; "$GODOT" --headless --script res://tools/p2_wall_script_check.gd 2>&1 | tail -15
 fi
+if "$GODOT" --headless --script res://tools/p5_save_load_test.gd 2>&1 | grep -q "SAVE_LOAD_E2E_OK"; then
+  ok "p5_save_load_test (存读档端到端)"
+else
+  bad "p5_save_load_test"; "$GODOT" --headless --script res://tools/p5_save_load_test.gd 2>&1 | tail -15
+fi
 
 # ---------- 3. Python 套件 ----------
 # 注：test_core_mechanisms 原 7 项【历史基线】失败已修复（脆弱字符串匹配断言对齐真实实现：

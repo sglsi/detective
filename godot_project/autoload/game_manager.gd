@@ -26,6 +26,7 @@ var current_case_id: String = ""
 var current_scene_id: String = ""
 var game_start_time: int = 0
 var is_online: bool = false
+var completed_milestones: Array = []  # 已完成里程碑 ID 列表（P5-1 存档补全）
 
 # ============ 生命周期 ============
 
@@ -191,6 +192,24 @@ func is_in_game() -> bool:
 
 func is_paused() -> bool:
 	return current_state == GameState.PAUSED
+
+# ============ 里程碑（P5-1 存档补全） ============
+
+## 标记一个里程碑为已完成（去重）
+func add_milestone(milestone_id: String) -> void:
+	if not completed_milestones.has(milestone_id):
+		completed_milestones.append(milestone_id)
+
+## 查询已完成的里程碑列表（供存档收集）
+func get_completed_milestones() -> Array:
+	return completed_milestones.duplicate()
+
+## 从存档字典恢复里程碑（供读档恢复）
+func restore_milestones(milestones: Array) -> void:
+	completed_milestones.clear()
+	for m in milestones:
+		if not completed_milestones.has(m):
+			completed_milestones.append(m)
 
 # ============ 辅助 ============
 
