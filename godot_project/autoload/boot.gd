@@ -170,7 +170,11 @@ func _phase_4_network_init() -> void:
 	# 4.1 配置 API 基地址
 	if APIManager:
 		APIManager.base_url = APIConfig.get_base_url()
+		# Web 预览环境：把沙箱预览查询串（含后端端口 3000）作为后缀追加到每个请求路径之后
+		APIManager.url_suffix = APIConfig.get_web_query_suffix()
 		print("  ✅ API 基地址: %s" % APIManager.base_url)
+		if APIManager.url_suffix != "":
+			print("  ✅ Web 查询后缀: %s" % APIManager.url_suffix)
 		
 		# 4.2 配置超时与重试
 		APIManager.request_timeout = APIConfig.REQUEST_TIMEOUT

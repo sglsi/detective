@@ -16,16 +16,58 @@ const DEV_BASE_URL: String = "http://localhost:3000"
 ## 生产环境 API 地址（待定）
 const PROD_BASE_URL: String = "https://api.sherlock-game.com"
 
+## Web 预览环境后端端口（沙箱后端监听 3000，Game 预览在 8081，同代理不同端口）
+const WEB_PREVIEW_BACKEND_PORT: String = "3000"
+
 ## 从项目设置或环境变量获取后端地址
 static func get_base_url() -> String:
 	var url = ProjectSettings.get_setting("application/config/api_base_url", "")
 	if url != "":
 		return url
-	
+
+	# Web 环境：base 仅取页面 origin（不含查询串），沙箱预览查询串由
+	# get_web_query_suffix() 作为后缀追加到每个请求路径之后，使浏览器内运行的游戏
+	# 能真正触达沙箱后端（修复 Issue 3 连通性）。
+	if OS.has_feature("web"):
+		var origin = _get_sandbox_origin()
+		if origin != "":
+			return origin
+
 	# 开发/生产自动切换
 	if OS.has_feature("editor") or OS.has_feature("debug"):
 		return DEV_BASE_URL
 	return PROD_BASE_URL
+
+## Web 环境：返回页面 origin（如 https://host），不含查询串
+static func _get_sandbox_origin() -> String:
+	if not OS.has_feature("web"):
+		return ""
+	var js = """
+	(function(){ try { return window.location.origin; } catch(e) { return ''; } })()
+	"""
+	var result = JavaScriptBridge.eval(js, true)
+	if result is String and result != "":
+		return result
+	return ""
+
+## Web 环境：返回沙箱预览查询串（含后端端口 3000），追加到请求路径之后。
+## 例如 "?x-cs-sandbox-id=...&x-cs-sandbox-port=3000"
+static func get_web_query_suffix() -> String:
+	if not OS.has_feature("web"):
+		return ""
+	var js = """
+	(function(){
+		try {
+			var u = new URL(window.location.href);
+			u.searchParams.set('x-cs-sandbox-port', '%s');
+			return u.search;
+		} catch(e) { return ''; }
+	})()
+	""" % WEB_PREVIEW_BACKEND_PORT
+	var result = JavaScriptBridge.eval(js, true)
+	if result is String and result != "":
+		return result
+	return ""
 
 # ============ 请求参数 ============
 
