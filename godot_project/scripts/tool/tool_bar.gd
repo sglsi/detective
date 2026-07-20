@@ -55,6 +55,19 @@ func _create_magnifier_overlay() -> void:
 	magnifier_overlay.hide()
 	add_child(magnifier_overlay)
 
+	# 立绘图像（让放大镜真正"有图像"，修复 Issue 2：原先只有边框无内容）
+	var tex_path = "res://assets/portraits/sherlock_凝思.png"
+	var img = TextureRect.new()
+	img.name = "MagnifierImage"
+	img.size = Vector2(140, 140)
+	img.position = Vector2(5, 5)
+	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if ResourceLoader.exists(tex_path):
+		img.texture = load(tex_path)
+	magnifier_overlay.add_child(img)
+
 func show_toolbar() -> void:
 	show()
 	is_tool_active = true
@@ -97,9 +110,9 @@ func _on_hotspot_clicked_for_tool(hotspot_id: String) -> void:
 
 func _start_magnifier() -> void:
 	magnifier_overlay.show()
-	UIManager.show_notification("移动放大镜到目标区域，停留 1.5 秒完成观察")
-	# 简化：直接完成观察
-	await get_tree().create_timer(1.5).timeout
+	UIManager.show_notification("移动放大镜到目标区域，停留 3 秒完成观察")
+	# 简化：直接完成观察（延长显示时间，修复 Issue 2：原先 1.5s 过短）
+	await get_tree().create_timer(3.0).timeout
 	_complete_tool_use("magnifier")
 
 func _start_tape_measure() -> void:

@@ -225,7 +225,9 @@ func _go_to_node(node_id: String) -> bool:
 	dialogue_advanced.emit(node_id)
 
 	# 自动推进：延迟 0.15s 异步触发，避免阻塞；保留原节奏
-	if node.trigger in ["auto", "optional", "note", "knowledge", "milestone", "sfx", "clue", "guide", "hint"]:
+	# 注：trigger=="note" 不再自动推进 —— 改为由 UI 弹「加入笔记/跳过」选择面板，
+	#     避免 0.15s 后自动跳过「侦探笔记」页（见 Issue 2 修复）。
+	if node.trigger in ["auto", "optional", "knowledge", "milestone", "sfx", "clue", "guide", "hint"]:
 		_schedule_auto_advance(node)
 
 	return true

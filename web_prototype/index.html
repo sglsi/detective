@@ -35,7 +35,7 @@ body {
 #app {
   display: flex; flex-direction: column;
   height: 100vh; height: 100dvh;
-  max-width: 480px; margin: 0 auto;
+  width: 100%;
   position: relative;
 }
 
@@ -45,15 +45,24 @@ body {
   padding: 8px 12px; background: var(--bg-panel);
   border-bottom: 2px solid var(--gold);
   z-index: 10; flex-shrink: 0;
+  gap: 8px;
 }
-#topbar .title { font-size: 14px; color: var(--gold); font-weight: bold; }
-#topbar .time { font-size: 11px; color: var(--text-dim); }
+#topbar .title { font-size: 14px; color: var(--gold); font-weight: bold; white-space: nowrap; }
+#topbar .time { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+#topbar .topbar-actions { display: flex; align-items: center; gap: 6px; }
+#topbar .top-btn {
+  font-size: 15px; background: none; border: 1px solid var(--brown);
+  color: var(--gold); border-radius: 6px; padding: 4px 8px; cursor: pointer;
+  white-space: nowrap;
+}
+#topbar .top-btn:active { background: var(--brown); }
 #topbar .menu-btn { font-size: 20px; color: var(--gold); background: none; border: none; cursor: pointer; padding: 4px 8px; }
 
 /* ===== 场景视图 ===== */
 #scene-view {
   flex: 1; position: relative; overflow: hidden;
   background: radial-gradient(ellipse at center, #2a2018 0%, #0d0a06 100%);
+  display: flex; align-items: center; justify-content: center;
 }
 #scene-bg {
   position: absolute; inset: 0;
@@ -67,13 +76,15 @@ body {
 #scene-room {
   width: 90%; max-width: 360px; height: 55%;
   border: 2px solid var(--brown); border-radius: 8px;
-  background: linear-gradient(180deg, #1e1812 0%, #16120c 100%);
+  background:
+    radial-gradient(circle at 50% 30%, rgba(201,168,76,0.08), transparent 60%),
+    linear-gradient(180deg, #1e1812 0%, #16120c 100%);
   position: relative; overflow: hidden;
   box-shadow: inset 0 0 60px rgba(0,0,0,0.5);
 }
 #scene-room .room-label {
   position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
-  font-size: 11px; color: var(--text-dim);
+  font-size: 11px; color: var(--text-dim); white-space: nowrap;
 }
 
 /* ===== 热点标记 ===== */
@@ -113,15 +124,6 @@ body {
 }
 #toolbar button.active { border-color: var(--gold); background: var(--brown); }
 #toolbar button:active { transform: scale(0.9); }
-
-/* ===== 放大镜覆盖层 ===== */
-#magnifier {
-  position: absolute; width: 100px; height: 100px;
-  border: 3px solid var(--gold); border-radius: 50%;
-  pointer-events: none; z-index: 20; display: none;
-  background: rgba(0,0,0,0.3);
-  box-shadow: 0 0 30px rgba(201,168,76,0.4);
-}
 
 /* ===== 对话面板 ===== */
 #dialogue-panel {
@@ -209,7 +211,7 @@ body {
 #reasoning-wall .board .clue-card { cursor: pointer; }
 #reasoning-wall .result {
   text-align: center; font-size: 15px; padding: 12px;
-  border-radius: 8px; margin-bottom: 10px; font-weight: bold;
+  border-radius: 8px; margin-bottom: 10px; font-weight: bold; white-space: pre-line;
 }
 #reasoning-wall .result.verified { background: rgba(74,139,63,0.2); color: #5bdb5b; }
 #reasoning-wall .result.supported { background: rgba(201,168,76,0.2); color: var(--gold-light); }
@@ -223,6 +225,66 @@ body {
 #reasoning-wall .btns .verify-btn { background: var(--gold); color: var(--bg-dark); }
 #reasoning-wall .btns .close-btn { background: var(--bg-panel); color: var(--text); border: 1px solid var(--brown); }
 #reasoning-wall .btns button:active { opacity: 0.8; }
+
+/* ===== 细节放大镜审查弹窗（修复点：放大镜显示真实图像 + 玩家选择） ===== */
+#detail-review {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+  z-index: 40; display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px; padding: 24px;
+}
+#detail-review .lens {
+  width: 160px; height: 160px; border-radius: 50%;
+  border: 4px solid var(--gold);
+  background: radial-gradient(circle at 35% 35%, #3a2f22, #15100a);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 76px; box-shadow: 0 0 50px rgba(201,168,76,0.5);
+}
+#detail-review .r-name { color: var(--gold); font-size: 22px; font-weight: bold; }
+#detail-review .r-desc { color: var(--text); font-size: 16px; line-height: 1.6; max-width: 420px; text-align: center; }
+#detail-review .r-progress { color: var(--text-dim); font-size: 13px; }
+#detail-review .r-btns { display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap; justify-content: center; }
+#detail-review .r-btns button { padding: 12px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; }
+.r-add { background: var(--gold); color: var(--bg-dark); border: none; }
+.r-skip { background: transparent; color: var(--text-dim); border: 1px solid var(--brown); }
+.r-close { background: var(--bg-panel); color: var(--text); border: 1px solid var(--brown); }
+
+/* ===== 账号 / 注册登录弹窗（修复点：后台注册功能） ===== */
+#auth-panel {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+  z-index: 55; display: none; flex-direction: column;
+  align-items: center; justify-content: center; padding: 24px;
+}
+#auth-panel .auth-box {
+  width: 100%; max-width: 380px; background: var(--bg-panel);
+  border: 2px solid var(--gold); border-radius: 12px; padding: 24px;
+  position: relative;
+}
+#auth-panel h2 { color: var(--gold); text-align: center; margin-bottom: 16px; font-size: 20px; }
+#auth-panel .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+#auth-panel .tabs button {
+  flex: 1; padding: 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--gold); background: var(--bg-dark);
+  color: var(--gold); font-weight: bold;
+}
+#auth-panel .tabs button.active { background: var(--gold); color: var(--bg-dark); }
+#auth-panel input {
+  width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 6px;
+  border: 1px solid var(--brown); background: var(--bg-dark);
+  color: var(--text); font-size: 14px;
+}
+#auth-panel .submit-btn {
+  width: 100%; padding: 14px; border-radius: 8px; background: var(--gold);
+  color: var(--bg-dark); font-weight: bold; font-size: 16px; cursor: pointer; border: none;
+}
+#auth-panel .guest-btn {
+  width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px;
+  background: transparent; color: var(--text-dim); border: 1px solid var(--brown); cursor: pointer;
+}
+#auth-panel .auth-msg { color: #e84040; font-size: 13px; min-height: 18px; margin-bottom: 8px; text-align: center; }
+#auth-panel .close-x {
+  position: absolute; top: 10px; right: 14px; font-size: 26px;
+  color: var(--gold); background: none; border: none; cursor: pointer; line-height: 1;
+}
 
 /* ===== 里程碑弹窗 ===== */
 #milestone-popup {
@@ -240,7 +302,7 @@ body {
 #notification {
   position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
   background: var(--bg-panel); border: 1px solid var(--gold);
-  border-radius: 8px; padding: 8px 16px; z-index: 40; display: none;
+  border-radius: 8px; padding: 8px 16px; z-index: 60; display: none;
   font-size: 13px; color: var(--gold-light); white-space: nowrap;
   max-width: 90%; text-align: center;
 }
@@ -274,6 +336,21 @@ body {
 }
 #case-choice button.accept { background: var(--gold); color: var(--bg-dark); }
 #case-choice button:active { opacity: 0.8; }
+
+/* ===== 桌面端分栏布局（修复点：不再是手机小界面） ===== */
+@media (min-width: 820px) {
+  #app { flex-direction: row; }
+  #scene-view {
+    flex: 1 1 58%; border-right: 2px solid var(--gold);
+    border-bottom: none;
+  }
+  #dialogue-panel {
+    flex: 1 1 42%; max-width: 480px; border-top: none;
+    border-left: none;
+  }
+  #scene-room { width: 80%; max-width: 640px; height: 70%; }
+  #topbar .title { font-size: 16px; }
+}
 </style>
 </head>
 <body>
@@ -283,7 +360,12 @@ body {
   <div id="topbar">
     <span class="title">贝克街221B · 实验室</span>
     <span class="time" id="time-display">DAY 1 上午10:30</span>
-    <button class="menu-btn" onclick="toggleUI()">☰</button>
+    <div class="topbar-actions">
+      <button class="top-btn" id="btn-notebook" onclick="openNotebook()" title="侦探笔记">📓</button>
+      <button class="top-btn" id="btn-reasoning" onclick="openReasoningFromTop()" title="推理墙">🔍</button>
+      <button class="top-btn" id="btn-account" onclick="openAuth('login')" title="账号">🔑 账号</button>
+      <button class="menu-btn" onclick="toggleUI()">☰</button>
+    </div>
   </div>
 
   <!-- 场景视图 -->
@@ -291,6 +373,7 @@ body {
     <div id="scene-bg">
       <div id="scene-label">福尔摩斯私人化学实验室</div>
       <div id="scene-room">
+        <img id="character-portrait" src="assets/sherlock_凝思.png" alt="人物" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:85%;max-height:85%;object-fit:contain;pointer-events:none;opacity:0.85;">
         <span class="room-label">点击人物身上的细节进行观察</span>
       </div>
     </div>
@@ -299,8 +382,6 @@ body {
       <button id="btn-magnifier" onclick="selectTool('magnifier')" title="放大镜">🔍</button>
       <button id="btn-tape" onclick="selectTool('tape')" title="卷尺">📏</button>
     </div>
-    <!-- 放大镜 -->
-    <div id="magnifier"></div>
   </div>
 
   <!-- 对话面板 -->
@@ -316,7 +397,7 @@ body {
 <div id="notebook">
   <h3>📓 侦探笔记</h3>
   <div id="notebook-entries"></div>
-  <button onclick="closeNotebook()">记录完成 ✓</button>
+  <button onclick="closeNotebook()">关闭笔记</button>
 </div>
 
 <!-- 推理墙 -->
@@ -332,6 +413,38 @@ body {
   <div class="btns">
     <button class="verify-btn" onclick="verifyReasoning()">验证推理</button>
     <button class="close-btn" onclick="closeReasoningWall()">关闭</button>
+  </div>
+</div>
+
+<!-- 细节放大镜审查弹窗 -->
+<div id="detail-review">
+  <div class="lens" id="review-icon">🔍</div>
+  <div class="r-name" id="review-name"></div>
+  <div class="r-desc" id="review-desc"></div>
+  <div class="r-progress" id="review-progress"></div>
+  <div class="r-btns">
+    <button class="r-add" onclick="addToNotebookFromReview()">📝 加入笔记</button>
+    <button class="r-skip" onclick="skipFromReview()">跳过</button>
+    <button class="r-close" onclick="closeDetailReview()">关闭</button>
+  </div>
+</div>
+
+<!-- 账号 / 注册登录 -->
+<div id="auth-panel">
+  <div class="auth-box">
+    <button class="close-x" onclick="closeAuth()">×</button>
+    <h2 id="auth-title">账号</h2>
+    <div class="tabs">
+      <button id="tab-login" class="active" onclick="setAuthMode('login')">🔑 登录</button>
+      <button id="tab-register" onclick="setAuthMode('register')">📝 注册</button>
+    </div>
+    <input id="auth-username" type="text" placeholder="用户名（注册可选）" style="display:none;">
+    <input id="auth-email" type="email" placeholder="邮箱（必填）">
+    <input id="auth-password" type="password" placeholder="密码（必填）">
+    <input id="auth-phone" type="tel" placeholder="手机号（注册可选）" style="display:none;">
+    <div class="auth-msg" id="auth-msg"></div>
+    <button class="submit-btn" id="auth-submit" onclick="submitAuth()">登录</button>
+    <button class="guest-btn" onclick="guestEnter()">🕵️ 以游客身份进入</button>
   </div>
 </div>
 
@@ -364,24 +477,27 @@ body {
 // ==================== 游戏状态 ====================
 let difficulty = 'normal';
 let tutorialPhase = 0; // 0=华生观察, 1=信使观察
-let currentStep = 'observe'; // observe/tool/record/verify
-let activeTool = null;
+let currentStep = 'observe'; // observe/review/verify/done
+let lastObservedId = null;
+let lastObservedDef = null;
+let reviewOpen = false;
 let observedHotspots = [];
 let recordedClues = [];
 let boardClues = [];
+let authUser = null; // { username, email, token, guest_id }
 
 const hotspotDefs = {
-  wrist:  { name:'手腕', desc:'手腕有明显肤色对比——手掌白净，手腕以上晒黑', x:55, y:35, size:36, tool:'magnifier', phase:0, correct:true },
-  arm:    { name:'左臂', desc:'左臂动作僵硬，似有肩部旧伤，与战场负伤一致', x:35, y:50, size:40, tool:'magnifier', phase:0, correct:true },
-  face:   { name:'面色', desc:'面容憔悴，眼下有黑眼圈——疾病初愈或长期疲劳', x:65, y:20, size:34, tool:'magnifier', phase:0, correct:true },
-  posture:{ name:'站姿', desc:'站姿挺拔，带有明显的军人气质——正规军队服役标志', x:50, y:75, size:44, tool:'magnifier', phase:0, correct:true },
+  wrist:  { name:'手腕', desc:'手腕有明显肤色对比——手掌白净，手腕以上晒黑', x:55, y:35, size:36, tool:'magnifier', phase:0, correct:true, icon:'🤚' },
+  arm:    { name:'左臂', desc:'左臂动作僵硬，似有肩部旧伤，与战场负伤一致', x:35, y:50, size:40, tool:'magnifier', phase:0, correct:true, icon:'💪' },
+  face:   { name:'面色', desc:'面容憔悴，眼下有黑眼圈——疾病初愈或长期疲劳', x:65, y:20, size:34, tool:'magnifier', phase:0, correct:true, icon:'😴' },
+  posture:{ name:'站姿', desc:'站姿挺拔，带有明显的军人气质——正规军队服役标志', x:50, y:75, size:44, tool:'magnifier', phase:0, correct:true, icon:'🧍' },
   // 信使阶段
-  tattoo: { name:'手背文身', desc:'蓝色大锚文身——海员/海军特征', x:25, y:55, size:30, tool:'magnifier', phase:1, correct:true },
-  beard:  { name:'络腮胡', desc:'修剪整齐的军人式胡须', x:60, y:22, size:32, tool:'magnifier', phase:1, correct:true },
-  mposture:{ name:'信使站姿', desc:'昂首挺胸——典型的军人站姿', x:45, y:70, size:38, tool:'magnifier', phase:1, correct:true },
-  expression:{ name:'神态', desc:'自信发号施令的神态——军士气质', x:70, y:18, size:30, tool:'magnifier', phase:1, correct:true },
-  ring:   { name:'戒指', desc:'普通戒指，与军人身份无关', x:80, y:58, size:26, tool:'magnifier', phase:1, correct:false },
-  shoes:  { name:'鞋子', desc:'普通皮鞋，无法判断职业', x:40, y:88, size:28, tool:'magnifier', phase:1, correct:false },
+  tattoo: { name:'手背文身', desc:'蓝色大锚文身——海员/海军特征', x:25, y:55, size:30, tool:'magnifier', phase:1, correct:true, icon:'⚓' },
+  beard:  { name:'络腮胡', desc:'修剪整齐的军人式胡须', x:60, y:22, size:32, tool:'magnifier', phase:1, correct:true, icon:'🧔' },
+  mposture:{ name:'信使站姿', desc:'昂首挺胸——典型的军人站姿', x:45, y:70, size:38, tool:'magnifier', phase:1, correct:true, icon:'🪖' },
+  expression:{ name:'神态', desc:'自信发号施令的神态——军士气质', x:70, y:18, size:30, tool:'magnifier', phase:1, correct:true, icon:'😏' },
+  ring:   { name:'戒指', desc:'普通戒指，与军人身份无关', x:80, y:58, size:26, tool:'magnifier', phase:1, correct:false, icon:'💍' },
+  shoes:  { name:'鞋子', desc:'普通皮鞋，无法判断职业', x:40, y:88, size:28, tool:'magnifier', phase:1, correct:false, icon:'👞' },
 };
 
 // ==================== 对话数据 ====================
@@ -424,7 +540,6 @@ const dialogueText = $('dialogue-text');
 const dialogueHint = $('dialogue-hint');
 const choicesDiv = $('choices');
 const toolbar = $('toolbar');
-const magnifier = $('magnifier');
 const notebook = $('notebook');
 const notebookEntries = $('notebook-entries');
 const reasoningWall = $('reasoning-wall');
@@ -433,6 +548,31 @@ const clueBoard = $('clue-board');
 const verifyResult = $('verify-result');
 const sceneLabel = $('scene-label');
 const timeDisplay = $('time-display');
+const detailReview = $('detail-review');
+const authPanel = $('auth-panel');
+
+// ==================== 后台 API 地址 ====================
+// 沙箱内：当前页面 origin 带 ?x-cs-sandbox-id=...&x-cs-sandbox-port=8080，
+// 代理服务器（proxy_server.py）自动将 /api/* 转发到 localhost:3000
+// 因此直接使用同源路径即可，无需拼接端口。
+function getApiBase() {
+  return '';
+}
+
+async function apiPost(url, body) {
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    let data = {};
+    try { data = await r.json(); } catch (e) { /* ignore */ }
+    return { ok: r.ok, status: r.status, data };
+  } catch (e) {
+    return { ok: false, status: 0, data: { error: '网络错误：' + e.message } };
+  }
+}
 
 // ==================== 游戏启动 ====================
 function startGame(diff) {
@@ -443,14 +583,18 @@ function startGame(diff) {
   playDialogue(dialogueData);
 }
 
+function requiredCount() {
+  return tutorialPhase === 0 ? 4 : 6;
+}
+
 function renderHotspots(phase) {
   // 清除旧热点
   sceneRoom.querySelectorAll('.hotspot').forEach(h => h.remove());
-  
+
   Object.entries(hotspotDefs).forEach(([id, def]) => {
     if (def.phase !== phase) return;
     if (observedHotspots.includes(id)) return;
-    
+
     const el = document.createElement('div');
     el.className = 'hotspot';
     el.id = 'hs-' + id;
@@ -458,7 +602,7 @@ function renderHotspots(phase) {
     el.style.top = def.y + '%';
     el.style.width = def.size + 'px';
     el.style.height = def.size + 'px';
-    
+
     if (difficulty === 'easy') {
       el.classList.add('easy-highlight');
     } else if (difficulty === 'normal') {
@@ -466,85 +610,105 @@ function renderHotspots(phase) {
     } else {
       el.classList.add('hard-hidden');
     }
-    
+
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       onHotspotClick(id, def);
     });
-    
+
     sceneRoom.appendChild(el);
   });
 }
 
+// 修复点4：首点后不再锁死，其余圆圈可继续点击
 function onHotspotClick(id, def) {
-  if (currentStep !== 'observe') return;
+  if (reviewOpen) return;                 // 审查弹窗打开时忽略其它点击
   if (observedHotspots.includes(id)) return;
-  
+
   observedHotspots.push(id);
   const el = $('hs-' + id);
   if (el) el.classList.add('found');
-  
-  showNotification('发现: ' + def.name);
-  
-  // 进入工具操作步骤
-  currentStep = 'tool';
+
+  lastObservedId = id;
+  lastObservedDef = def;
+
+  // 首次观察后显示工具栏（放大镜/卷尺）
   toolbar.style.display = 'flex';
-  
-  if (difficulty === 'easy') {
-    showNotification('试试用放大镜观察');
-    $('btn-magnifier').classList.add('active');
-  } else if (difficulty === 'normal') {
-    showNotification('选择一个工具来检查');
-  }
-  // hard: 无提示
+
+  // 直接打开细节放大镜审查（含真实图像 + 玩家选择，无自动跳转）
+  showDetailReview(def);
 }
 
+// 修复点2：放大镜显示真实细节图像，并交由玩家选择是否加入笔记
+function showDetailReview(def) {
+  reviewOpen = true;
+  currentStep = 'review';
+
+  $('review-icon').textContent = def.icon;
+  $('review-name').textContent = def.name;
+  $('review-desc').textContent = def.desc;
+  $('review-progress').textContent = '已观察 ' + observedHotspots.length + ' / ' + requiredCount() + ' 个细节';
+
+  detailReview.style.display = 'flex';
+}
+
+function closeDetailReview() {
+  detailReview.style.display = 'none';
+  reviewOpen = false;
+  currentStep = 'observe';
+  checkObservationComplete();
+}
+
+function addToNotebookFromReview() {
+  if (lastObservedId && !recordedClues.includes(lastObservedId)) {
+    recordedClues.push(lastObservedId);
+  }
+  showNotification('已加入笔记：' + (lastObservedDef ? lastObservedDef.name : ''));
+  closeDetailReview();
+}
+
+function skipFromReview() {
+  showNotification('已跳过：' + (lastObservedDef ? lastObservedDef.name : ''));
+  closeDetailReview();
+}
+
+function checkObservationComplete() {
+  if (currentStep !== 'observe') return;
+  if (observedHotspots.length >= requiredCount()) {
+    currentStep = 'verify';
+    showNotification('线索观察完成 ✅ 点击对话区或「🔍 推理墙」验证结论');
+  }
+}
+
+// 工具栏：放大镜重新查看上一个细节；卷尺给出测量提示
 function selectTool(toolName) {
-  if (currentStep !== 'tool') return;
-  
-  activeTool = toolName;
-  $('btn-magnifier').classList.toggle('active', toolName === 'magnifier');
-  $('btn-tape').classList.toggle('active', toolName === 'tape');
-  
   if (toolName === 'magnifier') {
-    showNotification('移动放大镜到目标区域');
-    // 模拟放大镜效果
-    magnifier.style.display = 'block';
-    magnifier.style.left = '40%';
-    magnifier.style.top = '40%';
-    
-    setTimeout(() => {
-      magnifier.style.display = 'none';
-      completeToolUse();
-    }, 1500);
+    if (!lastObservedDef) {
+      showNotification('请先点击人物身上的细节进行观察');
+      return;
+    }
+    showDetailReview(lastObservedDef);
   } else if (toolName === 'tape') {
-    showNotification('拖拽卷尺测量');
-    setTimeout(() => completeToolUse(), 1000);
+    showNotification('📏 卷尺测量：左臂伸展长度约 62cm（估算）');
   }
 }
 
-function completeToolUse() {
-  toolbar.style.display = 'none';
-  activeTool = null;
-  $('btn-magnifier').classList.remove('active');
-  $('btn-tape').classList.remove('active');
-  
-  // Step 3: 数据记录 → 打开侦探笔记
-  currentStep = 'record';
-  openNotebook();
-}
-
+// ==================== 侦探笔记 ====================
 function openNotebook() {
   notebookEntries.innerHTML = '';
-  
-  observedHotspots.forEach(id => {
+
+  if (recordedClues.length === 0) {
+    notebookEntries.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;line-height:1.6;">还没有记录任何线索。<br>观察细节时点击「📝 加入笔记」即可记录到这里。</div>';
+  }
+
+  recordedClues.forEach(id => {
     const def = hotspotDefs[id];
-    if (!def || !def.correct) return;
-    
+    if (!def) return;
+
     const div = document.createElement('div');
     div.className = 'entry';
     div.innerHTML = `
-      <div class="label">📌 ${def.name}</div>
+      <div class="label">${def.icon} ${def.name}</div>
       <div class="desc">${def.desc}</div>
       ${difficulty !== 'hard' ? `
       <div class="slider-group">
@@ -556,30 +720,22 @@ function openNotebook() {
     `;
     notebookEntries.appendChild(div);
   });
-  
+
   notebook.style.display = 'flex';
 }
 
 function closeNotebook() {
   notebook.style.display = 'none';
-  
-  // 记录已确认的线索
-  observedHotspots.forEach(id => {
-    if (!recordedClues.includes(id)) {
-      recordedClues.push(id);
-    }
-  });
-  
-  // 检查是否收集足够线索进入验证
-  const correctCount = recordedClues.filter(id => hotspotDefs[id]?.correct !== false).length;
-  const required = tutorialPhase === 0 ? 4 : 4;
-  
-  if (correctCount >= required) {
-    currentStep = 'verify';
-    showNotification('线索充足！去推理墙验证你的结论（按下方对话区或点击推理墙按钮）');
+  showNotification('侦探笔记 (' + recordedClues.length + ' 条记录)');
+}
+
+// ==================== 推理墙 ====================
+function openReasoningFromTop() {
+  if (observedHotspots.length === 0 && recordedClues.length === 0) {
+    showNotification('请先观察场景中的细节');
+    return;
   }
-  
-  showNotification('侦探笔记已更新 (' + recordedClues.length + ' 条记录)');
+  openReasoningWall();
 }
 
 function openReasoningWall() {
@@ -587,18 +743,20 @@ function openReasoningWall() {
   clueBoard.innerHTML = '<div class="board-label">将线索从上方点击添加到推理板</div>';
   verifyResult.textContent = '';
   verifyResult.className = 'result';
-  
-  recordedClues.forEach(id => {
+
+  // 线索库 = 本阶段已观察的所有细节（含干扰项，由玩家自行甄别）
+  observedHotspots.forEach(id => {
     const def = hotspotDefs[id];
     if (!def) return;
-    
+
     const card = document.createElement('div');
     card.className = 'clue-card';
-    card.textContent = (def.correct === false ? '⚠️ ' : '') + def.name + ': ' + def.desc.substring(0, 15) + '...';
+    card.textContent = (def.correct === false ? '⚠️ ' : '') + def.icon + ' ' + def.name;
+    card.title = def.desc;
     card.addEventListener('click', () => {
       if (boardClues.includes(id)) return;
       boardClues.push(id);
-      
+
       const boardCard = card.cloneNode(true);
       boardCard.addEventListener('click', () => {
         boardClues = boardClues.filter(bid => bid !== id);
@@ -610,7 +768,7 @@ function openReasoningWall() {
     });
     clueBank.appendChild(card);
   });
-  
+
   reasoningWall.style.display = 'flex';
 }
 
@@ -631,12 +789,12 @@ function verifyReasoning() {
   const correctOnBoard = boardClues.filter(id => hotspotDefs[id]?.correct !== false).length;
   const wrongOnBoard = boardClues.filter(id => hotspotDefs[id]?.correct === false).length;
   const total = boardClues.length;
-  
+
   let resultClass, resultText;
-  
+
   if (correctOnBoard >= 4 && wrongOnBoard === 0) {
     resultClass = 'verified';
-    resultText = '✅ 证据充分 · 已确认\n' + 
+    resultText = '✅ 证据充分 · 已确认\n' +
       (tutorialPhase === 0 ? '刚从热带回来 + 左臂负伤 + 面容憔悴 + 军人气质 → 结论：阿富汗军医' :
        '手背锚文身 + 军人式胡须 + 昂首挺胸 + 发号施令神态 → 结论：海军陆战队军士');
     showMilestone(tutorialPhase === 0 ? '初识推理' : '观察大师');
@@ -655,7 +813,7 @@ function verifyReasoning() {
     resultClass = 'contradictory';
     resultText = '❌ 证据矛盾\n部分线索之间存在矛盾，请重新审视。';
   }
-  
+
   verifyResult.textContent = resultText;
   verifyResult.className = 'result ' + resultClass;
 }
@@ -670,10 +828,16 @@ function advanceToPhase2() {
   boardClues = [];
   observedHotspots = [];
   recordedClues = [];
+  reviewOpen = false;
   currentStep = 'observe';
+  lastObservedDef = null;
+  lastObservedId = null;
   sceneLabel.textContent = '信使到访 — 第二次观察练习';
   timeDisplay.textContent = 'DAY 1 上午10:45';
-  
+  // 切换为信使立绘
+  const cp = $('character-portrait');
+  if (cp) cp.src = 'assets/sherlock_神秘.png';
+
   showNotification('出色！第二次挑战：验证"信使是海军陆战队军士"');
   renderHotspots(1);
   playDialogue(dialoguePhase2);
@@ -725,16 +889,16 @@ function showNextDialogue() {
     dialogueHint.style.display = 'none';
     return;
   }
-  
+
   const node = dialogueQueue[dialogueIndex];
   dialogueSpeaker.textContent = node.speaker === '系统' ? '' : node.speaker;
-  
+
   // 打字机效果
   typeText(node.text, () => {
     dialogueHint.style.display = 'block';
     if (node.action) handleAction(node.action);
   });
-  
+
   dialogueIndex++;
 }
 
@@ -756,15 +920,15 @@ function typeText(text, callback) {
 
 function advanceDialogue() {
   if (dialogueIndex >= dialogueQueue.length) {
-    // 对话结束
-    if (currentStep === 'verify' && tutorialPhase === 0) {
+    // 对话结束且已收集足够线索 → 打开推理墙
+    if (currentStep === 'verify') {
       openReasoningWall();
-    } else if (currentStep === 'verify' && tutorialPhase === 1) {
-      openReasoningWall();
+    } else if (observedHotspots.length > 0) {
+      showNotification('继续观察场景中的细节，或打开「🔍 推理墙」');
     }
     return;
   }
-  
+
   choicesDiv.innerHTML = '';
   showNextDialogue();
 }
@@ -810,7 +974,111 @@ function toggleUI() {
   const hidden = $('topbar').style.display === 'none';
   $('topbar').style.display = hidden ? 'flex' : 'none';
   $('dialogue-panel').style.display = hidden ? 'block' : 'none';
-  toolbar.style.display = hidden && currentStep === 'tool' ? 'flex' : 'none';
+  toolbar.style.display = hidden && observedHotspots.length > 0 ? 'flex' : 'none';
+}
+
+// ==================== 账号 / 注册登录（修复点3） ====================
+let authMode = 'login';
+
+function openAuth(mode) {
+  setAuthMode(mode || 'login');
+  $('auth-msg').textContent = '';
+  authPanel.style.display = 'flex';
+}
+
+function closeAuth() {
+  authPanel.style.display = 'none';
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  $('tab-login').classList.toggle('active', mode === 'login');
+  $('tab-register').classList.toggle('active', mode === 'register');
+  $('auth-username').style.display = mode === 'register' ? 'block' : 'none';
+  $('auth-phone').style.display = mode === 'register' ? 'block' : 'none';
+  $('auth-title').textContent = mode === 'register' ? '注册新账号' : '登录';
+  $('auth-submit').textContent = mode === 'register' ? '注册' : '登录';
+  $('auth-msg').textContent = '';
+}
+
+async function submitAuth() {
+  const email = $('auth-email').value.trim();
+  const password = $('auth-password').value.trim();
+  const username = $('auth-username').value.trim();
+  const phone = $('auth-phone').value.trim();
+  const base = getApiBase();
+
+  if (!email || !password) {
+    $('auth-msg').textContent = '邮箱和密码为必填项';
+    return;
+  }
+
+  if (authMode === 'register') {
+    const r = await apiPost(base + '/api/auth/register', { username, email, password, phone });
+    if (!r.ok) {
+      $('auth-msg').textContent = (r.data && r.data.error) || '注册失败';
+      return;
+    }
+    // 注册成功后自动登录以获取 token
+    const lr = await apiPost(base + '/api/auth/login', { email, password });
+    if (lr.ok) {
+      setAuthUser(lr.data.user, lr.data.token);
+    } else {
+      setAuthUser(r.data.user, null);
+    }
+    showNotification('注册成功 🎉');
+    closeAuth();
+  } else {
+    const r = await apiPost(base + '/api/auth/login', { email, password });
+    if (!r.ok) {
+      $('auth-msg').textContent = (r.data && r.data.error) || '登录失败';
+      return;
+    }
+    setAuthUser(r.data.user, r.data.token);
+    showNotification('登录成功 ✅');
+    closeAuth();
+  }
+}
+
+async function guestEnter() {
+  const base = getApiBase();
+  const r = await apiPost(base + '/api/auth/guest', {});
+  if (r.ok) {
+    authUser = { guest_id: r.data.guest_id };
+    localStorage.setItem('auth', JSON.stringify(authUser));
+    updateAuthUI();
+    showNotification('已进入游客模式 🕵️');
+    closeAuth();
+  } else {
+    $('auth-msg').textContent = (r.data && r.data.error) || '游客创建失败';
+  }
+}
+
+function setAuthUser(user, token) {
+  authUser = Object.assign({}, user, { token });
+  localStorage.setItem('auth', JSON.stringify(authUser));
+  updateAuthUI();
+}
+
+function logout() {
+  authUser = null;
+  localStorage.removeItem('auth');
+  updateAuthUI();
+  showNotification('已退出登录');
+}
+
+function updateAuthUI() {
+  const btn = $('btn-account');
+  if (authUser && authUser.username) {
+    btn.textContent = '👤 ' + authUser.username;
+    btn.onclick = logout;
+  } else if (authUser && authUser.guest_id) {
+    btn.textContent = '👤 游客';
+    btn.onclick = logout;
+  } else {
+    btn.textContent = '🔑 账号';
+    btn.onclick = () => openAuth('login');
+  }
 }
 
 // ==================== 全局点击 ====================
@@ -820,25 +1088,27 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// 推理墙按钮（侧栏替代）
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'r' || e.key === 'R') {
-    if (reasoningWall.style.display === 'flex') closeReasoningWall();
-    else if (recordedClues.length > 0) openReasoningWall();
-  }
-  if (e.key === 'h' || e.key === 'H') toggleUI();
-});
-
-// 触摸推理墙按钮 — 双击场景视图
+// 推理墙按钮 — 双击场景视图
 let lastTap = 0;
 sceneRoom.addEventListener('click', (e) => {
   if (e.target.classList.contains('hotspot')) return;
   const now = Date.now();
-  if (now - lastTap < 300 && recordedClues.length > 0) {
+  if (now - lastTap < 300 && observedHotspots.length > 0) {
     openReasoningWall();
   }
   lastTap = now;
 });
+
+// ==================== 初始化 ====================
+(function init() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('auth'));
+    if (saved && (saved.username || saved.guest_id || saved.token)) {
+      authUser = saved;
+    }
+  } catch (e) { /* ignore */ }
+  updateAuthUI();
+})();
 </script>
 </body>
 </html>

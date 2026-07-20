@@ -24,6 +24,9 @@ var max_retries: int = 2
 ## 是否在线（自动检测）
 var is_online: bool = false
 
+## Web 预览环境：追加到每个请求路径之后的沙箱查询串（如 ?x-cs-sandbox-port=3000）
+var url_suffix: String = ""
+
 ## 离线时缓存的请求队列
 var pending_requests: Array[Dictionary] = []
 
@@ -55,7 +58,7 @@ func _check_connectivity() -> void:
 	add_child(http)
 	http.request_completed.connect(_on_health_check.bind(http))
 	
-	var error = http.request(base_url + "/api/health")
+	var error = http.request(base_url + "/api/health" + url_suffix)
 	if error != OK:
 		_set_online_status(false, http)
 		return
@@ -99,7 +102,7 @@ func get_request(endpoint: String, auth: bool = true) -> Dictionary:
 	add_child(http)
 	
 	var headers = _build_headers(auth)
-	var url = base_url + endpoint
+	var url = base_url + endpoint + url_suffix
 	
 	var error = http.request(url, headers, HTTPClient.METHOD_GET)
 	if error != OK:
@@ -116,7 +119,7 @@ func post_request(endpoint: String, body: Dictionary, auth: bool = true) -> Dict
 	
 	var headers = _build_headers(auth)
 	headers.append("Content-Type: application/json")
-	var url = base_url + endpoint
+	var url = base_url + endpoint + url_suffix
 	var json_body = JSON.stringify(body)
 	
 	var error = http.request(url, headers, HTTPClient.METHOD_POST, json_body)
@@ -134,8 +137,8 @@ func put_request(endpoint: String, body: Dictionary, auth: bool = true) -> Dicti
 	
 	var headers = _build_headers(auth)
 	headers.append("Content-Type: application/json")
-	var url = base_url + endpoint
-	
+	var url = base_url + endpoint + url_suffix
+
 	var error = http.request(url, headers, HTTPClient.METHOD_PUT, JSON.stringify(body))
 	if error != OK:
 		http.queue_free()

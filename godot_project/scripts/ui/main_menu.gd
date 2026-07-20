@@ -19,6 +19,7 @@ var has_save: bool = false
 func _ready() -> void:
 	_setup_ui()
 	_connect_buttons()
+	_setup_auth_buttons()
 	_check_save()
 	_play_enter_animation()
 
@@ -41,6 +42,31 @@ func _connect_buttons() -> void:
 	continue_btn.pressed.connect(_on_continue_pressed)
 	settings_btn.pressed.connect(_on_settings_pressed)
 	quit_btn.pressed.connect(_on_quit_pressed)
+
+## 注册 / 登录入口（修复 Issue 3：补齐玩家侧认证 UI）
+func _setup_auth_buttons() -> void:
+	var register_btn = Button.new()
+	register_btn.text = "📝 注册"
+	register_btn.position = Vector2(710, 770)
+	register_btn.size = Vector2(240, 50)
+	register_btn.add_theme_font_size_override("font_size", 20)
+	register_btn.pressed.connect(_on_open_auth.bind("register"))
+	add_child(register_btn)
+
+	var login_btn = Button.new()
+	login_btn.text = "🔑 登录"
+	login_btn.position = Vector2(970, 770)
+	login_btn.size = Vector2(240, 50)
+	login_btn.add_theme_font_size_override("font_size", 20)
+	login_btn.pressed.connect(_on_open_auth.bind("login"))
+	add_child(login_btn)
+
+func _on_open_auth(mode: String) -> void:
+	AudioManager.play_sfx("ui_click.wav")
+	var panel = AuthPanel.new()
+	if mode == "login":
+		panel.set_mode("login")
+	get_tree().root.add_child(panel)
 
 func _check_save() -> void:
 	# 检查是否有存档

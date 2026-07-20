@@ -45,6 +45,9 @@ var phase2_correct: int = 0            # 阶段2正确线索数
 var is_knowledge_used: bool = false    # 是否使用了知识库
 var is_hypothesis_formed: bool = false # 是否形成了假设
 var is_tutorial_complete: bool = false
+var _phase1_observed: int = 0          # 阶段1已观察热点数（教程需满4个再推进，修复 Issue 4）
+var _note_panel_open: bool = false     # 笔记选择面板是否打开（防止重复触发，修复 Issue 2）
+var review_overlay: Control = null     # 放大镜放大视图（含立绘图像，修复 Issue 2）
 
 # ============ 生命周期 ============
 
@@ -123,6 +126,8 @@ func _connect_signals() -> void:
 func _start_tutorial() -> void:
 	# 加载场景数据（阶段1：华生观察）
 	scene_controller.load_scene("sc_01_lab")
+	_phase1_observed = 0
+	_note_panel_open = false
 	
 	# 短暂等待场景初始化
 	await get_tree().create_timer(0.6).timeout
@@ -196,45 +201,37 @@ func _on_hotspot_clicked(hotspot_id: String) -> void:
 		_handle_phase2_hotspot(hotspot_id)
 
 func _handle_phase1_hotspot(hotspot_id: String) -> void:
-	# 触发 Step 2
-	current_phase = GamePhase.STEP_2_TOOL
-	tool_bar.show_toolbar()
-	
-	# EASY: 自动选择放大镜
-	if DifficultyManager.current_difficulty == DifficultyManager.Difficulty.EASY:
-		_show_notification("试试用放大镜观察这个部位")
-		if tool_bar.has_method("_on_magnifier_selected"):
-			tool_bar._on_magnifier_selected()
-	
-	SceneEventBus.emit_signal("hotspot_clicked", hotspot_id)
+	# 教程阶段1：逐个观察华生身上的 4 个部位（修复 Issue 4：首点不再锁死，4 个均可点击）
+	if _note_panel_open:
+		return
+	_phase1_observed += 1
+
+	# 展示该部位的放大镜放大视图（含真实立绘图像，持续显示直到玩家选择，修复 Issue 2）
+	_show_magnifier_review(hotspot_id)
+	# 弹「加入笔记 / 跳过」选择面板，由玩家决定是否记录（修复 Issue 2：去自动跳转）
+	_present_note_choice(hotspot_id)
 
 func _handle_phase2_hotspot(hotspot_id: String) -> void:
 	tool_bar.show_toolbar()
-	SceneEventBus.emit_signal("hotspot_clicked", hotspot_id)
 
 func _on_tool_used(tool_name: String, target_id: String) -> void:
+	if _note_panel_open:
+		return
 	tool_bar.hide_toolbar()
-	
-	# Step 3: 数据记录
-	current_phase = GamePhase.STEP_3_RECORD
-	
-	# 记录线索
-	if current_phase == GamePhase.STEP_3_RECORD:
-		phase1_clue_count += 1
-	elif phase2_clue_count < 6:
+
+	# 阶段2：信使观察，按工具使用记录线索（保持原逻辑）
+	if current_phase == GamePhase.PHASE2_OBSERVE or current_phase == GamePhase.PHASE2_COMPLETE:
 		phase2_clue_count += 1
 		if not target_id in ["ring", "shoes"]:
 			phase2_correct += 1
-	
-	_show_notification("线索已记录到侦探笔记 (%d/%d)" % [phase1_clue_count, phase1_required])
-	SceneEventBus.emit_signal("note_recorded", target_id)
-	StarRatingSystem.add_observation(1)
-	
-	# 检查是否收集足够线索 → 推进到 Step 6
-	if current_phase == GamePhase.STEP_3_RECORD and phase1_clue_count >= phase1_required:
-		current_phase = GamePhase.STEP_6_VERIFY
-		if dialogue_renderer.dialogue_manager:
-			dialogue_renderer.dialogue_manager.advance_to("s1_step6_normal")
+		SceneEventBus.emit_signal("note_recorded", target_id)
+		StarRatingSystem.add_observation(1)
+		_show_notification("线索已记录到侦探笔记 (%d/6)" % phase2_clue_count)
+		return
+
+	# 阶段1 已改用「加入笔记」面板记录，不走工具流程；此处仅作状态兜底
+	current_phase = GamePhase.STEP_3_RECORD
+	_show_notification("侦探笔记已打开 — 记录你的观察")
 
 func _on_note_recorded(clue_id: String) -> void:
 	# 已在上方处理
@@ -257,6 +254,98 @@ func _get_clue_display_name(clue_id: String) -> String:
 		"shoes": "普通皮鞋(干扰)",
 	}
 	return names.get(clue_id, clue_id)
+
+# ============ 笔记选择 / 放大镜放大视图（Issue 2 / Issue 4）============
+
+## 查询热点的观察描述文本（用于笔记面板展示）
+func _get_clue_description(clue_id: String) -> String:
+	if scene_controller:
+		for h in scene_controller.hotspots:
+			if h.id == clue_id:
+				return h.description
+	return _get_clue_display_name(clue_id)
+
+## 弹出「加入笔记 / 跳过」选择面板（玩家主动选择，替代自动跳转）
+func _present_note_choice(clue_id: String) -> void:
+	_note_panel_open = true
+	var panel = NoteChoicePanel.new()
+	panel.setup(clue_id, _get_clue_description(clue_id))
+	panel.choice_made.connect(_on_note_choice_made.bind(clue_id))
+	get_tree().root.add_child(panel)
+
+## 玩家在笔记面板做出选择后的回调
+func _on_note_choice_made(confirmed: bool, clue_id: String) -> void:
+	_note_panel_open = false
+	_hide_magnifier_review()
+
+	if confirmed:
+		phase1_clue_count += 1
+		SceneEventBus.emit_signal("note_recorded", clue_id)
+		StarRatingSystem.add_observation(1)
+		_show_notification("线索已记录到侦探笔记 (%d/%d)" % [phase1_clue_count, phase1_required])
+	else:
+		_show_notification("已跳过该线索（已观察 %d/%d）" % [_phase1_observed, phase1_required])
+
+	# 4 个部位全部观察并选择完毕 → 进入验证环节
+	if _phase1_observed >= phase1_required:
+		current_phase = GamePhase.STEP_6_VERIFY
+		if dialogue_renderer.dialogue_manager:
+			dialogue_renderer.dialogue_manager.advance_to("s1_step6_normal")
+	else:
+		current_phase = GamePhase.STEP_1_OBSERVE
+
+## 确保放大镜放大视图（含立绘图像）已创建
+func _ensure_review_overlay() -> void:
+	if review_overlay:
+		return
+	review_overlay = Control.new()
+	review_overlay.name = "MagnifierReview"
+	review_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	review_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# 暗化背景，突出中间的放大视图
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.30)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	review_overlay.add_child(dim)
+
+	# 圆形放大框（替代原仅有边框、无图像的放大镜）
+	var frame = Panel.new()
+	frame.size = Vector2(440, 440)
+	frame.position = Vector2(1920 / 2 - 220, 1080 / 2 - 300)
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.04, 0.03, 0.95)
+	sb.border_color = Color(0.85, 0.72, 0.30, 1.0)
+	sb.border_width_left = sb.border_width_right = sb.border_width_top = sb.border_width_bottom = 4
+	sb.set_corner_radius_all(220)
+	frame.add_theme_stylebox_override("panel", sb)
+	review_overlay.add_child(frame)
+
+	# 立绘图像（华生），让放大镜真正"有图像"（修复 Issue 2）
+	var tex_path = "res://assets/portraits/sherlock_凝思.png"
+	var img = TextureRect.new()
+	img.size = Vector2(400, 400)
+	img.position = Vector2(20, 20)
+	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if ResourceLoader.exists(tex_path):
+		img.texture = load(tex_path)
+	frame.add_child(img)
+
+	get_tree().root.add_child(review_overlay)
+	review_overlay.hide()
+
+## 显示放大镜放大视图（持续显示，直到玩家选择，修复"显示时间短"）
+func _show_magnifier_review(_clue_id: String) -> void:
+	_ensure_review_overlay()
+	review_overlay.show()
+
+## 隐藏放大镜放大视图
+func _hide_magnifier_review() -> void:
+	if review_overlay:
+		review_overlay.hide()
 
 # ============ 验证处理 ============
 

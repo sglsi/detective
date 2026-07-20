@@ -270,18 +270,23 @@ func _setup_scene_view(scene_id: String = "sc_01_lab") -> void:
 	label.text = SCENE_TITLE.get(scene_id, "场景")
 	scene_view_container.add_child(label)
 	
-	# 教程场景：华生剪影（保留原教学视觉）
+	# 教程场景：华生立绘（用现有立绘资源替代灰色占位块）
 	if scene_id == "sc_01_lab":
-		var watson = ColorRect.new()
+		var watson_tex_path = "res://assets/portraits/sherlock_凝思.png"
+		var watson = TextureRect.new()
 		watson.name = "WatsonSilhouette"
-		watson.size = Vector2(200, 500)
-		watson.position = Vector2(800, 280)
-		watson.color = Color(0.25, 0.22, 0.18, 0.8)
+		if ResourceLoader.exists(watson_tex_path):
+			watson.texture = load(watson_tex_path)
+		watson.size = Vector2(280, 560)
+		watson.position = Vector2(760, 260)
+		watson.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		watson.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		watson.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		scene_view_container.add_child(watson)
 		var watson_label = Label.new()
 		watson_label.name = "WatsonLabel"
 		watson_label.text = "👤 华生医生"
-		watson_label.position = Vector2(840, 800)
+		watson_label.position = Vector2(840, 830)
 		watson_label.add_theme_font_size_override("font_size", 16)
 		watson_label.add_theme_color_override("font_color", Color(0.7, 0.65, 0.5))
 		scene_view_container.add_child(watson_label)
@@ -329,12 +334,17 @@ func activate_phase2() -> void:
 	if watson:
 		watson.hide()
 	
-	# 信使剪影（占位）
-	var messenger = ColorRect.new()
+	# 信使立绘（用现有立绘资源替代灰色占位块）
+	var messenger_tex_path = "res://assets/portraits/sherlock_神秘.png"
+	var messenger = TextureRect.new()
 	messenger.name = "MessengerSilhouette"
-	messenger.size = Vector2(180, 480)
-	messenger.position = Vector2(600, 300)
-	messenger.color = Color(0.3, 0.25, 0.2, 0.8)
+	if ResourceLoader.exists(messenger_tex_path):
+		messenger.texture = load(messenger_tex_path)
+	messenger.size = Vector2(260, 540)
+	messenger.position = Vector2(580, 300)
+	messenger.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	messenger.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	messenger.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	scene_view_container.add_child(messenger)
 	
 	var messenger_label = Label.new()
@@ -434,10 +444,13 @@ func _on_hotspot_clicked(hotspot_id: String) -> void:
 	
 	# 通知外部
 	ClueEventBus.emit_signal("clue_discovered", hotspot_id)
+	# 通知游戏层（GameScene / ToolBar）热点被点击，用于观察流程与工具响应
+	SceneEventBus.emit_signal("hotspot_clicked", hotspot_id)
 	
-	# 教程：单点即进入 Step 2；场景 2-3：多热点收集满后才由 GameScene 推进
+	# 教程（sc_01）：需观察满全部热点再进入 Step 2；场景 2-3 由 GameScene 推进
 	if not multi_observe:
-		current_step = ExplorationStep.STEP_2_TOOL
+		if observed_hotspots.size() >= 4:
+			current_step = ExplorationStep.STEP_2_TOOL
 
 func _on_tool_used(tool_name: String, target_id: String) -> void:
 	if current_step != ExplorationStep.STEP_2_TOOL:
