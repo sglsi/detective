@@ -30,7 +30,10 @@ func setup(clue_id: String, clue_text: String) -> void:
 	var sb = StyleBoxFlat.new()
 	sb.bg_color = Color(0.12, 0.09, 0.06, 0.97)
 	sb.border_color = Color(0.6, 0.45, 0.2, 1.0)
-	sb.border_width_left = sb.border_width_right = sb.border_width_top = sb.border_width_bottom = 3
+	sb.border_width_left = 3
+	sb.border_width_right = 3
+	sb.border_width_top = 3
+	sb.border_width_bottom = 3
 	sb.set_corner_radius_all(10)
 	_panel.add_theme_stylebox_override("panel", sb)
 	add_child(_panel)

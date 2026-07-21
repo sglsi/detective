@@ -130,18 +130,21 @@ class SQLiteStorage extends StorageAdapter {
   async registerUser({ email, password, username, phone }) {
     const id = crypto.randomUUID();
     const uname = username || email.split('@')[0];
-    const hash = hashPassword(password);
-    try {
-      this.db.prepare(
-        `INSERT INTO profiles (id, username, email, password_hash, phone, is_guest)
-         VALUES (?, ?, ?, ?, ?, 0)`
-      ).run(id, uname, email, hash, phone || null);
-    } catch (e) {
-      if (e.message.includes('UNIQUE')) {
-        throw { status: 409, message: '邮箱已注册' };
+    // 预检：明确区分「邮箱已注册」与「用户名被占用」两种冲突，给出可操作的提示
+    const existing = this.db
+      .prepare('SELECT email, username FROM profiles WHERE email = ? OR username = ?')
+      .get(email, uname);
+    if (existing) {
+      if (existing.email === email) {
+        throw { status: 409, message: '该邮箱已注册，请直接登录或更换邮箱' };
       }
-      throw e;
+      throw { status: 409, message: '该用户名已被占用，请更换用户名' };
     }
+    const hash = hashPassword(password);
+    this.db.prepare(
+      `INSERT INTO profiles (id, username, email, password_hash, phone, is_guest)
+       VALUES (?, ?, ?, ?, ?, 0)`
+    ).run(id, uname, email, hash, phone || null);
     return { id, username: uname, email };
   }
 

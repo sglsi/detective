@@ -21,6 +21,7 @@ signal auth_state_changed(old_state: int, new_state: int)
 signal registration_success(user_id: String, username: String)
 signal login_success(user_id: String, username: String)
 signal login_failed(error: String)
+signal registration_failed(error: String)
 signal guest_session_created(guest_id: String)
 
 # ============ 生命周期 ============
@@ -91,14 +92,18 @@ func register(username: String, email: String, password: String, phone: String =
 				"username": username,
 				"phone": phone,
 			})
+		registration_failed.emit("离线模式：注册请求已加入队列，联网后自动重试")
 
 func _on_registration_success(user: Dictionary) -> void:
 	var prev_state = current_auth_state
 	current_auth_state = AuthState.REGISTERED
 	
 	user_data.merge(user)
-	GameManager.is_guest = false
-	
+	# 防御：Web 构建中 GameManager 单例若尚未就绪，赋值时抛错会阻断下方信号发射，
+	# 导致面板永久卡在“正在提交…”。先判空再访问。
+	if GameManager:
+		GameManager.is_guest = false
+
 	auth_state_changed.emit(prev_state, current_auth_state)
 	registration_success.emit(user.get("id", ""), user.get("username", ""))
 	SystemEventBus.emit_signal("user_registered")
@@ -125,7 +130,8 @@ func _on_login_success(data: Dictionary) -> void:
 	var user = data.get("user", {})
 	user_data.merge(user)
 	session_token = data.get("token", "")
-	GameManager.is_guest = false
+	if GameManager:
+		GameManager.is_guest = false
 	
 	auth_state_changed.emit(prev_state, current_auth_state)
 	login_success.emit(user.get("id", ""), user.get("username", ""))
@@ -141,6 +147,8 @@ func _on_auth_failed(operation: String, error: String) -> void:
 	
 	if operation == "login":
 		login_failed.emit(error)
+	elif operation == "register":
+		registration_failed.emit(error)
 	
 	print("[AuthManager] ", operation, " 失败: ", error)
 
@@ -151,7 +159,8 @@ func logout() -> void:
 	current_auth_state = AuthState.GUEST
 	user_data.clear()
 	session_token = ""
-	GameManager.is_guest = true
+	if GameManager:
+		GameManager.is_guest = true
 	
 	if APIManager:
 		APIManager.clear_auth()

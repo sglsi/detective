@@ -13,7 +13,7 @@ import urllib.request
 import urllib.error
 
 PORT = 8080
-BACKEND = "http://localhost:3000"
+BACKEND = "http://localhost:3001"
 
 
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
@@ -117,7 +117,8 @@ def main():
     args = ap.parse_args()
 
     os.chdir(args.directory)
-    with socketserver.TCPServer(("0.0.0.0", args.port), ProxyHandler) as httpd:
+    # 多线程：/api/* 代理是同步阻塞调用，单线程会拖死静态资源请求（导致整站卡死）。
+    with http.server.ThreadingHTTPServer(("0.0.0.0", args.port), ProxyHandler) as httpd:
         print(f"[Proxy Server] Serving {args.directory} on 0.0.0.0:{args.port}", flush=True)
         print(f"[Proxy Server] /api/* → {BACKEND}", flush=True)
         httpd.serve_forever()
