@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>华生表情集预览</title>
+<style>
+:root {
+  --bg-dark: #1a1410;
+  --bg-panel: #221b14;
+  --gold: #c9a84c;
+  --gold-light: #e8d48b;
+  --text: #e8ddc8;
+  --text-dim: #8a7d6b;
+  --brown: #5a3e2b;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  background: var(--bg-dark);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.header {
+  text-align: center;
+  padding: 30px 20px;
+  border-bottom: 2px solid var(--gold);
+  margin-bottom: 30px;
+}
+
+.header h1 {
+  font-size: 2.5em;
+  color: var(--gold);
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+.header p {
+  color: var(--text-dim);
+  font-size: 1.1em;
+}
+
+.character-info {
+  background: var(--bg-panel);
+  border: 1px solid var(--brown);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.character-info h2 {
+  color: var(--gold);
+  margin-bottom: 15px;
+  font-size: 1.5em;
+}
+
+.character-info ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.character-info li {
+  padding: 5px 0;
+  color: var(--text);
+}
+
+.character-info li::before {
+  content: "• ";
+  color: var(--gold);
+}
+
+.expressions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+  padding: 20px 0;
+}
+
+.expression-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--brown);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.expression-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--gold);
+}
+
+.expression-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+
+.expression-card .label {
+  padding: 12px;
+  text-align: center;
+  background: var(--brown);
+  color: var(--gold-light);
+  font-size: 1.1em;
+  font-weight: bold;
+}
+
+.stats {
+  background: var(--bg-panel);
+  border: 1px solid var(--brown);
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 30px;
+  text-align: center;
+}
+
+.stats h3 {
+  color: var(--gold);
+  margin-bottom: 15px;
+}
+
+.stats-grid {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-item .number {
+  font-size: 2.5em;
+  color: var(--gold);
+  font-weight: bold;
+}
+
+.stat-item .label {
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.back-link {
+  display: inline-block;
+  margin-top: 30px;
+  padding: 12px 24px;
+  background: var(--brown);
+  color: var(--gold);
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.back-link:hover {
+  background: var(--gold);
+  color: var(--bg-dark);
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>华生表情集</h1>
+  <p>Dr. John Watson - 游戏内表情资源预览</p>
+</div>
+
+<div class="character-info">
+  <h2>角色设定</h2>
+  <ul>
+    <li><strong>年龄</strong>：29岁（1852年出生）</li>
+    <li><strong>背景</strong>：军医，刚从阿富汗回来</li>
+    <li><strong>外观</strong>：整洁八字胡，眼神沉稳</li>
+    <li><strong>服饰</strong>：深灰长款西装外套、棕色格纹马甲、米白衬衫+领结</li>
+    <li><strong>道具</strong>：烟斗、怀表与表链</li>
+  </ul>
+</div>
+
+<div class="expressions-grid">
+  <div class="expression-card">
+    <img src="watson_惊讶.jpg" alt="惊讶">
+    <div class="label">惊讶</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_平静.jpg" alt="平静">
+    <div class="label">平静</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_倾佩.jpg" alt="倾佩">
+    <div class="label">倾佩</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_吃惊.jpg" alt="吃惊">
+    <div class="label">吃惊</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_羡慕.jpg" alt="羡慕">
+    <div class="label">羡慕</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_赞同.jpg" alt="赞同">
+    <div class="label">赞同</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_喜悦.jpg" alt="喜悦">
+    <div class="label">喜悦</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_开心.jpg" alt="开心">
+    <div class="label">开心</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_兴奋.jpg" alt="兴奋">
+    <div class="label">兴奋</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_自信.jpg" alt="自信">
+    <div class="label">自信</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_疑惑.jpg" alt="疑惑">
+    <div class="label">疑惑</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_沉默.jpg" alt="沉默">
+    <div class="label">沉默</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_思考.jpg" alt="思考">
+    <div class="label">思考</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_凝思.jpg" alt="凝思">
+    <div class="label">凝思</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_疲惫.jpg" alt="疲惫">
+    <div class="label">疲惫</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_生气.jpg" alt="生气">
+    <div class="label">生气</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_愤怒.jpg" alt="愤怒">
+    <div class="label">愤怒</div>
+  </div>
+  <div class="expression-card">
+    <img src="watson_神秘.jpg" alt="神秘">
+    <div class="label">神秘</div>
+  </div>
+</div>
+
+<div class="stats">
+  <h3>资源统计</h3>
+  <div class="stats-grid">
+    <div class="stat-item">
+      <div class="number">18</div>
+      <div class="label">表情数量</div>
+    </div>
+    <div class="stat-item">
+      <div class="number">512×512</div>
+      <div class="label">图片尺寸</div>
+    </div>
+    <div class="stat-item">
+      <div class="number">JPEG</div>
+      <div class="label">图片格式</div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align: center;">
+  <a href="index.html" class="back-link">返回游戏主页</a>
+</div>
+
+</body>
+</html>
