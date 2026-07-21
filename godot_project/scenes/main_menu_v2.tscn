@@ -1,0 +1,284 @@
+[gd_scene load_steps=12 format=3 uid="uid://main_menu_v2_01"]
+
+[ext_resource type="Script" path="res://scripts/ui/main_menu_v2.gd" id="1_script"]
+[ext_resource type="Texture" path="res://assets/ui/main_title_bg.jpg" id="2_bg"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_title_bg"]
+bg_color = Color(0, 0, 0, 0)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_primary"]
+bg_color = Color(0.447, 0.184, 0.212, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.788, 0.659, 0.298, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.173, 0.094, 0.063, 0.5)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_primary_hover"]
+bg_color = Color(0.5, 0.22, 0.25, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.9, 0.75, 0.35, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.173, 0.094, 0.063, 0.6)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_secondary"]
+bg_color = Color(0.937, 0.89, 0.788, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.357, 0.306, 0.6)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_secondary_hover"]
+bg_color = Color(0.96, 0.92, 0.82, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.357, 0.306, 0.8)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_paper_overlay"]
+bg_color = Color(0.831, 0.773, 0.663, 0.15)
+
+[node name="MainMenuV2" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Layer1_Paper" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_bg")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Layer2_CityOverlay" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 100.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.831, 0.773, 0.663, 0.08)
+
+[node name="Layer3_Vignette" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.1, 0.08, 0.05, 0.3)
+
+[node name="TopStreetLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 30.0
+offset_right = 200.0
+offset_bottom = 60.0
+grow_horizontal = 2
+text = "221B BAKER STREET"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_colors/font_color = Color(0.42, 0.357, 0.306, 0.7)
+theme_override_font_sizes/font_size = 14
+
+[node name="Layer4_TitleContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -400.0
+offset_top = -200.0
+offset_right = 400.0
+offset_bottom = -50.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="TitleEN" type="Label" parent="Layer4_TitleContainer"]
+layout_mode = 2
+text = "SHERLOCK HOLMES"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.788, 0.659, 0.298, 1)
+theme_override_colors/font_shadow_color = Color(0.173, 0.094, 0.063, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 56
+
+[node name="SubtitleEN" type="Label" parent="Layer4_TitleContainer"]
+layout_mode = 2
+text = "THE CASE of the CRIMSON LETTER"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.42, 0.357, 0.306, 1)
+theme_override_font_sizes/font_size = 18
+
+[node name="SubtitleCN" type="Label" parent="Layer4_TitleContainer"]
+layout_mode = 2
+text = "福尔摩斯：猩红信函"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.173, 0.094, 0.063, 1)
+theme_override_font_sizes/font_size = 20
+
+[node name="Layer5_ButtonContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -140.0
+offset_top = -20.0
+offset_right = 140.0
+offset_bottom = 280.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="ContinueBtn" type="Button" parent="Layer5_ButtonContainer"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(280, 52)
+text = "继续调查
+▸ CONTINUE"
+theme_override_colors/font_color = Color(0.788, 0.659, 0.298, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_primary")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_primary_hover")
+
+[node name="NewCaseBtn" type="Button" parent="Layer5_ButtonContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(280, 52)
+text = "开始游戏
+▸ NEW CASE"
+theme_override_colors/font_color = Color(0.788, 0.659, 0.298, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_primary")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_primary_hover")
+
+[node name="CasebookBtn" type="Button" parent="Layer5_ButtonContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(280, 52)
+text = "案件档案
+▸ CASEBOOK"
+theme_override_colors/font_color = Color(0.788, 0.659, 0.298, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_primary")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_primary_hover")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Layer5_ButtonContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="OptionsBtn" type="Button" parent="Layer5_ButtonContainer/HBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(130, 40)
+text = "选项
+OPTIONS"
+theme_override_colors/font_color = Color(0.173, 0.094, 0.063, 1)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_secondary")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_secondary_hover")
+
+[node name="Spacer" type="Control" parent="Layer5_ButtonContainer/HBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(20, 0)
+
+[node name="QuitBtn" type="Button" parent="Layer5_ButtonContainer/HBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(130, 40)
+text = "退出游戏
+QUIT"
+theme_override_colors/font_color = Color(0.173, 0.094, 0.063, 1)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_secondary")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_secondary_hover")
+
+[node name="VersionLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -150.0
+offset_top = -40.0
+grow_horizontal = 0
+grow_vertical = 0
+text = "v0.1 Alpha"
+horizontal_alignment = 2
+theme_override_colors/font_color = Color(0.42, 0.357, 0.306, 0.6)
+theme_override_font_sizes/font_size = 12
+
+[node name="AuthContainer" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -150.0
+offset_top = -80.0
+offset_right = 150.0
+offset_bottom = -40.0
+grow_horizontal = 2
+grow_vertical = 0
+alignment = 1
+
+[node name="RegisterBtn" type="Button" parent="AuthContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 36)
+text = "注册"
+theme_override_colors/font_color = Color(0.173, 0.094, 0.063, 1)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_secondary")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_secondary_hover")
+
+[node name="LoginBtn" type="Button" parent="AuthContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 36)
+text = "登录"
+theme_override_colors/font_color = Color(0.173, 0.094, 0.063, 1)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_secondary")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_secondary_hover")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
