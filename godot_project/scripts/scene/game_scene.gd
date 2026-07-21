@@ -170,12 +170,10 @@ func _on_step_entered(step: int, step_name: String) -> void:
 				is_knowledge_used = true
 		5:
 			current_phase = GamePhase.STEP_5_HYPOTHESIS
-			_show_notification("🧱 推理墙: 拖拽线索形成假设（可选，按 R 跳过）")
-			if not reasoning_wall.visible:
-				reasoning_wall.open()
+			_show_notification("🧱 推理墙: 点击左侧「推理墙」按钮打开假设板（可选，按 R 跳过）")
 		6:
 			current_phase = GamePhase.STEP_6_VERIFY
-			_show_notification("🎯 验证修正: 去推理墙验证你的结论")
+			_show_notification("🎯 验证修正: 打开推理墙，拖拽线索形成证据链后点「验证推理」")
 			if not reasoning_wall.visible:
 				reasoning_wall.open()
 
@@ -317,7 +315,10 @@ func _ensure_review_overlay() -> void:
 	var sb = StyleBoxFlat.new()
 	sb.bg_color = Color(0.05, 0.04, 0.03, 0.95)
 	sb.border_color = Color(0.85, 0.72, 0.30, 1.0)
-	sb.border_width_left = sb.border_width_right = sb.border_width_top = sb.border_width_bottom = 4
+	sb.border_width_left = 4
+	sb.border_width_right = 4
+	sb.border_width_top = 4
+	sb.border_width_bottom = 4
 	sb.set_corner_radius_all(220)
 	frame.add_theme_stylebox_override("panel", sb)
 	review_overlay.add_child(frame)

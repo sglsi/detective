@@ -117,6 +117,21 @@ func _ready() -> void:
 	queue_redraw()
 	hide()
 
+	# 修复：根节点默认 mouse_filter=STOP 会吞掉其覆盖区域内（约全屏）的所有点击，
+	# 导致推理墙一旦打开，场景热点 / 对话 / 侧栏按钮全部点不动、游戏卡死。
+	# 改为 IGNORE —— 透明区点击穿透到下层游戏；仅交互子节点（线索卡 / 假设节点 /
+	# 验证按钮 / 关闭按钮）仍捕获输入。
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# 显式「关闭」按钮，避免只能依赖侧栏「推理墙」按钮关闭（修复“其它按钮无反应”）
+	var close_btn := Button.new()
+	close_btn.text = "✕ 关闭"
+	close_btn.size = Vector2(110, 40)
+	close_btn.position = Vector2(1720 - 120, 8)
+	close_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	close_btn.pressed.connect(close)
+	add_child(close_btn)
+
 # ============ 假设五态机：构建推理树 ============
 
 func _build_hypothesis_tree() -> void:

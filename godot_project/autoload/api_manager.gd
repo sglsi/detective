@@ -13,7 +13,7 @@ extends Node
 # ============ 配置 ============
 
 ## 后端 API 基地址（生产环境从环境变量/配置文件读取）
-var base_url: String = "http://localhost:3000"
+var base_url: String = "http://localhost:3001"
 
 ## 请求超时时间（秒）
 var request_timeout: float = 15.0
