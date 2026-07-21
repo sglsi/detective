@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>维多利亚伦敦探案 - 预览导航</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(180deg, #1a1410 0%, #2a1f15 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e8ddc8;
+        }
+
+        .container {
+            text-align: center;
+            padding: 40px;
+        }
+
+        h1 {
+            font-size: 36px;
+            color: #c9a84c;
+            margin-bottom: 10px;
+            letter-spacing: 4px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #8a7d6b;
+            margin-bottom: 40px;
+            letter-spacing: 2px;
+        }
+
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            max-width: 800px;
+        }
+
+        .nav-card {
+            background: linear-gradient(180deg, #2a1f15 0%, #1a1410 100%);
+            border: 1px solid #5a3e2b;
+            border-radius: 8px;
+            padding: 30px 20px;
+            text-decoration: none;
+            color: #e8ddc8;
+            transition: all 0.3s ease;
+        }
+
+        .nav-card:hover {
+            border-color: #c9a84c;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(201, 168, 76, 0.2);
+        }
+
+        .nav-card h2 {
+            font-size: 20px;
+            color: #c9a84c;
+            margin-bottom: 10px;
+        }
+
+        .nav-card p {
+            font-size: 14px;
+            color: #8a7d6b;
+            line-height: 1.6;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            background: #4a8b3f;
+            color: #fff;
+            font-size: 11px;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+
+        .badge.godot {
+            background: #4a7a9b;
+        }
+
+        .footer {
+            margin-top: 40px;
+            font-size: 12px;
+            color: #5a3e2b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>维多利亚伦敦探案</h1>
+        <p class="subtitle">A VICTORIAN LONDON INVESTIGATION</p>
+        
+        <div class="nav-grid">
+            <a href="main_menu_preview.html" class="nav-card">
+                <h2>主界面预览</h2>
+                <p>维多利亚风格主菜单界面，包含标题、按钮和装饰元素</p>
+                <span class="badge">HTML 预览</span>
+            </a>
+            
+            <a href="index.html" class="nav-card">
+                <h2>场景一教学关</h2>
+                <p>游戏核心玩法原型，包含对话、线索收集和推理系统</p>
+                <span class="badge">HTML 原型</span>
+            </a>
+            
+            <a href="watson_expressions.html" class="nav-card">
+                <h2>华生表情集</h2>
+                <p>华生 18 种游戏内表情资源展示</p>
+                <span class="badge">资源预览</span>
+            </a>
+            
+            <a href="editor.html" class="nav-card">
+                <h2>案件编辑器</h2>
+                <p>案件内容编辑工具</p>
+                <span class="badge">工具</span>
+            </a>
+        </div>
+        
+        <div class="footer">
+            <p>Godot 游戏引擎版本需要在 Godot 编辑器中运行</p>
+            <p>当前预览为 HTML 模拟版本，用于展示界面设计效果</p>
+        </div>
+    </div>
+</body>
+</html>
