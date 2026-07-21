@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>维多利亚伦敦探案 - 主界面预览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @font-face {
+            font-family: 'Victorian';
+            src: local('Georgia'), local('Times New Roman');
+        }
+
+        body {
+            font-family: 'Victorian', Georgia, serif;
+            background: #1a1a1a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .main-menu {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(180deg, #f5e6d3 0%, #e8d4b8 100%);
+            overflow: hidden;
+        }
+
+        /* 羊皮纸纹理背景 */
+        .layer-paper {
+            position: absolute;
+            inset: 0;
+            background: 
+                radial-gradient(ellipse at center, rgba(245, 230, 211, 0.9) 0%, rgba(200, 170, 130, 0.8) 100%);
+        }
+
+        /* 地图层 */
+        .layer-map {
+            position: absolute;
+            inset: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><path d="M0,50 Q25,30 50,50 T100,50" stroke="%23a0845c" stroke-width="0.5" fill="none" opacity="0.3"/><path d="M0,70 Q25,50 50,70 T100,70" stroke="%23a0845c" stroke-width="0.5" fill="none" opacity="0.2"/></svg>');
+            opacity: 0.4;
+        }
+
+        /* 报纸层 */
+        .layer-newspaper {
+            position: absolute;
+            top: 10%;
+            left: 5%;
+            width: 30%;
+            height: 40%;
+            background: linear-gradient(135deg, #d4c4a8 0%, #c8b89c 100%);
+            border: 1px solid #8b7355;
+            transform: rotate(-5deg);
+            opacity: 0.6;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .layer-newspaper::before {
+            content: "THE LONDON GAZETTE";
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            font-weight: bold;
+            color: #4a3520;
+            letter-spacing: 2px;
+        }
+
+        /* 道具层 */
+        .layer-props {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .prop-watch {
+            position: absolute;
+            top: 15%;
+            right: 10%;
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, #d4af37 0%, #8b6914 100%);
+            border-radius: 50%;
+            border: 3px solid #6b4e0f;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .prop-watch::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 30px;
+            background: #1a1a1a;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%) rotate(45deg);
+        }
+
+        .prop-watch::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 20px;
+            background: #1a1a1a;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%) rotate(-30deg);
+        }
+
+        .prop-magnifier {
+            position: absolute;
+            bottom: 20%;
+            left: 8%;
+            width: 100px;
+            height: 100px;
+            border: 8px solid #8b4513;
+            border-radius: 50%;
+            background: rgba(200, 220, 240, 0.3);
+            box-shadow: inset 0 0 20px rgba(255,255,255,0.5), 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .prop-magnifier::after {
+            content: "";
+            position: absolute;
+            bottom: -40px;
+            right: -20px;
+            width: 15px;
+            height: 60px;
+            background: linear-gradient(180deg, #8b4513 0%, #5c2d0e 100%);
+            transform: rotate(-45deg);
+            border-radius: 5px;
+        }
+
+        .prop-pen {
+            position: absolute;
+            bottom: 25%;
+            right: 15%;
+            width: 120px;
+            height: 8px;
+            background: linear-gradient(90deg, #2c1810 0%, #4a3020 50%, #2c1810 100%);
+            transform: rotate(25deg);
+            border-radius: 2px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .prop-pen::before {
+            content: "";
+            position: absolute;
+            left: -15px;
+            top: 50%;
+            width: 0;
+            height: 0;
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+            border-right: 15px solid #d4af37;
+            transform: translateY(-50%);
+        }
+
+        .prop-notebook {
+            position: absolute;
+            bottom: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 80px;
+            background: linear-gradient(180deg, #8b0000 0%, #5c0000 100%);
+            border: 2px solid #3d0000;
+            border-radius: 3px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .prop-notebook::before {
+            content: "221B";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: #d4af37;
+            letter-spacing: 3px;
+        }
+
+        /* 标题层 */
+        .layer-title {
+            position: absolute;
+            top: 18%;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 10;
+        }
+
+        .main-title {
+            font-size: 72px;
+            font-weight: bold;
+            color: #d4af37;
+            text-shadow: 
+                0 0 20px rgba(212, 175, 55, 0.5),
+                2px 2px 4px rgba(0,0,0,0.3),
+                -1px -1px 0 #8b6914;
+            letter-spacing: 8px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle-en {
+            font-size: 18px;
+            color: #4a3520;
+            letter-spacing: 4px;
+            font-style: italic;
+            margin-bottom: 5px;
+        }
+
+        .subtitle-zh {
+            font-size: 16px;
+            color: #6b4e3d;
+            letter-spacing: 6px;
+        }
+
+        /* 按钮层 */
+        .layer-buttons {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 10;
+        }
+
+        .btn-primary {
+            width: 280px;
+            height: 56px;
+            background: linear-gradient(180deg, #8b0000 0%, #5c0000 100%);
+            border: 2px solid #d4af37;
+            border-radius: 4px;
+            color: #f5e6d3;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            cursor: pointer;
+            box-shadow: 
+                0 4px 15px rgba(0,0,0,0.3),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(180deg, #a00000 0%, #6c0000 100%);
+            transform: translateY(-2px);
+            box-shadow: 
+                0 6px 20px rgba(0,0,0,0.4),
+                inset 0 1px 0 rgba(255,255,255,0.2);
+        }
+
+        .btn-primary:disabled {
+            background: linear-gradient(180deg, #666 0%, #444 100%);
+            border-color: #888;
+            color: #999;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            width: 280px;
+            height: 44px;
+            background: linear-gradient(180deg, #f5e6d3 0%, #e8d4b8 100%);
+            border: 1px solid #8b7355;
+            border-radius: 3px;
+            color: #4a3520;
+            font-size: 15px;
+            letter-spacing: 2px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(180deg, #fff 0%, #f5e6d3 100%);
+            transform: translateY(-1px);
+        }
+
+        /* 认证入口 */
+        .auth-entry {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 20;
+        }
+
+        .btn-auth {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid #8b7355;
+            border-radius: 3px;
+            color: #4a3520;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .btn-auth:hover {
+            background: rgba(212, 175, 55, 0.1);
+            border-color: #d4af37;
+        }
+
+        /* 版本号 */
+        .version {
+            position: absolute;
+            bottom: 10px;
+            right: 15px;
+            font-size: 11px;
+            color: #8b7355;
+            z-index: 10;
+        }
+
+        /* 提示文字 */
+        .preview-notice {
+            position: absolute;
+            bottom: 10px;
+            left: 15px;
+            font-size: 11px;
+            color: #8b7355;
+            z-index: 10;
+        }
+
+        /* 淡入动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .main-menu {
+            animation: fadeIn 1s ease-in;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-menu">
+        <!-- 羊皮纸层 -->
+        <div class="layer-paper"></div>
+        
+        <!-- 地图层 -->
+        <div class="layer-map"></div>
+        
+        <!-- 报纸层 -->
+        <div class="layer-newspaper"></div>
+        
+        <!-- 道具层 -->
+        <div class="layer-props">
+            <div class="prop-watch"></div>
+            <div class="prop-magnifier"></div>
+            <div class="prop-pen"></div>
+            <div class="prop-notebook"></div>
+        </div>
+        
+        <!-- 标题层 -->
+        <div class="layer-title">
+            <h1 class="main-title">SHERLOCK HOLMES</h1>
+            <p class="subtitle-en">A VICTORIAN LONDON INVESTIGATION</p>
+            <p class="subtitle-zh">维多利亚伦敦探案</p>
+        </div>
+        
+        <!-- 认证入口 -->
+        <div class="auth-entry">
+            <button class="btn-auth" onclick="alert('注册功能（Godot 引擎中实现）')">注册</button>
+            <button class="btn-auth" onclick="alert('登录功能（Godot 引擎中实现）')">登录</button>
+        </div>
+        
+        <!-- 按钮层 -->
+        <div class="layer-buttons">
+            <button class="btn-primary" id="btn-continue" disabled onclick="alert('继续调查功能（Godot 引擎中实现）')">继续调查</button>
+            <button class="btn-primary" onclick="alert('开始游戏功能（Godot 引擎中实现）')">开始游戏</button>
+            <button class="btn-primary" onclick="alert('案件档案功能（Godot 引擎中实现）')">案件档案</button>
+            <button class="btn-secondary" onclick="alert('选项功能（Godot 引擎中实现）')">选项</button>
+            <button class="btn-secondary" onclick="alert('退出游戏功能（Godot 引擎中实现）')">退出游戏</button>
+        </div>
+        
+        <!-- 版本号 -->
+        <div class="version">v0.1.0</div>
+        
+        <!-- 预览提示 -->
+        <div class="preview-notice">* 这是主界面的 HTML 预览版本，实际效果以 Godot 引擎为准</div>
+    </div>
+
+    <script>
+        // 检测存档（模拟）
+        function checkSaveFile() {
+            // 在实际 Godot 版本中，这里会检查本地存档
+            // 这里模拟没有存档的情况
+            const hasSave = false;
+            const btnContinue = document.getElementById('btn-continue');
+            
+            if (hasSave) {
+                btnContinue.disabled = false;
+            }
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            checkSaveFile();
+        });
+    </script>
+</body>
+</html>
