@@ -19,7 +19,8 @@ class_name DialogueRenderer
 # ============ 数据 ============
 
 var dialogue_manager: DialogueManager
-var expression_map: Dictionary = {}
+var expression_map: Dictionary = {}  # 福尔摩斯表情映射（向后兼容）
+var watson_expression_map: Dictionary = {}  # 华生表情映射
 var is_typing: bool = false
 var typewriter_speed: float = 0.03
 
@@ -93,7 +94,8 @@ func _ready() -> void:
 	hide()
 
 func _load_expressions() -> void:
-	var moods = {
+	# 福尔摩斯表情映射
+	var sherlock_moods = {
 		"自信": "sherlock_自信",
 		"从容": "sherlock_自信",
 		"神秘": "sherlock_神秘",
@@ -116,12 +118,50 @@ func _load_expressions() -> void:
 		"神秘2": "sherlock_神秘2",
 	}
 	
-	for mood in moods:
-		var path = "res://assets/portraits/%s.png" % moods[mood]
+	for mood in sherlock_moods:
+		var path = "res://assets/portraits/%s.png" % sherlock_moods[mood]
 		if ResourceLoader.exists(path):
 			expression_map[mood] = load(path)
 		else:
 			expression_map[mood] = null
+	
+	# 华生表情映射（18 种表情）
+	var watson_moods = {
+		"平静": "watson_平静",
+		"默认": "watson_平静",
+		"惊讶": "watson_惊讶",
+		"吃惊": "watson_吃惊",
+		"倾佩": "watson_倾佩",
+		"羡慕": "watson_羡慕",
+		"赞同": "watson_赞同",
+		"喜悦": "watson_喜悦",
+		"开心": "watson_开心",
+		"兴奋": "watson_兴奋",
+		"自信": "watson_自信",
+		"疑惑": "watson_疑惑",
+		"沉默": "watson_沉默",
+		"思考": "watson_思考",
+		"凝思": "watson_凝思",
+		"疲惫": "watson_疲惫",
+		"生气": "watson_生气",
+		"愤怒": "watson_愤怒",
+		"神秘": "watson_神秘",
+		# 情绪别名映射
+		"严肃": "watson_沉默",
+		"微笑": "watson_喜悦",
+		"坚定": "watson_自信",
+		"提示": "watson_思考",
+		"指导": "watson_赞同",
+	}
+	
+	for mood in watson_moods:
+		var path = "res://assets/portraits/%s.png" % watson_moods[mood]
+		if ResourceLoader.exists(path):
+			watson_expression_map[mood] = load(path)
+		else:
+			watson_expression_map[mood] = null
+	
+	print("[DialogueRenderer] 表情加载完成: 福尔摩斯 %d 种, 华生 %d 种" % [expression_map.size(), watson_expression_map.size()])
 
 # ============ 对话加载 ============
 
@@ -238,13 +278,22 @@ func _update_ui(speaker: String, text: String, mood: String, trigger: String, st
 	text_label.text = ""
 	_start_typewriter(text)
 	
-	# 表情头像
-	if speaker == "福尔摩斯" and expression_map.has(mood):
-		portrait.texture = expression_map[mood]
-		portrait.show()
-	elif speaker == "福尔摩斯" and expression_map.has("默认"):
-		portrait.texture = expression_map["默认"]
-		portrait.show()
+	# 表情头像（根据说话人切换表情集）
+	var current_expression_map: Dictionary = {}
+	if speaker == "福尔摩斯":
+		current_expression_map = expression_map
+	elif speaker == "华生":
+		current_expression_map = watson_expression_map
+	
+	if current_expression_map.size() > 0:
+		if current_expression_map.has(mood) and current_expression_map[mood] != null:
+			portrait.texture = current_expression_map[mood]
+			portrait.show()
+		elif current_expression_map.has("默认") and current_expression_map["默认"] != null:
+			portrait.texture = current_expression_map["默认"]
+			portrait.show()
+		else:
+			portrait.hide()
 	else:
 		portrait.hide()
 	
