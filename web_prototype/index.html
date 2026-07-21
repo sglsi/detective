@@ -351,6 +351,54 @@ body {
   #scene-room { width: 80%; max-width: 640px; height: 70%; }
   #topbar .title { font-size: 16px; }
 }
+
+/* ===== 悬浮提示 tooltip（鼠标滑过功能按钮显示文字说明） ===== */
+.tip { position: relative; }
+.tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 145%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: #120d08;
+  color: var(--gold-light);
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  white-space: normal;
+  text-align: center;
+  max-width: 240px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 200;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.6);
+}
+.tip:hover::after, .tip:focus::after, .tip:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+/* 顶部栏按钮：提示显示在下方，避免被视口顶部裁剪 */
+.tip.tip-below::after { bottom: auto; top: 145%; }
+/* 工具栏按钮（右下角）：提示显示在左上方 */
+#toolbar button.tip::after { bottom: auto; top: 50%; left: auto; right: 145%; transform: translateY(-50%) translateX(4px); }
+#toolbar button.tip:hover::after, #toolbar button.tip:focus::after { transform: translateY(-50%) translateX(0); }
+
+/* 界面隐藏后的悬浮恢复按钮 */
+#ui-restore-btn {
+  position: fixed; top: 10px; right: 10px; z-index: 80;
+  width: 42px; height: 42px; border-radius: 8px;
+  background: var(--bg-panel); border: 2px solid var(--gold);
+  color: var(--gold); font-size: 20px; cursor: pointer;
+  display: none; align-items: center; justify-content: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+#ui-restore-btn:active { background: var(--brown); }
+#ui-restore-btn.tip::after { bottom: auto; top: 50%; left: auto; right: 145%; transform: translateY(-50%) translateX(4px); }
+#ui-restore-btn.tip:hover::after { transform: translateY(-50%) translateX(0); }
 </style>
 </head>
 <body>
@@ -361,10 +409,10 @@ body {
     <span class="title">贝克街221B · 实验室</span>
     <span class="time" id="time-display">DAY 1 上午10:30</span>
     <div class="topbar-actions">
-      <button class="top-btn" id="btn-notebook" onclick="openNotebook()" title="侦探笔记">📓</button>
-      <button class="top-btn" id="btn-reasoning" onclick="openReasoningFromTop()" title="推理墙">🔍</button>
-      <button class="top-btn" id="btn-account" onclick="openAuth('login')" title="账号">🔑 账号</button>
-      <button class="menu-btn" onclick="toggleUI()">☰</button>
+      <button class="top-btn tip" id="btn-notebook" onclick="openNotebook()" data-tip="📓 侦探笔记：查看与编辑你收集到的线索">📓</button>
+      <button class="top-btn tip" id="btn-reasoning" onclick="openReasoningFromTop()" data-tip="🔍 推理墙：把线索拼成推理链并验证结论">🔍</button>
+      <button class="top-btn tip" id="btn-account" onclick="openAuth('login')" data-tip="🔑 账号：登录 / 注册 / 游客（云端保存进度）">🔑 账号</button>
+      <button class="menu-btn tip tip-below" onclick="toggleUI()" data-tip="☰ 隐藏界面：专注观察场景（再次点击还原）">☰</button>
     </div>
   </div>
 
@@ -373,14 +421,17 @@ body {
     <div id="scene-bg">
       <div id="scene-label">福尔摩斯私人化学实验室</div>
       <div id="scene-room">
-        <img id="character-portrait" src="assets/sherlock_凝思.png" alt="人物" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:85%;max-height:85%;object-fit:contain;pointer-events:none;opacity:0.85;">
+        <div id="character-portrait" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:85%;max-height:85%;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;opacity:0.92;">
+          <span id="portrait-icon" style="font-size:110px;line-height:1;">🧑‍⚕️</span>
+          <span id="portrait-name" style="color:var(--gold);font-size:15px;margin-top:6px;font-weight:bold;">华生医生</span>
+        </div>
         <span class="room-label">点击人物身上的细节进行观察</span>
       </div>
     </div>
     <!-- 工具栏 -->
     <div id="toolbar" style="display:none;">
-      <button id="btn-magnifier" onclick="selectTool('magnifier')" title="放大镜">🔍</button>
-      <button id="btn-tape" onclick="selectTool('tape')" title="卷尺">📏</button>
+      <button id="btn-magnifier" class="tip" onclick="selectTool('magnifier')" data-tip="🔍 放大镜：重新查看已观察的细节">🔍</button>
+      <button id="btn-tape" class="tip" onclick="selectTool('tape')" data-tip="📏 卷尺：查看尺寸测量参考">📏</button>
     </div>
   </div>
 
@@ -457,20 +508,23 @@ body {
 <!-- 通知 -->
 <div id="notification"></div>
 
+<!-- 界面已隐藏时的悬浮恢复按钮（修复点：☰ 隐藏后无退出机制） -->
+<button id="ui-restore-btn" class="tip" data-tip="👁 显示界面" onclick="toggleUI()">👁</button>
+
 <!-- 难度选择 -->
 <div id="difficulty-panel">
   <h2>选择难度模式</h2>
   <p>不同难度下提示方式和工具辅助程度不同</p>
-  <button onclick="startGame('easy')">🔰 简单 — 引导式</button>
-  <button onclick="startGame('normal')">⚖️ 普通 — 平衡</button>
-  <button onclick="startGame('hard')">💀 困难 — 硬核推理</button>
+  <button class="tip" onclick="startGame('easy')" data-tip="🔰 简单：全程高亮提示，适合新手">🔰 简单 — 引导式</button>
+  <button class="tip" onclick="startGame('normal')" data-tip="⚖️ 普通：仅有微光提示，平衡体验">⚖️ 普通 — 平衡</button>
+  <button class="tip" onclick="startGame('hard')" data-tip="💀 困难：无提示且需文字记录，硬核挑战">💀 困难 — 硬核推理</button>
 </div>
 
 <!-- 案件承接 -->
 <div id="case-choice">
   <h3>是否承接此案？</h3>
-  <button class="accept" onclick="acceptCase()">承接案件 — 出发！</button>
-  <button onclick="declineCase()">暂时拒绝</button>
+  <button class="accept tip" onclick="acceptCase()" data-tip="承接案件：与福尔摩斯一同出发调查">承接案件 — 出发！</button>
+  <button class="tip" onclick="declineCase()" data-tip="稍后再说：暂不承接，可随时重来">暂时拒绝</button>
 </div>
 
 <script>
@@ -835,8 +889,10 @@ function advanceToPhase2() {
   sceneLabel.textContent = '信使到访 — 第二次观察练习';
   timeDisplay.textContent = 'DAY 1 上午10:45';
   // 切换为信使立绘
-  const cp = $('character-portrait');
-  if (cp) cp.src = 'assets/sherlock_神秘.png';
+  const cpIcon = $('portrait-icon');
+  const cpName = $('portrait-name');
+  if (cpIcon) cpIcon.textContent = '💂';
+  if (cpName) cpName.textContent = '皇家海军信使';
 
   showNotification('出色！第二次挑战：验证"信使是海军陆战队军士"');
   renderHotspots(1);
@@ -970,11 +1026,23 @@ function showMilestone(name) {
 }
 
 // ==================== UI 切换 ====================
+// ☰ 按钮：进入「专注模式」隐藏顶栏与对话面板，并在右上角显示悬浮恢复按钮，
+// 点击悬浮按钮（或再次点击 ☰）即可还原——解决此前隐藏后无退出机制的问题。
 function toggleUI() {
   const hidden = $('topbar').style.display === 'none';
-  $('topbar').style.display = hidden ? 'flex' : 'none';
-  $('dialogue-panel').style.display = hidden ? 'block' : 'none';
-  toolbar.style.display = hidden && observedHotspots.length > 0 ? 'flex' : 'none';
+  if (hidden) {
+    // 当前已隐藏 → 还原界面
+    $('topbar').style.display = 'flex';
+    $('dialogue-panel').style.display = 'block';
+    toolbar.style.display = observedHotspots.length > 0 ? 'flex' : 'none';
+    $('ui-restore-btn').style.display = 'none';
+  } else {
+    // 当前显示 → 进入专注模式（隐藏顶栏与对话面板），显示悬浮恢复按钮
+    $('topbar').style.display = 'none';
+    $('dialogue-panel').style.display = 'none';
+    toolbar.style.display = 'none';
+    $('ui-restore-btn').style.display = 'flex';
+  }
 }
 
 // ==================== 账号 / 注册登录（修复点3） ====================

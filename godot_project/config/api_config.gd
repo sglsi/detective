@@ -10,14 +10,14 @@ extends Node
 
 # ============ 后端地址 ============
 
-## 开发环境 API 地址
-const DEV_BASE_URL: String = "http://localhost:3000"
+## 开发环境 API 地址（本机后端实际监听 3001；3000 被系统服务占用）
+const DEV_BASE_URL: String = "http://localhost:3001"
 
 ## 生产环境 API 地址（待定）
 const PROD_BASE_URL: String = "https://api.sherlock-game.com"
 
-## Web 预览环境后端端口（沙箱后端监听 3000，Game 预览在 8081，同代理不同端口）
-const WEB_PREVIEW_BACKEND_PORT: String = "3000"
+## Web 预览环境后端端口（本机后端实际监听 3001）
+const WEB_PREVIEW_BACKEND_PORT: String = "3001"
 
 ## 从项目设置或环境变量获取后端地址
 static func get_base_url() -> String:

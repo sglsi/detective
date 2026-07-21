@@ -84,7 +84,7 @@ layout_mode = 0
 offset_right = 1920
 offset_bottom = 1080
 
-# --- 顶部栏 ---
+; --- 顶部栏 ---
 [node name="TopBar" type="Panel" parent="UI"]
 layout_mode = 0
 offset_right = 1920
@@ -120,7 +120,7 @@ offset_bottom = 48
 text = "☰"
 theme_override_styles/normal = SubResource("button_style")
 
-# --- 侧栏 ---
+; --- 侧栏 ---
 [node name="SidePanel" type="Control" parent="UI"]
 layout_mode = 0
 offset_left = 10
@@ -128,7 +128,7 @@ offset_top = 80
 offset_right = 120
 offset_bottom = 600
 
-# --- 对话面板 ---
+; --- 对话面板 ---
 [node name="DialoguePanel" type="Panel" parent="UI"]
 layout_mode = 0
 offset_left = 0
@@ -237,7 +237,7 @@ offset_right = 1900
 offset_bottom = 190
 theme_override_styles/panel = SubResource("panel_style")
 
-# --- 工具栏 ---
+; --- 工具栏 ---
 [node name="ToolBar" type="Control" parent="UI"]
 layout_mode = 0
 offset_left = 1400
@@ -274,7 +274,7 @@ text = "📏 卷尺"
 theme_override_styles/normal = SubResource("tool_btn_style")
 theme_override_font_sizes/font_size = 18
 
-# --- 推理墙 ---
+; --- 推理墙 ---
 [node name="ReasoningWall" type="Control" parent="UI"]
 layout_mode = 0
 offset_left = 100
@@ -346,7 +346,7 @@ vertical_alignment = 1
 theme_override_font_sizes/font_size = 24
 theme_override_colors/font_color = Color(1, 0.8, 0.2, 1.0)
 
-# --- 通知区域 ---
+; --- 通知区域 ---
 [node name="NotificationArea" type="Control" parent="UI"]
 layout_mode = 0
 offset_left = 600

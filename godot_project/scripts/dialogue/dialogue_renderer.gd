@@ -80,7 +80,12 @@ func _ready() -> void:
 	dialogue_manager.step_entered.connect(_on_step_entered)
 	dialogue_manager.note_updated.connect(_on_note_updated)
 	dialogue_manager.milestone_triggered.connect(_on_milestone)
-	
+
+	# 修复：连接对话面板左键点击 → 推进对话（此前仅回车/空格/E/右键能推进，
+	# 左键点击因未接线而无效；推理墙遮挡后用户左键点不动更易卡死）
+	if dialogue_panel:
+		dialogue_panel.gui_input.connect(_on_dialogue_panel_gui_input)
+
 	_load_expressions()
 	
 	if step_indicator: step_indicator.hide()

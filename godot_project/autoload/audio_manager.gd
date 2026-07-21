@@ -25,7 +25,10 @@ func play_bgm(bgm_path: String, fade_in: float = 1.0) -> void:
 	if current_bgm == bgm_path:
 		return
 	current_bgm = bgm_path
-	var stream = load("res://assets/audio/bgm/%s" % bgm_path)
+	var path = "res://assets/audio/bgm/%s" % bgm_path
+	if not ResourceLoader.exists(path):
+		return
+	var stream = load(path)
 	if stream:
 		bgm_player.stream = stream
 		if fade_in > 0.0:
@@ -57,19 +60,28 @@ func _fade_volume(player: AudioStreamPlayer, to_db: float, duration: float) -> T
 	return tw
 
 func play_sfx(sfx_path: String) -> void:
-	var stream = load("res://assets/audio/sfx/%s" % sfx_path)
+	var path = "res://assets/audio/sfx/%s" % sfx_path
+	if not ResourceLoader.exists(path):
+		return
+	var stream = load(path)
 	if stream:
 		sfx_player.stream = stream
 		sfx_player.play()
 
 func play_ambient(ambient_path: String) -> void:
-	var stream = load("res://assets/audio/sfx/%s" % ambient_path)
+	var path = "res://assets/audio/sfx/%s" % ambient_path
+	if not ResourceLoader.exists(path):
+		return
+	var stream = load(path)
 	if stream:
 		ambient_player.stream = stream
 		ambient_player.play()
 
 func play_voice(voice_path: String) -> void:
-	var stream = load("res://assets/audio/voice/%s" % voice_path)
+	var path = "res://assets/audio/voice/%s" % voice_path
+	if not ResourceLoader.exists(path):
+		return
+	var stream = load(path)
 	if stream:
 		# 语音使用独立的一次性播放器
 		var voice_player = AudioStreamPlayer.new()

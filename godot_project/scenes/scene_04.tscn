@@ -78,6 +78,7 @@ mouse_filter = 2
 layout_mode = 0
 offset_right = 1920
 offset_bottom = 1080
+mouse_filter = 2
 
 [node name="UI" type="Control" parent="."]
 layout_mode = 0
@@ -85,6 +86,7 @@ offset_right = 1920
 offset_bottom = 1080
 
 # --- 顶部栏 ---
+mouse_filter = 2
 [node name="TopBar" type="Panel" parent="UI"]
 layout_mode = 0
 offset_right = 1920
