@@ -58,6 +58,25 @@
 - **Godot Web 构建**：`godot_project/web_build/index.html`（Godot 导出的 WebAssembly 游戏）
 - **一键启动**：`start_all.sh`（启动后端 + Web 原型）
 
+## 角色表情资源
+
+### 表情文件位置
+- **Godot 项目**：`godot_project/assets/portraits/`
+- **美术资源目录**：`美术资源/角色表情/`
+
+### 福尔摩斯表情（15 种）
+- 文件命名：`sherlock_表情名.png`
+- 表情列表：兴奋、凝思、喜悦、坚定、开心、思考、愤怒、沉默、狡黠、生气、疑惑、疲惫、神秘、神秘2、自信
+
+### 华生表情（18 种）
+- 文件命名：`watson_表情名.png`
+- 表情列表：惊讶、平静、倾佩、吃惊、羡慕、赞同、喜悦、开心、兴奋、自信、疑惑、沉默、思考、凝思、疲惫、生气、愤怒、神秘
+
+### 表情系统代码
+- **对话渲染器**：`godot_project/scripts/dialogue/dialogue_renderer.gd`
+- 根据说话人自动切换表情集（福尔摩斯/华生）
+- 通过 `expression_map` 和 `watson_expression_map` 管理表情映射
+
 ## 运行与预览
 
 - **后端**：`cd backend && pnpm install && node src/server.js`（端口 3000）
