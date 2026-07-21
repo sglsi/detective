@@ -1,0 +1,23 @@
+[project]
+sub_id = "97a100c5"
+name = "victorian-london-detective"
+requires = ["nodejs-24", "python-3.12"]
+project_type = "web"
+
+[preview]
+preview_enable = "enabled"
+
+[dev]
+build = ["bash", "scripts/coze-preview-build.sh"]
+run = ["bash", "scripts/coze-preview-run.sh"]
+
+[subprojects]
+path = ["."]
+
+[deploy.profile]
+kind = "service"
+flavor = "web"
+
+[deploy]
+build = ["bash", "scripts/coze-deploy-build.sh"]
+run = ["bash", "scripts/coze-deploy-run.sh"]
