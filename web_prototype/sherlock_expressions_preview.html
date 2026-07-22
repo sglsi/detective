@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福尔摩斯表情集预览（透明背景）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(135deg, #2c1810 0%, #4a2c1a 100%);
+            color: #d4af37;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            color: #d4af37;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .subtitle {
+            text-align: center;
+            font-size: 1.1em;
+            color: #c9b896;
+            margin-bottom: 40px;
+            font-style: italic;
+        }
+        
+        .info-box {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #d4af37;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .info-box h3 {
+            color: #d4af37;
+            margin-bottom: 10px;
+        }
+        
+        .info-box p {
+            color: #c9b896;
+            margin-bottom: 8px;
+        }
+        
+        .expressions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .expression-card {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid #8b7355;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+        
+        .expression-card:hover {
+            transform: translateY(-5px);
+            border-color: #d4af37;
+        }
+        
+        .expression-img-container {
+            width: 100%;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            /* 棋盘格背景显示透明效果 */
+            background-image: 
+                linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            background-color: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .expression-img-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .expression-name {
+            font-size: 1.2em;
+            color: #d4af37;
+            font-weight: bold;
+        }
+        
+        .expression-file {
+            font-size: 0.85em;
+            color: #8b7355;
+            margin-top: 5px;
+        }
+        
+        .note {
+            background: rgba(212, 175, 55, 0.1);
+            border-left: 4px solid #d4af37;
+            padding: 15px 20px;
+            margin-top: 30px;
+            color: #c9b896;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 福尔摩斯表情集</h1>
+        <p class="subtitle">Sherlock Holmes Expressions - Godot 游戏引擎可用（透明背景 PNG）</p>
+        
+        <div class="info-box">
+            <h3>📋 资源信息</h3>
+            <p><strong>数量：</strong>14 种表情</p>
+            <p><strong>格式：</strong>PNG（透明背景）</p>
+            <p><strong>位置：</strong>godot_project/assets/portraits/</p>
+            <p><strong>命名：</strong>sherlock_表情名.png</p>
+        </div>
+        
+        <div class="expressions-grid">
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_喜悦.png" alt="喜悦">
+                </div>
+                <div class="expression-name">喜悦</div>
+                <div class="expression-file">sherlock_喜悦.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_开心.png" alt="开心">
+                </div>
+                <div class="expression-name">开心</div>
+                <div class="expression-file">sherlock_开心.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_兴奋.png" alt="兴奋">
+                </div>
+                <div class="expression-name">兴奋</div>
+                <div class="expression-file">sherlock_兴奋.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_自信.png" alt="自信">
+                </div>
+                <div class="expression-name">自信</div>
+                <div class="expression-file">sherlock_自信.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_坚定.png" alt="坚定">
+                </div>
+                <div class="expression-name">坚定</div>
+                <div class="expression-file">sherlock_坚定.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_疑惑.png" alt="疑惑">
+                </div>
+                <div class="expression-name">疑惑</div>
+                <div class="expression-file">sherlock_疑惑.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_沉默.png" alt="沉默">
+                </div>
+                <div class="expression-name">沉默</div>
+                <div class="expression-file">sherlock_沉默.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_思考.png" alt="思考">
+                </div>
+                <div class="expression-name">思考</div>
+                <div class="expression-file">sherlock_思考.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_凝思.png" alt="凝思">
+                </div>
+                <div class="expression-name">凝思</div>
+                <div class="expression-file">sherlock_凝思.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_疲惫.png" alt="疲惫">
+                </div>
+                <div class="expression-name">疲惫</div>
+                <div class="expression-file">sherlock_疲惫.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_生气.png" alt="生气">
+                </div>
+                <div class="expression-name">生气</div>
+                <div class="expression-file">sherlock_生气.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_愤怒.png" alt="愤怒">
+                </div>
+                <div class="expression-name">愤怒</div>
+                <div class="expression-file">sherlock_愤怒.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_神秘.png" alt="神秘">
+                </div>
+                <div class="expression-name">神秘</div>
+                <div class="expression-file">sherlock_神秘.png</div>
+            </div>
+            
+            <div class="expression-card">
+                <div class="expression-img-container">
+                    <img src="sherlock_狡.png" alt="狡黠">
+                </div>
+                <div class="expression-name">狡黠</div>
+                <div class="expression-file">sherlock_狡黠.png</div>
+            </div>
+        </div>
+        
+        <div class="note">
+            <strong>💡 使用说明：</strong><br>
+            1. 图片采用棋盘格背景显示，白色区域为透明部分<br>
+            2. 所有表情已转换为 PNG 格式，支持透明背景<br>
+            3. 可直接用于 Godot 游戏引擎的对话系统<br>
+            4. 文件位置：godot_project/assets/portraits/sherlock_*.png
+        </div>
+    </div>
+</body>
+</html>
