@@ -77,6 +77,27 @@
 - 根据说话人自动切换表情集（福尔摩斯/华生）
 - 通过 `expression_map` 和 `watson_expression_map` 管理表情映射
 
+## 华生角色资源
+
+### 资源位置
+- **Godot 项目**：`godot_project/assets/characters/watson/`
+
+### 角色立绘
+| 文件 | 用途 |
+|------|------|
+| `watson_three_views.jpg` | 三视图参考（正面/侧面/背面） |
+| `watson_standing.jpg` | 站立姿态（场景/对话） |
+| `watson_crouching.jpg` | 半蹲姿态（调查/探索） |
+| `watson_sitting.jpg` | 坐姿（221B会客厅） |
+
+### 道具图标
+| 文件 | 道具 |
+|------|------|
+| `icon_pipe.jpg` | 烟斗 |
+| `icon_pocket_watch.jpg` | 怀表与表链 |
+| `icon_bow_tie.jpg` | 领结 |
+| `icon_deerstalker.jpg` | 猎鹿帽 |
+
 ## 运行与预览
 
 - **后端**：`cd backend && pnpm install && node src/server.js`（端口 3000）
