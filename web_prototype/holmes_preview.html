@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福尔摩斯立绘预览</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            background: #2a1810;
+            color: #d4c4a8;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            color: #c9a961;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 1.1rem;
+            color: #a89070;
+            margin-bottom: 40px;
+        }
+        .preview-section {
+            background: linear-gradient(135deg, #3a2818 0%, #2a1810 100%);
+            border: 2px solid #5a3a28;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .preview-title {
+            font-size: 1.5rem;
+            color: #c9a961;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #5a3a28;
+            padding-bottom: 10px;
+        }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            align-items: start;
+        }
+        .image-card {
+            background: #1a0f08;
+            border: 1px solid #5a3a28;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .image-card img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+        .image-card h3 {
+            color: #c9a961;
+            margin-top: 15px;
+            font-size: 1.2rem;
+        }
+        .image-card p {
+            color: #a89070;
+            font-size: 0.9rem;
+            margin-top: 8px;
+        }
+        .characteristics {
+            background: #1a0f08;
+            border: 1px solid #5a3a28;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .characteristics h3 {
+            color: #c9a961;
+            margin-bottom: 15px;
+        }
+        .characteristics ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .characteristics li {
+            padding: 8px 0;
+            border-bottom: 1px solid #3a2818;
+            color: #d4c4a8;
+        }
+        .characteristics li:last-child {
+            border-bottom: none;
+        }
+        .characteristics li::before {
+            content: "• ";
+            color: #c9a961;
+        }
+        .reference {
+            background: #1a0f08;
+            border: 1px solid #5a3a28;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .reference h3 {
+            color: #c9a961;
+            margin-bottom: 15px;
+        }
+        .reference img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+        .confirm-section {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #3a2818 0%, #2a1810 100%);
+            border: 2px solid #5a3a28;
+            border-radius: 12px;
+            margin-top: 30px;
+        }
+        .confirm-section p {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+        .note {
+            color: #a89070;
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>福尔摩斯立绘预览</h1>
+        <p class="subtitle">SHERLOCK HOLMES - Character Design Preview</p>
+        
+        <div class="preview-section">
+            <h2 class="preview-title">新生成立绘</h2>
+            <div class="image-grid">
+                <div class="image-card">
+                    <img src="福尔摩斯_站立姿态_预览.jpg" alt="福尔摩斯站立姿态">
+                    <h3>站立姿态</h3>
+                    <p>左手插马甲口袋，右手持烟斗，自信从容</p>
+                </div>
+            </div>
+            
+            <div class="characteristics">
+                <h3>角色特征</h3>
+                <ul>
+                    <li>黑色圆顶硬礼帽（Bowler Hat）</li>
+                    <li>深灰长款大衣（Dark Gray Overcoat）</li>
+                    <li>深绿暗纹马甲（Dark Green Patterned Vest）</li>
+                    <li>白色硬领衬衫 + 酒红领带</li>
+                    <li>浅灰长裤（Light Gray Trousers）</li>
+                    <li>黑色亮面皮鞋（Black Polished Leather Shoes）</li>
+                    <li>右手持弯曲烟斗（Curved Smoking Pipe）</li>
+                    <li>锐利眼神，挺拔站姿</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="preview-section">
+            <h2 class="preview-title">参考设定图</h2>
+            <div class="reference">
+                <h3>福尔摩斯角色设定图</h3>
+                <img src="福尔摩斯_角色设定图.jpg" alt="福尔摩斯角色设定图">
+            </div>
+            <div class="reference" style="margin-top: 20px;">
+                <h3>福尔摩斯表情集</h3>
+                <img src="福尔摩斯_表情集.jpg" alt="福尔摩斯表情集">
+            </div>
+        </div>
+        
+        <div class="confirm-section">
+            <p>请确认此立绘风格是否符合要求</p>
+            <p class="note">确认后将继续生成：三视图、坐姿、思考姿态、道具图标等</p>
+        </div>
+    </div>
+</body>
+</html>
