@@ -77,6 +77,27 @@
 - 根据说话人自动切换表情集（福尔摩斯/华生）
 - 通过 `expression_map` 和 `watson_expression_map` 管理表情映射
 
+## 福尔摩斯角色资源
+
+### 资源位置
+- **Godot 项目**：`godot_project/assets/characters/holmes/`
+
+### 角色立绘
+| 文件 | 用途 |
+|------|------|
+| `holmes_three_views.jpg` | 三视图参考（正面/侧面/背面） |
+| `holmes_standing.jpg` | 站立姿态（手持放大镜/烟斗） |
+| `holmes_sitting.jpg` | 坐姿（221B会客厅） |
+| `holmes_thinking.jpg` | 思考姿态（推理场景） |
+
+### 道具图标
+| 文件 | 道具 |
+|------|------|
+| `icon_deerstalker.jpg` | 猎鹿帽 |
+| `icon_pipe.jpg` | 烟斗 |
+| `icon_magnifying_glass.jpg` | 放大镜 |
+| `icon_inverness_cape.jpg` | 因弗内斯斗篷 |
+
 ## 华生角色资源
 
 ### 资源位置
