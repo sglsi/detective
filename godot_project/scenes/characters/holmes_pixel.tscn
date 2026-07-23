@@ -1,0 +1,124 @@
+[gd_scene load_steps=8 format=3 uid="uid://holmes_pixel_char"]
+
+[ext_resource type="Texture2D" path="res://assets/characters/holmes/pixel_art/sherlock_spritesheet.png" id="1_spritesheet"]
+[ext_resource type="Script" path="res://scripts/characters/holmes_pixel.gd" id="2_script"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_holmes"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}],
+"loop": true,
+"name": &"walk",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}],
+"loop": true,
+"name": &"think",
+"speed": 4.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}],
+"loop": false,
+"name": &"inspect",
+"speed": 6.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}, {
+"duration": 1.0,
+"texture": ExtResource("1_spritesheet")
+}],
+"loop": false,
+"name": &"point",
+"speed": 6.0
+}]
+
+[node name="HolmesPixel" type="CharacterBody2D"]
+script = ExtResource("2_script")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames_holmes")
+animation = &"idle"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+
+[node name="Label" type="Label" parent="."]
+offset_left = -32.0
+offset_top = -80.0
+offset_right = 32.0
+offset_bottom = -60.0
+text = "Sherlock Holmes"
+horizontal_alignment = 1
