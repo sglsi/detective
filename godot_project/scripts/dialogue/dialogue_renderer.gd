@@ -155,11 +155,16 @@ func _load_expressions() -> void:
 	}
 	
 	for mood in watson_moods:
-		var path = "res://assets/portraits/%s.png" % watson_moods[mood]
+		var path = "res://assets/characters/watson/%s.jpg" % watson_moods[mood]
 		if ResourceLoader.exists(path):
 			watson_expression_map[mood] = load(path)
 		else:
 			watson_expression_map[mood] = null
+		# 兜底：如果专用表情不在 characters/watson 中，用全身立像
+		if watson_expression_map[mood] == null:
+			var fallback = "res://assets/characters/watson/watson_standing.jpg"
+			if ResourceLoader.exists(fallback):
+				watson_expression_map[mood] = load(fallback)
 	
 	print("[DialogueRenderer] 表情加载完成: 福尔摩斯 %d 种, 华生 %d 种" % [expression_map.size(), watson_expression_map.size()])
 
@@ -335,12 +340,19 @@ func _input(event: InputEvent) -> void:
 	if not visible or not dialogue_manager.is_active():
 		return
 	
-	if event.is_action_pressed("ui_accept") or event.is_action_pressed("interact"):
+	# 直接检查按键码，避免依赖可能未注册的输入动作（ui_accept 等）
+	var key := event as InputEventKey
+	if key and key.pressed and not key.echo:
+		var code = key.keycode
+		if code == KEY_ENTER or code == KEY_SPACE or code == KEY_E:
+			if is_typing:
+				is_typing = false
+			elif choices_container.get_child_count() == 0:
+				dialogue_manager.advance()
+
+func _on_dialogue_panel_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
 		if is_typing:
 			is_typing = false
 		elif choices_container.get_child_count() == 0:
 			dialogue_manager.advance()
-
-func _on_dialogue_panel_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_input(event)
