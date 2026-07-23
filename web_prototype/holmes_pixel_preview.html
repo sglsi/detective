@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福尔摩斯像素艺术预览 - Sherlock Holmes Pixel Art</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #d4af37;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+        .section {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #0f3460;
+        }
+        .section-title {
+            color: #d4af37;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #0f3460;
+            padding-bottom: 10px;
+        }
+        .spritesheet-container {
+            display: flex;
+            justify-content: center;
+            background: #0a0a1a;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .spritesheet-container img {
+            max-width: 100%;
+            height: auto;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        .animations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .animation-card {
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .animation-card h3 {
+            color: #d4af37;
+            margin-bottom: 10px;
+        }
+        .animation-frames {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            flex-wrap: wrap;
+            background: #0a0a1a;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .animation-frames img {
+            width: 64px;
+            height: 64px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            background: #1a1a2e;
+        }
+        .palette-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        .color-swatch {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            border: 2px solid #333;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        .info-item {
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .info-item strong {
+            color: #d4af37;
+        }
+        .godot-badge {
+            display: inline-block;
+            background: #478cbf;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 福尔摩斯像素艺术</h1>
+        <p class="subtitle">Sherlock Holmes Pixel Art - Godot 4.x 游戏引擎资源</p>
+
+        <!-- 精灵表 -->
+        <div class="section">
+            <h2 class="section-title">📋 完整精灵表</h2>
+            <div class="spritesheet-container">
+                <img src="holmes_spritesheet.png" alt="福尔摩斯精灵表">
+            </div>
+            <div style="text-align: center; margin-top: 15px;">
+                <span class="godot-badge">✓ Godot Compatible</span>
+            </div>
+        </div>
+
+        <!-- 动画预览 -->
+        <div class="section">
+            <h2 class="section-title">🎬 动画帧预览</h2>
+            <div class="animations-grid">
+                <div class="animation-card">
+                    <h3>Idle (待机)</h3>
+                    <div class="animation-frames">
+                        <img src="idle_00.png" alt="Idle 1">
+                        <img src="idle_01.png" alt="Idle 2">
+                        <img src="idle_02.png" alt="Idle 3">
+                        <img src="idle_03.png" alt="Idle 4">
+                        <img src="idle_04.png" alt="Idle 5">
+                    </div>
+                    <p style="margin-top: 10px; color: #888;">5 帧 | 循环 | 5 FPS</p>
+                </div>
+                <div class="animation-card">
+                    <h3>Walk (行走)</h3>
+                    <div class="animation-frames">
+                        <img src="walk_00.png" alt="Walk 1">
+                        <img src="walk_01.png" alt="Walk 2">
+                        <img src="walk_02.png" alt="Walk 3">
+                        <img src="walk_03.png" alt="Walk 4">
+                        <img src="walk_04.png" alt="Walk 5">
+                    </div>
+                    <p style="margin-top: 10px; color: #888;">5 帧 | 循环 | 8 FPS</p>
+                </div>
+                <div class="animation-card">
+                    <h3>Think (思考)</h3>
+                    <div class="animation-frames">
+                        <img src="think_00.png" alt="Think 1">
+                        <img src="think_01.png" alt="Think 2">
+                        <img src="think_02.png" alt="Think 3">
+                        <img src="think_03.png" alt="Think 4">
+                        <img src="think_04.png" alt="Think 5">
+                    </div>
+                    <p style="margin-top: 10px; color: #888;">5 帧 | 循环 | 4 FPS</p>
+                </div>
+                <div class="animation-card">
+                    <h3>Inspect (检查)</h3>
+                    <div class="animation-frames">
+                        <img src="inspect_00.png" alt="Inspect 1">
+                        <img src="inspect_01.png" alt="Inspect 2">
+                        <img src="inspect_02.png" alt="Inspect 3">
+                        <img src="inspect_03.png" alt="Inspect 4">
+                        <img src="inspect_04.png" alt="Inspect 5">
+                    </div>
+                    <p style="margin-top: 10px; color: #888;">5 帧 | 单次 | 6 FPS</p>
+                </div>
+                <div class="animation-card">
+                    <h3>Point (指向)</h3>
+                    <div class="animation-frames">
+                        <img src="point_00.png" alt="Point 1">
+                        <img src="point_01.png" alt="Point 2">
+                        <img src="point_02.png" alt="Point 3">
+                        <img src="point_03.png" alt="Point 4">
+                        <img src="point_04.png" alt="Point 5">
+                    </div>
+                    <p style="margin-top: 10px; color: #888;">5 帧 | 单次 | 6 FPS</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 调色板 -->
+        <div class="section">
+            <h2 class="section-title">🎨 调色板 (16 Colors)</h2>
+            <div class="palette-container">
+                <div class="color-swatch" style="background: #f4d03f;"></div>
+                <div class="color-swatch" style="background: #d4a574;"></div>
+                <div class="color-swatch" style="background: #c4956a;"></div>
+                <div class="color-swatch" style="background: #a67c52;"></div>
+                <div class="color-swatch" style="background: #8b6f47;"></div>
+                <div class="color-swatch" style="background: #6b5639;"></div>
+                <div class="color-swatch" style="background: #4a3728;"></div>
+                <div class="color-swatch" style="background: #2d1f14;"></div>
+                <div class="color-swatch" style="background: #f5e6d3;"></div>
+                <div class="color-swatch" style="background: #e8d5b7;"></div>
+                <div class="color-swatch" style="background: #d4b896;"></div>
+                <div class="color-swatch" style="background: #b8956a;"></div>
+                <div class="color-swatch" style="background: #1a1a1a;"></div>
+                <div class="color-swatch" style="background: #333333;"></div>
+                <div class="color-swatch" style="background: #4d4d4d;"></div>
+                <div class="color-swatch" style="background: #d4af37;"></div>
+            </div>
+        </div>
+
+        <!-- 资源信息 -->
+        <div class="section">
+            <h2 class="section-title">📊 资源信息</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <strong>角色名称：</strong>Sherlock Holmes
+                </div>
+                <div class="info-item">
+                    <strong>资源类型：</strong>像素艺术 (Pixel Art)
+                </div>
+                <div class="info-item">
+                    <strong>帧尺寸：</strong>64x64 像素
+                </div>
+                <div class="info-item">
+                    <strong>格式：</strong>PNG (支持透明)
+                </div>
+                <div class="info-item">
+                    <strong>引擎兼容：</strong>Godot 4.x
+                </div>
+                <div class="info-item">
+                    <strong>动画数量：</strong>5 种 (Idle/Walk/Think/Inspect/Point)
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件结构 -->
+        <div class="section">
+            <h2 class="section-title">📁 文件结构</h2>
+            <pre style="background: #0a0a1a; padding: 15px; border-radius: 4px; overflow-x: auto;">
+godot_project/
+├── assets/characters/holmes/pixel_art/
+│   ├── sherlock_spritesheet.png
+│   ├── animations/
+│   │   ├── idle/      (5 帧)
+│   │   ├── walk/      (5 帧)
+│   │   ├── think/     (5 帧)
+│   │   ├── inspect/   (5 帧)
+│   │   └── point/     (5 帧)
+│   └── README.md
+├── scenes/characters/
+│   └── holmes_pixel.tscn
+└── scripts/characters/
+    ── holmes_pixel.gd
+            </pre>
+        </div>
+    </div>
+</body>
+</html>
