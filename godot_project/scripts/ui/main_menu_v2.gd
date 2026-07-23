@@ -94,7 +94,11 @@ func _on_options_pressed() -> void:
 
 func _on_quit_pressed() -> void:
 	AudioManager.play_sfx("ui_click.wav") if AudioManager else null
-	get_tree().quit()
+	if OS.has_feature("web") or OS.get_name() == "Web":
+		# Web 导出无真正进程退出，直接重载页面回到标题
+		JavaScriptBridge.eval("window.location.reload()")
+	else:
+		get_tree().quit()
 
 func _on_register_pressed() -> void:
 	AudioManager.play_sfx("ui_click.wav") if AudioManager else null

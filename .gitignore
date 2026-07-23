@@ -22,3 +22,6 @@ __pycache__/
 dist/
 build/
 coverage/
+
+# Godot web build pck (build artifact, regenerated locally via export; not versioned)
+godot_project/web_build/index.pck

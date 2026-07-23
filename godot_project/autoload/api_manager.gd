@@ -52,8 +52,30 @@ signal queue_flushed(count: int)
 func _ready() -> void:
 	_check_connectivity()
 
+## 计算本次请求实际使用的基地址。
+## Web 导出下：统一走同源相对地址 ""（由 serve_web.py / proxy_server.py
+## 把 /api/* 反代到后端），彻底规避浏览器跨域 fetch 失败。
+## url_suffix 追加到路径之后，沙箱环境依赖它做端口路由；同源路径 + url_suffix
+## 在沙箱和本地均正确工作。
+## 非 Web（编辑器/桌面）始终使用配置的绝对地址。
+func _base() -> String:
+	if OS.has_feature("web"):
+		return ""
+	return base_url
+
 func _check_connectivity() -> void:
-	## 尝试连接后端 health 端点
+	## Web 导出下 HTTPRequest 对部分请求回调不稳，健康检查统一走浏览器原生 fetch
+	if OS.has_feature("web"):
+		var res = await _web_fetch(
+			HTTPClient.METHOD_GET,
+			_base() + "/api/health" + url_suffix,
+			PackedStringArray(["Accept: application/json"]),
+			""
+		)
+		_set_online_status(res.get("code", 0) == 200, null)
+		return
+
+	## 尝试连接后端 health 端点（桌面端）
 	var http = HTTPRequest.new()
 	add_child(http)
 	http.request_completed.connect(_on_health_check.bind(http))
@@ -84,7 +106,8 @@ func _set_online_status(online: bool, http: HTTPRequest) -> void:
 	var was_online = is_online
 	is_online = online
 	
-	http.queue_free()
+	if is_instance_valid(http):
+		http.queue_free()
 	
 	if online and not was_online:
 		print("[APIManager] 网络已连接")
@@ -98,54 +121,40 @@ func _set_online_status(online: bool, http: HTTPRequest) -> void:
 
 ## 通用 GET 请求
 func get_request(endpoint: String, auth: bool = true) -> Dictionary:
-	var http = HTTPRequest.new()
-	add_child(http)
-	
-	var headers = _build_headers(auth)
-	var url = base_url + endpoint + url_suffix
-	
-	var error = http.request(url, headers, HTTPClient.METHOD_GET)
-	if error != OK:
-		http.queue_free()
-		return {"error": true, "message": "请求发送失败: " + str(error)}
-	
-	var response = await _wait_for_response(http)
-	return response
+	return await _perform_request(HTTPClient.METHOD_GET, endpoint, {}, auth)
 
 ## 通用 POST 请求
 func post_request(endpoint: String, body: Dictionary, auth: bool = true) -> Dictionary:
-	var http = HTTPRequest.new()
-	add_child(http)
-	
-	var headers = _build_headers(auth)
-	headers.append("Content-Type: application/json")
-	var url = base_url + endpoint + url_suffix
-	var json_body = JSON.stringify(body)
-	
-	var error = http.request(url, headers, HTTPClient.METHOD_POST, json_body)
-	if error != OK:
-		http.queue_free()
-		return {"error": true, "message": "请求发送失败: " + str(error)}
-	
-	var response = await _wait_for_response(http)
-	return response
+	return await _perform_request(HTTPClient.METHOD_POST, endpoint, body, auth)
 
 ## 通用 PUT 请求
 func put_request(endpoint: String, body: Dictionary, auth: bool = true) -> Dictionary:
+	return await _perform_request(HTTPClient.METHOD_PUT, endpoint, body, auth)
+
+# ============ 统一请求入口（Web / 非 Web 分流） ============
+
+## 执行一次 HTTP 请求。
+## Web 环境下改用 JavaScriptBridge.fetch（见 _web_fetch），避免 Godot HTTPRequest
+## 在浏览器中对 POST/带 body 请求回调丢失（表现为注册/登录永久超时、报错）。
+func _perform_request(method: int, endpoint: String, body_dict: Dictionary, auth: bool) -> Dictionary:
+	var url = _base() + endpoint + url_suffix
+	var headers = _build_headers(auth)
+	if not body_dict.is_empty():
+		headers.append("Content-Type: application/json")
+	var body_str := ""
+	if not body_dict.is_empty():
+		body_str = JSON.stringify(body_dict)
+
+	if OS.has_feature("web"):
+		return await _web_fetch(method, url, headers, body_str)
+
 	var http = HTTPRequest.new()
 	add_child(http)
-	
-	var headers = _build_headers(auth)
-	headers.append("Content-Type: application/json")
-	var url = base_url + endpoint + url_suffix
-
-	var error = http.request(url, headers, HTTPClient.METHOD_PUT, JSON.stringify(body))
-	if error != OK:
+	var err = http.request(url, headers, method, body_str)
+	if err != OK:
 		http.queue_free()
-		return {"error": true, "message": "请求发送失败: " + str(error)}
-	
-	var response = await _wait_for_response(http)
-	return response
+		return {"error": true, "message": "请求发送失败: " + str(err)}
+	return await _wait_for_response(http)
 
 ## 等待 HTTP 响应（含超时处理）
 func _wait_for_response(http: HTTPRequest) -> Dictionary:
@@ -206,6 +215,124 @@ func _parse_response(result: int, code: int, body: PackedByteArray) -> Dictionar
 	if code >= 400:
 		return {"error": true, "code": code, "message": data.get("error", "服务器错误")}
 	
+	return {"error": false, "code": code, "data": data}
+
+# ============ Web 环境网络层（JavaScriptBridge.fetch） ============
+# Godot Web 导出的 HTTPRequest 在浏览器中对 POST/带 body 请求常回调丢失，
+# 这里直接用浏览器原生 fetch（经 JavaScriptBridge）发请求，并把结果写回 JS 全局对象，
+# GDScript 侧以唯一 key 轮询读取。非 Web 环境不会走到此分支。
+
+func _web_fetch(method: int, url: String, headers: PackedStringArray, body_str: String) -> Dictionary:
+	# 局部状态，避免并发请求（游客会话 / 注册 / 登录）互相覆盖导致请求永不完成
+	var _done := false
+	var _resp := {}
+
+	var method_str := "GET"
+	match method:
+		HTTPClient.METHOD_POST: method_str = "POST"
+		HTTPClient.METHOD_PUT: method_str = "PUT"
+		HTTPClient.METHOD_DELETE: method_str = "DELETE"
+		HTTPClient.METHOD_PATCH: method_str = "PATCH"
+
+	# 唯一 key，避免并发请求串扰
+	var key: String = "r" + str(Time.get_ticks_usec())
+
+	var js := """
+	(function(){
+		try {
+			var key = __GODOT_KEY__;
+			window.__godot_web_resp = window.__godot_web_resp || {};
+			var method = __GODOT_METHOD__;
+			var url = __GODOT_URL__;
+			var headers = __GODOT_HEADERS__;
+			var body = __GODOT_BODY__;
+			var h = {};
+			if (headers) {
+				for (var i = 0; i < headers.length; i++) {
+					var s = headers[i].indexOf(': ');
+					if (s >= 0) { h[headers[i].substring(0, s)] = headers[i].substring(s + 2); }
+				}
+			}
+			var init = { method: method, headers: h };
+			if (body && body.length > 0 && method !== 'GET' && method !== 'HEAD') { init.body = body; }
+			fetch(url, init).then(function(resp){
+				return resp.text().then(function(t){ return { status: resp.status, body: t }; });
+			}).then(function(r){
+				window.__godot_web_resp[key] = JSON.stringify(r);
+			}).catch(function(e){
+				window.__godot_web_resp[key] = JSON.stringify({ status: 0, body: String(e) });
+			});
+		} catch (e) {
+			window.__godot_web_resp[__GODOT_KEY__] = JSON.stringify({ status: 0, body: String(e) });
+		}
+	})();
+	""".replace("__GODOT_KEY__", JSON.stringify(key)) \
+	   .replace("__GODOT_METHOD__", JSON.stringify(method_str)) \
+	   .replace("__GODOT_URL__", JSON.stringify(url)) \
+	   .replace("__GODOT_HEADERS__", JSON.stringify(headers)) \
+	   .replace("__GODOT_BODY__", JSON.stringify(body_str))
+
+	JavaScriptBridge.eval(js, true)
+
+	# 超时守卫
+	var guard = get_tree().create_timer(request_timeout)
+	var timed_out := false
+	guard.timeout.connect(func():
+		if not _done:
+			_done = true
+			_resp = {"error": true, "message": "请求超时"}
+			timed_out = true
+	)
+
+	while not _done:
+		await get_tree().process_frame
+		var raw = JavaScriptBridge.eval(
+			"window.__godot_web_resp && window.__godot_web_resp[__GODOT_KEY__] ? window.__godot_web_resp[__GODOT_KEY__] : ''".replace("__GODOT_KEY__", JSON.stringify(key)),
+			true
+		)
+		if typeof(raw) == TYPE_STRING and raw != "":
+			_done = true
+			var json = JSON.new()
+			if json.parse(raw) == OK:
+				_resp = json.get_data()
+			else:
+				_resp = {"error": true, "message": "响应解析失败", "raw": raw}
+			JavaScriptBridge.eval("if(window.__godot_web_resp){ delete window.__godot_web_resp[__GODOT_KEY__]; }".replace("__GODOT_KEY__", JSON.stringify(key)), true)
+
+	# 如果 JS fetch 超时（_web_fetch 的罕见 bug），兜底走 HTTPRequest 重试
+	if timed_out:
+		return await _web_fetch_fallback(method, url, headers, body_str)
+
+	return _parse_web_response(_resp)
+
+## _web_fetch 兜底：当 JavaScriptBridge.fetch 超时时，改用 Godot HTTPRequest
+## 重试（同源请求下无 CORS 问题，HTTPRequest 应能正常工作）。
+func _web_fetch_fallback(method: int, url: String, headers: PackedStringArray, body_str: String) -> Dictionary:
+	print("[APIManager] _web_fetch 超时，降级到 HTTPRequest: ", url)
+	var http = HTTPRequest.new()
+	add_child(http)
+	var err = http.request(url, headers, method, body_str)
+	if err != OK:
+		http.queue_free()
+		return {"error": true, "message": "请求发送失败: " + str(err)}
+	# 复用桌面端的等待机制
+	return await _wait_for_response(http)
+
+func _parse_web_response(res: Dictionary) -> Dictionary:
+	if res.get("error", false):
+		return {"error": true, "message": res.get("message", "网络请求失败")}
+	var code = res.get("status", 0)
+	var body_str = res.get("body", "")
+	if code == 0:
+		return {"error": true, "message": "网络请求失败: " + body_str}
+	var json = JSON.new()
+	var perr = json.parse(body_str)
+	if perr != OK:
+		return {"error": true, "message": "响应解析失败", "raw": body_str}
+	var data = json.get_data()
+	if code >= 400:
+		var msg = data.get("error", "服务器错误") if data is Dictionary else "服务器错误"
+		return {"error": true, "code": code, "message": msg}
 	return {"error": false, "code": code, "data": data}
 
 # ============ 认证 API ============

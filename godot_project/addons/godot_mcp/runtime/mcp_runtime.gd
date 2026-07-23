@@ -18,6 +18,7 @@ var _socket: WebSocketPeer = WebSocketPeer.new()
 var _connected := false
 var _reconnect_at_msec := 0
 var _project_path := ""
+var _disabled := false  # Web 导出下禁用 MCP 运行时
 
 # Circular buffer of recent runtime log lines. We grow it via push_runtime_log()
 # (called by user scripts that opt in) and via captured push_error/push_warning
@@ -29,6 +30,10 @@ var _started_at_msec := 0
 
 
 func _ready() -> void:
+	# Web 导出下没有 MCP 服务器，跳过所有 WebSocket 逻辑
+	if OS.has_feature("web"):
+		_disabled = true
+		return
 	_project_path = ProjectSettings.globalize_path("res://")
 	_started_at_msec = Time.get_ticks_msec()
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -37,6 +42,8 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _disabled:
+		return
 	_socket.poll()
 	var st := _socket.get_ready_state()
 

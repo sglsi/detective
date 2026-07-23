@@ -1,0 +1,11 @@
+; 极简测试项目
+[application]
+config/name="TestWeb"
+run/main_scene="res://test.tscn"
+
+[display]
+window/size/viewport_width=640
+window/size/viewport_height=480
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
