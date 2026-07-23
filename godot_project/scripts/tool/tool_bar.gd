@@ -16,6 +16,9 @@ var is_tool_active: bool = false
 var magnifier_overlay: ColorRect
 var target_hotspot_id: String = ""
 
+## 工具被选中时发出，由 GameScene 给出即时可见反馈（放大视图 / 测量结果）
+signal tool_activated(tool_name: String)
+
 @onready var tool_panel: Panel = $ToolPanel
 @onready var magnifier_btn: Button = $ToolPanel/MagnifierBtn
 @onready var tape_btn: Button = $ToolPanel/TapeBtn
@@ -55,8 +58,10 @@ func _create_magnifier_overlay() -> void:
 	magnifier_overlay.hide()
 	add_child(magnifier_overlay)
 
-	# 立绘图像（让放大镜真正"有图像"，修复 Issue 2：原先只有边框无内容）
-	var tex_path = "res://assets/portraits/sherlock_凝思.png"
+	# 立绘图像（华生全身像—场景一教程观察对象；让放大镜真正"有图像"）
+	var tex_path = "res://assets/characters/watson/watson_standing.jpg"
+	if not ResourceLoader.exists(tex_path):
+		tex_path = "res://assets/portraits/sherlock_凝思.png"
 	var img = TextureRect.new()
 	img.name = "MagnifierImage"
 	img.size = Vector2(140, 140)
@@ -81,12 +86,14 @@ func hide_toolbar() -> void:
 func _on_magnifier_selected() -> void:
 	current_tool = Tool.MAGNIFIER
 	_highlight_button(Tool.MAGNIFIER)
-	UIManager.show_notification("放大镜已选择 — 点击场景中的目标区域进行观察")
+	# 交由 GameScene 打开放大视图（含立绘），给出即时反馈（修复 Issue 3）
+	tool_activated.emit("magnifier")
 
 func _on_tape_selected() -> void:
 	current_tool = Tool.TAPE_MEASURE
 	_highlight_button(Tool.TAPE_MEASURE)
-	UIManager.show_notification("卷尺已选择 — 拖拽测量起点和终点")
+	# 交由 GameScene 显示测量结果（修复 Issue 3）
+	tool_activated.emit("tape")
 
 func _highlight_button(tool: Tool) -> void:
 	for t in tool_buttons:

@@ -1,9 +1,0 @@
-[gd_scene load_steps=1 format=3 uid="uid://boot_scene_01"]
-
-[node name="Boot" type="Node"]
-
-## 说明：boot.tscn 仅作为 main_scene 的占位根节点。
-## 真正的启动逻辑由 autoload "Boot"（res://autoload/boot.gd）负责，
-## 其 _ready() 完成 7 阶段初始化后切换到 main_menu.tscn。
-## 此前该场景误挂了 boot.gd，导致启动逻辑被 autoload 实例与场景节点实例
-## 各执行一遍（日志双倍），并干扰了其他 autoload 的 _ready 调度。
