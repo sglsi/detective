@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福尔摩斯对话界面 - Godot 资源预览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Georgia', serif;
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        h1 {
+            color: #d4af37;
+            margin-bottom: 20px;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .info {
+            color: #aaa;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .scene {
+            position: relative;
+            width: 1920px;
+            height: 1080px;
+            background: #000;
+            border: 2px solid #333;
+            overflow: hidden;
+            transform-origin: top center;
+        }
+
+        .background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .streetlamp {
+            position: absolute;
+            left: 240px;
+            top: 120px;
+            width: 300px;
+            height: 700px;
+            object-fit: contain;
+        }
+
+        .carriage {
+            position: absolute;
+            left: 700px;
+            top: 620px;
+            width: 450px;
+            height: 350px;
+            object-fit: contain;
+        }
+
+        .sherlock {
+            position: absolute;
+            left: -40px;
+            top: 180px;
+            width: 400px;
+            height: 800px;
+            object-fit: contain;
+        }
+
+        .lestrade {
+            position: absolute;
+            left: 1520px;
+            top: 180px;
+            width: 440px;
+            height: 800px;
+            object-fit: contain;
+        }
+
+        .label {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #d4af37;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 5px;
+        }
+
+        .controls {
+            margin-top: 20px;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .controls button {
+            background: #333;
+            color: #d4af37;
+            border: 1px solid #555;
+            padding: 8px 16px;
+            margin: 0 5px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .controls button:hover {
+            background: #444;
+        }
+
+        .resource-list {
+            margin-top: 20px;
+            color: #666;
+            font-size: 12px;
+            text-align: left;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .resource-list h3 {
+            color: #d4af37;
+            margin-bottom: 10px;
+        }
+
+        .resource-list ul {
+            list-style: none;
+            padding-left: 20px;
+        }
+
+        .resource-list li {
+            margin: 5px 0;
+        }
+
+        .resource-list li::before {
+            content: "📁 ";
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 福尔摩斯对话界面 - Godot 资源预览</h1>
+        <p class="info">模拟 Godot 4.7 demo.tscn 场景布局 | 1920×1080</p>
+        
+        <div class="scene" id="scene">
+            <img class="background" src="assets_demo/bg_london_1920x1080.jpg" alt="伦敦背景">
+            <img class="streetlamp" src="assets_demo/streetlamp_full_alpha.png" alt="路灯">
+            <img class="carriage" src="assets_demo/carriage_full_alpha.png" alt="马车">
+            <img class="sherlock" src="assets_demo/sherlock_full_alpha.png" alt="福尔摩斯">
+            <img class="lestrade" src="assets_demo/lestrade_full_alpha.png" alt="莱斯特雷德探长">
+            <div class="label">按 F6 运行场景查看资源效果</div>
+        </div>
+
+        <div class="controls">
+            <button onclick="toggleElement('sherlock')">福尔摩斯</button>
+            <button onclick="toggleElement('lestrade')">莱斯特雷德</button>
+            <button onclick="toggleElement('streetlamp')">路灯</button>
+            <button onclick="toggleElement('carriage')">马车</button>
+            <button onclick="resetScene()">重置</button>
+        </div>
+
+        <div class="resource-list">
+            <h3>资源清单</h3>
+            <ul>
+                <li>backgrounds/bg_london_1920x1080.jpg (1920×1080)</li>
+                <li>characters/sherlock_full_alpha.png (1024×1024 RGBA)</li>
+                <li>characters/lestrade_full_alpha.png (1024×1024 RGBA)</li>
+                <li>props/streetlamp_full_alpha.png (1024×1024 RGBA)</li>
+                <li>props/carriage_full_alpha.png (1024×1024 RGBA)</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 自适应缩放
+        function scaleScene() {
+            const scene = document.getElementById('scene');
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            const scaleX = windowWidth / 1920;
+            const scaleY = windowHeight / 1080;
+            const scale = Math.min(scaleX, scaleY) * 0.9;
+            scene.style.transform = `scale(${scale})`;
+        }
+
+        scaleScene();
+        window.addEventListener('resize', scaleScene);
+
+        // 切换元素显示
+        function toggleElement(name) {
+            const el = document.querySelector('.' + name);
+            if (el) {
+                el.style.display = el.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        // 重置场景
+        function resetScene() {
+            document.querySelectorAll('.scene > img').forEach(img => {
+                img.style.display = 'block';
+            });
+        }
+    </script>
+</body>
+</html>
