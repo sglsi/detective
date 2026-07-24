@@ -1,0 +1,15 @@
+; Engine Configuration File
+; Godot version: 4.7.stable
+
+[application]
+config/name="Sherlock Assets Demo"
+config/description="Preview assets converted from dialogue screenshot."
+run/main_scene="res://demo.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+config/icon="res://icon.svg"
+
+[display]
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/stretch/mode="viewport"
+window/stretch/aspect="expand"
