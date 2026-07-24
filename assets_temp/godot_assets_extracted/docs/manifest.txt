@@ -1,0 +1,18 @@
+# Godot 资源清单（AI 补全版 + 原图切出版）
+
+assets/backgrounds/bg_london_1920x1080.jpg: 1920x1080 RGB
+assets/backgrounds/bg_london_full.png: 1216x832 RGB
+assets/backgrounds/bg_london_visible.jpg: 360x350 RGB
+assets/backgrounds/bigben_visible.png: 280x150 RGB
+assets/characters/lestrade_full.png: 1024x1024 RGB
+assets/characters/lestrade_full_alpha.png: 1024x1024 RGBA
+assets/characters/lestrade_visible.png: 232x270 RGB
+assets/characters/sherlock_full.png: 1024x1024 RGB
+assets/characters/sherlock_full_alpha.png: 1024x1024 RGBA
+assets/characters/sherlock_visible.png: 180x200 RGB
+assets/props/carriage_full.png: 1024x1024 RGB
+assets/props/carriage_full_alpha.png: 1024x1024 RGBA
+assets/props/carriage_scene_visible.png: 280x200 RGB
+assets/props/streetlamp_full.png: 1024x1024 RGB
+assets/props/streetlamp_full_alpha.png: 1024x1024 RGBA
+assets/props/streetlamp_visible.png: 70x270 RGB
