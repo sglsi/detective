@@ -30,11 +30,17 @@
 │   ├── editor.html           # 编辑器页面
 │   └── assets/               # 静态资源
 │
-├── godot_project/            # Godot 游戏引擎项目
+── godot_project/            # Godot 游戏引擎项目
 │   ├── project.godot         # Godot 项目配置
 │   ├── scenes/               # 场景文件
 │   ├── scripts/              # GDScript 脚本
 │   ├── assets/               # 美术资源
+│   │   ├── characters/       # 角色资源（holmes/, watson/）
+│   │   ├── props/            # 道具资源（马车等）
+│   │   ├── portraits/        # 表情资源（pixel/）
+│   │   ├── fonts/            # 字体资源
+│   │   ├── scenes/           # 场景资源
+│   │   └── ui/               # UI 资源
 │   ├── autoload/             # 自动加载脚本
 │   ├── config/               # 配置文件
 │   ├── data/                 # 游戏数据
