@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3 uid="uid://carriage_prop"]
+
+[ext_resource type="Texture2D" path="res://assets/props/carriage_full_alpha.png" id="1_carriage"]
+
+[node name="Carriage" type="Sprite2D"]
+texture = ExtResource("1_carriage")
+offset = Vector2(512, 512)
+scale = Vector2(0.5, 0.5)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("1_shape")
+
+[sub_resource type="RectangleShape2D" id="1_shape"]
+size = Vector2(400, 300)
