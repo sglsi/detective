@@ -56,15 +56,6 @@
             object-fit: cover;
         }
 
-        .streetlamp {
-            position: absolute;
-            left: 240px;
-            top: 120px;
-            width: 300px;
-            height: 700px;
-            object-fit: contain;
-        }
-
         .carriage {
             position: absolute;
             left: 700px;
@@ -143,13 +134,11 @@
         
         <div class="scene" id="scene">
             <img class="background" src="assets_demo/bg_london_1920x1080.jpg" alt="伦敦背景">
-            <img class="streetlamp" src="assets_demo/streetlamp_full_alpha.png" alt="路灯">
             <img class="carriage" src="assets_demo/carriage_full_alpha.png" alt="马车">
             <div class="label">按 F6 运行场景查看资源效果</div>
         </div>
 
         <div class="controls">
-            <button onclick="toggleElement('streetlamp')">路灯</button>
             <button onclick="toggleElement('carriage')">马车</button>
             <button onclick="resetScene()">重置</button>
         </div>
@@ -158,7 +147,6 @@
             <h3>资源清单</h3>
             <ul>
                 <li>backgrounds/bg_london_1920x1080.jpg (1920×1080)</li>
-                <li>props/streetlamp_full_alpha.png (1024×1024 RGBA)</li>
                 <li>props/carriage_full_alpha.png (1024×1024 RGBA)</li>
             </ul>
         </div>
