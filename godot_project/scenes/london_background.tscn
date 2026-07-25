@@ -1,0 +1,55 @@
+[gd_scene load_steps=8 format=3 uid="uid://london_bg_scene"]
+
+[ext_resource type="Script" path="res://scripts/ui/london_background.gd" id="1_bg_ctrl"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/bg_london_1920x1080.jpg" id="2_bg_tex"]
+[ext_resource type="Shader" path="res://shaders/sky_gradient.gdshader" id="3_sky_shader"]
+[ext_resource type="Material" path="res://shaders/fog_material.tres" id="4_fog_mat"]
+[ext_resource type="Script" path="res://scripts/ui/gas_lamp_glow.gd" id="5_lamp_script"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sky"]
+shader = ExtResource("3_sky_shader")
+shader_parameter/top_color = Color(0.35, 0.42, 0.55, 1)
+shader_parameter/bottom_color = Color(0.92, 0.88, 0.80, 1)
+shader_parameter/horizon_position = 0.45
+shader_parameter/softening = 0.15
+
+[node name="LondonBackground" type="Node2D"]
+script = ExtResource("1_bg_ctrl")
+
+[node name="Sky" type="ColorRect" parent="."]
+offset_right = 1920.0
+offset_bottom = 1080.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+color = Color(0.65, 0.70, 0.78, 1)
+material = SubResource("ShaderMaterial_sky")
+
+[node name="Background" type="Sprite2D" parent="."]
+position = Vector2(960, 540)
+scale = Vector2(1.15, 1.15)
+texture = ExtResource("2_bg_tex")
+
+[node name="Atmosphere" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="FogOverlay" type="ColorRect" parent="Atmosphere"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 1.0
+offset_top = 1.0
+offset_right = 1.0
+offset_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+material = ExtResource("4_fog_mat")
+
+[node name="GasLamps" type="Node2D" parent="."]
+script = ExtResource("5_lamp_script")
+lamp_positions = Array[Vector2]([Vector2(0.265, 0.42), Vector2(0.78, 0.52)])
+lamp_color = Color(1, 0.72, 0.35, 0.55)
+lamp_radius = 90.0
+flicker_speed = 6.0
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(960, 540)
