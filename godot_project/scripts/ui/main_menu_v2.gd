@@ -119,18 +119,17 @@ func _open_auth(mode: String) -> void:
 		get_tree().root.add_child(panel)
 
 func _load_game() -> void:
-	# 加载存档
-	if SaveManager:
-		var save_data = SaveManager.load_local_save()
-		if save_data:
-			# 根据存档数据加载对应场景
-			var scene_path = save_data.get("current_scene", "res://scenes/game_scene.tscn")
-			get_tree().change_scene_to_file(scene_path)
-		else:
-			# 存档加载失败，进入新游戏
-			get_tree().change_scene_to_file("res://scenes/difficulty_select.tscn")
-	else:
-		get_tree().change_scene_to_file("res://scenes/difficulty_select.tscn")
+	# 加载存档（main_menu_v2 是启动场景，必须使用现行通用存档 API）
+	# 经 SaveSystem 门面读档：刷新 GameManager.scene_state 与 ClueSystem，再跳到对应场景
+	if SaveSystem:
+		var ok = await SaveSystem.load_game()
+		if ok and GameManager.current_scene_id != "":
+			var sp = "res://scenes/" + GameManager.current_scene_id + ".tscn"
+			if ResourceLoader.exists(sp):
+				get_tree().change_scene_to_file(sp)
+				return
+	# 无存档或读档失败 → 进入新游戏（难度选择）
+	get_tree().change_scene_to_file("res://scenes/difficulty_select.tscn")
 
 # === 输入处理 ===
 

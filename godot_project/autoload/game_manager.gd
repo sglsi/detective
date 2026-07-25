@@ -27,6 +27,7 @@ var current_scene_id: String = ""
 var game_start_time: int = 0
 var is_online: bool = false
 var completed_milestones: Array = []  # 已完成里程碑 ID 列表（P5-1 存档补全）
+var scene_state: Dictionary = {}      # 场景内运行状态 {phase, clue_ids, ...}（存档精度用）
 
 # ============ 生命周期 ============
 
@@ -210,6 +211,33 @@ func restore_milestones(milestones: Array) -> void:
 	for m in milestones:
 		if not completed_milestones.has(m):
 			completed_milestones.append(m)
+
+# ============ 通用存/读档（各场景复用） ============
+
+## 保存进度 — 各场景点保存按钮时调用
+## phase: 当前阶段枚举值（如 Phase.GARDEN_OBSERVE）转为 int
+## data: 场景专有数据字典（如 {"clue_ids":["c201","c202"], "phase_name":"garden"}）
+func do_save(phase: int, data: Dictionary) -> void:
+	scene_state = data
+	scene_state["phase"] = phase
+	scene_state["scene_id"] = current_scene_id
+	print("[GameManager.do_save] phase=", phase, " scene_state=", scene_state)
+	if SaveManager:
+		await SaveManager.save_game()
+
+## 加载进度 — 检查是否有恢复的存档状态
+## 返回 saved Dictionary（包含 phase + scene 专有数据）；无存档返回空字典
+func do_load() -> Dictionary:
+	if not SaveManager:
+		return {}
+	var ok = await SaveManager.load_game()
+	if ok and not scene_state.is_empty():
+		return scene_state.duplicate()
+	return {}
+
+## 清除存档状态（新游戏时调用）
+func clear_save() -> void:
+	scene_state.clear()
 
 # ============ 辅助 ============
 

@@ -295,16 +295,16 @@ class SQLiteStorage extends StorageAdapter {
       'insight_stars', 'badges_earned'];
 
     if (existing) {
-      const sets = cols.map(c => `${c}=excluded_${c}`).join(', ');
+      const sets = cols.map(c => `${c}=?`).join(', ');
       this.db.prepare(`
-        INSERT INTO case_progress (id, user_id, case_id, updated_at, ${cols.join(', ')})
-        VALUES (?, ?, ?, ?, ${cols.map(() => '?').join(', ')})
-        ON CONFLICT(user_id, case_id) DO UPDATE SET ${sets}, updated_at=?
-      `).run(id, userId, caseId, now,
+        UPDATE case_progress SET ${sets}, updated_at=?
+        WHERE user_id = ? AND case_id = ?
+      `).run(
         ...cols.map(c => {
           const v = updates[c];
-          return (c.endsWith('s') || c === 'badges_earned') ? JSON.stringify(v !== undefined ? v : []) : (v || 0);
-        }), now);
+          return (c === 'scenes_completed' || c === 'badges_earned') ? JSON.stringify(v !== undefined ? v : []) : (v || 0);
+        }),
+        now, userId, caseId);
     } else {
       this.db.prepare(`
         INSERT INTO case_progress

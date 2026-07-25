@@ -236,6 +236,8 @@ func _go_to_node(node_id: String) -> bool:
 func _schedule_auto_advance(node: DialogueNodeResource) -> void:
 	var timer := get_tree().create_timer(0.15)
 	timer.timeout.connect(func() -> void:
+		if not is_instance_valid(self):
+			return
 		if dialogue_active and current_node == node:
 			advance()
 	, Object.CONNECT_ONE_SHOT)

@@ -21,7 +21,83 @@ var _wall_auto := false
 func _ready() -> void:
 	if DifficultyManager: _difficulty = DifficultyManager.current_difficulty
 	_init_game_state(); _build_ui(); _create_observers()
-	_connect_ui_signals(); _show_mrs_hudson_dialogue()
+	_connect_ui_signals()
+	# 检查是否有存档状态需恢复
+	if _restore_saved_state():
+		return  # _restore_saved_state 内会调用合适的阶段启动方法
+	_show_mrs_hudson_dialogue()
+
+## 恢复存档进度 — 返回 true 表示有存档且已恢复，false 表示新游戏
+## 通过通用 SaveSystem 取回属于本场景的快照；线索本身已由 SaveManager
+## 恢复进 ClueSystem（单一真相源），推理墙直接读 ClueSystem，无需这里再搬数据。
+func _restore_saved_state() -> bool:
+	var ss = SaveSystem.take_save_state("scene1")
+	if ss.is_empty(): return false
+	var saved_phase := int(ss.get("phase", 0))
+	var saved_ids: Array = ss.get("clue_ids", [])
+	# 关键：先把阶段恢复到存档值（OPENING / OBSERVE_WATSON 等分支的子方法不会设 _phase，
+	# 若漏掉会导致新场景实例 _phase 停在默认的 MRS_HUDSON=0 —— 即「读档后阶段错乱」）
+	_phase = saved_phase
+	print("[RESTORE scene1] phase=", saved_phase, " clue_ids=", saved_ids)
+	# 明确告知用户读档成功并恢复到哪个阶段，避免「不知道进到哪了」
+	_create_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
+
+	match saved_phase:
+		Phase.MRS_HUDSON:
+			_show_mrs_hudson_dialogue()
+			return true
+		Phase.OPENING:
+			_show_opening_dialogue()
+			return true
+		Phase.OBSERVE_WATSON:
+			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","arm","face","pose"])
+			_ui.set_dialogue("提示", "已恢复进度 — 华生观察阶段（已收集 "+str(_watson_obs.get_recorded())+"/4 条）\n点击 LOOK 查看剩余标记点")
+			return true
+		Phase.WATSON_REASONING:
+			_phase = Phase.WATSON_REASONING; _wall_auto = false
+			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","arm","face","pose"])
+			_show_watson_reasoning_wall()
+			return true
+		Phase.MESSENGER_OBSERVE:
+			_phase = Phase.MESSENGER_OBSERVE
+			_ui.restore_observer(_messenger_obs, saved_ids, ["tattoo","beard","posture","manner","sleeve","limp"])
+			_ui.set_dialogue("提示", "已恢复进度 — 信使观察阶段（已收集 "+str(_messenger_obs.get_recorded())+"/6 条）\n点击 LOOK 查看剩余标记点")
+			return true
+		Phase.MESSENGER_REASONING:
+			_phase = Phase.MESSENGER_REASONING; _wall_auto = false
+			_ui.restore_observer(_messenger_obs, saved_ids, ["tattoo","beard","posture","manner","sleeve","limp"])
+			_show_messenger_reasoning_wall()
+			return true
+		Phase.RATING, Phase.COMPLETE:
+			_phase = Phase.RATING
+			_show_rating()
+			return true
+
+	return false
+
+func _find_hotspot(id: String) -> Dictionary:
+	for h in _all_hotspots():
+		if h.get("id","") == id: return h
+	return {}
+
+func _phase_name(p: int) -> String:
+	match p:
+		Phase.MRS_HUDSON: return "赫德森太太开场"
+		Phase.OPENING: return "开场对话"
+		Phase.OBSERVE_WATSON: return "华生观察"
+		Phase.WATSON_REASONING: return "华生推理"
+		Phase.MESSENGER_OBSERVE: return "信使观察"
+		Phase.MESSENGER_REASONING: return "信使推理"
+		Phase.RATING: return "评分阶段"
+		Phase.COMPLETE: return "已完成"
+		_: return "未知阶段"
+
+func _all_hotspots() -> Array:
+	var w = [{"id":"wrist","name":"手腕肤色分界","desc":"华生手腕肤色分界明显——长期暴露于热带阳光"},{"id":"arm","name":"左臂僵硬","desc":"华生左臂动作僵硬，似有旧伤"},{"id":"face","name":"面色黝黑憔悴","desc":"华生面色黝黑且憔悴——久病初愈的迹象"},{"id":"pose","name":"军人站姿","desc":"华生站姿挺拔，带有明显军人气质"}]
+	var m = [{"id":"tattoo","name":"锚形文身","desc":"信使手背上有蓝色锚形文身——皇家海军标志"},{"id":"beard","name":"络腮胡","desc":"信使留着军人式络腮胡"},{"id":"posture","name":"挺拔站姿","desc":"信使站姿挺拔有力"},{"id":"manner","name":"神态平静","desc":"信使神态从容淡定"},{"id":"sleeve","name":"袖口细节","desc":"信使袖口有磨损痕迹"},{"id":"limp","name":"轻微跛行","desc":"信使走路有轻微跛行"}]
+	var r: Array = []
+	r.append_array(w); r.append_array(m)
+	return r
 
 func _init_game_state() -> void:
 	if GameManager:
@@ -159,20 +235,36 @@ func _do_think() -> void:
 	else: _create_notification("请先收集至少 1 条线索再使用推理墙")
 
 func _do_load() -> void:
-	_create_notification("读取存档 — 返回主菜单")
-	await get_tree().create_timer(1.0).timeout
-	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	_create_notification("正在读取存档…")
+	if not SaveManager:
+		_create_notification("存档系统不可用")
+		return
+	# 从磁盘/云端重新读取最新存档，刷新 GameManager.scene_state 与 ClueSystem
+	var ok = await SaveSystem.load_game()
+	if not ok:
+		_create_notification("没有可用的存档")
+		return
+	# 就地重置当前场景：_ready 会调用 _restore_saved_state，从刚刷新的存档恢复进度
+	# 不回主菜单，避免依赖已被消费的运行时 scene_state 导致重新开局
+	get_tree().reload_current_scene()
 
 func _create_notification(msg: String) -> void:
 	if _ui: _ui.show_notification(msg)
 
 func _do_save() -> void:
-	if SaveManager:
-		if GameManager and GameManager.is_guest:
-			_create_notification("游客模式不支持存档")
-		else:
-			var r = await SaveManager.save_game()
-			_create_notification("保存失败" if r.get("error", false) else "进度已保存")
+	if GameManager.is_guest:
+		_create_notification("游客模式不支持存档，请先注册账号")
+		return
+	# 收集场景运行状态（线索 ID 以 ClueSystem 通用登记为准，确保与推理墙一致）
+	var data := {"clue_ids": [], "watson_recorded": 0, "messenger_recorded": 0}
+	var ids: Array = ClueSystem.get_collected_ids() if ClueSystem else []
+	data["clue_ids"] = ids
+	for cid in ids:
+		if cid in ["wrist","arm","face","pose"]: data["watson_recorded"] += 1
+		else: data["messenger_recorded"] += 1
+	await SaveSystem.request_save("scene1", _phase, data)
+	print("[SAVE scene1] phase=", _phase, " data=", data)
+	_create_notification("进度已保存")
 
 # === 观察器(不使用 multiline lambda) ===
 
@@ -187,6 +279,7 @@ func _create_observers() -> void:
 		{"id":"pose","label":"军人站姿","x":480,"y":580,"w":120,"h":60,"desc":"身板挺直 -> 军事训练"},
 	], tex)
 	_watson_obs.all_recorded.connect(_on_watson_all_recorded)
+	_watson_obs.clue_recorded.connect(_on_collect_clue.bind("watson"))
 
 	_messenger_obs = ClueObserver.new(); _messenger_obs.name = "messenger_observer"; add_child(_messenger_obs)
 	_messenger_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, [
@@ -198,6 +291,7 @@ func _create_observers() -> void:
 		{"id":"limp","label":"走路略跛","x":600,"y":570,"w":120,"h":55,"desc":"右腿略跛 -> 干扰:扭伤","correct":false},
 	], tex)
 	_messenger_obs.all_recorded.connect(_on_messenger_all_recorded)
+	_messenger_obs.clue_recorded.connect(_on_collect_clue.bind("messenger"))
 
 func _on_watson_all_recorded(clues: Array) -> void:
 	_watson_clues = clues; _wall_auto = true; _show_watson_reasoning_wall()
@@ -205,11 +299,30 @@ func _on_watson_all_recorded(clues: Array) -> void:
 func _on_messenger_all_recorded(clues: Array) -> void:
 	_messenger_clues = clues; _wall_auto = true; _show_messenger_reasoning_wall()
 
+## 观察器记录一条线索时，同步登记到通用线索系统（ClueSystem 为单一真相源）
+## source 用于区分华生 / 信使两轮观察，推理墙据此筛选
+func _on_collect_clue(clue_id: String, clue_data: Dictionary, source: String) -> void:
+	if ClueSystem:
+		ClueSystem.collect_clue(
+			clue_id,
+			clue_data.get("name", clue_id),
+			clue_data.get("desc", ""),
+			clue_data.get("correct", true),
+			source
+		)
+
 # === 对话 ===
 
 func _dn(id, sp, txt, tri, nxt, mood="neutral") -> DialogueNodeResource:
 	var n = DialogueNodeResource.new()
-	n.node_id=id; n.speaker=sp; n.text=txt; n.trigger=tri; n.next_nodes=nxt; n.mood=mood
+	n.node_id=id; n.speaker=sp; n.text=txt; n.trigger=tri
+	# next_nodes 是 Array[String]，必须用强类型数组赋值，否则 GDScript 运行时报类型错误、
+	# 导致本函数异常返回 null，对话资源混入 Nil 节点、find_node 崩溃
+	var nn: Array[String] = []
+	for s in nxt:
+		if s is String: nn.append(s)
+	n.next_nodes = nn
+	n.mood = mood
 	return n
 
 func _show_mrs_hudson_dialogue() -> void:
@@ -294,7 +407,7 @@ func _show_watson_reasoning_wall() -> void:
 	flow.add_theme_constant_override("h_separation", 10); flow.add_theme_constant_override("v_separation", 6)
 	var bd = w.find_child("wall_board", false, false)
 	if bd: bd.add_child(flow)
-	var clues: Array = _watson_obs.get_recorded_clues()
+	var clues: Array = ClueSystem.get_collected("watson") if ClueSystem else _watson_obs.get_recorded_clues()
 	for i in clues.size():
 		var cl = clues[i]; var cid = cl["id"]; var cn = cl.get("name", cid)
 		var card = Button.new(); card.text = cn; card.position = Vector2(40 + i*195, 75); card.size = Vector2(180, 50)
@@ -375,7 +488,7 @@ func _show_messenger_reasoning_wall() -> void:
 	flow.add_theme_constant_override("h_separation", 10); flow.add_theme_constant_override("v_separation", 6)
 	var bd = w.find_child("wall_board", false, false)
 	if bd: bd.add_child(flow)
-	var clues: Array = _messenger_obs.get_recorded_clues()
+	var clues: Array = ClueSystem.get_collected("messenger") if ClueSystem else _messenger_obs.get_recorded_clues()
 	for i in clues.size():
 		var cl = clues[i]; var cid = cl["id"]; var cn = cl.get("name", cid)
 		var card = Button.new(); card.text = cn; card.position = Vector2(40 + i*200, 75); card.size = Vector2(185, 48)

@@ -35,7 +35,7 @@ func _ready() -> void:
 
 func _on_auth_changed(_old: int, new_state: int) -> void:
 	## 认证状态变化时，考虑迁移本地存档到云端
-	if new_state == AuthManager.AuthState.LOGGED_IN and _has_local_save():
+	if new_state == AuthManager.AuthState.LOGGED_IN and has_local_save():
 		print("[SaveManager] 检测到本地存档，提示用户是否迁移到云端")
 		# TODO: 弹出对话框询问用户是否迁移
 
@@ -47,13 +47,23 @@ func _on_connectivity_changed(online: bool) -> void:
 # ============ 存档操作 ============
 
 ## 保存游戏
+## 设计：本地缓存文件（user://save_game.json）是会话内读档的权威来源，
+## 每次存档都先写本地；注册用户在线时再同步到云端（云端异常不影响本地已存）。
+## 这样无论网络/后端如何波动，存档→读档一定闭环（符合「存/读档是通用功能」原则）。
 func save_game() -> Dictionary:
 	_build_save_data()
-	
-	if GameManager.is_guest:
-		return await _save_local()
-	else:
-		return await _save_to_server()
+
+	# 1) 始终写入本地缓存
+	var local_res = _save_local()
+	var result = local_res
+
+	# 2) 注册用户在线时同步到云端（仅作镜像，失败不影响本地）
+	if not GameManager.is_guest and APIManager and APIManager.is_online:
+		var server_res = await _save_to_server()
+		if not server_res.get("error", true):
+			result = server_res
+
+	return result
 
 func _build_save_data() -> void:
 	## 从各子系统收集存档数据
@@ -67,6 +77,8 @@ func _build_save_data() -> void:
 		"observation_score": StarRatingSystem.observation_score,
 		"reasoning_score": StarRatingSystem.reasoning_score,
 		"insight_score": StarRatingSystem.insight_score,
+		"scene_state": GameManager.scene_state.duplicate(),   # 场景内运行状态（phase, clue_ids）
+		"collected_clues": _get_collected_clues(),             # 通用已收集线索（场景无关单一真相源）
 		"is_guest": GameManager.is_guest,
 		"game_time": 0,  # TODO: 游戏内计时器
 		"dialogue_progress": _get_dialogue_progress(),
@@ -91,31 +103,28 @@ func _save_local() -> Dictionary:
 	
 	file.store_string(JSON.stringify(save_data, "\t"))
 	file.close()
-	
+
 	print("[SaveManager] 本地存档已保存")
 	SystemEventBus.emit_signal("game_saved", "local", last_save_timestamp)
 	game_saved.emit("local", last_save_timestamp)
 	return {"error": false, "save_id": "local", "timestamp": last_save_timestamp}
 
-func _has_local_save() -> bool:
+func has_local_save() -> bool:
 	return FileAccess.file_exists("user://save_game.json")
 
 # ============ 云端存档 ============
 
 func _save_to_server() -> Dictionary:
 	if not APIManager or not APIManager.is_online:
-		# 离线时先存本地，加入上传队列
-		_save_local()
+		# 离线：本地缓存已由 save_game 写入，这里仅入队等待同步
 		APIManager._queue_request("upload_save", save_data)
-		print("[SaveManager] 离线模式，存档已缓存本地，待网络恢复后同步")
+		print("[SaveManager] 离线模式，存档已入队等待同步（本地缓存已写入）")
 		return {"error": false, "save_id": "local_queued", "timestamp": last_save_timestamp}
 	
 	var result = await APIManager.upload_save(save_data)
 	
 	if result.get("error", true):
 		save_sync_failed.emit(result.get("message", "存档同步失败"))
-		# 失败时仍保存本地
-		_save_local()
 		return result
 	
 	var data = result.get("data", {})
@@ -129,11 +138,24 @@ func _save_to_server() -> Dictionary:
 # ============ 读档操作 ============
 
 ## 加载游戏
+## 设计：本地缓存为权威来源；注册用户在线时若云端有更新则覆盖本地结果。
+## 只要本地或云端任一成功即视为读档成功，绝不再因云端返回空而丢弃本地进度。
 func load_game() -> bool:
 	if GameManager.is_guest:
 		return await _load_local()
-	else:
-		return await _load_from_server()
+	
+	# 注册用户：先用本地缓存（权威），在线再尝试云端更新覆盖
+	var ok := false
+	if has_local_save():
+		ok = await _load_local()
+	
+	if APIManager and APIManager.is_online:
+		if await _load_from_server():
+			ok = true
+	
+	if not ok:
+		no_save_found.emit()
+	return ok
 
 func _load_local() -> bool:
 	if not FileAccess.file_exists("user://save_game.json"):
@@ -155,36 +177,31 @@ func _load_local() -> bool:
 
 func _load_from_server() -> bool:
 	if not APIManager or not APIManager.is_online:
-		# 离线时尝试加载本地缓存
-		if _has_local_save():
-			print("[SaveManager] 离线模式，加载本地缓存存档")
-			return await _load_local()
-		no_save_found.emit()
 		return false
 	
 	var case_id = GameManager.current_case_id
 	var result = await APIManager.get_latest_save(case_id)
 	
 	if result.get("error", true):
-		no_save_found.emit()
-		# 检查是否有本地缓存
-		if _has_local_save():
-			print("[SaveManager] 云端无存档，尝试加载本地缓存")
-			return await _load_local()
 		return false
 	
 	var data = result.get("data", {})
 	var save = data.get("save", {})
+	if save.is_empty():
+		return false
 	
-	if save:
-		_restore_from_dict(save)
-		last_save_id = save.get("id", "")
-		SystemEventBus.emit_signal("game_loaded")
-		game_loaded.emit(last_save_id, save.get("case_id", ""))
-		return true
+	# 云端较新才覆盖本地（按时间戳），避免把进度往回退
+	var local_ts = last_save_timestamp
+	var server_ts = save.get("timestamp", 0)
+	if local_ts > 0 and server_ts > 0 and server_ts < local_ts:
+		print("[SaveManager] 云端存档较旧，保留本地缓存")
+		return false
 	
-	no_save_found.emit()
-	return false
+	_restore_from_dict(save)
+	last_save_id = save.get("id", "")
+	SystemEventBus.emit_signal("game_loaded")
+	game_loaded.emit(last_save_id, save.get("case_id", ""))
+	return true
 
 # ============ 数据恢复 ============
 
@@ -206,6 +223,12 @@ func _restore_from_dict(data: Dictionary) -> void:
 		_restore_unlocked_locations(data["unlocked_locations"])
 	if data.has("completed_milestones"):
 		_restore_completed_milestones(data["completed_milestones"])
+	if data.has("scene_state"):
+		GameManager.scene_state = data["scene_state"].duplicate()
+		print("[SaveManager] scene_state 已恢复: ", GameManager.scene_state)
+	if data.has("collected_clues") and ClueSystem:
+		ClueSystem.restore_collected_clues(data["collected_clues"])
+		print("[SaveManager] collected_clues 已恢复: ", ClueSystem.count_collected())
 
 # ============ 存档查询 ============
 
@@ -251,6 +274,11 @@ func _get_unlocked_locations() -> Array:
 func _get_completed_milestones() -> Array:
 	if GameManager:
 		return GameManager.get_completed_milestones()
+	return []
+
+func _get_collected_clues() -> Array:
+	if ClueSystem:
+		return ClueSystem.get_collected_clues_snapshot()
 	return []
 
 func _get_settings_snapshot() -> Dictionary:

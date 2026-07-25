@@ -130,14 +130,20 @@ func _on_quit() -> void:
 # -- 存档检查（仅注册用户） --
 
 func _check_and_go() -> void:
-	if not SaveManager or not APIManager or not APIManager.is_online:
-		_go("res://scenes/scene1.tscn"); return
-
 	if GameManager: GameManager.current_case_id = "case_blood_letter"
-	var r = await APIManager.get_latest_save("case_blood_letter")
-	var has = not r.get("error", true) and not r.get("data", {}).is_empty()
-	if has: _show_save_dialog()
-	else: _go("res://scenes/scene1.tscn")
+
+	# 优先查云端存档
+	if SaveManager and APIManager and APIManager.is_online:
+		var r = await APIManager.get_latest_save("case_blood_letter")
+		var has = not r.get("error", true) and not r.get("data", {}).is_empty()
+		if has: _show_save_dialog(); return
+
+	# 离线或无云端存档 → 检查本地存档
+	if SaveSystem and SaveSystem.has_save():
+		_show_save_dialog()
+		return
+
+	_go("res://scenes/scene1.tscn")
 
 func _show_save_dialog() -> void:
 	var p = _make_panel(600, 380)
@@ -158,7 +164,7 @@ func _show_save_dialog() -> void:
 	bc.pressed.connect(func(): p.get_parent().queue_free(); _load_save())
 	p.add_child(bc)
 	var bn = Button.new(); _style_btn(bn, "重 新 开 始", Vector2(40, 265), Vector2(520, 48), false, 22)
-	bn.pressed.connect(func(): p.get_parent().queue_free(); _go("res://scenes/scene1.tscn"))
+	bn.pressed.connect(func(): p.get_parent().queue_free(); if SaveSystem: SaveSystem.new_game(); _go("res://scenes/scene1.tscn"))
 	p.add_child(bn)
 	var bx = Button.new(); _style_btn(bx, "返    回", Vector2(40, 324), Vector2(520, 38), false, 18)
 	bx.pressed.connect(func(): p.get_parent().queue_free())
@@ -167,7 +173,8 @@ func _show_save_dialog() -> void:
 func _load_save() -> void:
 	if GameManager: GameManager.current_case_id = "case_blood_letter"
 	if SaveManager:
-		var ok = await SaveManager.load_game()
+		var ok = await SaveSystem.load_game()
+		print("[MainMenu] load_game ok=", ok, " scene_id=", GameManager.current_scene_id, " scene_state=", GameManager.scene_state)
 		if ok and GameManager.current_scene_id != "":
 			var sp = "res://scenes/" + GameManager.current_scene_id + ".tscn"
 			if ResourceLoader.exists(sp): _go(sp); return

@@ -110,9 +110,17 @@ func show_notification(msg: String) -> void:
 	var tw = create_tween()
 	tw.tween_interval(2.5)
 	tw.tween_property(bar, "modulate:a", 0.0, 0.6)
-	tw.tween_callback(func():
-		if is_instance_valid(bar): bar.queue_free()
-	)
+	# 注意：不要用 lambda 捕获 bar——若 bar 在 3.1s 内被释放（如测试快速重建 UI 树），
+	# 游离 tween 回调在捕获阶段会抛 "Lambda capture" 错误（错误发生在 lambda 体执行前，
+	# 内部 is_instance_valid 守卫拦不住）。改用 bound 方法：bar 即便已释放也只作为参数失效，
+	# 由方法内部判活，安全无报错。
+	tw.tween_callback(_free_node_safe.bind(bar))
+
+func _free_node_safe(node: Node) -> void:
+	# 供 tween_callback 安全释放节点：node 即便已释放，也只是参数失效，这里判活即可，
+	# 不会在捕获阶段抛出 "Lambda capture" 错误。
+	if is_instance_valid(node):
+		node.queue_free()
 
 func set_action_active(action_id: String, active: bool) -> void:
 	if not _action_btns.has(action_id): return
@@ -524,3 +532,25 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 		name_panel.add_child(name_lbl)
 
 	return port
+
+# === 通用存/读档辅助（场景复用） ===
+
+## 恢复观察器：显示按钮 → 标记已收线索（隐藏按钮+登记 ID+计数器）
+func restore_observer(obs: ClueObserver, saved_ids: Array, owned_ids: Array) -> void:
+	obs.show()
+	for cid in saved_ids:
+		if cid in owned_ids:
+			obs.mark_recorded(cid)
+
+## 检查存档：返回 saved phase（-1 表示无存档或不属于本场景）
+func get_saved_phase(scene_id: String) -> int:
+	if not GameManager: return -1
+	var ss = GameManager.scene_state
+	if ss.is_empty(): return -1
+	if ss.get("scene_id", "") != scene_id: return -1
+	return ss.get("phase", -1)
+
+## 取存档中的线索 ID 列表
+func get_saved_clue_ids() -> Array:
+	if not GameManager: return []
+	return GameManager.scene_state.get("clue_ids", []).duplicate()

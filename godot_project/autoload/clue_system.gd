@@ -116,4 +116,70 @@ func restore_clue_states(states: Dictionary) -> void:
 		cd.id = clue_id
 		cd.state = int(states[clue_id])
 		discovered_clues[clue_id] = cd
-	clue_count = discovered_clues.size()
+		clue_count = discovered_clues.size()
+
+# ============ 通用「已收集线索」登记（场景无关 · 存/读档单一真相源）============
+# 与上面的目录/发现态（Catalog / Discovered）解耦：这里登记的是「玩家在场景中
+# 实际收集到的线索」，每条结构固定为：
+#   {"id":String, "name":String, "desc":String, "correct":bool, "source":String}
+# source 用于区分不同轮次/场景（如 "watson" / "messenger" / "garden"），
+# 推理墙、笔记、物品栏等所有功能系统均从此处读取，确保与场景观察器永远一致。
+
+var collected_clues: Array = []
+
+## 登记一条已收集线索（按 id 去重；已存在则更新字段）
+func collect_clue(id: String, name: String, desc: String, correct: bool, source: String = "") -> void:
+	for c in collected_clues:
+		if c.get("id", "") == id:
+			c["name"] = name
+			c["desc"] = desc
+			c["correct"] = correct
+			c["source"] = source
+			return
+	collected_clues.append({"id": id, "name": name, "desc": desc, "correct": correct, "source": source})
+
+## 是否已收集（可按 source 过滤）
+func has_collected(id: String, source: String = "") -> bool:
+	for c in collected_clues:
+		if c.get("id", "") == id and (source == "" or c.get("source", "") == source):
+			return true
+	return false
+
+## 取出已收集线索（可按 source 过滤；返回副本避免外部篡改）
+func get_collected(source: String = "") -> Array:
+	if source == "":
+		return collected_clues.duplicate()
+	var out: Array = []
+	for c in collected_clues:
+		if c.get("source", "") == source:
+			out.append(c.duplicate())
+	return out
+
+## 取出已收集线索 ID 列表（可按 source 过滤）
+func get_collected_ids(source: String = "") -> Array:
+	var out: Array = []
+	for c in collected_clues:
+		if source == "" or c.get("source", "") == source:
+			out.append(c.get("id", ""))
+	return out
+
+## 已收集数量（可按 source 过滤）
+func count_collected(source: String = "") -> int:
+	return get_collected_ids(source).size()
+
+## 清空（新游戏时调用）
+func clear_collected() -> void:
+	collected_clues.clear()
+
+## 供 SaveManager 序列化的完整快照
+func get_collected_clues_snapshot() -> Array:
+	return collected_clues.duplicate()
+
+## 从存档恢复（由 SaveManager 调用，元素结构同 collect_clue）
+func restore_collected_clues(snapshot: Array) -> void:
+	collected_clues.clear()
+	if snapshot is not Array:
+		return
+	for c in snapshot:
+		if c is Dictionary and c.has("id"):
+			collected_clues.append(c.duplicate())
