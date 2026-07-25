@@ -35,6 +35,16 @@ func _restore_saved_state() -> bool:
 	if ss.is_empty(): return false
 	var saved_phase := int(ss.get("phase", 0))
 	var saved_ids: Array = ss.get("clue_ids", [])
+	# 以存档 clue_ids 为权威，同步 ClueSystem 的 watson/messenger 来源，
+	# 保证推理墙显示与观察器记录数一致（避免「两层皮」）。
+	if ClueSystem:
+		ClueSystem.clear_source("watson")
+		ClueSystem.clear_source("messenger")
+		for cid in saved_ids:
+			var h = _find_hotspot(cid)
+			if not h.is_empty():
+				var src := "watson" if cid in ["wrist","arm","face","pose"] else "messenger"
+				ClueSystem.collect_clue(cid, h.get("name", cid), h.get("desc",""), h.get("correct", true), src)
 	# 关键：先把阶段恢复到存档值（OPENING / OBSERVE_WATSON 等分支的子方法不会设 _phase，
 	# 若漏掉会导致新场景实例 _phase 停在默认的 MRS_HUDSON=0 —— 即「读档后阶段错乱」）
 	_phase = saved_phase
@@ -261,9 +271,11 @@ func _do_save() -> void:
 	if GameManager.is_guest:
 		_create_notification("游客模式不支持存档，请先注册账号")
 		return
-	# 收集场景运行状态（线索 ID 以 ClueSystem 通用登记为准，确保与推理墙一致）
+	# 收集场景运行状态：以本场景两个观察器的已记录线索为权威（不读全局 ClueSystem，避免跨轮累计污染存档）
 	var data := {"clue_ids": [], "watson_recorded": 0, "messenger_recorded": 0}
-	var ids: Array = ClueSystem.get_collected_ids() if ClueSystem else []
+	var ids: Array = []
+	for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
+	for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
 	data["clue_ids"] = ids
 	for cid in ids:
 		if cid in ["wrist","arm","face","pose"]: data["watson_recorded"] += 1
@@ -595,8 +607,13 @@ func _save_and_continue() -> void:
 	if GameStateMachine: GameStateMachine.go_complete()
 	if GameManager: GameManager.add_milestone("sc_01_completed")
 	if not (GameManager and GameManager.is_guest) and SaveManager:
-		var r = await SaveManager.save_game()
-		_create_notification("保存失败" if r.get("error", false) else "进度已保存")
+		# 关键：自动存档必须写入本场景的 scene_state（phase + scene_id + clue_ids），
+		# 否则读档时 _restore_saved_state 因 scene_id 不匹配而判定「无存档」→ 场景从头重启。
+		var ids: Array = []
+		for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
+		for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
+		await SaveSystem.request_save("scene1", Phase.COMPLETE, {"clue_ids": ids})
+		_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")
 	await get_tree().create_timer(2.0).timeout
 	get_tree().change_scene_to_file("res://scenes/scene2.tscn")

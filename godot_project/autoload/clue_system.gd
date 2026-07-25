@@ -171,6 +171,16 @@ func count_collected(source: String = "") -> int:
 func clear_collected() -> void:
 	collected_clues.clear()
 
+## 清空指定 source 的已收集线索（读档恢复前调用，避免全局累计导致「两层皮」）
+## source 用于区分不同轮次/场景（"watson"/"messenger"/"garden"/"indoor"），
+## 推理墙、笔记、物品栏等据此筛选——仅清本 source，不影响其它轮的线索。
+func clear_source(source: String) -> void:
+	var kept: Array = []
+	for c in collected_clues:
+		if c.get("source", "") != source:
+			kept.append(c)
+	collected_clues = kept
+
 ## 供 SaveManager 序列化的完整快照
 func get_collected_clues_snapshot() -> Array:
 	return collected_clues.duplicate()

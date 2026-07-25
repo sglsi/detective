@@ -57,12 +57,15 @@ func _restore_saved_state() -> bool:
 	print("[RESTORE scene2] phase=", saved_phase, " clue_ids=", saved_ids)
 	# 明确告知用户读档成功并恢复到哪个阶段，避免「不知道进到哪了」
 	_ui.show_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
-	# 预填已收线索：优先取自通用线索登记（由 SaveManager 已恢复），回退到 saved_ids 推导
-	_garden_clues = ClueSystem.get_collected("garden") if ClueSystem else []
-	if _garden_clues.is_empty():
-		for cid in saved_ids:
-			var h = _get_hotspot(cid)
-			if not h.is_empty(): _garden_clues.append(h)
+	# 以存档 clue_ids 为唯一权威重建本地进度，并同步 ClueSystem（推理墙的单一真相源），
+	# 杜绝「场景内进度（_garden_obs 已记录数）」与「推理墙（ClueSystem 全局累计）」不一致的「两层皮」。
+	_garden_clues = []
+	if ClueSystem: ClueSystem.clear_source("garden")
+	for cid in saved_ids:
+		var h = _get_hotspot(cid)
+		if not h.is_empty():
+			_garden_clues.append(h)
+			if ClueSystem: ClueSystem.collect_clue(cid, h.get("label",""), h.get("desc",""), h.get("correct", true), "garden")
 	match saved_phase:
 		Phase.ARRIVAL:
 			_show_arrival_dialogue(); return true
@@ -315,7 +318,9 @@ func _show_journal() -> void:
 func _do_save() -> void:
 	if GameManager.is_guest: _ui.show_notification("游客模式下无法存档，请先注册账号。"); return
 	var data := {"clue_ids": []}
-	var ids: Array = ClueSystem.get_collected_ids("garden") if ClueSystem else []
+	# 以本场景本地进度为权威（不读全局 ClueSystem，避免跨轮累计污染存档）
+	var ids: Array = []
+	for c in _garden_clues: ids.append(c.get("id", ""))
 	if ids.is_empty():
 		for c in _garden_obs.get_recorded_clues():
 			ids.append(c.get("id", ""))
@@ -420,7 +425,11 @@ func _enter_transition() -> void:
 
 func _go_to_next_scene() -> void:
 	if GameManager and not GameManager.is_guest and SaveManager:
-		await SaveManager.save_game()
+		# 关键：自动存档必须写入本场景的 scene_state（phase + scene_id + clue_ids），
+		# 否则读档时 _restore_saved_state 因 scene_id 不匹配而判定「无存档」→ 场景从头重启。
+		var ids: Array = []
+		for c in _garden_clues: ids.append(c.get("id", ""))
+		await SaveSystem.request_save("scene2", Phase.TRANSITION, {"clue_ids": ids})
 	# 场景三已实现，进入室内尸体现场
 	get_tree().change_scene_to_file("res://scenes/scene3.tscn")
 

@@ -46,8 +46,10 @@ func _initialize() -> void:
 
 		for cid in ["wrist", "arm", "face", "pose"]:
 			sceneA._on_collect_clue(cid, {"name": cid, "desc": "d", "correct": true}, "watson")
+			sceneA._watson_obs.mark_recorded(cid)
 		for cid in ["tattoo", "beard", "posture", "manner", "sleeve", "limp"]:
 			sceneA._on_collect_clue(cid, {"name": cid, "desc": "d", "correct": true}, "messenger")
+			sceneA._messenger_obs.mark_recorded(cid)
 
 		sceneA._phase = target
 		GameManager.is_guest = false
