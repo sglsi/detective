@@ -11,7 +11,10 @@ extends Node
 # ============ 后端地址 ============
 
 ## 开发环境 API 地址（本机后端实际监听 3001；3000 被系统服务占用）
-const DEV_BASE_URL: String = "http://localhost:3001"
+## 注意：必须用 127.0.0.1 而非 localhost —— Windows 上 Godot HTTPRequest 把
+## localhost 解析到 IPv6 ::1，而后端只监听 IPv4 0.0.0.0，会导致编辑器 F5 连通性
+## 探测失败、is_online 永远 false、登录被短路为"网络不可用"。
+const DEV_BASE_URL: String = "http://127.0.0.1:3001"
 
 ## 生产环境 API 地址（待定）
 const PROD_BASE_URL: String = "https://api.sherlock-game.com"

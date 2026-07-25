@@ -60,6 +60,20 @@ func hide_button_by_id(clue_id: String) -> void:
 			_btns[i].visible = false
 			return
 
+## 标记某条线索为已记录状态（用于存档恢复），隐藏按钮、登记 ID、递增计数器，
+## 并重建线索数据写入 _recorded_clues，确保读档后推理墙能拿到完整线索（含 correct 标志）
+func mark_recorded(clue_id: String) -> void:
+	if _recorded_ids.has(clue_id): return
+	_recorded_ids.append(clue_id)
+	_recorded += 1
+	hide_button_by_id(clue_id)
+	var hs_data: Dictionary = {"id": clue_id, "name": clue_id, "desc": "", "correct": true}
+	for hs in _hotspots:
+		if hs["id"] == clue_id:
+			hs_data = {"id": hs["id"], "name": hs["label"], "desc": hs.get("desc", ""), "correct": hs.get("correct", true)}
+			break
+	_recorded_clues.append(hs_data)
+
 func is_active() -> bool:
 	return _active
 

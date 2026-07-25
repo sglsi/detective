@@ -75,7 +75,7 @@ func _on_btn_pressed(action: String) -> void:
 			SaveManager.save_game()
 			UIManager.show_notification("游戏已保存")
 		"load":
-			var loaded = await SaveManager.load_game()
+			var loaded = await SaveSystem.load_game()
 			if loaded:
 				UIManager.show_notification("存档已加载")
 			else:

@@ -237,6 +237,7 @@ func _show_save_dialog() -> void:
 	var bn = mkbtn("重 新 开 始", Vector2(40, 265), Vector2(520, 48), false)
 	bn.pressed.connect(func():
 		p.queue_free()
+		if SaveSystem: SaveSystem.new_game()
 		if GameManager: GameManager.current_scene_id = "scene1"
 		_go_scene("res://scenes/scene1.tscn"))
 	f.add_child(bn)
@@ -252,7 +253,7 @@ func _go_save() -> void:
 		_go_scene("res://scenes/scene1.tscn")
 		return
 	if GameManager: GameManager.current_case_id = "case_blood_letter"
-	var ok = await SaveManager.load_game()
+	var ok = await SaveSystem.load_game()
 	if ok and GameManager.current_scene_id != "":
 		var spath = "res://scenes/" + GameManager.current_scene_id + ".tscn"
 		if ResourceLoader.exists(spath):

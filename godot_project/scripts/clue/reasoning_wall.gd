@@ -13,7 +13,6 @@ var _on_verify: Callable
 var _card_btns: Dictionary = {}  # clue_id -> Button
 var _hypo_btn: Button
 var _status_lbl: Label
-<omitted />
 
 func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable) -> void:
 	_clues = clues
@@ -53,7 +52,7 @@ func _create_ui() -> void:
 	for i in _clues.size():
 		var c = _clues[i]
 		var card = Button.new()
-		card.text = c["name"] if c.has("name") else c["id"]
+		card.text = c.get("name", c.get("label", c.get("id", "")))
 		card.position = Vector2(40, 155 + i * 65)
 		card.size = Vector2(280, 55)
 		card.add_theme_font_size_override("font_size", 16)
@@ -193,7 +192,19 @@ func _on_card_clicked(cid: String) -> void:
 
 	_update_hypo()
 
-<omitted />
+func _on_hypo_clicked() -> void:
+	# 假设区本身点击暂无额外行为（关联由线索卡片完成）
+	pass
+
+func _update_hypo() -> void:
+	var names: Array = []
+	for c in _clues:
+		if c.get("associated", false):
+			names.append(c.get("name", c.get("label", c.get("id", ""))))
+	if names.is_empty():
+		_hypo_btn.text = "关联的证据将在此显示\n\n点击左侧线索卡片加入或移除"
+	else:
+		_hypo_btn.text = "已关联证据 (" + str(names.size()) + "):\n" + "\n".join(names)
 
 func _on_verify_pressed() -> void:
 	var v = get_verdict()

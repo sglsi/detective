@@ -13,7 +13,9 @@ extends Node
 # ============ 配置 ============
 
 ## 后端 API 基地址（生产环境从环境变量/配置文件读取）
-var base_url: String = "http://localhost:3001"
+## 默认即 127.0.0.1，避免 Windows 下 localhost→IPv6 解析导致编辑器 F5 连不上后端；
+## 运行时会被 APIConfig.get_base_url() 覆盖（编辑器返回同款 127.0.0.1:3001）。
+var base_url: String = "http://127.0.0.1:3001"
 
 ## 请求超时时间（秒）
 var request_timeout: float = 15.0
@@ -63,7 +65,7 @@ func _base() -> String:
 		return ""
 	return base_url
 
-func _check_connectivity() -> void:
+func _check_connectivity(retry: int = 1) -> void:
 	## Web 导出下 HTTPRequest 对部分请求回调不稳，健康检查统一走浏览器原生 fetch
 	if OS.has_feature("web"):
 		var res = await _web_fetch(
@@ -75,7 +77,7 @@ func _check_connectivity() -> void:
 		_set_online_status(res.get("code", 0) == 200, null)
 		return
 
-	## 尝试连接后端 health 端点（桌面端）
+	## 尝试连接后端 health 端点（桌面/编辑器端，已用 127.0.0.1 规避 IPv6 解析失败）
 	var http = HTTPRequest.new()
 	add_child(http)
 	http.request_completed.connect(_on_health_check.bind(http))
@@ -85,15 +87,11 @@ func _check_connectivity() -> void:
 		_set_online_status(false, http)
 		return
 	
-	# 设置超时
-	get_tree().create_timer(5.0).timeout.connect(
-		func():
-			# http 可能已被健康检查回调 queue_free，需先判活
-			if not is_instance_valid(http):
-				return
-			if not http.get_meta("checked", false):
-				_set_online_status(false, http)
-	)
+	# 超时探测：5s 内无回调（如后端刚启动）则再探测一次，仍失败才判离线。
+	# 注意：不要用 lambda 捕获 http——http 可能在 5s 内被 _on_health_check→_set_online_status
+	# queue_free，游离定时器触发时捕获释放会抛 "Lambda capture" 错误。改用 bound 方法，
+	# 即便 http 已释放也会以参数形式安全传入，由方法内部判活，不会在捕获阶段报错。
+	get_tree().create_timer(5.0).timeout.connect(_on_health_timeout.bind(http, retry))
 
 func _on_health_check(result: int, code: int, headers: PackedStringArray, body: PackedByteArray, http: HTTPRequest) -> void:
 	http.set_meta("checked", true)
@@ -101,6 +99,16 @@ func _on_health_check(result: int, code: int, headers: PackedStringArray, body: 
 		_set_online_status(true, http)
 	else:
 		_set_online_status(false, http)
+
+func _on_health_timeout(http: HTTPRequest, retry: int) -> void:
+	# 由定时器 bind 传入；即便 http 已被释放也仅是参数失效，方法内判活即可，不会抛捕获错误
+	if not is_instance_valid(http):
+		return
+	if not http.get_meta("checked", false):
+		if retry > 0:
+			_check_connectivity(retry - 1)
+		else:
+			_set_online_status(false, http)
 
 func _set_online_status(online: bool, http: HTTPRequest) -> void:
 	var was_online = is_online
@@ -157,32 +165,35 @@ func _perform_request(method: int, endpoint: String, body_dict: Dictionary, auth
 	return await _wait_for_response(http)
 
 ## 等待 HTTP 响应（含超时处理）
+## 注意：原先使用 get_tree().create_timer(request_timeout).timeout.connect(lambda) 做超时，
+## 但该 lambda 按声明顺序捕获了 http（capture 索引 0）。一旦请求提前完成、http 被
+## queue_free()，这个游离的定时器仍会在 request_timeout 秒后触发，调用已释放的 http ->
+## “Lambda capture at index 0 was freed. Passed null instead.”。改为在协程内用帧累加计时，
+## 彻底消除游离定时器与捕获释放问题。
 func _wait_for_response(http: HTTPRequest) -> Dictionary:
 	active_requests += 1
-	
-	var timer = get_tree().create_timer(request_timeout)
+
 	var completed = false
 	var response = {}
-	
+
 	http.request_completed.connect(
 		func(result: int, code: int, headers: PackedStringArray, body: PackedByteArray):
 			if completed: return
 			completed = true
 			response = _parse_response(result, code, body)
 	)
-	
-	timer.timeout.connect(
-		func():
-			if not completed:
-				completed = true
-				response = {"error": true, "message": "请求超时"}
-				http.cancel_request()
-	)
-	
-	# 等待完成（Godot 4 await 模式）
+
+	# 帧循环计时（无独立定时器，避免捕获释放）
+	var elapsed := 0.0
+	var step := 1.0 / 60.0
 	while not completed:
 		await get_tree().process_frame
-	
+		elapsed += step
+		if elapsed >= request_timeout:
+			response = {"error": true, "message": "请求超时"}
+			http.cancel_request()
+			break
+
 	http.queue_free()
 	active_requests -= 1
 	return response

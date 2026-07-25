@@ -1,47 +1,27 @@
 ; Engine configuration file.
-; E-25 S4.4 Autoload registration order - DO NOT REORDER
-; Layer 1: Infrastructure -> Layer 2: Event Buses -> Layer 3: Business Systems
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
 [application]
 
-config/icon="res://icon.svg"
 config/name="维多利亚伦敦探案"
 config/description="以福尔摩斯第一视角，体验19世纪维多利亚时代伦敦的推理探案过程"
 config/version="0.1.0"
-config/features=PackedStringArray("4.7")
-config/api_base_url="http://localhost:3001"
 run/main_scene="res://scenes/main_menu.tscn"
-
-[rendering]
-
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
-
-[display]
-
-window/size/viewport_width=1920
-window/size/viewport_height=1080
-window/size/mode=2
-window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
-
-[input_devices]
-
-pointing/emulate_touch_from_mouse=true
-
-[gui]
-
-theme/custom_font="res://assets/fonts/simhei.ttf"
+config/features=PackedStringArray("4.7")
+config/icon="res://icon.svg"
+config/api_base_url="http://localhost:3001"
 
 [autoload]
 
-; Layer 1: Infrastructure (no dependencies)
 SettingsManager="*res://autoload/settings_manager.gd"
 APIConfig="*res://config/api_config.gd"
-
-; Layer 2: System Event Buses
 SystemEventBus="*res://autoload/system_event_bus.gd"
 SceneEventBus="*res://autoload/scene_event_bus.gd"
 DialogueEventBus="*res://autoload/dialogue_event_bus.gd"
@@ -49,8 +29,6 @@ ClueEventBus="*res://autoload/clue_event_bus.gd"
 UIEventBus="*res://autoload/ui_event_bus.gd"
 CaseEventBus="*res://autoload/case_event_bus.gd"
 MapEventBus="*res://autoload/map_event_bus.gd"
-
-; Layer 3: Business Systems
 DifficultyManager="*res://autoload/difficulty_manager.gd"
 GameManager="*res://autoload/game_manager.gd"
 CaseManager="*res://autoload/case_manager.gd"
@@ -65,6 +43,19 @@ MapManager="*res://autoload/map_manager.gd"
 DialogueProgress="*res://autoload/dialogue_progress.gd"
 AudioManager="*res://autoload/audio_manager.gd"
 GameStateMachine="*res://autoload/game_state_machine.gd"
+SaveSystem="*res://autoload/save_system.gd"
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/mode=2
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[gui]
+
+theme/custom_font="res://assets/fonts/simhei.ttf"
 
 [input]
 
@@ -85,3 +76,12 @@ interact={
 , Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"button_mask":1,"position":Vector2(0, 0),"global_position":Vector2(0, 0),"factor":1.0,"button_index":1,"canceled":false,"pressed":false,"double_click":false,"script":null)
 ]
 }
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
