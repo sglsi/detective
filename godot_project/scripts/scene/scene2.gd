@@ -340,7 +340,7 @@ func _show_arrival_dialogue() -> void:
 		["a0","葛莱森","福尔摩斯先生！您总算来了——昨晚在花园街三号的空屋里发现了一具男尸，表面没有任何外伤，像是中毒而死……"],
 		["a1","福尔摩斯","没有外伤的中毒死者？有意思。带我们去看看现场，警长。"],
 		["a2","华生","（环顾四周）这座花园……轮印、马蹄印、脚印全都混在泥里。昨晚这里可真热闹。"],
-		["a3","福尔摩斯","先别急着下结论，华生。看——栅栏外面还有一个人。雷斯垂德，你也来了？"]], "a0"))
+		["a3","福尔摩斯","先别急着下结论，华生。看——栅栏外面还有一个人。雷斯垂德，你也来了？"]]), "a0")
 	_dm.start_dialogue()
 
 func _on_arrival_end() -> void:
@@ -358,7 +358,7 @@ func _show_detective_dialogue() -> void:
 		["b2","福尔摩斯","（微微一笑）德语倒是没错，但我不认为这是德国人干的。真正的德国人不会在犯罪现场用母语留字——太刻意。这几个字写得歪歪扭扭，像是用左手蘸血随意涂抹的。"],
 		["b3","雷斯垂德","左手？你怎么……算了。说正经的——附近居民昨晚听到马车声和马蹄声，还有一个醉汉在街上踉跄。"],
 		["b4","葛莱森","所以我们先来外面勘查花园——地上这些痕迹说不定比屋里更有用。"],
-		["b5","福尔摩斯","很好。华生，你戴上放大镜仔细检查地面——注意车轮印的间距、马蹄印中哪只新旧不一，以及脚印的多少和大小。我和警长们先在边上等着。"]], "b0"))
+		["b5","福尔摩斯","很好。华生，你戴上放大镜仔细检查地面——注意车轮印的间距、马蹄印中哪只新旧不一，以及脚印的多少和大小。我和警长们先在边上等着。"]]), "b0")
 	_dm.start_dialogue()
 
 func _on_detective_end() -> void:
@@ -374,13 +374,13 @@ func _make_nodes(raw: Array) -> Array:
 	for r in raw:
 		var n = DialogueNodeResource.new()
 		n.node_id=r[0]; n.speaker=r[1]; n.text=r[2]; n.trigger="click"
-	var nxt: Array[String] = []
-	if len(r) > 3:
-		nxt.append(r[3])
-	else:
-		var base: String = r[0]
-		var num: int = int(base.substr(1)) + 1
-		nxt.append(base[0] + str(num))
+		var nxt: Array[String] = []
+		if len(r) > 3:
+			nxt.append(r[3])
+		else:
+			var base: String = r[0]
+			var num: int = int(base.substr(1)) + 1
+			nxt.append(base[0] + str(num))
 		n.next_nodes = nxt; n.mood = "neutral"; nodes.append(n)
 	return nodes
 
@@ -404,7 +404,7 @@ func _enter_transition() -> void:
 	_dm.dialogue_resource = _make_dialogue_resource("s2_trans", _make_nodes([
 		["c0","福尔摩斯","推理墙的结果印证了我的判断：一辆伦敦出租马车、两人一高一矮。高个子的体貌特征和'醉汉'吻合——他很可能就是凶手，或者凶手的帮手。"],
 		["c1","华生","花园的证据都齐了。外面看完了——进去看看尸体现场吧。"],
-		["c2","葛莱森","跟我来。死者的遗体还在里面没有动过。"]], "c0"))
+		["c2","葛莱森","跟我来。死者的遗体还在里面没有动过。"]]), "c0")
 	_dm.start_dialogue()
 
 func _go_to_next_scene() -> void:
