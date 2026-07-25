@@ -70,10 +70,13 @@ func _restore_saved_state() -> bool:
 			_show_detective_dialogue(); return true
 		Phase.GARDEN_OBSERVE:
 			_phase = Phase.GARDEN_OBSERVE
-			if _garden_clues.size() < HOTSPOTS.size():
-				var owned_ids: Array = []
-				for h in HOTSPOTS: owned_ids.append(h["id"])
-				_ui.restore_observer(_garden_obs, saved_ids, owned_ids)
+			if _garden_clues.size() >= HOTSPOTS.size():
+				# 死局防御：线索已集齐但阶段还停在勘查——all_recorded 不会再触发，
+				# 若不主动进推理，场景将永久卡死（与 scene3 同款防御）。
+				_enter_reasoning(); return true
+			var owned_ids: Array = []
+			for h in HOTSPOTS: owned_ids.append(h["id"])
+			_ui.restore_observer(_garden_obs, saved_ids, owned_ids)
 			_ui.set_dialogue("提示", "已恢复进度 — 花园勘查阶段（已收集 "+str(_garden_clues.size())+"/"+str(HOTSPOTS.size())+" 条）")
 			return true
 		Phase.REASONING:

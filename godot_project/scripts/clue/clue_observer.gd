@@ -46,8 +46,11 @@ func _create_buttons() -> void:
 
 func show() -> void:
 	_active = true
-	for btn in _btns:
-		btn.visible = true
+	# 只显示尚未记录的热点：LOOK/放大镜会反复调用本方法，若把已记录热点也
+	# 重新显示，玩家可重复记录同一线索 → 计数虚增、all_recorded 提前/重复触发。
+	for i in _hotspots.size():
+		if i < _btns.size():
+			_btns[i].visible = not _recorded_ids.has(_hotspots[i]["id"])
 
 func hide() -> void:
 	_active = false
@@ -90,6 +93,12 @@ func needs_count() -> int:
 
 func _on_hotspot(clue_id: String, desc: String) -> void:
 	if not _active: return
+	# 已记录过的线索不再响应（防重复记录）
+	if _recorded_ids.has(clue_id): return
+	# 已有放大层打开时忽略其他热点点击（防止叠加多层遮罩——
+	# _clear_observation_layer 只清一组节点，叠加层的残留 obs_dim 会
+	# 全屏拦截鼠标，表现为「点哪都没反应」的卡死）
+	if _parent.find_child("obs_dim", true, false): return
 	hotspot_clicked.emit(clue_id)
 
 	# 隐藏该热点按钮
@@ -155,12 +164,21 @@ func _show_observation_layer(clue_id: String, desc: String) -> void:
 	_parent.add_child(cf)
 
 func _clear_observation_layer() -> void:
+	# 清掉「所有」同名残留（而非只清第一个）：若历史上曾叠加出多层观察层，
+	# 残留的全屏 obs_dim 会永远拦截鼠标点击，表现为整个场景卡死。
 	for name in ["obs_dim", "obs_img", "obs_title", "obs_desc", "obs_confirm"]:
-		var n = _parent.find_child(name, true, false)
-		if n: n.queue_free()
+		while true:
+			var n = _parent.find_child(name, true, false)
+			if not n: break
+			n.name = name + "_dying"  # 立即改名，防止 queue_free 生效前被重复命中
+			n.queue_free()
 
 func _on_record(clue_id: String, desc: String) -> void:
 	_clear_observation_layer()
+	# 去重守卫：同一线索绝不重复计数（重复会导致 _recorded 虚增、
+	# all_recorded 提前触发或重复触发，破坏场景阶段推进）
+	if _recorded_ids.has(clue_id):
+		return
 	_recorded += 1
 
 	# 查找热点数据
