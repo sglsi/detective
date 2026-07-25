@@ -48,6 +48,8 @@
 │   └── export_presets.cfg    # 导出预设
 │
 ├── design_docs/ (设计文档/)   # 游戏设计文档（GDD 等）
+├── skills/                     # 通用技能脚本
+│   └── godot_asset_generator/  # Godot 游戏元素生成器（绿幕抠图）
 ├── scripts/                  # CI 脚本
 ├── tests/                    # 集成测试
 ├── tools/                    # 工具脚本
@@ -148,6 +150,35 @@
 - **部署入口**：`scripts/coze-deploy-build.sh` + `scripts/coze-deploy-run.sh`
 - **运行时**：`nodejs-24`, `python-3.12`
 - **服务端口**：5000（Web 原型）+ 3000（后端 API）
+
+## 通用 Skill
+
+### Godot 游戏元素生成器
+
+**位置**：`skills/godot_asset_generator/`
+
+**功能**：将 AI 生成的绿幕图片转换为透明底 PNG，用于 Godot 游戏资源
+
+**工作流程**：
+```
+AI 生成绿幕图 → Python 绿幕抠图 → 透明底 PNG → Godot 场景文件
+```
+
+**使用方法**：
+```bash
+python3 skills/godot_asset_generator/scripts/greenscreen_cutout.py \
+  --input <绿幕图片> \
+  --output <输出 PNG>
+```
+
+**AI 生成 Prompt 模板**：
+```
+<元素描述> alone, <风格>, clean solid color background (pure green #00ff00),
+NO other objects, isolated, game asset
+```
+
+**详细文档**：`skills/godot_asset_generator/SKILL.md`
+**快速开始**：`skills/godot_asset_generator/README.md`
 
 ## 用户偏好与长期约束
 
