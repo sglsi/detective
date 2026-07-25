@@ -51,6 +51,9 @@ func _restore_saved_state() -> bool:
 			return true
 		Phase.OBSERVE_WATSON:
 			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","arm","face","pose"])
+			if _watson_obs.get_recorded() >= 4:
+				# 死局防御：线索已集齐但阶段停在观察——all_recorded 不会再触发
+				_on_watson_all_recorded(_watson_obs.get_recorded_clues()); return true
 			_ui.set_dialogue("提示", "已恢复进度 — 华生观察阶段（已收集 "+str(_watson_obs.get_recorded())+"/4 条）\n点击 LOOK 查看剩余标记点")
 			return true
 		Phase.WATSON_REASONING:
@@ -61,6 +64,9 @@ func _restore_saved_state() -> bool:
 		Phase.MESSENGER_OBSERVE:
 			_phase = Phase.MESSENGER_OBSERVE
 			_ui.restore_observer(_messenger_obs, saved_ids, ["tattoo","beard","posture","manner","sleeve","limp"])
+			if _messenger_obs.get_recorded() >= 6:
+				# 死局防御：线索已集齐但阶段停在观察——all_recorded 不会再触发
+				_on_messenger_all_recorded(_messenger_obs.get_recorded_clues()); return true
 			_ui.set_dialogue("提示", "已恢复进度 — 信使观察阶段（已收集 "+str(_messenger_obs.get_recorded())+"/6 条）\n点击 LOOK 查看剩余标记点")
 			return true
 		Phase.MESSENGER_REASONING:

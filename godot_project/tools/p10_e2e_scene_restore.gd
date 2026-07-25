@@ -71,7 +71,12 @@ func _initialize() -> void:
 		var cs_w = ClueSystem.get_collected("watson").size()
 		var cs_m = ClueSystem.get_collected("messenger").size()
 
-		var phase_ok = (got == target) and restored
+		# 死局防御后的预期：恢复到观察阶段(2/4)但线索已集齐时，场景会自动
+		# 推进到对应推理阶段(3/5)——否则 all_recorded 永不触发、场景永久卡死。
+		var expected = target
+		if target == 2 and w_rec >= 4: expected = 3
+		if target == 4 and m_rec >= 6: expected = 5
+		var phase_ok = (got == expected) and restored
 		var obs_ok = (target in [2, 3]) and (w_rec == 4) or (target in [4, 5]) and (m_rec == 6)
 		var clue_ok = (cs_w == 4 and cs_m == 6)
 		print("[P10] 目标phase=", target, " → 实际phase=", got, " restored=", restored,

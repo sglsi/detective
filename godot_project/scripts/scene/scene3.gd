@@ -80,10 +80,13 @@ func _restore_saved_state() -> bool:
 			_show_detective_dialogue(); return true
 		Phase.INDOOR_OBSERVE:
 			_phase = Phase.INDOOR_OBSERVE
-			if _indoor_clues.size() < HOTSPOTS.size():
-				var owned_ids: Array = []
-				for h in HOTSPOTS: owned_ids.append(h["id"])
-				_ui.restore_observer(_indoor_obs, saved_ids, owned_ids)
+			if _indoor_clues.size() >= HOTSPOTS.size():
+				# 死局防御：线索已集齐但阶段还停在勘查——all_recorded 不会再触发，
+				# 若不主动进推理，场景将永久卡死（无热点、无对话、无推进路径）。
+				_enter_reasoning(); return true
+			var owned_ids: Array = []
+			for h in HOTSPOTS: owned_ids.append(h["id"])
+			_ui.restore_observer(_indoor_obs, saved_ids, owned_ids)
 			_ui.set_dialogue("提示", "已恢复进度 — 室内勘查阶段（已收集 "+str(_indoor_clues.size())+"/"+str(HOTSPOTS.size())+" 条）")
 			return true
 		Phase.REASONING:
