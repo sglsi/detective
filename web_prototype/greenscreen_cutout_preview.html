@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>绿幕抠图 - 大本钟透明底 PNG</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #ffd700;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .info-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .info-label {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            color: #ffd700;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .preview-section {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .preview-title {
+            color: #ffd700;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .preview-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: #ffd700;
+            border-radius: 2px;
+        }
+        
+        .preview-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background: #0a0a0a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .preview-image {
+            max-width: 100%;
+            max-height: 600px;
+            object-fit: contain;
+        }
+        
+        .checkerboard {
+            background-image: 
+                linear-gradient(45deg, #333 25%, transparent 25%),
+                linear-gradient(-45deg, #333 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #333 75%),
+                linear-gradient(-45deg, transparent 75%, #333 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            background-color: #1a1a1a;
+        }
+        
+        .dark-bg {
+            background: #1a1a2e;
+        }
+        
+        .light-bg {
+            background: #f0f0f0;
+        }
+        
+        .london-bg {
+            background: url('bg_london_1920x1080.jpg') center/cover no-repeat;
+            min-height: 400px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            background: rgba(255, 215, 0, 0.2);
+            border: 1px solid #ffd700;
+            color: #ffd700;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: rgba(255, 215, 0, 0.3);
+        }
+        
+        .btn.active {
+            background: #ffd700;
+            color: #1a1a2e;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffd700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .code-block {
+            background: #0a0a0a;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        
+        .code-block pre {
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .code-block .keyword {
+            color: #ff79c6;
+        }
+        
+        .code-block .string {
+            color: #f1fa8c;
+        }
+        
+        .code-block .comment {
+            color: #6272a4;
+        }
+        
+        .code-block .function {
+            color: #50fa7b;
+        }
+        
+        .error-note {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid rgba(255, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #ff6b6b;
+        }
+        
+        .error-note strong {
+            color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 绿幕抠图 - 大本钟透明底 PNG</h1>
+        <p class="subtitle">基于实际背景色检测的精确抠图算法</p>
+        
+        <div class="error-note">
+            <strong>修正说明：</strong>之前错误地抠了像素艺术风格 A 版本（背景复杂），现已修正为抠绿幕版本（bigben_new_1.jpg）。AI 生成的绿幕背景实际为黄绿色 RGB(162, 245, 33)，非纯绿色。
+        </div>
+        
+        <div class="info-panel">
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">源文件</span>
+                    <span class="info-value">bigben_new_1.jpg</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">输出文件</span>
+                    <span class="info-value">bigben_greenscreen_clean.png</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">文件大小</span>
+                    <span class="info-value">3.6 MB</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">图片尺寸</span>
+                    <span class="info-value">2048 × 2048</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">颜色模式</span>
+                    <span class="info-value">RGBA</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">实际背景色</span>
+                    <span class="info-value">RGB(162, 245, 33)</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">距离阈值</span>
+                    <span class="info-value">60 + 渐变 40</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">风格</span>
+                    <span class="info-value">像素艺术（64x64）</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value">82.1%</div>
+                <div class="stat-label">透明像素</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">0.3%</div>
+                <div class="stat-label">半透明像素</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">17.6%</div>
+                <div class="stat-label">不透明像素</div>
+            </div>
+        </div>
+        
+        <div class="preview-section">
+            <div class="preview-title">透明效果预览</div>
+            <div class="controls">
+                <button class="btn active" onclick="showPreview('checkerboard')">棋盘格背景</button>
+                <button class="btn" onclick="showPreview('dark')">深色背景</button>
+                <button class="btn" onclick="showPreview('light')">浅色背景</button>
+                <button class="btn" onclick="showPreview('london')">伦敦背景融合</button>
+            </div>
+            <div class="preview-container checkerboard" id="previewContainer">
+                <img src="bigben_greenscreen_clean.png" alt="大本钟透明底" class="preview-image" id="previewImage">
+            </div>
+        </div>
+        
+        <div class="preview-section">
+            <div class="preview-title">Python 绿幕抠图算法</div>
+            <div class="code-block">
+<pre><span class="comment"># 绿幕精确抠图（基于实际背景色检测）</span>
+<span class="keyword">from</span> PIL <span class="keyword">import</span> Image
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+
+<span class="comment"># 1. 检测实际背景色（AI 生成的绿幕偏黄）</span>
+<span class="comment"># 采样边缘像素，统计最常见颜色</span>
+bg_color = np.array([162, 245, 33])  <span class="comment"># 黄绿色，非纯绿</span>
+
+<span class="comment"># 2. 计算每个像素与背景色的欧几里得距离</span>
+diff = np.abs(data[:,:,:3].astype(float) - bg_color.astype(float))
+distance = np.sqrt(np.sum(diff**2, axis=2))
+
+<span class="comment"># 3. 创建透明度（距离阈值 60 + 渐变过渡 40）</span>
+alpha = np.zeros(distance.shape, dtype=np.uint8)
+alpha[distance > 100] = 255  <span class="comment"># 完全不透明</span>
+mask = (distance > 60) & (distance <= 100)
+alpha[mask] = ((distance[mask] - 60) / 40 * 255).astype(np.uint8)
+
+<span class="comment"># 4. 应用 Alpha 通道并保存</span>
+data[:,:,3] = alpha
+Image.fromarray(data).save(<span class="string">'bigben_greenscreen_clean.png'</span>, <span class="string">'PNG'</span>)</pre>
+            </div>
+        </div>
+        
+        <div class="preview-section">
+            <div class="preview-title">Godot 使用方式</div>
+            <div class="code-block">
+<pre><span class="comment"># GDScript 加载大本钟</span>
+<span class="keyword">var</span> bigben_scene = <span class="function">preload</span>(<span class="string">"res://assets/props/bigben.tscn"</span>)
+<span class="keyword">var</span> bigben = bigben_scene.<span class="function">instantiate</span>()
+<span class="function">add_child</span>(bigben)
+bigben.position = <span class="function">Vector2</span>(1600, 400)
+bigben.scale = <span class="function">Vector2</span>(0.4, 0.4)
+
+<span class="comment"># 或在场景编辑器中：</span>
+<span class="comment"># 1. 拖拽 res://assets/props/bigben.tscn 到场景</span>
+<span class="comment"># 2. 调整位置和缩放（推荐 0.3-0.5）</span></pre>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showPreview(type) {
+            const container = document.getElementById('previewContainer');
+            const buttons = document.querySelectorAll('.btn');
+            
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            container.className = 'preview-container';
+            
+            switch(type) {
+                case 'checkerboard':
+                    container.classList.add('checkerboard');
+                    break;
+                case 'dark':
+                    container.classList.add('dark-bg');
+                    break;
+                case 'light':
+                    container.classList.add('light-bg');
+                    break;
+                case 'london':
+                    container.classList.add('london-bg');
+                    break;
+            }
+        }
+    </script>
+</body>
+</html>
