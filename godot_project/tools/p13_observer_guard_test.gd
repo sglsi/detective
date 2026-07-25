@@ -77,9 +77,12 @@ func _initialize() -> void:
 	else:
 		print("[P13] show() 不复活已记录热点 OK")
 
-	# ---- 4) 读档死局防御：勘查阶段 + 线索 9/9 → 自动进推理 ----
-	GameManager.scene_state = {"scene_id":"scene3", "phase": s3.Phase.INDOOR_OBSERVE, "clue_ids": []}
-	# ClueSystem 已有 9 条 indoor（上面记录时同步登记）
+	# ---- 4) 读档死局防御：勘查阶段 + 线索 9/9（clue_ids 已满）→ 自动进推理 ----
+	# 注意：以存档 clue_ids 为权威（已收满 9 条），而非依赖全局 ClueSystem 累计，
+	# 这样「clue_ids 空但 ClueSystem 满」这类不一致存档不会再被误判为「已集齐」。
+	var all_ids = []
+	for h in s3.HOTSPOTS: all_ids.append(h["id"])
+	GameManager.scene_state = {"scene_id":"scene3", "phase": s3.Phase.INDOOR_OBSERVE, "clue_ids": all_ids}
 	var s3b = packed.instantiate()
 	root.add_child(s3b)
 	await process_frame
