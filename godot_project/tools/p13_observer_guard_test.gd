@@ -23,11 +23,11 @@ func _initialize() -> void:
 	await process_frame
 
 	var ok = true
-	var obs = s3._indoor_obs
+	var obs = s3._obs
 	var all_count := [0]
 	obs.all_recorded.connect(func(_c): all_count[0] += 1)
 
-	s3._phase = s3.Phase.INDOOR_OBSERVE
+	s3._phase = s3.Phase.OBSERVE
 	obs.show()
 
 	# ---- 1) 重复记录守卫 ----
@@ -82,7 +82,7 @@ func _initialize() -> void:
 	# 这样「clue_ids 空但 ClueSystem 满」这类不一致存档不会再被误判为「已集齐」。
 	var all_ids = []
 	for h in s3.HOTSPOTS: all_ids.append(h["id"])
-	GameManager.scene_state = {"scene_id":"scene3", "phase": s3.Phase.INDOOR_OBSERVE, "clue_ids": all_ids}
+	GameManager.scene_state = {"scene_id":"scene3", "phase": s3.Phase.OBSERVE, "clue_ids": all_ids}
 	var s3b = packed.instantiate()
 	root.add_child(s3b)
 	await process_frame

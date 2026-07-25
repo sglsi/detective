@@ -1,12 +1,14 @@
-extends Control
+extends DetectiveScene
+## Scene 1 — 贝克街221B（华生登场 / 阿富汗军医推理练习）
+## 架构：与场景二/三同继承统一框架 DetectiveScene（所有通用机制在基类，
+## 仅本场景「观察器/推理墙为两组」与「对话节点用显式 next」两点结构不同，
+## 故覆盖相应钩子；其余导航/弹窗/存读档/对话引擎等均已复用基类）。
+## 设计依据：02_血字的研究_场景设计与流程 §9 + 03_关卡设计稿 §3.2
 
 enum Verdict { CONTRADICTORY=0, INSUFFICIENT=1, SUPPORTED=2, VERIFIED=3 }
 enum Phase { MRS_HUDSON, OPENING, OBSERVE_WATSON, WATSON_REASONING, MESSENGER_OBSERVE, MESSENGER_REASONING, RATING, COMPLETE }
 
-var _phase := Phase.MRS_HUDSON
-var _dm: DialogueManager
-var _ui: SceneFramework
-var _difficulty := 1
+# 场景一专属状态（两组观察 / 评分等）；_phase/_dm/_ui/_difficulty/_wall_auto 继承自基类
 var _watson_obs: ClueObserver
 var _messenger_obs: ClueObserver
 var _watson_v := 0
@@ -16,27 +18,20 @@ var _messenger_clues: Array = []
 var _stars_observe := 1
 var _stars_reason := 1
 var _stars_insight := 1
-var _wall_auto := false
+var _look_active := false
+var _talk_active := false
 
 func _ready() -> void:
-	if DifficultyManager: _difficulty = DifficultyManager.current_difficulty
-	_init_game_state(); _build_ui(); _create_observers()
-	_connect_ui_signals()
-	# 检查是否有存档状态需恢复
-	if _restore_saved_state():
-		return  # _restore_saved_state 内会调用合适的阶段启动方法
-	_show_mrs_hudson_dialogue()
+	super._ready()
 
-## 恢复存档进度 — 返回 true 表示有存档且已恢复，false 表示新游戏
-## 通过通用 SaveSystem 取回属于本场景的快照；线索本身已由 SaveManager
-## 恢复进 ClueSystem（单一真相源），推理墙直接读 ClueSystem，无需这里再搬数据。
+## 恢复存档进度 — 返回 true 表示有存档且已恢复，false 表示新游戏。
+## 两组观察器分别同步 ClueSystem（单一真相源），并以存档 clue_ids 为权威，
+## 杜绝「场景内进度」与「推理墙（ClueSystem）」不一致的「两层皮」。
 func _restore_saved_state() -> bool:
 	var ss = SaveSystem.take_save_state("scene1")
 	if ss.is_empty(): return false
 	var saved_phase := int(ss.get("phase", 0))
 	var saved_ids: Array = ss.get("clue_ids", [])
-	# 以存档 clue_ids 为权威，同步 ClueSystem 的 watson/messenger 来源，
-	# 保证推理墙显示与观察器记录数一致（避免「两层皮」）。
 	if ClueSystem:
 		ClueSystem.clear_source("watson")
 		ClueSystem.clear_source("messenger")
@@ -45,11 +40,7 @@ func _restore_saved_state() -> bool:
 			if not h.is_empty():
 				var src := "watson" if cid in ["wrist","arm","face","pose"] else "messenger"
 				ClueSystem.collect_clue(cid, h.get("name", cid), h.get("desc",""), h.get("correct", true), src)
-	# 关键：先把阶段恢复到存档值（OPENING / OBSERVE_WATSON 等分支的子方法不会设 _phase，
-	# 若漏掉会导致新场景实例 _phase 停在默认的 MRS_HUDSON=0 —— 即「读档后阶段错乱」）
 	_phase = saved_phase
-	print("[RESTORE scene1] phase=", saved_phase, " clue_ids=", saved_ids)
-	# 明确告知用户读档成功并恢复到哪个阶段，避免「不知道进到哪了」
 	_create_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
 
 	match saved_phase:
@@ -62,7 +53,6 @@ func _restore_saved_state() -> bool:
 		Phase.OBSERVE_WATSON:
 			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","arm","face","pose"])
 			if _watson_obs.get_recorded() >= 4:
-				# 死局防御：线索已集齐但阶段停在观察——all_recorded 不会再触发
 				_on_watson_all_recorded(_watson_obs.get_recorded_clues()); return true
 			_ui.set_dialogue("提示", "已恢复进度 — 华生观察阶段（已收集 "+str(_watson_obs.get_recorded())+"/4 条）\n点击 LOOK 查看剩余标记点")
 			return true
@@ -75,7 +65,6 @@ func _restore_saved_state() -> bool:
 			_phase = Phase.MESSENGER_OBSERVE
 			_ui.restore_observer(_messenger_obs, saved_ids, ["tattoo","beard","posture","manner","sleeve","limp"])
 			if _messenger_obs.get_recorded() >= 6:
-				# 死局防御：线索已集齐但阶段停在观察——all_recorded 不会再触发
 				_on_messenger_all_recorded(_messenger_obs.get_recorded_clues()); return true
 			_ui.set_dialogue("提示", "已恢复进度 — 信使观察阶段（已收集 "+str(_messenger_obs.get_recorded())+"/6 条）\n点击 LOOK 查看剩余标记点")
 			return true
@@ -88,7 +77,6 @@ func _restore_saved_state() -> bool:
 			_phase = Phase.RATING
 			_show_rating()
 			return true
-
 	return false
 
 func _find_hotspot(id: String) -> Dictionary:
@@ -127,165 +115,11 @@ func _build_ui() -> void:
 	var tex = load("res://assets/characters/watson/watson_standing.jpg")
 	if tex: _ui.add_portrait(tex, "华生", Vector2(160, 350), Vector2(280, 360))
 
-func _connect_ui_signals() -> void:
-	_ui.nav_clicked.connect(_on_nav)
-	_ui.action_clicked.connect(_on_action)
+## 场景一用 UI 内部对话标签渲染观察层，不需要占位标签
+func _create_dummy_labels() -> void:
+	pass
 
-# === 顶部导航按钮 ===
-
-func _on_nav(nav_id: String) -> void:
-	match nav_id:
-		"map": _show_map_panel()
-		"casebook": _show_casebook_panel()
-		"evidence": _open_evidence()
-		"inventory": _show_inventory_panel()
-		"options": _show_options_panel()
-
-func _show_map_panel() -> void:
-	var items: Array = []
-	for loc in [{"t":"贝克街221B","d":"福尔摩斯与华生的寓所 — 当前场景"},{"t":"劳瑞斯顿花园街3号","d":"葛莱森警长发现的尸体现场 — 待调查"},{"t":"苏格兰场","d":"伦敦警察总部 — 葛莱森办公处"}]:
-		items.append({"name":"◆ "+loc["t"], "desc":loc["d"]})
-	_popup("伦敦地图", items)
-
-func _show_casebook_panel() -> void:
-	var items: Array = []
-	var milestones := ["赫德森太太开场","华生观察练习","信使观察练习","推理验证完成"]
-	var done := [_phase >= Phase.OPENING, _watson_obs.get_recorded() >= 4, _messenger_obs.get_recorded() >= 6, _phase >= Phase.MESSENGER_REASONING]
-	for i in milestones.size():
-		var prefix := "✅ " if done[i] else "⬜ "
-		items.append({"name":prefix + milestones[i], "desc":""})
-	_popup("案件簿 — 血字的研究", items)
-
-func _show_inventory_panel() -> void:
-	var items: Array = []
-	if _watson_obs.get_recorded() > 0: items.append({"name":"📝 华生线索","desc":"已收集 "+str(_watson_obs.get_recorded())+"/4 条"})
-	if _messenger_obs.get_recorded() > 0: items.append({"name":"📝 信使线索","desc":"已收集 "+str(_messenger_obs.get_recorded())+"/6 条"})
-	if items.is_empty(): items.append({"name":"暂无物品","desc":"继续探案，收集线索和证物"})
-	_popup("物品栏", items)
-
-func _show_options_panel() -> void:
-	var p = Control.new(); p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); p.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(p)
-	var dim = ColorRect.new(); dim.color = Color(0,0,0,0.7); dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE; p.add_child(dim)
-	var f = Panel.new(); f.size = Vector2(600, 500); f.position = Vector2(660, 290)
-	f.add_theme_stylebox_override("panel", _sb(Color(0.13,0.10,0.07,0.97), Color(0.78,0.62,0.28), 3, 8))
-	p.add_child(f)
-	var t = Label.new(); t.text = "⚙  选项"; t.add_theme_font_size_override("font_size", 30)
-	t.add_theme_color_override("font_color", Color(0.92,0.82,0.45)); t.position = Vector2(30,20); t.size = Vector2(540,40)
-	f.add_child(t)
-	var sep = ColorRect.new(); sep.color = Color(0.55,0.42,0.20,0.5); sep.position = Vector2(30,68); sep.size = Vector2(540,1)
-	f.add_child(sep)
-	var info = Label.new()
-	info.text = "难度模式: "+["简单 (自动高亮)","普通 (标准提示)","困难 (无提示)"][_difficulty]+"\n\n操作: 点击 Enter/Space 推进对话\n场景: 贝克街221B 实验室\n案件: 血字的研究\n\n    ✦  音效与音乐  — 即将开放\n    ✦  画面质量     — 自适应\n    ✦  语言        — 简体中文"
-	info.add_theme_font_size_override("font_size", 17); info.add_theme_color_override("font_color", Color(0.85,0.78,0.62))
-	info.position = Vector2(30, 90); info.size = Vector2(540, 320)
-	f.add_child(info)
-	# 难度按钮
-	var diff_names = ["简单", "普通", "困难"]
-	for i in 3:
-		var db = Button.new(); db.text = diff_names[i]
-		db.position = Vector2(30 + i*190, 340); db.size = Vector2(175, 45)
-		db.add_theme_font_size_override("font_size", 20); db.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
-		db.add_theme_stylebox_override("normal", _sb(Color(0.20,0.15,0.10,0.95), Color(0.60,0.48,0.25) if i!=_difficulty else Color(0.90,0.65,0.25), 2, 4))
-		db.pressed.connect(func(idx=i): _difficulty = idx; _create_notification("难度已切换为: "+diff_names[idx]); p.queue_free())
-		f.add_child(db)
-	var cb = Button.new(); cb.text = "关闭"; cb.position = Vector2(170, 420); cb.size = Vector2(260, 45)
-	cb.add_theme_font_size_override("font_size",20); cb.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
-	cb.add_theme_stylebox_override("normal", _sb(Color(0.20,0.15,0.10,0.95), Color(0.60,0.48,0.25), 2, 4))
-	cb.pressed.connect(func(): p.queue_free())
-	f.add_child(cb)
-
-# === 左侧动作按钮 ===
-
-var _look_active := false
-var _talk_active := false
-
-func _on_action(action_id: String) -> void:
-	match action_id:
-		"look":
-			_look_active = not _look_active; _ui.set_action_active("look", _look_active)
-			_create_notification("观察模式" if _look_active else "观察已关闭") if not _look_active else _do_look()
-		"talk":
-			_talk_active = not _talk_active; _ui.set_action_active("talk", _talk_active)
-			_create_notification("对话模式" if _talk_active else "对话已关闭") if not _talk_active else _do_talk()
-		"examine":
-			_do_examine()
-		"think":
-			_do_think()
-		"journal":
-			_open_notebook()
-		"save":
-			_do_save()
-		"load":
-			_do_load()
-		_:
-			_create_notification("「"+action_id+"」已激活")
-
-func _do_look() -> void:
-	if _phase == Phase.OBSERVE_WATSON: _watson_obs.show(); _ui.set_dialogue("提示", "观察模式 — 点击华生身上的按钮"); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
-	elif _phase == Phase.MESSENGER_OBSERVE: _messenger_obs.show(); _ui.set_dialogue("提示", "观察模式 — 点击信使身上的按钮"); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
-	elif _phase == Phase.WATSON_REASONING or _phase == Phase.MESSENGER_REASONING: _create_notification("已在推理墙中，请先完成验证")
-
-func _do_talk() -> void:
-	if _dm and _dm.is_active(): _dm.advance(); return
-	if _phase == Phase.MRS_HUDSON or _phase == Phase.OPENING: _dm.advance()
-	elif _phase == Phase.OBSERVE_WATSON: _ui.set_dialogue("华生", "福尔摩斯先生，您是怎么看出我从阿富汗回来的？"); _ui.set_dialogue_color(Color(0.7,0.8,0.9))
-	elif _phase == Phase.MESSENGER_OBSERVE: _ui.set_dialogue("福尔摩斯", "这位信使身上也有值得观察的细节。"); _ui.set_dialogue_color(Color(0.85,0.75,0.45))
-	else: _create_notification("当前无法进行对话")
-
-func _do_examine() -> void:
-	if _phase == Phase.OBSERVE_WATSON or _phase == Phase.MESSENGER_OBSERVE:
-		_create_notification("🔍 放大镜工具 — 点击场景中的人物细节进行观察")
-		# 自动启用观察模式
-		if not _look_active: _look_active = true; _ui.set_action_active("look", true)
-	else: _create_notification("请在观察阶段使用放大镜工具")
-
-func _do_think() -> void:
-	if _phase == Phase.OBSERVE_WATSON and _watson_obs.get_recorded() > 0:
-		_wall_auto = true; _show_watson_reasoning_wall()
-	elif _phase == Phase.MESSENGER_OBSERVE and _messenger_obs.get_recorded() > 0:
-		_wall_auto = true; _show_messenger_reasoning_wall()
-	elif _phase == Phase.WATSON_REASONING or _phase == Phase.MESSENGER_REASONING:
-		_create_notification("已在推理墙中")
-	else: _create_notification("请先收集至少 1 条线索再使用推理墙")
-
-func _do_load() -> void:
-	_create_notification("正在读取存档…")
-	if not SaveManager:
-		_create_notification("存档系统不可用")
-		return
-	# 从磁盘/云端重新读取最新存档，刷新 GameManager.scene_state 与 ClueSystem
-	var ok = await SaveSystem.load_game()
-	if not ok:
-		_create_notification("没有可用的存档")
-		return
-	# 就地重置当前场景：_ready 会调用 _restore_saved_state，从刚刷新的存档恢复进度
-	# 不回主菜单，避免依赖已被消费的运行时 scene_state 导致重新开局
-	get_tree().reload_current_scene()
-
-func _create_notification(msg: String) -> void:
-	if _ui: _ui.show_notification(msg)
-
-func _do_save() -> void:
-	if GameManager.is_guest:
-		_create_notification("游客模式不支持存档，请先注册账号")
-		return
-	# 收集场景运行状态：以本场景两个观察器的已记录线索为权威（不读全局 ClueSystem，避免跨轮累计污染存档）
-	var data := {"clue_ids": [], "watson_recorded": 0, "messenger_recorded": 0}
-	var ids: Array = []
-	for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
-	for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
-	data["clue_ids"] = ids
-	for cid in ids:
-		if cid in ["wrist","arm","face","pose"]: data["watson_recorded"] += 1
-		else: data["messenger_recorded"] += 1
-	await SaveSystem.request_save("scene1", _phase, data)
-	print("[SAVE scene1] phase=", _phase, " data=", data)
-	_create_notification("进度已保存")
-
-# === 观察器(不使用 multiline lambda) ===
-
+## 创建两组观察器（华生 / 信使），各自连线到本场景回调
 func _create_observers() -> void:
 	var tex = load("res://assets/characters/watson/watson_standing.jpg")
 	var sa = _ui.get_scene_area()
@@ -318,7 +152,6 @@ func _on_messenger_all_recorded(clues: Array) -> void:
 	_messenger_clues = clues; _wall_auto = true; _show_messenger_reasoning_wall()
 
 ## 观察器记录一条线索时，同步登记到通用线索系统（ClueSystem 为单一真相源）
-## source 用于区分华生 / 信使两轮观察，推理墙据此筛选
 func _on_collect_clue(clue_id: String, clue_data: Dictionary, source: String) -> void:
 	if ClueSystem:
 		ClueSystem.collect_clue(
@@ -329,13 +162,85 @@ func _on_collect_clue(clue_id: String, clue_data: Dictionary, source: String) ->
 			source
 		)
 
-# === 对话 ===
+# ===== 基类钩子：地图 / 案件簿（内容） =====
+func map_locations() -> Array:
+	return [{"t":"贝克街221B","d":"福尔摩斯与华生的寓所 — 当前场景"},{"t":"劳瑞斯顿花园街3号","d":"葛莱森警长发现的尸体现场 — 待调查"},{"t":"苏格兰场","d":"伦敦警察总部 — 葛莱森办公处"}]
 
+func casebook_steps() -> Array:
+	return ["赫德森太太开场", "华生观察练习", "信使观察练习", "推理验证完成"]
+
+func casebook_done_flags() -> Array:
+	return [_phase >= Phase.OPENING, _watson_obs.get_recorded() >= 4, _messenger_obs.get_recorded() >= 6, _phase >= Phase.MESSENGER_REASONING]
+
+func _enter_arrival() -> void:
+	_show_mrs_hudson_dialogue()
+
+# ===== 左侧动作（场景一为观察/对话切换式） =====
+func _on_action(action_id: String) -> void:
+	match action_id:
+		"look":
+			_look_active = not _look_active; _ui.set_action_active("look", _look_active)
+			if not _look_active: _create_notification("观察已关闭")
+			else: _do_look()
+		"talk":
+			_talk_active = not _talk_active; _ui.set_action_active("talk", _talk_active)
+			if not _talk_active: _create_notification("对话已关闭")
+			else: _do_talk()
+		"examine": _do_examine()
+		"think": _do_think()
+		"journal": _open_notebook()
+		"save": _do_save()
+		"load": _do_load()
+		_: _create_notification("「" + action_id + "」已激活")
+
+func _do_look() -> void:
+	if _phase == Phase.OBSERVE_WATSON: _watson_obs.show(); _ui.set_dialogue("提示", "观察模式 — 点击华生身上的按钮"); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
+	elif _phase == Phase.MESSENGER_OBSERVE: _messenger_obs.show(); _ui.set_dialogue("提示", "观察模式 — 点击信使身上的按钮"); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
+	elif _phase == Phase.WATSON_REASONING or _phase == Phase.MESSENGER_REASONING: _create_notification("已在推理墙中，请先完成验证")
+
+func _do_talk() -> void:
+	if _dm and _dm.is_active(): _dm.advance(); return
+	if _phase == Phase.MRS_HUDSON or _phase == Phase.OPENING: _dm.advance()
+	elif _phase == Phase.OBSERVE_WATSON: _ui.set_dialogue("华生", "福尔摩斯先生，您是怎么看出我从阿富汗回来的？"); _ui.set_dialogue_color(Color(0.7,0.8,0.9))
+	elif _phase == Phase.MESSENGER_OBSERVE: _ui.set_dialogue("福尔摩斯", "这位信使身上也有值得观察的细节。"); _ui.set_dialogue_color(Color(0.85,0.75,0.45))
+	else: _create_notification("当前无法进行对话")
+
+func _do_examine() -> void:
+	if _phase == Phase.OBSERVE_WATSON or _phase == Phase.MESSENGER_OBSERVE:
+		_create_notification("🔍 放大镜工具 — 点击场景中的人物细节进行观察")
+		if not _look_active: _look_active = true; _ui.set_action_active("look", true)
+	else: _create_notification("请在观察阶段使用放大镜工具")
+
+func _do_think() -> void:
+	if _phase == Phase.OBSERVE_WATSON and _watson_obs.get_recorded() > 0:
+		_wall_auto = true; _show_watson_reasoning_wall()
+	elif _phase == Phase.MESSENGER_OBSERVE and _messenger_obs.get_recorded() > 0:
+		_wall_auto = true; _show_messenger_reasoning_wall()
+	elif _phase == Phase.WATSON_REASONING or _phase == Phase.MESSENGER_REASONING:
+		_create_notification("已在推理墙中")
+	else: _create_notification("请先收集至少 1 条线索再使用推理墙")
+
+func _do_save() -> void:
+	if GameManager.is_guest:
+		_create_notification("游客模式不支持存档，请先注册账号")
+		return
+	# 以本场景两个观察器的已记录线索为权威（不读全局 ClueSystem，避免跨轮累计污染存档）
+	var data := {"clue_ids": [], "watson_recorded": 0, "messenger_recorded": 0}
+	var ids: Array = []
+	for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
+	for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
+	data["clue_ids"] = ids
+	for cid in ids:
+		if cid in ["wrist","arm","face","pose"]: data["watson_recorded"] += 1
+		else: data["messenger_recorded"] += 1
+	await SaveSystem.request_save("scene1", _phase, data)
+	print("[SAVE scene1] phase=", _phase, " data=", data)
+	_create_notification("进度已保存")
+
+# ===== 对话（场景一用显式 next 的 _dn 构造器） =====
 func _dn(id, sp, txt, tri, nxt, mood="neutral") -> DialogueNodeResource:
 	var n = DialogueNodeResource.new()
 	n.node_id=id; n.speaker=sp; n.text=txt; n.trigger=tri
-	# next_nodes 是 Array[String]，必须用强类型数组赋值，否则 GDScript 运行时报类型错误、
-	# 导致本函数异常返回 null，对话资源混入 Nil 节点、find_node 崩溃
 	var nn: Array[String] = []
 	for s in nxt:
 		if s is String: nn.append(s)
@@ -387,13 +292,7 @@ func _on_line(_id: String) -> void:
 	_ui.set_dialogue(sp if sp!="system" else "提示", n.text)
 	_ui.set_dialogue_color(col)
 
-# === 推理墙辅助 ===
-
-func _sb(bg: Color, bc: Color, bw: int, cr: int) -> StyleBoxFlat:
-	var s = StyleBoxFlat.new(); s.bg_color = bg; s.border_color = bc
-	s.border_width_left = bw; s.border_width_right = bw; s.border_width_top = bw; s.border_width_bottom = bw
-	s.set_corner_radius_all(cr); return s
-
+# ===== 推理墙辅助（场景一为自建双墙） =====
 func _mk_wall(title: String, hypo: String) -> Control:
 	var w = Control.new(); w.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	w.mouse_filter = Control.MOUSE_FILTER_STOP; add_child(w)
@@ -413,8 +312,6 @@ func _mk_wall(title: String, hypo: String) -> Control:
 	hl.add_theme_color_override("font_color", Color(0.88,0.82,0.72)); hl.position = Vector2(15,8); hl.size = Vector2(1800,28)
 	bd.add_child(hl)
 	return w
-
-# === 推理墙 — 华生 ===
 
 func _show_watson_reasoning_wall() -> void:
 	_watson_obs.hide(); _phase = Phase.WATSON_REASONING
@@ -475,8 +372,6 @@ func _on_watson_skip(w: Control) -> void:
 		_ui.set_dialogue("提示", "已返回观察模式。收集全部 4 条线索后自动进入推理墙。")
 		_ui.set_dialogue_color(Color(0.5,0.9,0.5))
 
-# === 信使阶段 ===
-
 func _start_messenger_phase() -> void:
 	_phase = Phase.MESSENGER_OBSERVE; _messenger_obs.show()
 	_dm = DialogueManager.new(); add_child(_dm)
@@ -494,8 +389,6 @@ func _on_messenger_dialogue_end() -> void:
 	_phase = Phase.MESSENGER_OBSERVE
 	_ui.set_dialogue("提示", "点击信使身上的可交互区域。注意分辨干扰项！")
 	_ui.set_dialogue_color(Color(0.5,0.9,0.5))
-
-# === 推理墙 — 信使 ===
 
 func _show_messenger_reasoning_wall() -> void:
 	_messenger_obs.hide(); _phase = Phase.MESSENGER_REASONING
@@ -556,8 +449,6 @@ func _show_verdict(w: Control, v: int, wrong: int, corr: int) -> void:
 	rl.add_theme_color_override("font_color", vc); rl.position = Vector2(0,690); rl.size = Vector2(1920,60)
 	rl.horizontal_alignment = 1; w.add_child(rl)
 
-# === 评价 ===
-
 func _calc_stars() -> void:
 	_stars_observe = 2 if _watson_obs.get_recorded() >= 4 and _messenger_obs.get_recorded() >= 6 else 1
 	_stars_reason = 3 if _watson_v == 3 and _messenger_v == 3 else (2 if _watson_v >= 2 or _messenger_v >= 2 else 1)
@@ -607,7 +498,7 @@ func _save_and_continue() -> void:
 	if GameStateMachine: GameStateMachine.go_complete()
 	if GameManager: GameManager.add_milestone("sc_01_completed")
 	if not (GameManager and GameManager.is_guest) and SaveManager:
-		# 关键：自动存档必须写入本场景的 scene_state（phase + scene_id + clue_ids），
+		# 自动存档必须写入本场景的 scene_state（phase + scene_id + clue_ids），
 		# 否则读档时 _restore_saved_state 因 scene_id 不匹配而判定「无存档」→ 场景从头重启。
 		var ids: Array = []
 		for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
@@ -618,8 +509,7 @@ func _save_and_continue() -> void:
 	await get_tree().create_timer(2.0).timeout
 	get_tree().change_scene_to_file("res://scenes/scene2.tscn")
 
-# === 笔记、证物 ===
-
+# ===== 笔记、证物（场景一自建弹窗内容，沿用基类 _popup 统一样式） =====
 func _open_notebook() -> void:
 	var items: Array = []
 	for c in _watson_obs.get_recorded_clues():
@@ -634,40 +524,40 @@ func _open_evidence() -> void:
 		items.append({"name":"✦ "+e["t"], "desc":e["d"]})
 	_popup("证据库", items)
 
-func _popup(title: String, items: Array) -> void:
+func _show_inventory_panel() -> void:
+	var items: Array = []
+	if _watson_obs.get_recorded() > 0: items.append({"name":"📝 华生线索","desc":"已收集 "+str(_watson_obs.get_recorded())+"/4 条"})
+	if _messenger_obs.get_recorded() > 0: items.append({"name":"📝 信使线索","desc":"已收集 "+str(_messenger_obs.get_recorded())+"/6 条"})
+	if items.is_empty(): items.append({"name":"暂无物品","desc":"继续探案，收集线索和证物"})
+	_popup("物品栏", items)
+
+func _show_options_panel() -> void:
 	var p = Control.new(); p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); p.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(p)
-	var dim = ColorRect.new(); dim.color = Color(0,0,0,0.65); dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var dim = ColorRect.new(); dim.color = Color(0,0,0,0.7); dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE; p.add_child(dim)
-	var f = Panel.new(); f.size = Vector2(700, 600); f.position = Vector2(610, 240)
+	var f = Panel.new(); f.size = Vector2(600, 500); f.position = Vector2(660, 290)
 	f.add_theme_stylebox_override("panel", _sb(Color(0.13,0.10,0.07,0.97), Color(0.78,0.62,0.28), 3, 8))
 	p.add_child(f)
-	var t = Label.new(); t.text = title; t.add_theme_font_size_override("font_size", 28)
-	t.add_theme_color_override("font_color", Color(0.92,0.82,0.45)); t.position = Vector2(30,20); t.size = Vector2(640,40)
+	var t = Label.new(); t.text = "⚙  选项"; t.add_theme_font_size_override("font_size", 30)
+	t.add_theme_color_override("font_color", Color(0.92,0.82,0.45)); t.position = Vector2(30,20); t.size = Vector2(540,40)
 	f.add_child(t)
-	var sep = ColorRect.new(); sep.color = Color(0.55,0.42,0.20,0.5); sep.position = Vector2(30,68); sep.size = Vector2(640,1)
+	var sep = ColorRect.new(); sep.color = Color(0.55,0.42,0.20,0.5); sep.position = Vector2(30,68); sep.size = Vector2(540,1)
 	f.add_child(sep)
-	if items.is_empty():
-		var e = Label.new(); e.text = "尚无记录"; e.add_theme_font_size_override("font_size",18)
-		e.add_theme_color_override("font_color", Color(0.55,0.50,0.40)); e.position = Vector2(30,95); e.size = Vector2(640,80); e.horizontal_alignment=1
-		f.add_child(e)
-	else:
-		var sc = ScrollContainer.new(); sc.position = Vector2(20,80); sc.size = Vector2(660,440); f.add_child(sc)
-		var vb = VBoxContainer.new(); vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		vb.add_theme_constant_override("separation",8); sc.add_child(vb)
-		for i in items.size():
-			var it = items[i]
-			var c = Panel.new(); c.size = Vector2(640,90)
-			c.add_theme_stylebox_override("panel", _sb(Color(0.18,0.14,0.09,0.95), Color(0.50,0.38,0.18), 1, 6))
-			var nl = Label.new(); nl.text = str(i+1)+". "+it["name"]; nl.add_theme_font_size_override("font_size",16)
-			nl.add_theme_color_override("font_color", Color(0.88,0.80,0.55)); nl.position = Vector2(12,8); nl.size = Vector2(610,24)
-			c.add_child(nl)
-			if it.has("desc"):
-				var dl = Label.new(); dl.text = it["desc"]; dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				dl.add_theme_font_size_override("font_size",13); dl.add_theme_color_override("font_color", Color(0.65,0.60,0.50))
-				dl.position = Vector2(12,34); dl.size = Vector2(610,50); c.add_child(dl)
-			vb.add_child(c)
-	var cb = Button.new(); cb.text = "关闭"; cb.position = Vector2(220,535); cb.size = Vector2(260,45)
+	var info = Label.new()
+	info.text = "难度模式: "+["简单 (自动高亮)","普通 (标准提示)","困难 (无提示)"][_difficulty]+"\n\n操作: 点击 Enter/Space 推进对话\n场景: 贝克街221B 实验室\n案件: 血字的研究\n\n    ✦  音效与音乐  — 即将开放\n    ✦  画面质量     — 自适应\n    ✦  语言        — 简体中文"
+	info.add_theme_font_size_override("font_size", 17); info.add_theme_color_override("font_color", Color(0.85,0.78,0.62))
+	info.position = Vector2(30, 90); info.size = Vector2(540, 320)
+	f.add_child(info)
+	var diff_names = ["简单", "普通", "困难"]
+	for i in 3:
+		var db = Button.new(); db.text = diff_names[i]
+		db.position = Vector2(30 + i*190, 340); db.size = Vector2(175, 45)
+		db.add_theme_font_size_override("font_size", 20); db.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
+		db.add_theme_stylebox_override("normal", _sb(Color(0.20,0.15,0.10,0.95), Color(0.60,0.48,0.25) if i!=_difficulty else Color(0.90,0.65,0.25), 2, 4))
+		db.pressed.connect(func(idx=i): _difficulty = idx; _create_notification("难度已切换为: "+diff_names[idx]); p.queue_free())
+		f.add_child(db)
+	var cb = Button.new(); cb.text = "关闭"; cb.position = Vector2(170, 420); cb.size = Vector2(260, 45)
 	cb.add_theme_font_size_override("font_size",20); cb.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
 	cb.add_theme_stylebox_override("normal", _sb(Color(0.20,0.15,0.10,0.95), Color(0.60,0.48,0.25), 2, 4))
 	cb.pressed.connect(func(): p.queue_free())

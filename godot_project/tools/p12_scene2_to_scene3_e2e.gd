@@ -35,18 +35,18 @@ func _initialize() -> void:
 	await _advance_dialogue(s2, 12)
 	log.append("scene2 arrival 后 phase=%d" % s2._phase)
 	# 若对话推进未到位，直接走 detective 结束回调兜底
-	if s2._phase < s2.Phase.GARDEN_OBSERVE:
+	if s2._phase < s2.Phase.OBSERVE:
 		# 继续推进第二段对话
 		await _advance_dialogue(s2, 12)
-	log.append("scene2 对话后 phase=%d (期望 %d=GARDEN_OBSERVE)" % [s2._phase, s2.Phase.GARDEN_OBSERVE])
-	if s2._phase != s2.Phase.GARDEN_OBSERVE:
-		ok = false; print("P12_FAIL scene2 未进入 GARDEN_OBSERVE, phase=", s2._phase)
+	log.append("scene2 对话后 phase=%d (期望 %d=OBSERVE)" % [s2._phase, s2.Phase.OBSERVE])
+	if s2._phase != s2.Phase.OBSERVE:
+		ok = false; print("P12_FAIL scene2 未进入 OBSERVE, phase=", s2._phase)
 
 	# 真实收集 6 条花园线索
 	for h in s2.HOTSPOTS:
-		s2._garden_obs._on_record(h["id"], str(h.get("desc", "")))
+		s2._obs._on_record(h["id"], str(h.get("desc", "")))
 		await process_frame
-	log.append("scene2 线索 local=%d cs=%d" % [s2._garden_clues.size(), ClueSystem.get_collected("garden").size()])
+	log.append("scene2 线索 local=%d cs=%d" % [s2._clues.size(), ClueSystem.get_collected("garden").size()])
 
 	# all_recorded → 2.5s → _enter_reasoning → 2.5s → _open_wall
 	await _wait(6.5)
@@ -90,18 +90,18 @@ func _initialize() -> void:
 
 	# 真实推进 arrival + 警长对话
 	await _advance_dialogue(s3, 12)
-	if s3._phase < s3.Phase.INDOOR_OBSERVE:
+	if s3._phase < s3.Phase.OBSERVE:
 		await _advance_dialogue(s3, 12)
-	log.append("scene3 对话后 phase=%d (期望 %d=INDOOR_OBSERVE)" % [s3._phase, s3.Phase.INDOOR_OBSERVE])
-	if s3._phase != s3.Phase.INDOOR_OBSERVE:
-		ok = false; print("P12_FAIL scene3 未进入 INDOOR_OBSERVE, phase=", s3._phase)
+	log.append("scene3 对话后 phase=%d (期望 %d=OBSERVE)" % [s3._phase, s3.Phase.OBSERVE])
+	if s3._phase != s3.Phase.OBSERVE:
+		ok = false; print("P12_FAIL scene3 未进入 OBSERVE, phase=", s3._phase)
 
 	# 真实收集 9 条室内线索
 	for h in s3.HOTSPOTS:
-		s3._indoor_obs._on_record(h["id"], str(h.get("desc", "")))
+		s3._obs._on_record(h["id"], str(h.get("desc", "")))
 		await process_frame
 	var cs_indoor = ClueSystem.get_collected("indoor").size()
-	log.append("scene3 线索 local=%d cs=%d rec=%d (期望 9)" % [s3._indoor_clues.size(), cs_indoor, s3._indoor_obs.get_recorded()])
+	log.append("scene3 线索 local=%d cs=%d rec=%d (期望 9)" % [s3._clues.size(), cs_indoor, s3._obs.get_recorded()])
 	if cs_indoor != 9:
 		ok = false; print("P12_FAIL scene3 线索登记异常 cs=", cs_indoor)
 

@@ -42,18 +42,18 @@ func _initialize() -> void:
 	# 准备 restore 输入：scene_state 指向 3 条，ClueSystem 被「全局累计」撑到 9 条（复现用户现场）
 	var three_ids = ["c301","c302","c303"]
 	var all_indoor = ["c301","c302","c303","c304","c305","c306","c307","c308","c309"]
-	GameManager.scene_state = {"scene_id":"scene3", "phase": PH3.INDOOR_OBSERVE, "clue_ids": three_ids.duplicate()}
+	GameManager.scene_state = {"scene_id":"scene3", "phase": PH3.OBSERVE, "clue_ids": three_ids.duplicate()}
 	ClueSystem.clear_collected()
 	ClueSystem.restore_collected_clues(_mk_snapshot(all_indoor, "indoor"))
 	var s3 = _spawn("res://scenes/scene3.tscn")
 	await process_frame; await process_frame
 	var wall3 = s3.find_child("ReasoningWall", true, false)
 	var cs_indoor = ClueSystem.get_collected("indoor").size()
-	var rec3 = s3._indoor_obs.get_recorded()
-	var local3 = s3._indoor_clues.size()
+	var rec3 = s3._obs.get_recorded()
+	var local3 = s3._clues.size()
 	log.append("[A 场景三] phase=%d 本地=%d 观察器=%d ClueSystem(indoor)=%d (期望 3/3/3)" % [s3._phase, local3, rec3, cs_indoor])
-	if s3._phase != PH3.INDOOR_OBSERVE:
-		ok = false; log.append("  ✗ 读档未恢复到 INDOOR_OBSERVE（bug1 复发）")
+	if s3._phase != PH3.OBSERVE:
+		ok = false; log.append("  ✗ 读档未恢复到 OBSERVE（bug1 复发）")
 	if local3 != 3 or rec3 != 3 or cs_indoor != 3:
 		ok = false; log.append("  ✗ 两层皮未修复：本地/观察器/ClueSystem 未全部收敛到 3")
 	# 打开推理墙，核对墙上的线索数（必须与进度一致）
@@ -85,17 +85,17 @@ func _initialize() -> void:
 	# ============ C) 场景二：存档 3 条 / 全局 6 条 → 读档收敛一致 ============
 	var g_three = ["c201","c202","c203"]
 	var all_garden = ["c201","c202","c203","c204","c205","c206"]
-	GameManager.scene_state = {"scene_id":"scene2", "phase": PH2.GARDEN_OBSERVE, "clue_ids": g_three.duplicate()}
+	GameManager.scene_state = {"scene_id":"scene2", "phase": PH2.OBSERVE, "clue_ids": g_three.duplicate()}
 	ClueSystem.clear_collected()
 	ClueSystem.restore_collected_clues(_mk_snapshot(all_garden, "garden"))
 	var s2 = _spawn("res://scenes/scene2.tscn")
 	await process_frame; await process_frame
 	var cs_garden = ClueSystem.get_collected("garden").size()
-	var rec2 = s2._garden_obs.get_recorded()
-	var local2 = s2._garden_clues.size()
+	var rec2 = s2._obs.get_recorded()
+	var local2 = s2._clues.size()
 	log.append("[C 场景二] phase=%d 本地=%d 观察器=%d ClueSystem(garden)=%d (期望 3/3/3)" % [s2._phase, local2, rec2, cs_garden])
-	if s2._phase != PH2.GARDEN_OBSERVE:
-		ok = false; log.append("  ✗ 读档未恢复到 GARDEN_OBSERVE")
+	if s2._phase != PH2.OBSERVE:
+		ok = false; log.append("  ✗ 读档未恢复到 OBSERVE")
 	if local2 != 3 or rec2 != 3 or cs_garden != 3:
 		ok = false; log.append("  ✗ 两层皮未修复（场景二）")
 	s2._open_wall()

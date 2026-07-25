@@ -27,21 +27,21 @@ func _initialize() -> void:
 	var ok = true
 	var log := []
 
-	# ---- 模拟玩家：听完 arrival + detective 对话，进入 INDOOR_OBSERVE ----
-	s3._phase = s3.Phase.INDOOR_OBSERVE
+	# ---- 模拟玩家：听完 arrival + detective 对话，进入 OBSERVE ----
+	s3._phase = s3.Phase.OBSERVE
 	# 把观察器标记为 active（模拟 _on_detective_end 里的 .show()）
-	s3._indoor_obs.show()
+	s3._obs.show()
 
 	# ---- 走真实玩家路径记录全部 9 条线索：_on_record 会发 clue_recorded 信号
-	#      → scene3._on_clue_recorded 填 _indoor_clues + ClueSystem；
-	#      第 9 条自动触发 all_recorded → _on_indoor_all_done（真实卡死路径全覆盖）----
+	#      → DetectiveScene._on_clue_recorded 填 _clues + ClueSystem；
+	#      第 9 条自动触发 all_recorded → _on_observe_complete（真实卡死路径全覆盖）----
 	for h in s3.HOTSPOTS:
-		s3._indoor_obs._on_record(h["id"], str(h.get("desc", "")))
+		s3._obs._on_record(h["id"], str(h.get("desc", "")))
 		await process_frame
 
-	var rec = s3._indoor_obs.get_recorded()
+	var rec = s3._obs.get_recorded()
 	var cs = ClueSystem.get_collected("indoor").size()
-	var local_n = s3._indoor_clues.size()
+	var local_n = s3._clues.size()
 	log.append("记录数=%d ClueSystem(indoor)=%d 场景内=%d (期望 9/9/9)" % [rec, cs, local_n])
 	if rec != 9 or cs != 9 or local_n != 9:
 		ok = false
