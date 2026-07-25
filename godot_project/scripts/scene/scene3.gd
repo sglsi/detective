@@ -385,16 +385,21 @@ func _on_line(_id: String) -> void:
 
 func _make_nodes(raw: Array) -> Array:
 	var nodes: Array[Resource] = []
-	for r in raw:
+	var last_idx := raw.size() - 1
+	for i in raw.size():
+		var r = raw[i]
 		var n = DialogueNodeResource.new()
 		n.node_id=r[0]; n.speaker=r[1]; n.text=r[2]; n.trigger="click"
 		var nxt: Array[String] = []
-		if len(r) > 3:
-			nxt.append(r[3])
-		else:
-			var base: String = r[0]
-			var num: int = int(base.substr(1)) + 1
-			nxt.append(base[0] + str(num))
+		# 末节点不挂 next：advance() 检测到 next 为空即干净结束对话，
+		# 避免原逻辑把末节点 next 指到不存在的虚拟节点（如 k3）而刷 ERROR。
+		if i < last_idx:
+			if len(r) > 3:
+				nxt.append(r[3])
+			else:
+				var base: String = r[0]
+				var num: int = int(base.substr(1)) + 1
+				nxt.append(base[0] + str(num))
 		n.next_nodes = nxt; n.mood = "neutral"; nodes.append(n)
 	return nodes
 
