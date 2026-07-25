@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>维多利亚建筑与花园 - 像素艺术预览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            color: #e94560;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .resource-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .resource-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .resource-card h2 {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            color: #e94560;
+            border-bottom: 2px solid #e94560;
+            padding-bottom: 10px;
+        }
+
+        .preview-section {
+            margin-bottom: 30px;
+        }
+
+        .preview-section h3 {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            color: #0f3460;
+            background: #e94560;
+            padding: 8px 16px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+
+        .preview-box {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .preview-box.checkerboard {
+            background-image: 
+                linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            background-color: #fff;
+        }
+
+        .preview-box.dark-bg {
+            background: #2c3e50;
+        }
+
+        .preview-box.light-bg {
+            background: #ecf0f1;
+        }
+
+        .preview-box.london-bg {
+            background: linear-gradient(to bottom, #4a5568 0%, #718096 50%, #a0aec0 100%);
+        }
+
+        .preview-box img {
+            max-width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .info-item {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #e94560;
+        }
+
+        .info-item label {
+            display: block;
+            font-size: 0.85em;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        .info-item value {
+            display: block;
+            font-size: 1.1em;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            overflow-x: auto;
+            border: 1px solid #333;
+        }
+
+        .code-block h4 {
+            color: #e94560;
+            margin-bottom: 10px;
+        }
+
+        .code-block pre {
+            color: #d4d4d4;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+
+        .code-block .keyword { color: #569cd6; }
+        .code-block .string { color: #ce9178; }
+        .code-block .comment { color: #6a9955; }
+        .code-block .function { color: #dcdcaa; }
+
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 40px;
+            color: #e94560;
+            text-decoration: none;
+            font-size: 1.1em;
+            padding: 15px 30px;
+            border: 2px solid #e94560;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .back-link:hover {
+            background: #e94560;
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            .resource-grid {
+                grid-template-columns: 1fr;
+            }
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏛️ 维多利亚建筑与花园</h1>
+        <p class="subtitle">像素艺术风格游戏资源预览</p>
+
+        <div class="resource-grid">
+            <!-- 维多利亚建筑 -->
+            <div class="resource-card">
+                <h2>🏠 维多利亚建筑</h2>
+
+                <div class="preview-section">
+                    <h3>透明底版本</h3>
+                    <div class="preview-box checkerboard">
+                        <img src="../godot_project/assets/props/victorian_building.png" alt="维多利亚建筑">
+                    </div>
+                </div>
+
+                <div class="preview-section">
+                    <h3>深色背景效果</h3>
+                    <div class="preview-box dark-bg">
+                        <img src="../godot_project/assets/props/victorian_building.png" alt="维多利亚建筑">
+                    </div>
+                </div>
+
+                <div class="preview-section">
+                    <h3>浅色背景效果</h3>
+                    <div class="preview-box light-bg">
+                        <img src="../godot_project/assets/props/victorian_building.png" alt="维多利亚建筑">
+                    </div>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>文件名</label>
+                        <value>victorian_building.png</value>
+                    </div>
+                    <div class="info-item">
+                        <label>文件大小</label>
+                        <value>62 KB</value>
+                    </div>
+                    <div class="info-item">
+                        <label>像素尺寸</label>
+                        <value>128 × 128</value>
+                    </div>
+                    <div class="info-item">
+                        <label>调色板</label>
+                        <value>32 色</value>
+                    </div>
+                    <div class="info-item">
+                        <label>透明像素</label>
+                        <value>51.1%</value>
+                    </div>
+                    <div class="info-item">
+                        <label>推荐缩放</label>
+                        <value>0.3 - 0.5</value>
+                    </div>
+                </div>
+
+                <div class="code-block">
+                    <h4> Godot 使用示例</h4>
+                    <pre><span class="comment"># 动态加载建筑</span>
+<span class="keyword">var</span> building = <span class="function">preload</span>(<span class="string">"res://assets/props/victorian_building.tscn"</span>)
+<span class="keyword">var</span> b = building.<span class="function">instantiate</span>()
+<span class="function">add_child</span>(b)
+b.position = <span class="function">Vector2</span>(<span class="string">400</span>, <span class="string">300</span>)
+b.scale = <span class="function">Vector2</span>(<span class="string">0.5</span>, <span class="string">0.5</span>)</pre>
+                </div>
+            </div>
+
+            <!-- 维多利亚花园 -->
+            <div class="resource-card">
+                <h2>🌿 维多利亚花园围栏</h2>
+
+                <div class="preview-section">
+                    <h3>透明底版本</h3>
+                    <div class="preview-box checkerboard">
+                        <img src="../godot_project/assets/props/victorian_garden.png" alt="维多利亚花园围栏">
+                    </div>
+                </div>
+
+                <div class="preview-section">
+                    <h3>深色背景效果</h3>
+                    <div class="preview-box dark-bg">
+                        <img src="../godot_project/assets/props/victorian_garden.png" alt="维多利亚花园围栏">
+                    </div>
+                </div>
+
+                <div class="preview-section">
+                    <h3>浅色背景效果</h3>
+                    <div class="preview-box light-bg">
+                        <img src="../godot_project/assets/props/victorian_garden.png" alt="维多利亚花园围栏">
+                    </div>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>文件名</label>
+                        <value>victorian_garden.png</value>
+                    </div>
+                    <div class="info-item">
+                        <label>文件大小</label>
+                        <value>33 KB</value>
+                    </div>
+                    <div class="info-item">
+                        <label>像素尺寸</label>
+                        <value>64 × 64</value>
+                    </div>
+                    <div class="info-item">
+                        <label>调色板</label>
+                        <value>16 色</value>
+                    </div>
+                    <div class="info-item">
+                        <label>透明像素</label>
+                        <value>74.6%</value>
+                    </div>
+                    <div class="info-item">
+                        <label>推荐缩放</label>
+                        <value>0.5 - 1.0</value>
+                    </div>
+                </div>
+
+                <div class="code-block">
+                    <h4> Godot 使用示例</h4>
+                    <pre><span class="comment"># 动态加载花园围栏</span>
+<span class="keyword">var</span> garden_scene = <span class="function">preload</span>(<span class="string">"res://assets/props/victorian_garden.tscn"</span>)
+<span class="keyword">var</span> garden = garden_scene.<span class="function">instantiate</span>()
+<span class="function">add_child</span>(garden)
+garden.position = <span class="function">Vector2</span>(<span class="string">400</span>, <span class="string">700</span>)
+garden.scale = <span class="function">Vector2</span>(<span class="string">0.5</span>, <span class="string">0.5</span>)</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="resource-card">
+            <h2>🎨 生成方法</h2>
+            <p style="margin-bottom: 20px; line-height: 1.8;">
+                这两个资源使用 <strong style="color: #e94560;">像素艺术风格生成器 skill</strong> 生成，工作流程如下：
+            </p>
+            <div class="code-block">
+                <h4>📋 工作流程</h4>
+                <pre><span class="comment"># 1. AI 生成绿幕图</span>
+<span class="function">generate_image</span>(prompt=<span class="string">"&lt;元素&gt; alone, pixel art style, &lt;尺寸&gt; sprite, 
+clean solid color background (pure green #00ff00), 
+NO other objects, isolated, game asset"</span>)
+
+<span class="comment"># 2. Python 抠图 + 像素化</span>
+python3 skills/pixel_art_generator/scripts/pixel_art_cutout.py \
+  --input &lt;绿幕图.jpg&gt; \
+  --output &lt;输出.png&gt; \
+  --pixel-size &lt;尺寸&gt; \
+  --colors &lt;颜色数&gt;
+
+<span class="comment"># 3. 在 Godot 中使用</span></pre>
+            </div>
+        </div>
+
+        <a href="preview.html" class="back-link">← 返回预览导航</a>
+    </div>
+</body>
+</html>
