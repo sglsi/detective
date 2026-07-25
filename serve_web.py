@@ -14,7 +14,9 @@ fetch（尤其是带 JSON body 的 POST）会在运行期失败（沙箱/远程�
 """
 import argparse
 import http.server
+import socket
 import socketserver
+import sys
 import os
 import urllib.request
 import urllib.error
@@ -119,8 +121,27 @@ def main():
     args = ap.parse_args()
 
     os.chdir(args.directory)
+
+    # Windows 陷阱：SO_REUSEADDR 允许多个进程同时 bind 同一端口，反复启动会
+    # 叠加出 N 个实例，浏览器请求随机命中旧实例 → 拿到旧构建/旧行为，极难排查。
+    # 用 SO_EXCLUSIVEADDRUSE 独占绑定：端口被占时直接报错退出，而不是静默叠加。
+    class ExclusiveHTTPServer(http.server.ThreadingHTTPServer):
+        allow_reuse_address = False
+
+        def server_bind(self):
+            if sys.platform == "win32":
+                self.socket.setsockopt(
+                    socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            super().server_bind()
+
     # 多线程：/api/* 代理是同步阻塞调用，单线程会拖死静态资源请求（导致整站卡死）。
-    with http.server.ThreadingHTTPServer(("0.0.0.0", args.port), Handler) as httpd:
+    try:
+        httpd = ExclusiveHTTPServer(("0.0.0.0", args.port), Handler)
+    except OSError as e:
+        print(f"[FATAL] 端口 {args.port} 已被占用（{e}）。"
+              f"请先停掉旧实例：netstat -ano | findstr :{args.port}", flush=True)
+        sys.exit(1)
+    with httpd:
         print(f"Serving {args.directory} on http://0.0.0.0:{args.port}  (/api/* → {BACKEND})", flush=True)
         httpd.serve_forever()
 
