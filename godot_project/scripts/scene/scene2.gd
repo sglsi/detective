@@ -280,7 +280,10 @@ func _use_magnifier() -> void:
 func _open_wall() -> void:
 	if _garden_clues.is_empty() and (not ClueSystem or ClueSystem.count_collected("garden") == 0):
 		_ui.show_notification("推理墙需要至少一条线索才能打开。"); return
-	_wall_auto = false
+	# REASONING 阶段打开的墙（自动弹出或手动重开）验证后必须推进过渡；
+	# 观察阶段手动开墙仅预览，不推进。注意：不能无条件置 false——
+	# _enter_reasoning 先置 true 再调本函数，曾被这里覆盖导致验证后卡死。
+	_wall_auto = (_phase == Phase.REASONING)
 	var rw = load("res://scripts/clue/reasoning_wall.gd")
 	if not rw: _ui.show_notification("推理墙模块未找到"); return
 	var wall = rw.new(); wall.name = "ReasoningWall"; add_child(wall)
