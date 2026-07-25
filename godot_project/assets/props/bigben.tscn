@@ -1,0 +1,16 @@
+[gd_scene load_steps=2 format=3 uid="uid://bigben_pixel"]
+
+[ext_resource type="Texture2D" path="res://assets/props/bigben_pixel.png" id="1_bigben"]
+
+[node name="BigBen" type="Node2D"]
+
+[node name="Sprite" type="Sprite2D" parent="."]
+texture = ExtResource("1_bigben")
+offset = Vector2(0, 0)
+scale = Vector2(0.5, 0.5)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 0)
+
+[node name="Shape" type="RectangleShape2D" parent="CollisionShape2D"]
+size = Vector2(200, 400)

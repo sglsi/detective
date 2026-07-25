@@ -11,6 +11,14 @@
 - **用途**: 维多利亚时代四轮马车，用于场景一信使到达等剧情
 - **推荐缩放**: 0.4 - 0.6（根据场景需求调整）
 
+### 大本钟 (Big Ben)
+- **文件**: `bigben_pixel.png`
+- **尺寸**: 2048×2048 RGBA 透明底（像素艺术风格）
+- **场景文件**: `bigben.tscn`
+- **用途**: 伦敦地标建筑，用于场景背景元素
+- **推荐缩放**: 0.3 - 0.5（根据场景需求调整）
+- **风格**: 64x64 像素艺术，与福尔摩斯角色风格一致
+
 ## 使用方式
 
 ### 在 Godot 中实例化
@@ -21,6 +29,12 @@ var carriage_scene = preload("res://assets/props/carriage.tscn")
 var carriage = carriage_scene.instantiate()
 add_child(carriage)
 carriage.position = Vector2(800, 600)
+
+# 动态加载大本钟
+var bigben_scene = preload("res://assets/props/bigben.tscn")
+var bigben = bigben_scene.instantiate()
+add_child(bigben)
+bigben.position = Vector2(1600, 400)  # 背景位置
 ```
 
 ### 在场景编辑器中
