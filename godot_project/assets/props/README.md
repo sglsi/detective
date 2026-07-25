@@ -19,6 +19,14 @@
 - **推荐缩放**: 0.3 - 0.5（根据场景需求调整）
 - **风格**: 64x64 像素艺术，与福尔摩斯角色风格一致
 
+### 维多利亚建筑 (Victorian Building)
+- **文件**: `victorian_building.png`
+- **尺寸**: 待确认 RGBA 透明底（像素艺术风格）
+- **场景文件**: `victorian_building.tscn`
+- **用途**: 维多利亚时代伦敦建筑，用于街道场景背景
+- **推荐缩放**: 0.4 - 0.6（根据场景需求调整）
+- **风格**: 像素艺术，三层砖砌建筑，带烟囱和店面
+
 ## 使用方式
 
 ### 在 Godot 中实例化
@@ -35,6 +43,12 @@ var bigben_scene = preload("res://assets/props/bigben.tscn")
 var bigben = bigben_scene.instantiate()
 add_child(bigben)
 bigben.position = Vector2(1600, 400)  # 背景位置
+
+# 动态加载维多利亚建筑
+var building_scene = preload("res://assets/props/victorian_building.tscn")
+var building = building_scene.instantiate()
+add_child(building)
+building.position = Vector2(400, 500)  # 街道位置
 ```
 
 ### 在场景编辑器中
