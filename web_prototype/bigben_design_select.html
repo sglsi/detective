@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大本钟设计方案选择 - 维多利亚伦敦探案</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            color: #d4af37;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            font-size: 1.1em;
+            margin-bottom: 40px;
+        }
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        .option-card {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(212,175,55,0.3);
+            border-radius: 15px;
+            padding: 25px;
+            transition: all 0.3s ease;
+        }
+        .option-card:hover {
+            border-color: #d4af37;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(212,175,55,0.2);
+        }
+        .option-title {
+            color: #d4af37;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .option-desc {
+            color: #aaa;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .image-container {
+            background: #0a0a0a;
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 400px;
+        }
+        .image-container img {
+            max-width: 100%;
+            max-height: 500px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+        }
+        .specs {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+        .specs span { color: #d4af37; }
+        .selection-panel {
+            background: rgba(212,175,55,0.1);
+            border: 2px solid #d4af37;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+        }
+        .selection-panel h2 {
+            color: #d4af37;
+            margin-bottom: 20px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 12px 30px;
+            font-size: 1em;
+            border: 2px solid #d4af37;
+            background: transparent;
+            color: #d4af37;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Georgia', serif;
+        }
+        .btn:hover {
+            background: #d4af37;
+            color: #1a1a2e;
+        }
+        .btn.selected {
+            background: #d4af37;
+            color: #1a1a2e;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 30px;
+            color: #d4af37;
+            text-decoration: none;
+            font-size: 1.1em;
+        }
+        .back-link:hover { text-decoration: underline; }
+        .result-message {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,255,0,0.1);
+            border: 1px solid #00ff00;
+            border-radius: 8px;
+            color: #00ff00;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>️ 大本钟设计方案</h1>
+        <p class="subtitle">请选择最适合游戏的大本钟风格</p>
+
+        <div class="options-grid">
+            <!-- 维多利亚风格 1 -->
+            <div class="option-card">
+                <h3 class="option-title">维多利亚风格 A</h3>
+                <p class="option-desc">写实插画风格，暖色煤气灯光，雾气氛围</p>
+                <div class="image-container">
+                    <img src="bigben_victorian_1.jpg" alt="维多利亚风格 A">
+                </div>
+                <div class="specs">
+                    <span>风格：</span>写实插画 | 
+                    <span>色调：</span>暖黄/棕色 | 
+                    <span>用途：</span>背景建筑元素
+                </div>
+            </div>
+
+            <!-- 维多利亚风格 2 -->
+            <div class="option-card">
+                <h3 class="option-title">维多利亚风格 B</h3>
+                <p class="option-desc">细节更丰富，建筑线条清晰，夜景效果</p>
+                <div class="image-container">
+                    <img src="bigben_victorian_2.jpg" alt="维多利亚风格 B">
+                </div>
+                <div class="specs">
+                    <span>风格：</span>写实插画 | 
+                    <span>色调：</span>深蓝/暖黄 | 
+                    <span>用途：</span>背景建筑元素
+                </div>
+            </div>
+
+            <!-- 像素风格 1 -->
+            <div class="option-card">
+                <h3 class="option-title">像素艺术风格 A</h3>
+                <p class="option-desc">64x64 像素精灵，复古游戏风格，与福尔摩斯角色一致</p>
+                <div class="image-container">
+                    <img src="bigben_pixel_1.jpg" alt="像素艺术风格 A">
+                </div>
+                <div class="specs">
+                    <span>风格：</span>像素艺术 | 
+                    <span>色调：</span>暖橙/深蓝 | 
+                    <span>用途：</span>游戏场景元素
+                </div>
+            </div>
+
+            <!-- 像素风格 2 -->
+            <div class="option-card">
+                <h3 class="option-title">像素艺术风格 B</h3>
+                <p class="option-desc">像素细节更清晰，灯光效果明显，适合远景</p>
+                <div class="image-container">
+                    <img src="bigben_pixel_2.jpg" alt="像素艺术风格 B">
+                </div>
+                <div class="specs">
+                    <span>风格：</span>像素艺术 | 
+                    <span>色调：</span>暖黄/深色 | 
+                    <span>用途：</span>游戏场景元素
+                </div>
+            </div>
+        </div>
+
+        <div class="selection-panel">
+            <h2>选择方案</h2>
+            <p>点击按钮选择你喜欢的风格，确认后将集成到 Godot 项目中</p>
+            <div class="btn-group">
+                <button class="btn" onclick="selectOption('victorian_1')">维多利亚风格 A</button>
+                <button class="btn" onclick="selectOption('victorian_2')">维多利亚风格 B</button>
+                <button class="btn" onclick="selectOption('pixel_1')">像素艺术风格 A</button>
+                <button class="btn" onclick="selectOption('pixel_2')">像素艺术风格 B</button>
+            </div>
+            <div class="result-message" id="resultMessage"></div>
+        </div>
+
+        <a href="london_bg_preview.html" class="back-link">← 返回伦敦背景预览</a>
+    </div>
+
+    <script>
+        function selectOption(option) {
+            // 移除所有选中状态
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('selected'));
+            // 添加选中状态
+            event.target.classList.add('selected');
+            // 显示结果
+            const msg = document.getElementById('resultMessage');
+            msg.style.display = 'block';
+            msg.textContent = `已选择：${option}。请告诉我你的选择，我将把该方案集成到 Godot 项目中。`;
+        }
+    </script>
+</body>
+</html>
