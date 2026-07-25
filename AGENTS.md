@@ -194,3 +194,43 @@ NO other objects, isolated, game asset
 - Godot Web 构建的 `.wasm` 文件必须以 `application/wasm` MIME 类型提供
 - Web 原型为单文件应用，修改时注意保持内联 CSS/JS 的组织性
 - `start_all.sh` 中使用 `npm install`，在 Coze 环境中应替换为 `pnpm install`
+
+### 像素艺术风格生成器
+
+**位置**：`skills/pixel_art_generator/`
+
+**功能**：专门用于生成像素艺术风格游戏元素
+
+**工作流程**：
+```
+AI 生成绿幕图 → Python 抠图 → 像素化处理 → 调色板量化 → 透明底 PNG
+```
+
+**使用方法**：
+```bash
+python3 skills/pixel_art_generator/scripts/pixel_art_cutout.py \
+  --input <绿幕图.jpg> \
+  --output <输出.png> \
+  --pixel-size 64 \
+  --colors 16
+```
+
+**参数说明**：
+- `--pixel-size`：目标像素尺寸（16/32/64/128/256，默认 64）
+- `--colors`：调色板颜色数（8/16/32/64，默认 16）
+- `--no-pixelate`：跳过像素化处理，只抠图
+- `--bg-color R,G,B`：手动指定背景色
+
+**AI 生成 Prompt 模板**：
+```
+<元素描述> alone, pixel art style, 64x64 sprite,
+clean solid color background (pure green #00ff00),
+NO other objects, isolated, game asset
+```
+
+**与 godot_asset_generator 的区别**：
+- `pixel_art_generator`：专用像素艺术风格，包含像素化处理和调色板量化
+- `godot_asset_generator`：通用抠图工具，不限制风格
+
+**详细文档**：`skills/pixel_art_generator/SKILL.md`
+**快速开始**：`skills/pixel_art_generator/README.md`
