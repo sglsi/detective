@@ -89,3 +89,50 @@ garden.scale = Vector2(0.4, 0.4)
 1. 将透明底 PNG 放入此目录
 2. 创建对应的 `.tscn` 场景文件
 3. 更新本 README
+
+---
+
+## V2 版本（用户直接上传）
+
+### 维多利亚建筑 V2
+
+**文件**：`victorian_building_v2.png`（86KB）
+
+**特点**：
+- 用户直接提供的透明底 PNG
+- 红砖建筑，细节清晰
+- 包含完整正面视图
+
+**使用**：
+```gdscript
+var building_v2 = preload("res://assets/props/victorian_building_v2.tscn").instantiate()
+add_child(building_v2)
+building_v2.position = Vector2(400, 300)
+building_v2.scale = Vector2(0.5, 0.5)
+```
+
+### 维多利亚花园 V2
+
+**文件**：`victorian_garden_v2.png`（1.5MB）
+
+**特点**：
+- 用户直接提供的透明底 PNG
+- 木栅栏 + 铁艺门 + 花草小径
+- 细节丰富，色彩鲜艳
+
+**使用**：
+```gdscript
+var garden_v2 = preload("res://assets/props/victorian_garden_v2.tscn").instantiate()
+add_child(garden_v2)
+garden_v2.position = Vector2(400, 700)
+garden_v2.scale = Vector2(0.5, 0.5)
+```
+
+### V1 与 V2 对比
+
+| 版本 | 来源 | 建筑 | 花园 |
+|------|------|------|------|
+| **V1** | AI 生成 + 像素化处理 | 256×256, 64 色 | 256×256, 64 色 |
+| **V2** | 用户直接上传 | 透明底 PNG | 透明底 PNG |
+
+**建议**：优先使用 V2 版本（质量更高），V1 作为备用。
