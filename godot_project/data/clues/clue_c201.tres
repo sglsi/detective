@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "c201"
+name = "花园花草被碾轧"
+description = "花园外围花草大片倒伏，被重物来回碾轧——有马车在此反复掉头或停靠。"
+category = "痕迹"
+location = "劳瑞斯顿花园街3号"
+discovery_condition = "点击观察花园外围"
+observation = "花草大片倒伏。"
+analysis = "有马车反复掉头或停靠。"
+related_clues = []
+related_npcs = []
+timeline_position = 1.1
+importance = 5
+is_key_evidence = false
+state = 0
+discovery_time = ""

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "c203"
+name = "右前蹄新换蹄铁"
+description = "四只马蹄印中，右前蹄的蹄铁崭新锃亮，其余三只明显磨损——这匹马近期刚修过蹄铁，说明马车主经常维护座驾。"
+category = "痕迹"
+location = "劳瑞斯顿花园街3号"
+discovery_condition = "放大对比四蹄"
+observation = "右前蹄蹄铁崭新锃亮。"
+analysis = "马车近期维修过。"
+related_clues = []
+related_npcs = ["NPC_HOP"]
+timeline_position = 1.3
+importance = 10
+is_key_evidence = true
+state = 0
+discovery_time = ""

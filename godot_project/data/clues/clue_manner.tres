@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "manner"
+name = "神态平静"
+description = "信使神态从容淡定"
+category = "痕迹"
+location = "贝克街221B"
+discovery_condition = "点击观察信使神态"
+observation = "神态从容淡定。"
+analysis = "发号施令者气质。"
+related_clues = []
+related_npcs = ["NPC_MES"]
+timeline_position = 0.8
+importance = 5
+is_key_evidence = false
+state = 0
+discovery_time = ""

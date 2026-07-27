@@ -13,7 +13,7 @@ signal hotspot_clicked(hotspot_id: String)
 
 # ============ 工具操作 ============
 signal tool_requested(tool_name: String)
-signal tool_used(tool_name: String)
+signal tool_used(tool_name: String, target_id: String)
 
 # ============ 笔记 ============
 signal note_recorded(note_text: String)

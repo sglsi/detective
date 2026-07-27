@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "c205"
+name = "两组初始足迹"
+description = "泥地边缘有两组清晰的脚印，自街道方向走来，一深一浅指向空屋门口。案发当晚曾有两人步行进入花园。"
+category = "痕迹"
+location = "劳瑞斯顿花园街3号"
+discovery_condition = "放大查看 + 卷尺测量"
+observation = "两组脚印，一深一浅。"
+analysis = "夜间来客2人。"
+related_clues = []
+related_npcs = ["NPC_DRE", "NPC_HOP"]
+timeline_position = 1.5
+importance = 5
+is_key_evidence = false
+state = 0
+discovery_time = ""

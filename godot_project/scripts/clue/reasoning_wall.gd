@@ -13,11 +13,14 @@ var _on_verify: Callable
 var _card_btns: Dictionary = {}  # clue_id -> Button
 var _hypo_btn: Button
 var _status_lbl: Label
+var _on_close: Callable = Callable()   # 关闭时回调（用于返回玩家进入前的状态）
+var _verifying := false                 # 验证结果展示中，锁定「返回」避免误关
 
-func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable) -> void:
+func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable()) -> void:
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
+	_on_close = on_close
 	_create_ui()
 
 func get_verdict() -> int:
@@ -119,13 +122,31 @@ func _create_ui() -> void:
 	vb.pressed.connect(_on_verify_pressed)
 	add_child(vb)
 
+	# 返回（回到玩家进入推理墙前的场景状态）
+	var back = Button.new()
+	back.text = "← 返回探索"
+	back.position = Vector2(340, 620)
+	back.size = Vector2(250, 60)
+	back.add_theme_font_size_override("font_size", 24)
+	back.add_theme_color_override("font_color", Color(0.85, 0.80, 0.66))
+	var bs = StyleBoxFlat.new()
+	bs.bg_color = Color(0.16, 0.14, 0.10, 0.95); bs.border_color = Color(0.55, 0.45, 0.25)
+	bs.border_width_left = 2; bs.border_width_right = 2
+	bs.border_width_top = 2; bs.border_width_bottom = 2
+	bs.set_corner_radius_all(4)
+	back.add_theme_stylebox_override("normal", bs)
+	var bsh = bs.duplicate(); bsh.border_color = Color(0.80, 0.68, 0.38)
+	back.add_theme_stylebox_override("hover", bsh)
+	back.pressed.connect(_on_back_pressed)
+	add_child(back)
+
 	# 关闭
 	var cl = Button.new()
 	cl.text = "X 关闭"
 	cl.position = Vector2(1800, 15); cl.size = Vector2(80, 35)
 	cl.add_theme_font_size_override("font_size", 14)
 	cl.add_theme_color_override("font_color", Color(0.6, 0.55, 0.45))
-	cl.pressed.connect(func(): queue_free())
+	cl.pressed.connect(_on_back_pressed)
 	add_child(cl)
 
 	_add_label("提示: 点击线索卡片=推入面板，再次点击=取消关联。绿色=已关联，灰色=未关联。", 13, Color(0.40, 0.35, 0.28), Vector2(40, 700), Vector2(1840, 25))
@@ -206,7 +227,22 @@ func _update_hypo() -> void:
 	else:
 		_hypo_btn.text = "已关联证据 (" + str(names.size()) + "):\n" + "\n".join(names)
 
+func _input(event: InputEvent) -> void:
+	if _verifying: return
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_ESCAPE:
+			get_viewport().set_input_as_handled()
+			_on_back_pressed()
+
+## 返回/关闭：先通知场景（用于恢复玩家进入前的状态），再销毁浮层。
+## 验证结果展示期间锁定，避免误关丢失判定。
+func _on_back_pressed() -> void:
+	if _verifying: return
+	if _on_close.is_valid(): _on_close.call()
+	queue_free()
+
 func _on_verify_pressed() -> void:
+	_verifying = true
 	var v = get_verdict()
 	var txt = ""
 	var tc = Color.WHITE

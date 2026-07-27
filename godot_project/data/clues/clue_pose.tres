@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "pose"
+name = "华生站姿军人气质"
+description = "华生站姿挺拔，带有明显军人气质"
+category = "痕迹"
+location = "贝克街221B"
+discovery_condition = "点击观察华生站姿"
+observation = "站姿挺拔，军人气质。"
+analysis = "职业军人，近期退役。"
+related_clues = []
+related_npcs = ["NPC_WT"]
+timeline_position = 0.4
+importance = 10
+is_key_evidence = true
+state = 0
+discovery_time = ""
