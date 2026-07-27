@@ -1,0 +1,40 @@
+[gd_scene load_steps=2 format=3 uid="uid://ds1ffc0n7r0l3"]
+
+[ext_resource type="Script" path="res://scripts/ui/difficulty_select.gd" id="1_ds"]
+
+[node name="DifficultySelect" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_ds")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="EasyBtn" type="Button" parent="Panel"]
+layout_mode = 0
+offset_left = 710.0
+offset_top = 400.0
+offset_right = 1210.0
+offset_bottom = 480.0
+text = "简 单"
+
+[node name="NormalBtn" type="Button" parent="Panel"]
+layout_mode = 0
+offset_left = 710.0
+offset_top = 500.0
+offset_right = 1210.0
+offset_bottom = 580.0
+text = "普 通"
+
+[node name="HardBtn" type="Button" parent="Panel"]
+layout_mode = 0
+offset_left = 710.0
+offset_top = 600.0
+offset_right = 1210.0
+offset_bottom = 680.0
+text = "困 难"

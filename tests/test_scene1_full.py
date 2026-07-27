@@ -105,6 +105,7 @@ def test_l1_static():
         ("scripts/clue/reasoning_wall.gd", "ReasoningWallUI 脚本"),
         ("scripts/ui/main_menu.gd", "MainMenu 脚本"),
         ("scripts/ui/difficulty_select.gd", "DifficultySelect 脚本"),
+        ("scenes/difficulty_select.tscn", "难度选择场景"),
         ("resources/dialogues/scene_01_phase1_tutorial.tres", "场景一对话资源"),
         ("resources/dialogues/dialogue_resource.gd", "DialogueResource 类"),
         ("resources/dialogues/dialogue_node_resource.gd", "DialogueNodeResource 类"),
