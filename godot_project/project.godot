@@ -16,7 +16,7 @@ config/version="0.1.0"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7")
 config/icon="res://icon.svg"
-config/api_base_url="http://localhost:3001"
+config/api_base_url="http://127.0.0.1:3001"
 
 [autoload]
 
