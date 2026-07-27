@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "posture"
+name = "挺拔站姿"
+description = "信使站姿挺拔有力"
+category = "痕迹"
+location = "贝克街221B"
+discovery_condition = "点击观察信使站姿"
+observation = "站姿挺拔有力。"
+analysis = "军事训练。"
+related_clues = []
+related_npcs = ["NPC_MES"]
+timeline_position = 0.7
+importance = 5
+is_key_evidence = false
+state = 0
+discovery_time = ""

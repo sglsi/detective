@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "c202"
+name = "双道平行车轮印"
+description = "泥地上两道平行的深沟轮印，间距约4.5英尺（约1.37米）——典型的四轮出租马车轴距。用卷尺精确测量后确认为伦敦双座出租马车。"
+category = "痕迹"
+location = "劳瑞斯顿花园街3号"
+discovery_condition = "放大查看 + 卷尺测量"
+observation = "平行深沟轮印，间距约4.5英尺。"
+analysis = "四轮出租马车。"
+related_clues = []
+related_npcs = []
+timeline_position = 1.2
+importance = 10
+is_key_evidence = true
+state = 0
+discovery_time = ""
