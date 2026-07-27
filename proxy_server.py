@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 静态文件服务器 + 后端 API 反向代理。
-- /api/* → 转发到 http://localhost:3000
-- 其他 → 提供静态文件（web_prototype 目录）
+    - /api/* → 转发到 http://127.0.0.1:3001
+    - 其他 → 提供静态文件（web_prototype 目录）
 解决沙箱代理不支持 /api/auth/* 路径的问题。
 """
 import argparse
@@ -13,7 +13,7 @@ import urllib.request
 import urllib.error
 
 PORT = 8080
-BACKEND = "http://localhost:3001"
+BACKEND = "http://127.0.0.1:3001"
 
 
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
@@ -43,7 +43,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         return super().do_OPTIONS()
 
     def _proxy(self, method):
-        """将请求转发到后端 localhost:3000"""
+        """将请求转发到后端 http://127.0.0.1:3001"""
         target_url = BACKEND + self.path
         if self.headers.get("Content-Length"):
             body = self.rfile.read(int(self.headers["Content-Length"]))

@@ -6,7 +6,7 @@ Serves the directory given by --directory on --port (default 8081), bound to
 use WebAssembly.instantiateStreaming; Godot's loader otherwise falls back to a
 slower ArrayBuffer path. The .pck is fetched as application/octet-stream.
 
-后端反向代理：/api/* → http://localhost:3001
+后端反向代理：/api/* → http://127.0.0.1:3001（勿用 localhost，Windows 下解析到 ::1）
 为什么需要它：Godot Web 构建里，浏览器向「绝对地址」http://localhost:3001 发跨域
 fetch（尤其是带 JSON body 的 POST）会在运行期失败（沙箱/远程预览下 localhost:3001
 不可达，或跨域预检被拦），表现为注册/登录「网络请求失败」。改为同源请求 /api，
@@ -22,7 +22,9 @@ import urllib.request
 import urllib.error
 
 PORT = 8081
-BACKEND = "http://localhost:3001"
+# 必须用 127.0.0.1 而非 localhost：Windows 上 localhost 优先解析到 IPv6 ::1，
+# 而后端 server.js 只监听 IPv4 0.0.0.0，会导致代理转发失败。
+BACKEND = "http://127.0.0.1:3001"
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
