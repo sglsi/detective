@@ -61,7 +61,7 @@ def assert_contains(text, substring, msg=""):
 
 # ============ 项目路径 ============
 
-PROJECT_ROOT = "/workspace/维多利亚伦敦探案项目/godot_project"
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent / "godot_project")
 
 def read_gd(filepath):
     """读取 GDScript 文件"""
@@ -95,15 +95,15 @@ def test_l1_static():
     
     # --- 文件完整性 ---
     files_to_check = [
-        ("scenes/game_scene.tscn", "GameScene 场景文件"),
+        ("scenes/scene1.tscn", "场景一 场景文件"),
         ("scenes/difficulty_select.tscn", "难度选择场景"),
         ("scenes/main_menu.tscn", "主菜单场景"),
-        ("scripts/scene/game_scene.gd", "GameScene 脚本"),
+        ("scripts/scene/detective_scene.gd", "GameScene 脚本"),
         ("scripts/scene/scene_controller.gd", "SceneController 脚本"),
         ("scripts/dialogue/dialogue_manager.gd", "DialogueManager v2.0"),
         ("scripts/dialogue/dialogue_renderer.gd", "DialogueRenderer v2.0"),
         ("scripts/tool/tool_bar.gd", "ToolBar 脚本"),
-        ("scripts/clue/reasoning_wall_ui.gd", "ReasoningWallUI 脚本"),
+        ("scripts/clue/reasoning_wall.gd", "ReasoningWallUI 脚本"),
         ("scripts/ui/main_menu.gd", "MainMenu 脚本"),
         ("scripts/ui/difficulty_select.gd", "DifficultySelect 脚本"),
         ("resources/dialogues/scene_01_phase1_tutorial.tres", "场景一对话资源"),
@@ -117,30 +117,31 @@ def test_l1_static():
     
     # --- 类定义检查 ---
     gd_files = {
-        "game_scene.gd": read_gd("scripts/scene/game_scene.gd"),
+        "game_scene.gd": read_gd("scripts/scene/detective_scene.gd"),
         "scene_controller.gd": read_gd("scripts/scene/scene_controller.gd"),
         "dialogue_manager.gd": read_gd("scripts/dialogue/dialogue_manager.gd"),
         "dialogue_renderer.gd": read_gd("scripts/dialogue/dialogue_renderer.gd"),
         "tool_bar.gd": read_gd("scripts/tool/tool_bar.gd"),
-        "reasoning_wall_ui.gd": read_gd("scripts/clue/reasoning_wall_ui.gd"),
+        "reasoning_wall.gd": read_gd("scripts/clue/reasoning_wall.gd"),
         "main_menu.gd": read_gd("scripts/ui/main_menu.gd"),
         "difficulty_select.gd": read_gd("scripts/ui/difficulty_select.gd"),
     }
     
-    # GameScene 检查
+    # GameScene 检查（统一框架 DetectiveScene + SceneController 探索逻辑）
     gs = gd_files["game_scene.gd"]
-    suite.test("GameScene 定义 GamePhase 枚举", lambda: assert_contains(gs, "enum GamePhase"))
-    suite.test("GameScene 包含全部13个Phase", lambda: [
-        assert_contains(gs, p) for p in [
-            "INTRO", "STEP_1_OBSERVE", "STEP_2_TOOL", "STEP_3_RECORD",
-            "STEP_4_KNOWLEDGE", "STEP_5_HYPOTHESIS", "STEP_6_VERIFY",
-            "PHASE1_COMPLETE", "PHASE2_INTRO", "PHASE2_OBSERVE",
-            "PHASE2_COMPLETE", "CASE_OFFER", "COMPLETE"
+    sc = gd_files["scene_controller.gd"]
+    dm = gd_files["dialogue_manager.gd"]
+    suite.test("GameScene 统一框架基类 DetectiveScene", lambda: assert_contains(gs, "class_name DetectiveScene"))
+    suite.test("SceneController 定义 ExplorationStep 枚举", lambda: assert_contains(sc, "enum ExplorationStep"))
+    suite.test("ExplorationStep 含 STEP_1_OBSERVE..STEP_6_VERIFY", lambda: [
+        assert_contains(sc, p) for p in [
+            "STEP_1_OBSERVE", "STEP_2_TOOL", "STEP_3_RECORD",
+            "STEP_4_KNOWLEDGE", "STEP_5_HYPOTHESIS", "STEP_6_VERIFY"
         ]
     ])
-    suite.test("GameScene 连接 dialogue_manager 信号", lambda: assert_contains(gs, "dm.step_entered.connect"))
-    suite.test("GameScene 连接 SceneEventBus", lambda: assert_contains(gs, "SceneEventBus.connect"))
-    suite.test("GameScene 连接 ClueEventBus", lambda: assert_contains(gs, "ClueEventBus.connect"))
+    suite.test("GameScene 连接 dialogue_advanced 信号", lambda: assert_contains(gs, "_dm.dialogue_advanced.connect"))
+    suite.test("SceneController 连接 SceneEventBus", lambda: assert_contains(sc, "SceneEventBus.connect"))
+    suite.test("DialogueManager 连接 DialogueEventBus", lambda: assert_contains(dm, "DialogueEventBus.connect"))
     
     # SceneController 检查
     sc = gd_files["scene_controller.gd"]
@@ -165,8 +166,8 @@ def test_l1_static():
     suite.test("DialogueRenderer 包含 _on_step_entered", lambda: assert_contains(dr, "func _on_step_entered"))
     
     # ReasoningWallUI 检查
-    rw = gd_files["reasoning_wall_ui.gd"]
-    suite.test("ReasoningWallUI 定义 VerifyResult 枚举(4级)", lambda: (
+    rw = gd_files["reasoning_wall.gd"]
+    suite.test("ReasoningWallUI 定义 Verdict 枚举(4级)", lambda: (
         assert_contains(rw, "VERIFIED") and
         assert_contains(rw, "SUPPORTED") and
         assert_contains(rw, "INSUFFICIENT") and
@@ -282,29 +283,33 @@ def _test_verify_filter(filter_val, expected_map):
 def test_l3_signal_chain():
     suite = TestSuite("L3: 信号链路测试")
     
-    gs = read_gd("scripts/scene/game_scene.gd")
+    gs = read_gd("scripts/scene/detective_scene.gd")
+    rw = read_gd("scripts/clue/reasoning_wall.gd")
+    dm = read_gd("scripts/dialogue/dialogue_manager.gd")
     
-    # 六步闭环信号
-    suite.test("Step 1→6 信号接收方法存在", lambda: assert_contains(gs, "func _on_step_entered"))
+    # 对话推进链路
+    suite.test("DialogueManager 定义 dialogue_advanced 信号", lambda: assert_contains(dm, "signal dialogue_advanced"))
+    suite.test("GameScene 连接 dialogue_advanced", lambda: assert_contains(gs, "_dm.dialogue_advanced.connect"))
     
-    # 验证信号链路
-    suite.test("verification_complete 信号接收存在", lambda: assert_contains(gs, "func _on_verification_complete"))
-    suite.test("VERIFIED→_handle_verified 调用", lambda: assert_contains(gs, "_handle_verified()"))
-    suite.test("SUPPORTED→set_verify_result 调用", lambda: assert_contains(gs, 'set_verify_result("SUPPORTED")'))
-    suite.test("INSUFFICIENT→set_verify_result 调用", lambda: assert_contains(gs, 'set_verify_result("INSUFFICIENT")'))
-    suite.test("CONTRADICTORY→set_verify_result 调用", lambda: assert_contains(gs, 'set_verify_result("CONTRADICTORY")'))
+    # 验证链路（reasoning_wall → DetectiveScene 分发）
+    suite.test("推理墙 get_verdict 判定", lambda: assert_contains(rw, "func get_verdict"))
+    suite.test("推理墙 _on_verify_pressed 验证", lambda: assert_contains(rw, "func _on_verify_pressed"))
+    suite.test("GameScene 默认验证回调 _default_wall_verify", lambda: assert_contains(gs, "func _default_wall_verify"))
+    suite.test("四结果标签分发(VERIFIED/SUPPORTED/INSUFFICIENT/CONTRADICTORY)",
+               lambda: assert_contains(gs, "VERIFIED") and assert_contains(gs, "SUPPORTED")
+                       and assert_contains(gs, "INSUFFICIENT") and assert_contains(gs, "CONTRADICTORY"))
     
-    # 热点→工具信号链路
-    suite.test("hotspot→tool_bar.show_toolbar 链路", lambda: (
-        assert_contains(gs, "tool_bar.show_toolbar()")
-    ))
+    # 热点→观察链路（ClueObserver）
+    suite.test("热点点击 hotspot_clicked 连线", lambda: assert_contains(gs, "hotspot_clicked.connect"))
+    suite.test("线索记录 clue_recorded 连线", lambda: assert_contains(gs, "clue_recorded.connect"))
     
-    # 阶段切换信号链路
-    suite.test("_advance_to_phase2 存在", lambda: assert_contains(gs, "func _advance_to_phase2"))
-    suite.test("_present_case_choice 存在", lambda: assert_contains(gs, "func _present_case_choice"))
+    # 阶段切换钩子
+    suite.test("_enter_arrival 阶段钩子存在", lambda: assert_contains(gs, "func _enter_arrival"))
+    suite.test("_enter_reasoning 阶段钩子存在", lambda: assert_contains(gs, "func _enter_reasoning"))
+    suite.test("_enter_transition 阶段钩子存在", lambda: assert_contains(gs, "func _enter_transition"))
     
     # 对话结束→存档
-    suite.test("dialogue_finished→SaveManager 链路", lambda: assert_contains(gs, "SaveManager.save_game()"))
+    suite.test("存档 SaveSystem.request_save 链路", lambda: assert_contains(gs, "SaveSystem.request_save"))
     
     return suite
 

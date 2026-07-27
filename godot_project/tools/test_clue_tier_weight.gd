@@ -77,8 +77,8 @@ func run_test() -> void:
 		failures.append("total_weight 期望 %d，实得 %d" % [expect_total, cs.total_weight(SRC)])
 
 	# —— 6. 幂等：重复收集同 id 不叠加权重、不新增条目 ——
-	var before_n := cs.get_collected(SRC).size()
-	var before_w := cs.total_weight(SRC)
+	var before_n: int = cs.get_collected(SRC).size()
+	var before_w: int = cs.total_weight(SRC)
 	cs.collect_clue_from_catalog("C_TIER_INLINE5", "重要内联", "d", true, SRC, 5)
 	if cs.get_collected(SRC).size() != before_n:
 		failures.append("幂等失败：重复收集新增了条目")

@@ -7,6 +7,7 @@ func _init() -> void:
 	call_deferred("run_test")
 
 func run_test() -> void:
+	var ProgressSystem = root.get_node_or_null("/root/ProgressSystem")
 	if not ProgressSystem:
 		print("P1_RESULT: FAIL (autoload 未加载)"); quit(); return
 
@@ -17,7 +18,7 @@ func run_test() -> void:
 	ProgressSystem.complete_node("case_p", "n1")
 	ProgressSystem.complete_node("case_p", "n2")
 
-	var p := ProgressSystem.get_progress("case_p")
+	var p = ProgressSystem.get_progress("case_p")
 	if p["current"] != 2:
 		ok = false; reason = "current 应=2，实得 %d" % p["current"]
 	if p["total"] != 10:
@@ -30,7 +31,7 @@ func run_test() -> void:
 	# 完成所有节点后 node_ratio=1
 	for i in range(3, 11):
 		ProgressSystem.complete_node("case_p", "n%d" % i)
-	var p2 := ProgressSystem.get_progress("case_p")
+	var p2 = ProgressSystem.get_progress("case_p")
 	if p2["node_ratio"] != 1.0:
 		ok = false; reason = "满节点 node_ratio 应=1.0，实得 %f" % p2["node_ratio"]
 

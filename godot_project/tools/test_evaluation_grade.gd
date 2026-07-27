@@ -18,6 +18,7 @@ func _process(_delta: float) -> bool:
 func _run() -> void:
 	var ok := true
 	var msg := ""
+	var DifficultyManager = root.get_node_or_null("/root/DifficultyManager")
 	var s = load("res://autoload/star_rating_system.gd").new()
 
 	# ── 1. 综合等级 ──

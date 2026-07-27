@@ -9,9 +9,10 @@
 import os, sys, re, json, subprocess
 from pathlib import Path
 
-PROJECT = "/workspace/维多利亚伦敦探案项目"
-GD = f"{PROJECT}/godot_project"
-BE = f"{PROJECT}/backend"
+ROOT = Path(__file__).resolve().parent.parent  # detective/ 仓库根（跨平台自适应）
+PROJECT = str(ROOT)
+GD = str(ROOT / "godot_project")
+BE = str(ROOT / "backend")
 
 # ============ 测试框架 ============
 
@@ -55,18 +56,20 @@ def grep_contains(pattern, f):
 # ============ 测试函数 ============
 
 def test_1_exploration_loop(s):
-    """六步探索闭环"""
+    """六步探索闭环（SceneController 探索逻辑 + DetectiveScene 统一框架）"""
     sc = read("scripts/scene/scene_controller.gd")
-    gs = read("scripts/scene/game_scene.gd")
-    
+    gs = read("scripts/scene/detective_scene.gd")
+    rw = read("scripts/clue/reasoning_wall.gd")
+    dm = read("scripts/dialogue/dialogue_manager.gd")
+
     s.check("ExplorationStep 枚举(6步)", "STEP_1_OBSERVE" in sc and "STEP_6_VERIFY" in sc)
-    s.check("GamePhase 枚举(13状态)", "PHASE2_COMPLETE" in gs and "CASE_OFFER" in gs)
-    s.check("Step 1 观察→热点渲染(EASY闪烁)", "show_highlight" in sc and "tween_property" in sc)
-    s.check("Step 2 工具→tool_bar.show_toolbar", "tool_bar.show_toolbar()" in gs)
-    s.check("Step 3 记录→note_updated信号", "note_updated" in gs)
-    s.check("Step 4 知识库→可选+Esc跳过", "STEP_4_KNOWLEDGE" in gs and "STEP_5_HYPOTHESIS" in gs)
-    s.check("Step 5 推理墙→reasoning_wall.open", "reasoning_wall.open()" in gs)
-    s.check("Step 6 验证→verification_complete", "verification_complete" in gs)
+    s.check("统一框架基类(class_name DetectiveScene)", "class_name DetectiveScene" in gs and "func _open_wall" in gs)
+    s.check("Step 1 观察→热点高亮(show_highlight/tween)", "show_highlight" in sc and "tween_property" in sc)
+    s.check("Step 2 工具→SceneEventBus 连线", "SceneEventBus.connect" in sc and "tool_used" in sc)
+    s.check("Step 3 记录→note_updated信号(DialogueManager)", "note_updated" in dm)
+    s.check("Step 4 知识库 / Step 5 假设(ExplorationStep)", "STEP_4_KNOWLEDGE" in sc and "STEP_5_HYPOTHESIS" in sc)
+    s.check("Step 5 推理墙→reasoning_wall.load", "scripts/clue/reasoning_wall.gd" in gs and "func _open_wall" in gs)
+    s.check("Step 6 验证→get_verdict(Verdict)", "func get_verdict" in rw and "enum Verdict" in rw)
     s.check("不可跳步保护", "current_step != ExplorationStep.STEP_1_OBSERVE" in sc)
     s.check("阶段1→2切换: activate_phase2", "func activate_phase2" in sc)
     s.check("阶段1热点: 4个_create_hotspot", sc.count("_create_hotspot(") >= 10)
@@ -95,23 +98,22 @@ def test_2_difficulty(s):
 
 
 def test_3_verification(s):
-    """四级验证体系"""
-    rw = read("scripts/clue/reasoning_wall_ui.gd")
-    gs = read("scripts/scene/game_scene.gd")
-    
-    s.check("VerifyResult 枚举(4值)", all(v in rw for v in ["VERIFIED","SUPPORTED","INSUFFICIENT","CONTRADICTORY"]))
-    # 实际实现为关系图模型：统计 hypothesis 的 support / contradict 连线数
-    s.check("VERIFIED判定: support≥3 且无矛盾", "support >= 3" in rw and "contradict > 0" in rw)
-    s.check("SUPPORTED判定: support≥1", "support >= 1" in rw)
-    s.check("INSUFFICIENT判定: 其余情况回退", "return VerifyResult.INSUFFICIENT" in rw)
-    s.check("CONTRADICTORY判定: 其他情况", "VerifyResult.CONTRADICTORY" in rw)
-    s.check("四色结果展示(VERIFIED绿/SUPPORTED黄/INSUFFICIENT橙/CONTRADICTORY红)",
-            all(c in rw for c in ["Color(0.2, 0.9, 0.2, 1.0)", "Color(0.8, 0.8, 0.2, 1.0)",
-                                  "Color(0.9, 0.5, 0.2, 1.0)", "Color(0.95, 0.2, 0.2, 1.0)"]))
-    s.check("verification_complete信号", "verification_complete" in rw)
-    s.check("GameScene四级结果分发", all(v in gs for v in ["VERIFIED","SUPPORTED","INSUFFICIENT","CONTRADICTORY"]))
-    s.check("VERIFIED→_handle_verified", "_handle_verified()" in gs)
-    s.check("SUPPORTED→set_verify_result", 'set_verify_result("SUPPORTED")' in gs)
+    """四级验证体系（reasoning_wall.gd Verdict 枚举 + DetectiveScene 分发）"""
+    rw = read("scripts/clue/reasoning_wall.gd")
+    gs = read("scripts/scene/detective_scene.gd")
+
+    s.check("Verdict 枚举(4值)", all(v in rw for v in ["VERIFIED","SUPPORTED","INSUFFICIENT","CONTRADICTORY"]))
+    # 当前实现：统计关联线索数 _associated 与矛盾数 _contradicting
+    s.check("VERIFIED判定: _associated≥3 且无矛盾", "_associated >= 3" in rw and "_contradicting > 0" in rw)
+    s.check("SUPPORTED判定: _associated≥1", "_associated >= 1" in rw)
+    s.check("INSUFFICIENT判定: 其余情况回退", "return Verdict.INSUFFICIENT" in rw)
+    s.check("CONTRADICTORY判定: 存在矛盾证据", "Verdict.CONTRADICTORY" in rw)
+    s.check("四色结果展示(VERIFIED绿/SUPPORTED黄绿/INSUFFICIENT黄/CONTRADICTORY红)",
+            all(c in rw for c in ["Color(0.3, 0.95, 0.3)", "Color(0.4, 0.8, 0.4)",
+                                  "Color(0.95, 0.8, 0.2)", "Color(0.95, 0.3, 0.3)"]))
+    s.check("验证按钮 _on_verify_pressed", "func _on_verify_pressed" in rw)
+    s.check("DetectiveScene 分发四结果标签", all(v in gs for v in ["VERIFIED","SUPPORTED","INSUFFICIENT","CONTRADICTORY"]))
+    s.check("VERIFIED→_default_wall_verify 映射", "_default_wall_verify" in gs)
 
 
 def test_4_star_rating(s):
@@ -121,14 +123,14 @@ def test_4_star_rating(s):
     s.check("RatingDimension 枚举(3维)", "OBSERVATION" in sr and "REASONING" in sr and "INSIGHT" in sr)
     s.check("Badge 枚举(7徽章)", all(b in sr for b in ["KEEN_EYE","MASTER_DEDUCER","DEPTH_SEEKER","PERFECT_SCORE","SPEED_RUNNER","NO_HINT_MASTER","FIRST_CASE_CLEAR"]))
     s.check("三维独立评分累加", "add_observation" in sr and "add_reasoning" in sr and "add_insight" in sr)
-    s.check("get_stars() 阈值: ≥90%=3星", "ratio >= 0.9" in sr)
+    s.check("get_stars() 阈值: ≥90%=3星", "top_threshold: float = 0.9" in sr)
     s.check("get_stars() 阈值: ≥60%=2星", "ratio >= 0.6" in sr)
     s.check("get_stars() 阈值: ≥30%=1星", "ratio >= 0.3" in sr)
     s.check("get_total_stars() 汇总", "func get_total_stars" in sr)
     s.check("evaluate_badges() 自动评估", "func evaluate_badges" in sr)
     s.check("NO_HINT_MASTER 条件", "NO_HINT_MASTER" in sr and "HARD" in sr)
     s.check("PERFECT_SCORE 条件(总星=9)", "get_total_stars() == 9" in sr)
-    s.check("观察满分45/推理满分14/洞察满分7", "max_observation: int = 45" in sr and "max_reasoning: int = 14" in sr and "max_insight: int = 7" in sr)
+    s.check("观察满分115/推理满分14/洞察满分7", "max_observation: int = 115" in sr and "max_reasoning: int = 14" in sr and "max_insight: int = 7" in sr)
 
 
 def test_5_clue_system(s):
@@ -168,8 +170,8 @@ def test_6_event_buses(s):
     s.check("SystemEventBus: case_completed", "case_completed" in se)
     s.check("SystemEventBus: game_paused/resumed", "game_paused" in se and "game_resumed" in se)
     s.check("SystemEventBus: 信号数≥14", se.count("signal ") >= 14)
-    s.check("GameScene连接SceneEventBus", "SceneEventBus.connect" in read("scripts/scene/game_scene.gd"))
-    s.check("GameScene连接ClueEventBus", "ClueEventBus.connect" in read("scripts/scene/game_scene.gd"))
+    s.check("SceneController连接SceneEventBus", "SceneEventBus.connect" in read("scripts/scene/scene_controller.gd"))
+    s.check("DialogueManager连接DialogueEventBus", "DialogueEventBus.connect" in read("scripts/dialogue/dialogue_manager.gd"))
     s.check("Boot连接全部总线(7个)", read("autoload/boot.gd").count("EventBus") >= 7)
 
 
@@ -288,34 +290,37 @@ def test_11_game_state(s):
 
 
 def test_12_reasoning_wall(s):
-    """推理墙系统"""
-    rw = read("scripts/clue/reasoning_wall_ui.gd")
-    
-    s.check("线索卡片创建 _create_clue_card", "func _create_clue_card" in rw)
-    s.check("卡片拖拽 _on_card_drag", "func _on_card_drag" in rw)
-    s.check("卡片放入假设板 reparent", "reparent" in rw)
+    """推理墙系统（MVP：Verdict 判定 + 卡片关联 + 验证）"""
+    rw = read("scripts/clue/reasoning_wall.gd")
+    gs = read("scripts/scene/detective_scene.gd")
+
+    s.check("Verdict 枚举定义", "enum Verdict" in rw)
+    s.check("判定逻辑 get_verdict", "func get_verdict" in rw)
+    s.check("VERIFIED: _associated≥3", "_associated >= 3" in rw)
+    s.check("SUPPORTED: _associated≥1", "_associated >= 1" in rw)
+    s.check("CONTRADICTORY: _contradicting>0", "_contradicting > 0" in rw)
+    s.check("卡片点击关联 _on_card_clicked", "func _on_card_clicked" in rw)
+    s.check("假设区点击 _on_hypo_clicked", "func _on_hypo_clicked" in rw)
     s.check("验证按钮 _on_verify_pressed", "func _on_verify_pressed" in rw)
-    s.check("里程碑解锁 _unlock_milestone", "func _unlock_milestone" in rw)
-    s.check("里程碑弹窗 _show_milestone_popup", "func _show_milestone_popup" in rw)
-    s.check("open()/close()", "func open" in rw and "func close" in rw)
-    s.check("10条线索名称映射", rw.count('"') >= 20)  # 粗略检查
-    s.check("clue_discovered 信号接收", "clue_discovered" in rw)
-    s.check("clue_recorded 信号接收", "clue_recorded" in rw)
+    s.check("返回/关闭 _on_back_pressed", "func _on_back_pressed" in rw)
+    s.check("setup(clues,hypothesis,on_verify,on_close)", "func setup" in rw)
+    s.check("DetectiveScene 唯一入口 _open_wall", "func _open_wall" in gs and "scripts/clue/reasoning_wall.gd" in gs)
 
 
 def test_13_notebook_knowledge(s):
-    """侦探笔记 + 知识库"""
-    gs = read("scripts/scene/game_scene.gd")
+    """侦探笔记 + 知识库（对齐当前 DetectiveScene / DialogueManager 架构）"""
+    ds = read("scripts/scene/detective_scene.gd")
     dr = read("resources/dialogues/dialogue_resource.gd")
-    
-    s.check("笔记记录触发(Step 3)", "STEP_3_RECORD" in gs)
-    s.check("知识库触发(Step 4)", "STEP_4_KNOWLEDGE" in gs)
+    sp = read("scripts/ui/side_panel.gd")
+    dm = read("scripts/dialogue/dialogue_manager.gd")
+    tres = read("resources/dialogues/scene_01_phase1_tutorial.tres")
+
+    s.check("笔记面板入口(journal)", '"journal"' in ds or '"journal"' in sp)
     s.check("知识库领域定义", "knowledge_domains" in dr)
-    s.check("EASY自动使用知识库", "is_knowledge_used = true" in gs)
-    s.check("侧栏知识库按钮", '"knowledge"' in gs)
-    s.check("侧栏笔记按钮", '"journal"' in gs)
-    s.check("对话note_updated信号", "note_updated" in read("scripts/dialogue/dialogue_manager.gd"))
-    s.check("对话knowledge_triggered信号", "knowledge_triggered" in read("scripts/dialogue/dialogue_manager.gd"))
+    s.check("知识库按钮入口(knowledge)", '"knowledge"' in sp or '"knowledge"' in dm)
+    s.check("对话note_updated信号", "note_updated" in dm)
+    s.check("对话knowledge_triggered信号", "knowledge_triggered" in dm)
+    s.check("知识触发trigger=knowledge", 'trigger = "knowledge"' in tres)
 
 
 def test_14_api_integration(s):

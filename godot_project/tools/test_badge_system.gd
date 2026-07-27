@@ -7,6 +7,8 @@ func _init() -> void:
 	call_deferred("run_test")
 
 func run_test() -> void:
+	var StarRatingSystem = root.get_node_or_null("/root/StarRatingSystem")
+	var BadgeSystem = root.get_node_or_null("/root/BadgeSystem")
 	if not StarRatingSystem or not BadgeSystem:
 		print("P1_RESULT: FAIL (autoload 未加载)")
 		quit()

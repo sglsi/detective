@@ -8,7 +8,7 @@ extends SceneTree
 
 var _ok := true
 
-func _process(_delta: float) -> void:
+func _process(_delta: float) -> bool:
 	_run_case_self_loop()
 	_run_case_invisible_cycle()
 	_run_case_empty_choice()
@@ -17,6 +17,7 @@ func _process(_delta: float) -> void:
 	else:
 		print("P1_RESULT: FAIL")
 	quit()
+	return false
 
 func _new_manager() -> DialogueManager:
 	var dm := DialogueManager.new()
