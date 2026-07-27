@@ -83,12 +83,14 @@ func _on_hotspot_seen(clue_id: String) -> void:
 func _on_clue_recorded(_clue_id: String, _clue_data: Dictionary) -> void:
 	_clues.append(_clue_data)
 	if ClueSystem:
-		ClueSystem.collect_clue(
+		# P3.1：观察热点权重由热点表 "wt" 字段提供（"w" 已被热点矩形宽度占用；scene7/8 无 .tres）
+		ClueSystem.collect_clue_from_catalog(
 			_clue_data.get("id", _clue_id),
 			_clue_data.get("name", ""),
 			_clue_data.get("desc", ""),
 			_clue_data.get("correct", true),
-			clue_source()
+			clue_source(),
+			int(_clue_data.get("wt", -1))
 		)
 	var total := hotspots().size()
 	_ui.show_notification("线索已记录：" + str(_clue_data.get("name", "")) + "（" + str(_clues.size()) + "/" + str(total) + "）")
@@ -123,6 +125,7 @@ func _show_map_panel() -> void:
 	_popup("伦敦地图", items)
 
 func _show_casebook_panel() -> void:
+	if ClueSystem: _sync_clues()   # 进入推理前（对话阶段）也实时反映已收集线索，避免案件簿「已收集 0/N」失真
 	var items: Array = []
 	var steps := casebook_steps()
 	var done := casebook_done_flags()
@@ -157,9 +160,23 @@ func _show_options_panel() -> void:
 	cl.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); cl.add_theme_font_size_override("font_size", 18)
 	cl.pressed.connect(func(): p.queue_free()); f.add_child(cl); p.add_child(f)
 
+## 证据库来源列表：默认本场景单一 source；多组场景（如场景一 watson/messenger）覆盖。
+func _clue_sources() -> Array:
+	return [clue_source()]
+
+## 证据按钮（所有场景一致）：展示已收集线索列表，而非推理墙。
+## 推理墙由左侧「思考」动作键打开——避免同一按钮身兼两职、各场景行为不一。
 func _open_evidence() -> void:
-	if _clues.is_empty(): _ui.show_notification(_no_evidence_msg())
-	else: _open_wall()
+	var items: Array = []
+	for src in _clue_sources():
+		var collected = ClueSystem.get_collected(src) if ClueSystem else []
+		for c in collected:
+			var tag = "" if _clue_sources().size() <= 1 else ("【" + src + "】")
+			items.append({"name": tag + str(c.get("name", c.get("id", ""))), "desc": str(c.get("desc", ""))})
+	if items.is_empty():
+		_ui.show_notification(_no_evidence_msg())
+	else:
+		_popup("证据库", items)
 
 # ===================== 动作（通用分发 + 内容 virtual） =====================
 func _on_action(action_id: String) -> void:
@@ -188,9 +205,15 @@ func _use_magnifier() -> void:
 	if not _in_observe_phase(): _ui.show_notification("当前无法使用放大镜"); return
 	_obs.show(); _ui.show_notification(_magnifier_msg())
 
-# ===================== 推理墙（通用，参数化来源/假设） =====================
-func _open_wall() -> void:
-	if _clues.is_empty() and (not ClueSystem or ClueSystem.count_collected(clue_source()) == 0):
+# ===================== 推理墙（统一机制，参数化来源/假设/回调） =====================
+## 全项目唯一的推理墙入口：始终使用 scripts/clue/reasoning_wall.gd。
+## source    —— 线索源（默认 clue_source()）；多组场景（场景一）传 "watson"/"messenger"。
+## hypothesis——假设字典（默认 reasoning_hypothesis()）。
+## on_verify —— 验证后回调（默认 _default_wall_verify，按 _wall_auto 推进过渡）。
+## 这样场景一与场景二/三共用同一套墙，杜绝「手搓墙 + 基类墙」两套机制并存。
+func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Callable = Callable()) -> void:
+	var src := source if source != "" else clue_source()
+	if (ClueSystem and ClueSystem.count_collected(src) == 0) and _clues.is_empty():
 		_ui.show_notification("推理墙需要至少一条线索才能打开。"); return
 	# REASONING 阶段打开的墙（自动弹出或手动重开）验证后必须推进过渡；
 	# 观察阶段手动开墙仅预览，不推进。不能无条件置 false（场景二/三同款 bug 已根治）。
@@ -199,17 +222,27 @@ func _open_wall() -> void:
 	if not rw: _ui.show_notification("推理墙模块未找到"); return
 	var wall = rw.new(); wall.name = "ReasoningWall"; add_child(wall)
 	# 推理墙读取通用线索登记（单一真相源），与场景内 _clues 保持一致
-	var clues: Array = ClueSystem.get_collected(clue_source()) if ClueSystem else _clues
-	var hypothesis := reasoning_hypothesis()
-	wall.setup(clues, hypothesis, func(verdict: int):
-		var labels = {0: "CONTRADICTORY", 1: "INSUFFICIENT", 2: "SUPPORTED", 3: "VERIFIED"}
-		var v = labels.get(verdict, "WAITING")
-		var star_icons = {0: "⭐", 1: "★★", 2: "★★★", 3: "🌟🌟🌟"}
-		_ui.show_notification("推理验证结果：" + v + " " + star_icons.get(verdict, "⭐"))
-		if _wall_auto: _enter_transition()
-	)
+	var clues: Array = ClueSystem.get_collected(src) if ClueSystem else _clues
+	var hypo := hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
+	var cb := on_verify if on_verify.is_valid() else _default_wall_verify
+	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"))
+
+## 默认验证回调：展示判定结果；REASONING 阶段则自动推进过渡。
+func _default_wall_verify(verdict: int) -> void:
+	var labels = {0: "CONTRADICTORY", 1: "INSUFFICIENT", 2: "SUPPORTED", 3: "VERIFIED"}
+	var v = labels.get(verdict, "WAITING")
+	var star_icons = {0: "⭐", 1: "★★", 2: "★★★", 3: "🌟🌟🌟"}
+	_ui.show_notification("推理验证结果：" + v + " " + star_icons.get(verdict, "⭐"))
+	if _wall_auto: _enter_transition()
+
+## 推理墙关闭回调（玩家点击「返回探索 / X 关闭」后触发）。
+## 默认空实现：墙本身是模态浮层，关闭即恢复底层场景交互，等于玩家进入前的状态。
+## 子类可重写以返回到具体来源（如场景一在 watson / messenger 两种推理墙间切换）。
+func _on_wall_closed() -> void:
+	pass
 
 func _show_journal() -> void:
+	if ClueSystem: _sync_clues()   # 进入推理前（对话阶段）也实时反映已收集线索，避免笔记显示为空
 	var items: Array = []
 	if _clues.is_empty(): items.append({"name": "暂无记录", "desc": _journal_empty_hint()})
 	else:
@@ -262,7 +295,7 @@ func _restore_saved_state() -> bool:
 		var h = _get_hotspot(cid)
 		if not h.is_empty():
 			_clues.append(h)
-			if ClueSystem: ClueSystem.collect_clue(cid, h.get("label", ""), h.get("desc", ""), h.get("correct", true), clue_source())
+			if ClueSystem: ClueSystem.collect_clue_from_catalog(cid, h.get("label", ""), h.get("desc", ""), h.get("correct", true), clue_source(), int(h.get("wt", -1)))
 	return _apply_restored_phase(saved_phase, saved_ids, _clues)
 
 ## 子类按自身 Phase 分支恢复（通用骨架已处理好 ClueSystem 同步与通知）
@@ -310,13 +343,60 @@ func _make_dialogue_resource(sid: String, ns: Array, start: String):
 	r.nodes = ns; r.easy_start_node = start; r.normal_start_node = start; r.hard_start_node = start
 	return r
 
+## P3-0 构造对话节点：支持 trigger 与 grants_clues（对话授予线索）。
+## 默认 trigger=="click" 即点即推进；grants 为 [{"id","name","desc","correct"}, ...]。
+func _mk_node(id: String, speaker: String, text: String, trigger: String = "click", next: Array = [], grants: Array = []) -> DialogueNodeResource:
+	var n = DialogueNodeResource.new()
+	n.node_id = id; n.speaker = speaker; n.text = text; n.trigger = trigger
+	var nn: Array[String] = []
+	for s in next:
+		if s is String: nn.append(s)
+	n.next_nodes = nn
+	n.grants_clues = grants
+	n.mood = "neutral"
+	return n
+
+## 同步本地 _clues 数组（证据库/物品栏展示用）为 ClueSystem 中本场景 source 的已收集线索。
+func _sync_clues() -> void:
+	if ClueSystem:
+		_clues = ClueSystem.get_collected(clue_source())
+
+## 从存档 clue_ids 重建 ClueSystem 已收集线索（对话/工具授予、非热点线索也能恢复，不依赖热点）。
+## 在 SaveManager 已全局恢复 collected_clues 之后调用：先抓回本 source 的 name/desc，
+## 避免 clear_source 后重新 collect 时空 name/desc 覆盖已恢复的好数据。
+func _restore_clues_from_ids(saved_ids: Array) -> void:
+	if not ClueSystem:
+		_clues = []
+		for cid in saved_ids: _clues.append({"id": cid})
+		return
+	var prior: Dictionary = {}
+	for c in ClueSystem.get_collected(clue_source()):
+		prior[c.get("id", "")] = c
+	ClueSystem.clear_source(clue_source())
+	_clues = []
+	for cid in saved_ids:
+		var h = _get_hotspot(cid)
+		if not h.is_empty():
+			_clues.append(h)
+			ClueSystem.collect_clue_from_catalog(cid, h.get("label", ""), h.get("desc", ""), h.get("correct", true), clue_source(), int(h.get("wt", -1)))
+		else:
+			var p = prior.get(cid, {})
+			# 对话/工具授予的非热点线索：从先前已收集副本回收权重（prior 含 "weight"）
+			ClueSystem.collect_clue_from_catalog(cid, p.get("name", ""), p.get("desc", ""), p.get("correct", true), clue_source(), int(p.get("weight", -1)))
+			_clues.append({"id": cid, "name": p.get("name", ""), "desc": p.get("desc", "")})
+
 func _input(event: InputEvent) -> void:
-	if not _in_dialogue_phase(): return
+	# 关键修复（对话场景卡住根因）：对话推进只取决于「对话是否在进行中」，
+	# 不再依赖 _in_dialogue_phase() 的相位白名单。旧逻辑下，只要某段对话在 OBSERVE/REASONING
+	# 阶段（或读档恢复、新接的对话钩子、NPC 中途对话）被启动，所有输入会被静默拦截，
+	# 导致对话框永远卡住、点哪都没反应。改为与场景一一致的 _dm.is_active() 判定，
+	# 彻底消除该类卡死；场景一原本就走这套机制，从不出此问题。
+	if not _dm or not _dm.is_active(): return
 	if event is InputEventMouseButton and event.pressed:
-		if _dm and _dm.is_active() and _dm.get_current_trigger() != "choice": _dm.advance()
+		if _dm.get_current_trigger() != "choice": _dm.advance()
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode in [KEY_ENTER, KEY_SPACE, KEY_E]:
-			if _dm and _dm.is_active() and _dm.get_current_trigger() != "choice": _dm.advance()
+			if _dm.get_current_trigger() != "choice": _dm.advance()
 
 # ===================== 通用弹窗 / 样式（所有场景共用） =====================
 func _create_notification(msg: String) -> void:
