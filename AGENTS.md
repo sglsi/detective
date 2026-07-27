@@ -234,3 +234,30 @@ NO other objects, isolated, game asset
 
 **详细文档**：`skills/pixel_art_generator/SKILL.md`
 **快速开始**：`skills/pixel_art_generator/README.md`
+
+## 用户偏好与长期约束
+
+- Node.js 项目使用 pnpm 管理依赖（禁止 npm/yarn）
+- Python 使用 uv 管理环境
+- 后端 API 端口固定 3000
+- Web 预览端口固定 5000
+- Godot 项目需要 Compatibility 渲染器以支持 Web 导出
+
+## 本地开发环境
+
+### Godot 引擎
+- **版本**：Godot 4.7 stable
+- **路径（Windows）**：`D:\AI\godot\Godot_v4.7-stable_win64\Godot_v4.7-stable_win64.exe`
+- **用途**：本地编译、测试和导出 Godot 项目
+
+### 编译命令（Windows 本地）
+```powershell
+# 导入项目
+& "D:\AI\godot\Godot_v4.7-stable_win64\Godot_v4.7-stable_win64.exe" --headless --import
+
+# 运行烟雾测试
+& "D:\AI\godot\Godot_v4.7-stable_win64\Godot_v4.7-stable_win64.exe" --headless --script res://tools/smoke_load_check.gd
+
+# 导出 Web 版本
+& "D:\AI\godot\Godot_v4.7-stable_win64\Godot_v4.7-stable_win64.exe" --headless --export-release "Web"
+```
