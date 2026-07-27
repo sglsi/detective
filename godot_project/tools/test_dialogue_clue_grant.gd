@@ -16,7 +16,7 @@ extends SceneTree
 var _ok := true
 var _failures: Array = []
 
-func _process(_delta: float) -> void:
+func _process(_delta: float) -> bool:
 	_run()
 	if _ok:
 		print("P1_RESULT: PASS")
@@ -25,6 +25,7 @@ func _process(_delta: float) -> void:
 		for f in _failures:
 			print("  - " + f)
 	quit()
+	return false
 
 func _fail(msg: String) -> void:
 	_ok = false

@@ -292,13 +292,13 @@ func run_all_tests() -> void:
 	
 	# 8.5 Boot 层 → 所有层
 	_test("启动层: Boot 分阶段初始化完整", func():
-		return (Boot.has_method("_phase_1_engine_check") and
-		        Boot.has_method("_phase_2_data_init") and
-		        Boot.has_method("_phase_3_event_binding") and
-		        Boot.has_method("_phase_4_network_init") and
-		        Boot.has_method("_phase_5_auth_check") and
-		        Boot.has_method("_phase_6_save_check") and
-		        Boot.has_method("_phase_7_ui_launch"))
+		return (ResourceLoader.exists("_phase_1_engine_check") and
+		        ResourceLoader.exists("_phase_2_data_init") and
+		        ResourceLoader.exists("_phase_3_event_binding") and
+		        ResourceLoader.exists("_phase_4_network_init") and
+		        ResourceLoader.exists("_phase_5_auth_check") and
+		        ResourceLoader.exists("_phase_6_save_check") and
+		        ResourceLoader.exists("_phase_7_ui_launch"))
 	)
 	
 	# 8.6 离线降级验证

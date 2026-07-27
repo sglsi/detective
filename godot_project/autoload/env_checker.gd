@@ -20,7 +20,7 @@ func _check_version() -> void:
 		print("[EnvCheck] Godot 版本: %d.%d ✅" % [major, minor])
 
 func _check_renderer() -> void:
-	var renderer = OS.get_current_rendering_method()
+	var renderer = RenderingServer.get_rendering_method()
 	if renderer != "gl_compatibility":
 		push_warning("渲染器不是 Compatibility/GLES3！当前: %s" % renderer)
 	else:

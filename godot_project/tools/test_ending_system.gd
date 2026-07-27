@@ -7,6 +7,8 @@ func _init() -> void:
 	call_deferred("run_test")
 
 func run_test() -> void:
+	var StarRatingSystem = root.get_node_or_null("/root/StarRatingSystem")
+	var EndingSystem = root.get_node_or_null("/root/EndingSystem")
 	if not StarRatingSystem or not EndingSystem:
 		print("P1_RESULT: FAIL (autoload 未加载)"); quit(); return
 
@@ -48,7 +50,7 @@ func run_test() -> void:
 	EndingSystem.determine_ending("case_alpha")
 	if EndingSystem.get_ending_for_case("case_alpha") != EndingSystem.LEGENDARY:
 		ok = false; reason = "case_alpha 应记录传奇"
-	var info := EndingSystem.get_ending_info(EndingSystem.LEGENDARY)
+	var info = EndingSystem.get_ending_info(EndingSystem.LEGENDARY)
 	if info.get("name", "") != "传奇":
 		ok = false; reason = "info.name 应传奇"
 

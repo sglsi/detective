@@ -18,6 +18,7 @@ func _process(_delta: float) -> bool:
 func _run() -> void:
 	var ok := true
 	var msg := ""
+	var DifficultyManager = root.get_node_or_null("/root/DifficultyManager")
 	var dm = DifficultyManager
 
 	# ── 1. 动态概率调整（NORMAL）──

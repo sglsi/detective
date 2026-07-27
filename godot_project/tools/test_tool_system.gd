@@ -7,6 +7,7 @@ func _init() -> void:
 	call_deferred("run_test")
 
 func run_test() -> void:
+	var ToolSystem = root.get_node_or_null("/root/ToolSystem")
 	if not ToolSystem:
 		print("P1_RESULT: FAIL (autoload 未加载)"); quit(); return
 
@@ -35,17 +36,17 @@ func run_test() -> void:
 		ok = false; reason = "unlock_tool 后应解锁"
 
 	# 组合发现（seed 规则）
-	var res := ToolSystem.use_tool_on("magnifier", "blood")
+	var res = ToolSystem.use_tool_on("magnifier", "blood")
 	if res == "" or "血型" not in res:
 		ok = false; reason = "放大镜+血迹 应发现血型，实得 '%s'" % res
 
 	# 无对应组合返回空
-	var none := ToolSystem.use_tool_on("magnifier", "desk")
+	var none = ToolSystem.use_tool_on("magnifier", "desk")
 	if none != "":
 		ok = false; reason = "放大镜+desk 应无发现"
 
 	# 持久化状态
-	var st := ToolSystem.get_persistent_state()
+	var st = ToolSystem.get_persistent_state()
 	if not ("chemistry" in st["unlocked"]):
 		ok = false; reason = "持久化状态应含已解锁的 chemistry"
 
