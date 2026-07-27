@@ -83,6 +83,15 @@ else
   bad "p5_6_ui_test"; "$GODOT" --headless --script res://tools/p5_6_ui_test.gd 2>&1 | tail -15
 fi
 
+# ---------- 2.5 P1-4 补充单元测试（推理墙判定 / 三星评价 / 难度 / 案件）----------
+for t in test_reasoning_wall_verdict test_star_rating test_difficulty test_difficulty_enhanced test_evaluation_grade test_case_manager test_clue_source_unification test_dialogue_no_hang test_dialogue_clue_grant test_clue_tier_weight test_badge_system test_ending_system test_progress_system test_knowledge_base test_tool_system; do
+  if "$GODOT" --headless --script res://tools/$t.gd 2>&1 | grep -q "P1_RESULT: PASS"; then
+    ok "$t (P1-4 单测)"
+  else
+    bad "$t (P1-4 单测)"; "$GODOT" --headless --script res://tools/$t.gd 2>&1 | tail -15
+  fi
+done
+
 # ---------- 3. Python 套件 ----------
 # 注：test_core_mechanisms 原 7 项【历史基线】失败已修复（脆弱字符串匹配断言对齐真实实现：
 # 关系图判定 support≥3/≥1、四色含 alpha、max_* 类型注解、字典字面量收集存档字段、10 种 trigger 文档）。

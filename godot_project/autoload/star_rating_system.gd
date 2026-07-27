@@ -26,8 +26,13 @@ var observation_score: int = 0
 var reasoning_score: int = 0
 var insight_score: int = 0
 var badges: Array = []
+var competitive_score: int = 0   # 竞技合成星级（原始总分 × 难度倍率），由 evaluate_badges 计算
 
-var max_observation: int = 45   # 总线索数
+# P3.1：观察力改为「线索分级加权」评分。满分基数 = scene4-8 可得线索权重合计（误导项0分）。
+# 明细（关键10/重要5/一般2）：sc4=12 + sc5=24 + sc6=15 + sc7=34 + sc8=30 = 115。
+# 注：scene1-3 目前不向 StarRatingSystem 计分（score_awarded 信号未接线，为既有缺口，
+#     不在本次 P3.1 范围；见《P3.1_线索分级加权评分_改动设计》§遗留）。
+var max_observation: int = 115  # scene4-8 可得线索权重合计（加权满分基数）
 var max_reasoning: int = 14     # 总推理链数
 var max_insight: int = 7        # 隐藏线索数
 
@@ -45,16 +50,20 @@ func add_insight(value: int = 1) -> void:
 
 func get_stars(dimension: RatingDimension) -> int:
 	var ratio: float
-	var max_val: int
+	# 3星（满星）门槛；观察之星在简单模式下降门槛（GDD §2.6.2：关键线索≥80%即可）
+	var top_threshold: float = 0.9
 	match dimension:
 		RatingDimension.OBSERVATION:
 			ratio = float(observation_score) / float(max_observation)
+			if DifficultyManager != null \
+			   and DifficultyManager.current_difficulty == DifficultyManager.Difficulty.EASY:
+				top_threshold = 0.8
 		RatingDimension.REASONING:
 			ratio = float(reasoning_score) / float(max_reasoning)
 		RatingDimension.INSIGHT:
 			ratio = float(insight_score) / float(max_insight)
 	
-	if ratio >= 0.9: return 3
+	if ratio >= top_threshold: return 3
 	elif ratio >= 0.6: return 2
 	elif ratio >= 0.3: return 1
 	return 0
@@ -63,6 +72,34 @@ func get_total_stars() -> int:
 	return get_stars(RatingDimension.OBSERVATION) + \
 		   get_stars(RatingDimension.REASONING) + \
 		   get_stars(RatingDimension.INSIGHT)
+
+## 竞技分数倍率合成星级（设计 GDD §3 / 08 §3.9）：原始总分 × 难度倍率，四舍五入。
+## 徽章仍基于原始星级（纯技巧），此值供结局/排行等竞技场景消费。
+func get_adjusted_total_stars() -> int:
+	var mult: float = 1.0
+	if DifficultyManager != null:
+		mult = DifficultyManager.get_score_multiplier()
+	return roundi(float(get_total_stars()) * mult)
+
+## 综合等级（GDD §2.6.5）：基于三星总数（满分 9，与难度无关）
+##   名侦探  : 7-9 星 且 至少 2 个维度满 3 星（解锁《四签名》预告 + 开发者评论）
+##   合格侦探: 4-6 星（福尔摩斯认可，正常结案）
+##   继续推理: ≤3 星（推理仍有疏漏，可回溯重做，不强制结束）
+func get_evaluation_grade() -> Dictionary:
+	var total := get_total_stars()
+	var three_star_dims := 0
+	for dim in [RatingDimension.OBSERVATION, RatingDimension.REASONING, RatingDimension.INSIGHT]:
+		if get_stars(dim) == 3:
+			three_star_dims += 1
+	if total >= 7 and three_star_dims >= 2:
+		return {"grade": "master_detective", "name": "名侦探",
+		        "description": "贝克街名侦探称号，解锁《四签名》预告 + 开发者评论。",
+		        "can_replay": true}
+	if total >= 4:
+		return {"grade": "qualified_detective", "name": "合格侦探",
+		        "description": "福尔摩斯认可，案件正常结案。", "can_replay": true}
+	return {"grade": "keep_investigating", "name": "继续推理",
+	        "description": "推理仍有疏漏，可回溯重新推理，不强制结束。", "can_replay": true}
 
 func evaluate_badges() -> void:
 	badges.clear()
@@ -78,3 +115,5 @@ func evaluate_badges() -> void:
 	   and not DifficultyManager.should_show_hint():
 		badges.append(Badge.NO_HINT_MASTER)
 	badges.append(Badge.FIRST_CASE_CLEAR)
+	# 竞技分数倍率合成（设计 GDD §3）：难度调整合成星级，供结局/排行消费
+	competitive_score = get_adjusted_total_stars()

@@ -39,7 +39,7 @@ func _restore_saved_state() -> bool:
 			var h = _find_hotspot(cid)
 			if not h.is_empty():
 				var src := "watson" if cid in ["wrist","arm","face","pose"] else "messenger"
-				ClueSystem.collect_clue(cid, h.get("name", cid), h.get("desc",""), h.get("correct", true), src)
+				ClueSystem.collect_clue_from_catalog(cid, h.get("name", cid), h.get("desc",""), h.get("correct", true), src)
 	_phase = saved_phase
 	_create_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
 
@@ -154,7 +154,7 @@ func _on_messenger_all_recorded(clues: Array) -> void:
 ## 观察器记录一条线索时，同步登记到通用线索系统（ClueSystem 为单一真相源）
 func _on_collect_clue(clue_id: String, clue_data: Dictionary, source: String) -> void:
 	if ClueSystem:
-		ClueSystem.collect_clue(
+		ClueSystem.collect_clue_from_catalog(
 			clue_id,
 			clue_data.get("name", clue_id),
 			clue_data.get("desc", ""),
@@ -213,12 +213,15 @@ func _do_examine() -> void:
 
 func _do_think() -> void:
 	if _phase == Phase.OBSERVE_WATSON and _watson_obs.get_recorded() > 0:
-		_wall_auto = true; _show_watson_reasoning_wall()
+		_show_watson_reasoning_wall()
 	elif _phase == Phase.MESSENGER_OBSERVE and _messenger_obs.get_recorded() > 0:
-		_wall_auto = true; _show_messenger_reasoning_wall()
-	elif _phase == Phase.WATSON_REASONING or _phase == Phase.MESSENGER_REASONING:
-		_create_notification("已在推理墙中")
-	else: _create_notification("请先收集至少 1 条线索再使用推理墙")
+		_show_messenger_reasoning_wall()
+	elif _phase == Phase.WATSON_REASONING:
+		_show_watson_reasoning_wall()   # 已关墙后可重新打开
+	elif _phase == Phase.MESSENGER_REASONING:
+		_show_messenger_reasoning_wall()
+	else:
+		_create_notification("请先收集至少 1 条线索再使用推理墙")
 
 func _do_save() -> void:
 	if GameManager.is_guest:
@@ -292,85 +295,14 @@ func _on_line(_id: String) -> void:
 	_ui.set_dialogue(sp if sp!="system" else "提示", n.text)
 	_ui.set_dialogue_color(col)
 
-# ===== 推理墙辅助（场景一为自建双墙） =====
-func _mk_wall(title: String, hypo: String) -> Control:
-	var w = Control.new(); w.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	w.mouse_filter = Control.MOUSE_FILTER_STOP; add_child(w)
-	var bg = ColorRect.new(); bg.color = Color(0.06,0.05,0.08,0.98); bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	w.add_child(bg)
-	var tt = Label.new(); tt.text = "推理墙 - "+title; tt.add_theme_font_size_override("font_size", 26)
-	tt.add_theme_color_override("font_color", Color(0.92,0.82,0.45)); tt.position = Vector2(40,12); tt.size = Vector2(1800,34)
-	w.add_child(tt)
-	var st = Label.new(); st.text = "点击线索卡片添加到推理板 | 再次点击移除"; st.add_theme_font_size_override("font_size", 13)
-	st.add_theme_color_override("font_color", Color(0.45,0.40,0.30)); st.position = Vector2(40,48); st.size = Vector2(1800,20)
-	w.add_child(st)
-	var bd = Control.new(); bd.name = "wall_board"; bd.position = Vector2(40,135); bd.size = Vector2(1840,470)
-	w.add_child(bd)
-	var bbg = ColorRect.new(); bbg.color = Color(0.08,0.06,0.04,0.92); bbg.position = Vector2(0,0); bbg.size = Vector2(1840,470)
-	bd.add_child(bbg)
-	var hl = Label.new(); hl.text = hypo; hl.add_theme_font_size_override("font_size", 20)
-	hl.add_theme_color_override("font_color", Color(0.88,0.82,0.72)); hl.position = Vector2(15,8); hl.size = Vector2(1800,28)
-	bd.add_child(hl)
-	return w
-
+# ===== 推理墙辅助（场景一为双组：watson / messenger，均走基类统一 _open_wall） =====
 func _show_watson_reasoning_wall() -> void:
 	_watson_obs.hide(); _phase = Phase.WATSON_REASONING
-	var bids: Array = []
-	var w = _mk_wall("华生: 阿富汗军医?", "假设: 华生刚从阿富汗回来")
-	var flow = HFlowContainer.new()
-	flow.position = Vector2(15, 45); flow.size = Vector2(1810, 410)
-	flow.add_theme_constant_override("h_separation", 10); flow.add_theme_constant_override("v_separation", 6)
-	var bd = w.find_child("wall_board", false, false)
-	if bd: bd.add_child(flow)
-	var clues: Array = ClueSystem.get_collected("watson") if ClueSystem else _watson_obs.get_recorded_clues()
-	for i in clues.size():
-		var cl = clues[i]; var cid = cl["id"]; var cn = cl.get("name", cid)
-		var card = Button.new(); card.text = cn; card.position = Vector2(40 + i*195, 75); card.size = Vector2(180, 50)
-		card.add_theme_font_size_override("font_size", 13); card.add_theme_color_override("font_color", Color(0.95,0.90,0.78))
-		card.add_theme_stylebox_override("normal", _sb(Color(0.18,0.14,0.09,0.95), Color(0.55,0.42,0.20), 2, 6))
-		card.pressed.connect(_on_watson_card_pressed.bind(cid, cn, bids, flow))
-		w.add_child(card)
-	var vb = Button.new(); vb.text = "提交验证"; vb.position = Vector2(620,620); vb.size = Vector2(300,55)
-	vb.add_theme_font_size_override("font_size", 24); vb.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
-	vb.add_theme_stylebox_override("normal", _sb(Color(0.50,0.10,0.10,0.95), Color(0.85,0.65,0.25), 2, 4))
-	vb.pressed.connect(_on_watson_verify.bind(w, clues, bids))
-	w.add_child(vb)
-	var cb = Button.new(); cb.text = "跳过"; cb.position = Vector2(970,620); cb.size = Vector2(180,55)
-	cb.add_theme_font_size_override("font_size", 20)
-	cb.pressed.connect(_on_watson_skip.bind(w))
-	w.add_child(cb)
-
-func _on_watson_card_pressed(cid: String, cn: String, bids: Array, flow: HFlowContainer) -> void:
-	if bids.has(cid): return
-	bids.append(cid)
-	var bc = Button.new(); bc.text = cn; bc.custom_minimum_size = Vector2(165, 44)
-	bc.add_theme_font_size_override("font_size", 13); bc.add_theme_color_override("font_color", Color(0.95,0.90,0.78))
-	bc.add_theme_stylebox_override("normal", _sb(Color(0.08,0.30,0.08,0.95), Color(0.2,0.8,0.2), 2, 6))
-	bc.pressed.connect(func(): bids.erase(cid); bc.queue_free())
-	flow.add_child(bc)
-
-func _on_watson_verify(w: Control, clues: Array, bids: Array) -> void:
-	var corr = 0; var wrong = 0
-	for cl in clues:
-		if bids.has(cl["id"]):
-			if cl.get("correct", true): corr += 1
-			else: wrong += 1
-	var vv := 1
-	if wrong > 0: vv = 0
-	elif corr >= 3: vv = 3
-	elif corr >= 1: vv = 2
-	_show_verdict(w, vv, wrong, corr)
-	await get_tree().create_timer(2.0).timeout; w.queue_free()
-	_watson_v = vv; _start_messenger_phase()
-
-func _on_watson_skip(w: Control) -> void:
-	w.queue_free()
-	if _wall_auto:
-		_watson_v = 3; _start_messenger_phase()
-	else:
-		_phase = Phase.OBSERVE_WATSON; _watson_obs.show()
-		_ui.set_dialogue("提示", "已返回观察模式。收集全部 4 条线索后自动进入推理墙。")
-		_ui.set_dialogue_color(Color(0.5,0.9,0.5))
+	var hypo := {"title": "华生刚从阿富汗回来？", "description": "从华生身上的痕迹（手腕肤色分界、左臂旧伤、面色憔悴、军人站姿）推断其身份与经历。"}
+	_open_wall("watson", hypo, func(v: int):
+		_watson_v = v
+		_start_messenger_phase()
+	)
 
 func _start_messenger_phase() -> void:
 	_phase = Phase.MESSENGER_OBSERVE; _messenger_obs.show()
@@ -392,62 +324,11 @@ func _on_messenger_dialogue_end() -> void:
 
 func _show_messenger_reasoning_wall() -> void:
 	_messenger_obs.hide(); _phase = Phase.MESSENGER_REASONING
-	var bids: Array = []
-	var w = _mk_wall("信使: 海军陆战队军士?", "假设: 信使是海军陆战队军士")
-	var flow = HFlowContainer.new()
-	flow.position = Vector2(15, 45); flow.size = Vector2(1810, 430)
-	flow.add_theme_constant_override("h_separation", 10); flow.add_theme_constant_override("v_separation", 6)
-	var bd = w.find_child("wall_board", false, false)
-	if bd: bd.add_child(flow)
-	var clues: Array = ClueSystem.get_collected("messenger") if ClueSystem else _messenger_obs.get_recorded_clues()
-	for i in clues.size():
-		var cl = clues[i]; var cid = cl["id"]; var cn = cl.get("name", cid)
-		var card = Button.new(); card.text = cn; card.position = Vector2(40 + i*200, 75); card.size = Vector2(185, 48)
-		card.add_theme_font_size_override("font_size", 13); card.add_theme_color_override("font_color", Color(0.95,0.90,0.78))
-		card.add_theme_stylebox_override("normal", _sb(Color(0.18,0.14,0.09,0.95), Color(0.55,0.42,0.20), 2, 6))
-		card.pressed.connect(_on_watson_card_pressed.bind(cid, cn, bids, flow))
-		w.add_child(card)
-	var vb = Button.new(); vb.text = "提交验证"; vb.position = Vector2(620,620); vb.size = Vector2(300,55)
-	vb.add_theme_font_size_override("font_size", 24); vb.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
-	vb.add_theme_stylebox_override("normal", _sb(Color(0.50,0.10,0.10,0.95), Color(0.85,0.65,0.25), 2, 4))
-	vb.pressed.connect(_on_messenger_verify.bind(w, clues, bids))
-	w.add_child(vb)
-	var cb = Button.new(); cb.text = "跳过"; cb.position = Vector2(970,620); cb.size = Vector2(180,55)
-	cb.add_theme_font_size_override("font_size", 20)
-	cb.pressed.connect(_on_messenger_skip.bind(w))
-	w.add_child(cb)
-
-func _on_messenger_verify(w: Control, clues: Array, bids: Array) -> void:
-	var corr = 0; var wrong = 0
-	for cl in clues:
-		if bids.has(cl["id"]):
-			if cl.get("correct", true): corr += 1
-			else: wrong += 1
-	var vv := 1
-	if wrong > 0: vv = 0
-	elif corr >= 3: vv = 3
-	elif corr >= 1: vv = 2
-	_show_verdict(w, vv, wrong, corr)
-	await get_tree().create_timer(2.0).timeout; w.queue_free()
-	_messenger_v = vv; _calc_stars(); _show_rating()
-
-func _on_messenger_skip(w: Control) -> void:
-	w.queue_free()
-	if _wall_auto:
-		_messenger_v = 3; _calc_stars(); _show_rating()
-	else:
-		_phase = Phase.MESSENGER_OBSERVE; _messenger_obs.show()
-		_ui.set_dialogue("提示", "已返回观察模式。收集全部 6 处线索后自动进入推理墙。")
-		_ui.set_dialogue_color(Color(0.5,0.9,0.5))
-
-func _show_verdict(w: Control, v: int, wrong: int, corr: int) -> void:
-	var vt := "INSUFFICIENT"; var vc := Color(0.95,0.8,0.2)
-	if wrong > 0: vt = "CONTRADICTORY - 含干扰 "+str(wrong)+" 条"; vc = Color(0.95,0.3,0.3)
-	elif v >= 3: vt = "VERIFIED - 正确 "+str(corr)+"/4"; vc = Color(0.3,0.95,0.3)
-	elif v >= 2: vt = "SUPPORTED - "+str(corr)+"/4"; vc = Color(0.4,0.8,0.4)
-	var rl = Label.new(); rl.text = vt; rl.add_theme_font_size_override("font_size", 36)
-	rl.add_theme_color_override("font_color", vc); rl.position = Vector2(0,690); rl.size = Vector2(1920,60)
-	rl.horizontal_alignment = 1; w.add_child(rl)
+	var hypo := {"title": "信使是海军陆战队军士？", "description": "从信使身上（锚形文身、络腮胡、挺拔站姿、发号施令神态、袖口磨损）推断其军旅身份；注意分辨干扰项（袖口磨损、轻微跛行）。"}
+	_open_wall("messenger", hypo, func(v: int):
+		_messenger_v = v
+		_calc_stars(); _show_rating()
+	)
 
 func _calc_stars() -> void:
 	_stars_observe = 2 if _watson_obs.get_recorded() >= 4 and _messenger_obs.get_recorded() >= 6 else 1
@@ -510,6 +391,9 @@ func _save_and_continue() -> void:
 	get_tree().change_scene_to_file("res://scenes/scene2.tscn")
 
 # ===== 笔记、证物（场景一自建弹窗内容，沿用基类 _popup 统一样式） =====
+func _clue_sources() -> Array:
+	return ["watson", "messenger"]
+
 func _open_notebook() -> void:
 	var items: Array = []
 	for c in _watson_obs.get_recorded_clues():
@@ -517,12 +401,6 @@ func _open_notebook() -> void:
 	for c in _messenger_obs.get_recorded_clues():
 		items.append({"name":c["name"], "desc":c["desc"], "src":"信使"})
 	_popup("侦探笔记", items)
-
-func _open_evidence() -> void:
-	var items := []
-	for e in [{"t":"热带日晒痕迹","d":"长期烈日暴露留下肤色分界线"},{"t":"军医特征","d":"军人纪律+医生观察力双重特征"},{"t":"阿富汗战争","d":"第二次英阿战争(1878-1880)"},{"t":"锚形文身","d":"水手/海军经典标志"},{"t":"军人仪态","d":"长期训练形成挺直脊柱等特征"}]:
-		items.append({"name":"✦ "+e["t"], "desc":e["d"]})
-	_popup("证据库", items)
 
 func _show_inventory_panel() -> void:
 	var items: Array = []

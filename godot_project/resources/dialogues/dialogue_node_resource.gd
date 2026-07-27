@@ -20,10 +20,16 @@ extends Resource
 ## sfx: 触发音效后自动推进
 ## milestone: 触发里程碑动画后推进
 ## knowledge: 触发知识库打开后推进
-## clue: 触发线索发现后推进
+## clue: 触发线索发现后推进（P3：同时授予 grants_clues 线索，走 ClueSystem 单一真相源）
 ## guide: 触发引导提示后推进
 ## note: 触发笔记更新后推进
 @export var trigger: String = "auto"
+
+## 进入本节点（trigger=="clue"）时自动授予的线索列表（P3-0 新增）。
+## 每个元素为 Dictionary：{"id":String, "name":String, "desc":String, "correct":bool}。
+## name/desc 留空时由 ClueSystem 目录（.tres）回退到内联文本，与「单一机制」原则一致；
+## 与观察器路径共用 ClueSystem.collect_clue_from_catalog 同一漏斗，幂等。
+@export var grants_clues: Array = []
 
 # ============ 下一个节点 ============
 
@@ -46,6 +52,10 @@ extends Resource
 ## 概率触发（仅 NORMAL 模式）
 ## 0.0 ~ 1.0，1.0=必定触发
 @export var probability: float = 1.0
+
+## 是否为「纯提示」节点（困难模式将被隐藏，设计 08 §3.5 filter_choices）
+## 仅用于 choice 分支中的引导/提示选项；正式推理分支切勿标记，否则困难模式会丢失该路径。
+@export var is_hint_only: bool = false
 
 # ============ 六步闭环标记 ============
 
