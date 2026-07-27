@@ -172,7 +172,7 @@ def test_6_event_buses(s):
     s.check("SystemEventBus: 信号数≥14", se.count("signal ") >= 14)
     s.check("SceneController连接SceneEventBus", "SceneEventBus.connect" in read("scripts/scene/scene_controller.gd"))
     s.check("DialogueManager连接DialogueEventBus", "DialogueEventBus.connect" in read("scripts/dialogue/dialogue_manager.gd"))
-    s.check("Boot连接全部总线(7个)", read("autoload/boot.gd").count("EventBus") >= 7)
+    s.check("Boot连接全部总线(7个)", read("tools/boot.gd").count("EventBus") >= 7)
 
 
 def test_7_network(s):
@@ -230,7 +230,7 @@ def test_8_auth_save(s):
 
 def test_9_boot(s):
     """启动七层架构"""
-    bt = read("autoload/boot.gd")
+    bt = read("tools/boot.gd")
     
     s.check("BootPhase 枚举(8值)", "ENGINE_CHECK" in bt and "COMPLETE" in bt)
     s.check("Phase 1: 引擎检查", "func _phase_1_engine_check" in bt)
