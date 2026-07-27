@@ -128,15 +128,77 @@ func restore_clue_states(states: Dictionary) -> void:
 var collected_clues: Array = []
 
 ## 登记一条已收集线索（按 id 去重；已存在则更新字段）
-func collect_clue(id: String, name: String, desc: String, correct: bool, source: String = "") -> void:
+## weight：线索分级权重（关键10/重要5/一般2/其他0，误导0）。tier 为其中文展示标签，
+## 由 weight+correct 派生，仅供 UI/笔记展示，不参与计算。默认 0 兼容旧调用方（存/读档测试）。
+func collect_clue(id: String, name: String, desc: String, correct: bool, source: String = "", weight: int = 0) -> void:
+	var tier := tier_label(weight, correct)
 	for c in collected_clues:
 		if c.get("id", "") == id:
 			c["name"] = name
 			c["desc"] = desc
 			c["correct"] = correct
 			c["source"] = source
+			c["weight"] = weight
+			c["tier"] = tier
+			# 线索发现即重置停滞计数（设计 08 §3.5：停滞由「未发现线索的连续交互」驱动）
+			if DifficultyManager != null:
+				DifficultyManager.reset_stall_counter()
 			return
-	collected_clues.append({"id": id, "name": name, "desc": desc, "correct": correct, "source": source})
+	collected_clues.append({"id": id, "name": name, "desc": desc, "correct": correct, "source": source, "weight": weight, "tier": tier})
+	if DifficultyManager != null:
+		DifficultyManager.reset_stall_counter()
+
+## 统一线索登记（数据源单一化）：优先采用 .tres 目录（clue_catalog）中该线索的
+## 权威 name / description；目录缺失或字段为空时回退到场景内联文本，
+## 从而消除「场景内联 desc」与「.tres ClueData.desc」两处重复维护、易漂移的问题。
+## 注意：correct 始终取自场景内联——它是游戏性判定标志（驱动推理墙 CONTRADICTORY），
+## 不在 ClueData 15 字段模型中，故不覆盖，避免误改判定结果。
+func collect_clue_from_catalog(id: String, name: String, desc: String, correct: bool, source: String = "", inline_weight: int = -1) -> void:
+	var def = get_clue_definition(id)
+	var w := weight_of(id, correct, inline_weight)
+	if def != null:
+		var cn: String = def.name if def.name != "" else name
+		var cd: String = def.description if def.description != "" else desc
+		collect_clue(id, cn, cd, correct, source, w)
+	else:
+		collect_clue(id, name, desc, correct, source, w)
+
+# ============ 线索分级权重（P3.1：把设计的「线索等级」在运行时落地）============
+# 设计依据：00_核心设计思路.md §2.2 权重表（关键10/重要5/一般2/其他0/误导0-不扣分）。
+# .tres 目录里的 importance 字段已按此口径写入（实测取值 10/5/4/3/2），故权重直取 importance；
+# scene4-8 无 .tres，权重由场景内联表 "w" 字段提供（经 inline_weight 传入）。
+
+## 计算一条线索的权重：
+## - 误导项（correct==false）恒为 0（不计分、不扣分，符合设计）；
+## - 有目录定义 → 取 importance（作者权威值）；
+## - 无目录（内联线索）→ 用 inline_weight，缺省回退 2（一般）。
+func weight_of(id: String, correct: bool, inline_weight: int = -1) -> int:
+	if not correct:
+		return 0
+	var def = get_clue_definition(id)
+	if def != null:
+		return int(def.importance)
+	return inline_weight if inline_weight >= 0 else 2
+
+## 权重 → 等级中文标签（仅展示用，不参与计算）
+func tier_label(weight: int, correct: bool) -> String:
+	if not correct:
+		return "误导"
+	if weight >= 10:
+		return "关键"
+	if weight >= 4:
+		return "重要"
+	if weight >= 2:
+		return "一般"
+	return "其他"
+
+## 已收集线索的权重合计（可按 source 过滤）——观察力加权评分的数据源
+func total_weight(source: String = "") -> int:
+	var sum := 0
+	for c in collected_clues:
+		if source == "" or c.get("source", "") == source:
+			sum += int(c.get("weight", 0))
+	return sum
 
 ## 是否已收集（可按 source 过滤）
 func has_collected(id: String, source: String = "") -> bool:

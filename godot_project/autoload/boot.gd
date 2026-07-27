@@ -255,7 +255,7 @@ func _phase_7_ui_launch() -> void:
 	await get_tree().create_timer(0.3).timeout
 	
 	# 7.3 切换到主菜单场景（使用新版维多利亚风格主界面）
-	var err = get_tree().change_scene_to_file("res://scenes/main_menu_v2.tscn")
+	var err = get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 	if err != OK:
 		boot_errors.append("无法加载主菜单场景: %d" % err)
 	else:

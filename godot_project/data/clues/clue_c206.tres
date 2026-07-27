@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "c206"
+name = "步伐距离差异"
+description = "测量后：第一人每步约2英尺（61cm），身高应超6英尺（183cm）；第二人步幅较小约5英尺半（168cm）。两人体格差异明显——高的一个与醉汉描述吻合。"
+category = "痕迹"
+location = "劳瑞斯顿花园街3号"
+discovery_condition = "放大查看 + 卷尺测量"
+observation = "步幅差异明显。"
+analysis = "一人6英尺+，一人5英尺半，与醉汉吻合。"
+related_clues = []
+related_npcs = ["NPC_DRE", "NPC_HOP"]
+timeline_position = 1.6
+importance = 10
+is_key_evidence = true
+state = 0
+discovery_time = ""

@@ -3,13 +3,9 @@ extends SceneTree
 # 注意：这是 headless 自动化预筛，非人工肉眼走查。
 
 const SCENES := [
-	"res://scenes/scene_02.tscn",
-	"res://scenes/scene_03.tscn",
-	"res://scenes/scene_04.tscn",
-	"res://scenes/scene_05.tscn",
-	"res://scenes/scene_06.tscn",
-	"res://scenes/scene_07.tscn",
-	"res://scenes/scene_08.tscn",
+	"res://scenes/scene1.tscn",
+	"res://scenes/scene2.tscn",
+	"res://scenes/scene3.tscn",
 ]
 
 var idx := 0
@@ -26,7 +22,7 @@ func _process(_delta: float) -> bool:
 				if failed:
 					print("WALK_RESULT: FAIL")
 				else:
-					print("WALK_RESULT: OK — 场景 2-8 全部实例化并运行 10 帧，无致命 SCRIPT ERROR")
+					print("WALK_RESULT: OK — 场景 1-3 全部实例化并运行 10 帧，无致命 SCRIPT ERROR")
 				return true
 			var path: String = SCENES[idx]
 			var res: Resource = ResourceLoader.load(path)

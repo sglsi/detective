@@ -31,6 +31,11 @@ signal game_paused
 signal game_resumed
 signal game_over(reason: String)
 signal case_completed(case_id: String, stars: Dictionary)
+signal badges_updated(unlocked: Dictionary)
+signal ending_determined(case_id: String, tier: int, info: Dictionary)
+signal progress_updated(case_id: String, current: int, total: int, ratio: float)
+signal timeline_updated(case_id: String, entries: Array)
+signal knowledge_updated(entry_id: String, count: int)
 signal game_state_changed(new_state: int)
 signal difficulty_changed(new_difficulty: int)
 signal boot_complete
