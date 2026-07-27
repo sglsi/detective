@@ -30,8 +30,8 @@ func _run() -> void:
 	if g.get("grade", "") != "master_detective":
 		ok = false; msg = "满星应名侦探，实得 %s" % g.get("grade", "")
 
-	# 名侦探：7 星且 2 维满星（obs3+rea3+ins1）→ 仍名侦探
-	s.insight_score = 1
+	# 名侦探：7 星且 2 维满星（obs3+rea3+ins1星；insight 满分7，需≥0.3比值→insight_score=3 才得1星）
+	s.insight_score = 3
 	g = s.get_evaluation_grade()
 	if g.get("grade", "") != "master_detective":
 		ok = false; msg = "7星且2维满星应名侦探，实得 %s" % g.get("grade", "")

@@ -100,8 +100,8 @@ done
 # 现归零，任何失败即判定为回归并令 CI 失败。
 step "3/3 Python 套件 (核心机制 / 场景一)"
 cd "$ROOT"
-python3 tests/test_core_mechanisms.py >/tmp/ci_pycore.log 2>&1 && ok "test_core_mechanisms" || { bad "test_core_mechanisms"; tail -25 /tmp/ci_pycore.log; }
-python3 tests/test_scene1_full.py >/tmp/ci_pyscene.log 2>&1 && ok "test_scene1_full" || { bad "test_scene1_full"; tail -20 /tmp/ci_pyscene.log; }
+python3 tests/test_core_mechanisms.py >/tmp/ci_pycore.log 2>&1 && ok "test_core_mechanisms" || { bad "test_core_mechanisms"; head -60 /tmp/ci_pycore.log; }
+python3 tests/test_scene1_full.py >/tmp/ci_pyscene.log 2>&1 && ok "test_scene1_full" || { bad "test_scene1_full"; head -60 /tmp/ci_pyscene.log; }
 
 # ---------- 汇总 ----------
 echo ""

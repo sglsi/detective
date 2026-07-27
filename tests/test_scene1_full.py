@@ -96,7 +96,6 @@ def test_l1_static():
     # --- 文件完整性 ---
     files_to_check = [
         ("scenes/scene1.tscn", "场景一 场景文件"),
-        ("scenes/difficulty_select.tscn", "难度选择场景"),
         ("scenes/main_menu.tscn", "主菜单场景"),
         ("scripts/scene/detective_scene.gd", "GameScene 脚本"),
         ("scripts/scene/scene_controller.gd", "SceneController 脚本"),
@@ -131,6 +130,7 @@ def test_l1_static():
     gs = gd_files["game_scene.gd"]
     sc = gd_files["scene_controller.gd"]
     dm = gd_files["dialogue_manager.gd"]
+    suite.test("难度选择UI实现(extends Control)", lambda: assert_contains(gd_files["difficulty_select.gd"], "extends Control"))
     suite.test("GameScene 统一框架基类 DetectiveScene", lambda: assert_contains(gs, "class_name DetectiveScene"))
     suite.test("SceneController 定义 ExplorationStep 枚举", lambda: assert_contains(sc, "enum ExplorationStep"))
     suite.test("ExplorationStep 含 STEP_1_OBSERVE..STEP_6_VERIFY", lambda: [
@@ -185,7 +185,7 @@ def test_l1_static():
     
     # MainMenu 检查
     mm = gd_files["main_menu.gd"]
-    suite.test("MainMenu 集成难度选择", lambda: assert_contains(mm, "difficulty_select.tscn"))
+    suite.test("DifficultySelect 接入 DifficultyManager", lambda: assert_contains(ds, "DifficultyManager.set_difficulty"))
     
     return suite
 
