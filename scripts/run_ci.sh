@@ -14,7 +14,7 @@ bad()  { echo "  ❌ $1"; FAIL=$((FAIL+1)); }
 # ---------- 1. 后端 Node 套件 ----------
 step "1/3 后端 Node 套件 (api / tres / editor)"
 cd "$ROOT/backend"
-# 清理可能残留的后端进程，避免 SQLite 文件锁 / 端口占用导致 disk I/O error
+# 清理可能残留的后端进程，避免 SQLite 文件锁 / 端口占用导致 disk I/O erro
 pkill -f "src/server.js" 2>/dev/null || true
 rm -f data/local_dev.db data/local_dev.db-wal data/local_dev.db-shm
 STORAGE_MODE=local node src/db/migrate.js >/tmp/ci_migrate.log 2>&1 || { bad "migrate 失败"; cat /tmp/ci_migrate.log; }
@@ -33,64 +33,64 @@ kill $SRV 2>/dev/null; wait $SRV 2>/dev/null
 # ---------- 2. Godot headless 套件 ----------
 step "2/3 Godot headless 套件 (smoke / art / wall / p5)"
 cd "$ROOT/godot_project"
-"$GODOT" --headless --import >/tmp/ci_import.log 2>&1 || bad "godot import 警告(可忽略)"
-if "$GODOT" --headless --script res://tools/smoke_load_check.gd 2>&1 | grep -q "SMOKE_ALL_OK"; then
+timeout 60 "$GODOT" --headless --import >/tmp/ci_import.log 2>&1 || bad "godot import 警告(可忽略)"
+if timeout 60 "$GODOT" --headless --script res://tools/smoke_load_check.gd 2>&1 | grep -q "SMOKE_ALL_OK"; then
   ok "smoke_load_check (8 场景)"
 else
-  bad "smoke_load_check"; "$GODOT" --headless --script res://tools/smoke_load_check.gd 2>&1 | tail -15
+  bad "smoke_load_check"; timeout 60 "$GODOT" --headless --script res://tools/smoke_load_check.gd 2>&1 | tail -15
 fi
-if "$GODOT" --headless --script res://tools/p3_art_check.gd 2>&1 | grep -q "ART_CHECK_OK"; then
+if timeout 60 "$GODOT" --headless --script res://tools/p3_art_check.gd 2>&1 | grep -q "ART_CHECK_OK"; then
   ok "p3_art_check (头像/UI/9-slice/场景背景)"
 else
-  bad "p3_art_check"; "$GODOT" --headless --script res://tools/p3_art_check.gd 2>&1 | tail -15
+  bad "p3_art_check"; timeout 60 "$GODOT" --headless --script res://tools/p3_art_check.gd 2>&1 | tail -15
 fi
-if "$GODOT" --headless --script res://tools/p2_wall_script_check.gd 2>&1 | grep -q "推理墙校验通过"; then
+if timeout 60 "$GODOT" --headless --script res://tools/p2_wall_script_check.gd 2>&1 | grep -q "推理墙校验通过"; then
   ok "p2_wall_script_check (五态机/红线)"
 else
-  bad "p2_wall_script_check"; "$GODOT" --headless --script res://tools/p2_wall_script_check.gd 2>&1 | tail -15
+  bad "p2_wall_script_check"; timeout 60 "$GODOT" --headless --script res://tools/p2_wall_script_check.gd 2>&1 | tail -15
 fi
-if "$GODOT" --headless --script res://tools/p5_save_load_test.gd 2>&1 | grep -q "SAVE_LOAD_E2E_OK"; then
+if timeout 60 "$GODOT" --headless --script res://tools/p5_save_load_test.gd 2>&1 | grep -q "SAVE_LOAD_E2E_OK"; then
   ok "p5_save_load_test (存读档端到端)"
 else
-  bad "p5_save_load_test"; "$GODOT" --headless --script res://tools/p5_save_load_test.gd 2>&1 | tail -15
+  bad "p5_save_load_test"; timeout 60 "$GODOT" --headless --script res://tools/p5_save_load_test.gd 2>&1 | tail -15
 fi
-if "$GODOT" --headless --script res://tools/p5_clue_data_test.gd 2>&1 | grep -q "CLUE_DATA_OK"; then
+if timeout 60 "$GODOT" --headless --script res://tools/p5_clue_data_test.gd 2>&1 | grep -q "CLUE_DATA_OK"; then
   ok "p5_clue_data_test (线索/案件数据解析)"
 else
-  bad "p5_clue_data_test"; "$GODOT" --headless --script res://tools/p5_clue_data_test.gd 2>&1 | tail -15
+  bad "p5_clue_data_test"; timeout 60 "$GODOT" --headless --script res://tools/p5_clue_data_test.gd 2>&1 | tail -15
 fi
-if "$GODOT" --headless --script res://tools/p5_3_scene_art_test.gd 2>&1 | grep -q "SCENE_ART_OK"; then
+if timeout 60 "$GODOT" --headless --script res://tools/p5_3_scene_art_test.gd 2>&1 | grep -q "SCENE_ART_OK"; then
   ok "p5_3_scene_art_test (场景背景真实美术)"
 else
-  bad "p5_3_scene_art_test"; "$GODOT" --headless --script res://tools/p5_3_scene_art_test.gd 2>&1 | tail -15
+  bad "p5_3_scene_art_test"; timeout 60 "$GODOT" --headless --script res://tools/p5_3_scene_art_test.gd 2>&1 | tail -15
 fi
-if "$GODOT" --headless --script res://tools/p5_4_dialogue_patch_test.gd 2>&1 | grep -q "DIALOGUE_PATCH_OK"; then
+if timeout 60 "$GODOT" --headless --script res://tools/p5_4_dialogue_patch_test.gd 2>&1 | grep -q "DIALOGUE_PATCH_OK"; then
   ok "p5_4_dialogue_patch_test (场景3六步/验证 + 场景7华生)"
 else
-  bad "p5_4_dialogue_patch_test"; "$GODOT" --headless --script res://tools/p5_4_dialogue_patch_test.gd 2>&1 | tail -15
+  bad "p5_4_dialogue_patch_test"; timeout 60 "$GODOT" --headless --script res://tools/p5_4_dialogue_patch_test.gd 2>&1 | tail -15
 fi
-if "$GODOT" --headless --script res://tools/p5_5_clue_state_unit_test.gd 2>&1 | grep -q "CLUE_STATE_UNIT_OK"; then
+if timeout 60 "$GODOT" --headless --script res://tools/p5_5_clue_state_unit_test.gd 2>&1 | grep -q "CLUE_STATE_UNIT_OK"; then
   ok "p5_5_clue_state_unit_test (线索五态机单元测试)"
 else
-  bad "p5_5_clue_state_unit_test"; "$GODOT" --headless --script res://tools/p5_5_clue_state_unit_test.gd 2>&1 | tail -15
+  bad "p5_5_clue_state_unit_test"; timeout 60 "$GODOT" --headless --script res://tools/p5_5_clue_state_unit_test.gd 2>&1 | tail -15
 fi
-if "$GODOT" --headless --script res://tools/p5_6_audio_fade_test.gd 2>&1 | grep -q "P5_6_AUDIO_OK"; then
+if timeout 60 "$GODOT" --headless --script res://tools/p5_6_audio_fade_test.gd 2>&1 | grep -q "P5_6_AUDIO_OK"; then
   ok "p5_6_audio_fade_test (音频淡入淡出)"
 else
-  bad "p5_6_audio_fade_test"; "$GODOT" --headless --script res://tools/p5_6_audio_fade_test.gd 2>&1 | tail -15
+  bad "p5_6_audio_fade_test"; timeout 60 "$GODOT" --headless --script res://tools/p5_6_audio_fade_test.gd 2>&1 | tail -15
 fi
-if "$GODOT" --headless --script res://tools/p5_6_ui_test.gd 2>&1 | grep -q "P5_6_UI_OK"; then
+if timeout 60 "$GODOT" --headless --script res://tools/p5_6_ui_test.gd 2>&1 | grep -q "P5_6_UI_OK"; then
   ok "p5_6_ui_test (主菜单云端检查 + 设置面板)"
 else
-  bad "p5_6_ui_test"; "$GODOT" --headless --script res://tools/p5_6_ui_test.gd 2>&1 | tail -15
+  bad "p5_6_ui_test"; timeout 60 "$GODOT" --headless --script res://tools/p5_6_ui_test.gd 2>&1 | tail -15
 fi
 
 # ---------- 2.5 P1-4 补充单元测试（推理墙判定 / 三星评价 / 难度 / 案件）----------
 for t in test_reasoning_wall_verdict test_star_rating test_difficulty test_difficulty_enhanced test_evaluation_grade test_case_manager test_clue_source_unification test_dialogue_no_hang test_dialogue_clue_grant test_clue_tier_weight test_badge_system test_ending_system test_progress_system test_knowledge_base test_tool_system; do
-  if "$GODOT" --headless --script res://tools/$t.gd 2>&1 | grep -q "P1_RESULT: PASS"; then
+  if timeout 60 "$GODOT" --headless --script res://tools/$t.gd 2>&1 | grep -q "P1_RESULT: PASS"; then
     ok "$t (P1-4 单测)"
   else
-    bad "$t (P1-4 单测)"; "$GODOT" --headless --script res://tools/$t.gd 2>&1 | tail -15
+    bad "$t (P1-4 单测)"; timeout 60 "$GODOT" --headless --script res://tools/$t.gd 2>&1 | tail -15
   fi
 done
 

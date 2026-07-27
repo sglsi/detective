@@ -1,7 +1,7 @@
 extends SceneTree
 
 # P5-6 体验收尾 — 主菜单云端存档检查 + 设置面板实例化测试（--script 模式，同步）
-# - 主菜单 _parse_cloud_save_present 兼容 {saves}/{data.saves} 两种返回（纯解析，不触网）
+# - 主菜单 _has_cloud_save 解析 {error,data} 云端响应（纯解析，不触网）
 # - 设置面板 SettingsPanel 可实例化并构建真实控件（绑定 SettingsManager 真实键）
 # 注：main_menu.gd / settings_panel.gd 在 --script 下用裸名引用 autoload 全局（GameManager/SettingsManager 等），
 #     直接 `MainMenu.new()` 会在依赖期编译时因全局不可见而失败；故改用运行时 load() 取类再 new()。
@@ -34,11 +34,10 @@ func run_test() -> void:
 		failures.append("MainMenu 脚本加载失败")
 	else:
 		var mm = MainMenuScript.new()
-		check(mm._parse_cloud_save_present({"saves": [{"id": 1}]}) == true, "云端有存档(saves[])→true")
-		check(mm._parse_cloud_save_present({"data": {"saves": [{"id": 1}]}}) == true, "云端有存档(data.saves[])→true")
-		check(mm._parse_cloud_save_present({"saves": []}) == false, "云端空(saves:[])→false")
-		check(mm._parse_cloud_save_present({"error": true, "message": "网络不可用"}) == false, "离线错误响应→false")
-		check(mm._parse_cloud_save_present({}) == false, "空响应→false")
+		check(mm._has_cloud_save({"error": false, "data": {"id": 1}}) == true, "云端有存档(data 非空)→true")
+		check(mm._has_cloud_save({"error": false, "data": {}}) == false, "云端空(data 空)→false")
+		check(mm._has_cloud_save({"error": true, "message": "网络不可用"}) == false, "离线错误响应→false")
+		check(mm._has_cloud_save({}) == false, "空响应(error 默认 true)→false")
 		mm.free()
 
 	# ---- 设置面板实例化（运行时 load + new，SettingsManager 全局此时可用）----

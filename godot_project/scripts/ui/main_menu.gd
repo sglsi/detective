@@ -167,6 +167,10 @@ func _on_start_pressed() -> void:
 	else:
 		_show_auth(false)
 
+## 解析云端存档查询响应：是否已有存档（error 默认为 true，data 为空视为无存档）
+func _has_cloud_save(r: Dictionary) -> bool:
+	return not r.get("error", true) and not r.get("data", {}).is_empty()
+
 ## 注册用户查存档，游客跳过
 func _check_and_go() -> void:
 	var is_guest := GameManager.is_guest if GameManager else false
@@ -181,8 +185,7 @@ func _check_and_go() -> void:
 
 	if GameManager: GameManager.current_case_id = "case_blood_letter"
 	var r = await APIManager.get_latest_save("case_blood_letter")
-	var has = not r.get("error", true) and not r.get("data", {}).is_empty()
-	if has: _show_save_dialog()
+	if _has_cloud_save(r): _show_save_dialog()
 	else: _go_scene("res://scenes/scene1.tscn")
 
 func _show_save_dialog() -> void:
