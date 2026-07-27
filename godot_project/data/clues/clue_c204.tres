@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "c204"
+name = "马蹄印迹零乱"
+description = "蹄印分布杂乱无章，非直线排列而是多方向散开——马曾在无人驾驭状态下自由走动。说明驾者中途下车，无人看管马匹。"
+category = "痕迹"
+location = "劳瑞斯顿花园街3号"
+discovery_condition = "点击观察蹄印"
+observation = "蹄印零乱多向。"
+analysis = "马曾任意行动，无人驾驭。"
+related_clues = []
+related_npcs = ["NPC_HOP"]
+timeline_position = 1.4
+importance = 5
+is_key_evidence = false
+state = 0
+discovery_time = ""

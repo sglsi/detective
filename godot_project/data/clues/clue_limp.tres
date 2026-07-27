@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "limp"
+name = "轻微跛行"
+description = "信使走路有轻微跛行"
+category = "痕迹"
+location = "贝克街221B"
+discovery_condition = "点击观察信使步态"
+observation = "走路轻微跛行。"
+analysis = "干扰项：扭伤，非身份特征。"
+related_clues = []
+related_npcs = ["NPC_MES"]
+timeline_position = 1.0
+importance = 2
+is_key_evidence = false
+state = 0
+discovery_time = ""

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "arm"
+name = "华生左臂僵硬"
+description = "华生左臂动作僵硬，似有旧伤"
+category = "痕迹"
+location = "贝克街221B"
+discovery_condition = "点击观察华生左臂"
+observation = "左臂活动幅度受限，似有旧伤。"
+analysis = "受过伤，战场负伤可能。"
+related_clues = []
+related_npcs = ["NPC_WT"]
+timeline_position = 0.2
+importance = 5
+is_key_evidence = false
+state = 0
+discovery_time = ""
