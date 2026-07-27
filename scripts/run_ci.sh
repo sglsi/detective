@@ -14,9 +14,11 @@ bad()  { echo "  ❌ $1"; FAIL=$((FAIL+1)); }
 # ---------- 1. 后端 Node 套件 ----------
 step "1/3 后端 Node 套件 (api / tres / editor)"
 cd "$ROOT/backend"
+# 清理可能残留的后端进程，避免 SQLite 文件锁 / 端口占用导致 disk I/O error
+pkill -f "src/server.js" 2>/dev/null || true
 rm -f data/local_dev.db data/local_dev.db-wal data/local_dev.db-shm
-node src/db/migrate.js >/tmp/ci_migrate.log 2>&1 || { bad "migrate 失败"; cat /tmp/ci_migrate.log; }
-node src/server.js >/tmp/ci_backend.log 2>&1 &
+STORAGE_MODE=local node src/db/migrate.js >/tmp/ci_migrate.log 2>&1 || { bad "migrate 失败"; cat /tmp/ci_migrate.log; }
+STORAGE_MODE=local PORT=3000 node src/server.js >/tmp/ci_backend.log 2>&1 &
 SRV=$!
 for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:3000/api/health 2>/dev/null && break; sleep 1; done
 if curl -s -o /dev/null http://localhost:3000/api/health 2>/dev/null; then
