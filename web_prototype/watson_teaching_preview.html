@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>华生教学图片预览 - 场景一</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            font-family: 'Georgia', serif;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            color: #d4af37;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .subtitle {
+            text-align: center;
+            font-size: 1.1em;
+            color: #aaa;
+            margin-bottom: 40px;
+        }
+        
+        .resource-card {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(212, 175, 55, 0.3);
+            border-radius: 12px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            margin-bottom: 30px;
+        }
+        
+        .resource-card h2 {
+            color: #d4af37;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+            padding-bottom: 15px;
+        }
+        
+        .image-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background: repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 50% / 20px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .image-container img {
+            max-width: 100%;
+            height: auto;
+            max-height: 800px;
+            border-radius: 8px;
+        }
+        
+        .resource-info {
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .resource-info h3 {
+            color: #d4af37;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .info-item {
+            padding: 10px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+        }
+        
+        .info-item strong {
+            color: #d4af37;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .observation-points {
+            background: rgba(212, 175, 55, 0.1);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .observation-points h3 {
+            color: #d4af37;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .point-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            border-left: 3px solid #d4af37;
+        }
+        
+        .point-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            background: #d4af37;
+            color: #1a1a2e;
+            border-radius: 50%;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .point-content {
+            flex: 1;
+        }
+        
+        .point-content strong {
+            color: #d4af37;
+            display: block;
+            margin-bottom: 3px;
+        }
+        
+        .point-content span {
+            color: #aaa;
+            font-size: 0.9em;
+        }
+        
+        .note {
+            background: rgba(212, 175, 55, 0.1);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        
+        .note h3 {
+            color: #d4af37;
+            margin-bottom: 10px;
+        }
+        
+        .note p {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 华生教学图片预览</h1>
+        <p class="subtitle">场景一：六步闭环教学专用资源</p>
+        
+        <div class="resource-card">
+            <h2>watson_teaching.png</h2>
+            
+            <div class="image-container">
+                <img src="watson_teaching.png" alt="华生教学图片">
+            </div>
+            
+            <div class="resource-info">
+                <h3>资源信息</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <strong>文件路径</strong>
+                        godot_project/assets/characters/watson/watson_teaching.png
+                    </div>
+                    <div class="info-item">
+                        <strong>尺寸</strong>
+                        2048 × 2048 像素
+                    </div>
+                    <div class="info-item">
+                        <strong>格式</strong>
+                        RGBA（透明底 PNG）
+                    </div>
+                    <div class="info-item">
+                        <strong>文件大小</strong>
+                        2.6 MB
+                    </div>
+                </div>
+            </div>
+            
+            <div class="observation-points">
+                <h3>🎯 可观察部位（4个推理碎片）</h3>
+                
+                <div class="point-item">
+                    <div class="point-number">1</div>
+                    <div class="point-content">
+                        <strong>手腕</strong>
+                        <span>观察特征：肤色分界 → 推理结论：热带归来</span>
+                    </div>
+                </div>
+                
+                <div class="point-item">
+                    <div class="point-number">2</div>
+                    <div class="point-content">
+                        <strong>左臂</strong>
+                        <span>观察特征：僵硬姿态 → 推理结论：战场负伤</span>
+                    </div>
+                </div>
+                
+                <div class="point-item">
+                    <div class="point-number">3</div>
+                    <div class="point-content">
+                        <strong>面色</strong>
+                        <span>观察特征：黝黑+憔悴 → 推理结论：久病初愈</span>
+                    </div>
+                </div>
+                
+                <div class="point-item">
+                    <div class="point-number">4</div>
+                    <div class="point-content">
+                        <strong>站姿</strong>
+                        <span>观察特征：军人气质 → 推理结论：阿富汗军医</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="note">
+            <h3>📝 教学流程说明</h3>
+            <p><strong>Step 1 观察发现：</strong>玩家点击华生图片部位，该部位高亮放大</p>
+            <p><strong>Step 2 工具操作：</strong>使用放大镜观察细节，镜片扫过关键区域时微光点提示</p>
+            <p><strong>Step 3 数据记录：</strong>侦探笔记首次弹出，滑杆/轮盘交互，确认后条目自动归档</p>
+            <p><strong>Step 4 知识检索：</strong>知识库入口按钮光晕提示，搜索结果条目逐行显示</p>
+            <p><strong>Step 5 假设形成：</strong>推理墙首次弹出，玩家拖拽线索卡构建假设</p>
+            <p><strong>Step 6 验证修正：</strong>四级验证结果环形进度条动画，VERIFIED 时金色光效</p>
+        </div>
+    </div>
+</body>
+</html>
