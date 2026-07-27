@@ -55,6 +55,17 @@ function signJwt(payload) {
 // ============================================================
 const { DatabaseSync } = require('node:sqlite');
 
+// 将 Git Bash/WSL 下可能出现的 POSIX 风格路径 (/c/... 或 /mnt/c/...)
+// 归一化为原生 Windows 路径，避免 node:sqlite 底层 C 库 open 时报 SQLITE_IOERR(disk I/O error)。
+function toNativePath(p) {
+  if (process.platform !== 'win32') return p;
+  let m = p.match(/^\/([a-zA-Z])\/(.*)$/);
+  if (m) return m[1].toUpperCase() + ':\\' + m[2].replace(/\//g, '\\');
+  m = p.match(/^\/mnt\/([a-zA-Z])\/(.*)$/);
+  if (m) return m[1].toUpperCase() + ':\\' + m[2].replace(/\//g, '\\');
+  return p;
+}
+
 class SQLiteStorage extends StorageAdapter {
   constructor() {
     super();
@@ -62,9 +73,13 @@ class SQLiteStorage extends StorageAdapter {
     const path = require('path');
     const dataDir = path.join(__dirname, '..', '..', 'data');
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    const dbPath = process.env.SQLITE_PATH || path.join(dataDir, 'local_dev.db');
+    const dbPath = toNativePath(process.env.SQLITE_PATH || path.join(dataDir, 'local_dev.db'));
     this.db = new DatabaseSync(dbPath);
-    this.db.exec('PRAGMA journal_mode = WAL;');
+    try {
+      this.db.exec('PRAGMA journal_mode = WAL;');
+    } catch (e) {
+      console.warn('  ⚠️ WAL 模式不可用，回退默认 journal：', e.message);
+    }
     this._initSchema();
   }
 
