@@ -62,7 +62,7 @@ check_file "scripts/ui/side_panel.gd"
 check_file "scripts/ui/notification.gd"
 
 # Autoload 核心系统
-check_file "autoload/boot.gd"
+check_file "tools/boot.gd"
 check_file "autoload/game_manager.gd"
 check_file "autoload/difficulty_manager.gd"
 check_file "autoload/clue_system.gd"
@@ -85,7 +85,7 @@ check_file "autoload/ui_event_bus.gd"
 check_file "autoload/map_event_bus.gd"
 
 # 自检框架
-check_file "autoload/framework_test.gd"
+check_file "tools/framework_test.gd"
 
 # 配置
 check_file "config/api_config.gd"

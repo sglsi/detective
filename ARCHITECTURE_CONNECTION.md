@@ -96,8 +96,8 @@
 | GDScript 脚本语言 (ADR-#3) | 全部 `.gd` 文件 | ✅ 已实现 |
 | 1920×1080 分辨率 | `project.godot` § display/window/size | ✅ 已实现 |
 | 60 FPS 物理帧率 | `project.godot` § physics/common | ✅ 已实现 |
-| 环境检查 | `autoload/boot.gd` § _phase_1_engine_check | ✅ 已实现 |
-| 环境验证 | `autoload/env_checker.gd` | ✅ 已实现 |
+| 环境检查 | `tools/boot.gd` § _phase_1_engine_check | ✅ 已实现 |
+| 环境验证 | `tools/env_checker.gd` | ✅ 已实现 |
 
 ### 第 2 层: 数据层
 
@@ -476,7 +476,7 @@ boot.gd → _ready()
 
 | 代码文件 | 对应设计文档 | 对应章节 |
 |---------|------------|---------|
-| `autoload/boot.gd` | `E-25_技术架构.md` | §4.4, §5.1 |
+| `tools/boot.gd` | `E-25_技术架构.md` | §4.4, §5.1 |
 | `autoload/game_manager.gd` | `08_系统框架设计.md` | §3.x, §5.2.1 |
 | `autoload/api_manager.gd` | `E-25_技术架构.md` | §6.4, communication_protocol.md |
 | `autoload/auth_manager.gd` | `E-25_技术架构.md` | §6.1, communication_protocol.md §3 |
