@@ -99,11 +99,11 @@ func _ready() -> void:
 		else: get_tree().quit())
 	_root.add_child(bq)
 
-	# 游客（不存档，直进游戏）
+	# 游客（不存档，先选难度再进游戏）
 	var bg2 = mkbtn("以游客身份继续", Vector2(660, 810), Vector2(600, 45), false, true)
 	bg2.pressed.connect(func():
 		if GameManager: GameManager.is_guest = true
-		_go_scene("res://scenes/scene1.tscn"))
+		_go_scene("res://scenes/difficulty_select.tscn"))
 	_root.add_child(bg2)
 
 	# 版权
@@ -175,18 +175,18 @@ func _has_cloud_save(r: Dictionary) -> bool:
 func _check_and_go() -> void:
 	var is_guest := GameManager.is_guest if GameManager else false
 	if is_guest:
-		_go_scene("res://scenes/scene1.tscn")
+		_go_scene("res://scenes/difficulty_select.tscn")
 		return
 
-	# 注册用户：查云端存档
+	# 注册用户：查云端存档（无后端则先选难度再进游戏）
 	if not SaveManager or not APIManager or not APIManager.is_online:
-		_go_scene("res://scenes/scene1.tscn")
+		_go_scene("res://scenes/difficulty_select.tscn")
 		return
 
 	if GameManager: GameManager.current_case_id = "case_blood_letter"
 	var r = await APIManager.get_latest_save("case_blood_letter")
 	if _has_cloud_save(r): _show_save_dialog()
-	else: _go_scene("res://scenes/scene1.tscn")
+	else: _go_scene("res://scenes/difficulty_select.tscn")
 
 func _show_save_dialog() -> void:
 	var p = Control.new()
@@ -242,7 +242,7 @@ func _show_save_dialog() -> void:
 		p.queue_free()
 		if SaveSystem: SaveSystem.new_game()
 		if GameManager: GameManager.current_scene_id = "scene1"
-		_go_scene("res://scenes/scene1.tscn"))
+		_go_scene("res://scenes/difficulty_select.tscn"))
 	f.add_child(bn)
 
 	var bx = mkbtn("返    回", Vector2(40, 324), Vector2(520, 38), false, true)

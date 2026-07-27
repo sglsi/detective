@@ -95,6 +95,7 @@ def test_2_difficulty(s):
     s.check("难度选择UI实现(extends Control)", "extends Control" in read("scripts/ui/difficulty_select.gd"))
     s.check("难度选择脚本存在", file_exists("scripts/ui/difficulty_select.gd"))
     s.check("难度选择接入DifficultyManager", "DifficultyManager.set_difficulty" in read("scripts/ui/difficulty_select.gd"))
+    s.check("难度选择场景存在", file_exists("scenes/difficulty_select.tscn"))
 
 
 def test_3_verification(s):
