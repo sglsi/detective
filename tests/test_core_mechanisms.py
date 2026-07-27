@@ -85,16 +85,16 @@ def test_2_difficulty(s):
     s.check("Difficulty 枚举(3值)", "EASY" in dm and "NORMAL" in dm and "HARD" in dm)
     s.check("三模式特性开关", "auto_fill_notebook" in dm and "hardcore_manual" in dm)
     s.check("should_show_hint() 三档逻辑", "func should_show_hint" in dm)
-    s.check("EASY: hint_probability=1.0", "hint_probability = 1.0" in dm)
-    s.check("NORMAL: hint_probability=0.5", "hint_probability = 0.5" in dm)
-    s.check("HARD: hint_probability=0.0", "hint_probability = 0.0" in dm)
+    s.check("EASY: 提示概率=1.0", "hint_current_probability = 1.0" in dm)
+    s.check("NORMAL: 提示概率基础=0.7(HINT_BASE_PROBABILITY)", "HINT_BASE_PROBABILITY: float = 0.7" in dm)
+    s.check("HARD: 提示概率=0.0", "hint_current_probability = 0.0" in dm)
     s.check("EASY热点: modulate α=0.45", "Color(1, 1, 0, 0.45)" in sc)
     s.check("NORMAL热点: modulate α=0.12", "Color(1, 1, 1, 0.12)" in sc)
     s.check("HARD热点: modulate α=0.0", "Color(1, 1, 1, 0.0)" in sc)
     s.check("EASY闪烁动画", "tween_property" in sc and "set_loops" in sc)
-    s.check("难度选择UI存在", file_exists("scenes/difficulty_select.tscn"))
+    s.check("难度选择UI实现(extends Control)", "extends Control" in read("scripts/ui/difficulty_select.gd"))
     s.check("难度选择脚本存在", file_exists("scripts/ui/difficulty_select.gd"))
-    s.check("MainMenu集成难度选择", "difficulty_select.tscn" in read("scripts/ui/main_menu.gd"))
+    s.check("难度选择接入DifficultyManager", "DifficultyManager.set_difficulty" in read("scripts/ui/difficulty_select.gd"))
 
 
 def test_3_verification(s):
