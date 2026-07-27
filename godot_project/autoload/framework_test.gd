@@ -49,6 +49,14 @@ func run_all_tests() -> void:
 	_test_autoload("UIManager", UIManager)
 	_test_autoload("SettingsManager", SettingsManager)
 	_test_autoload("AudioManager", AudioManager)
+	_test_autoload("GameStateMachine", GameStateMachine)
+	_test_autoload("SaveSystem", SaveSystem)
+	_test_autoload("BadgeSystem", BadgeSystem)
+	_test_autoload("EndingSystem", EndingSystem)
+	_test_autoload("ProgressSystem", ProgressSystem)
+	_test_autoload("TimelineSystem", TimelineSystem)
+	_test_autoload("KnowledgeBaseSystem", KnowledgeBaseSystem)
+	_test_autoload("ToolSystem", ToolSystem)
 	
 	# ═══════════════════════════════════════
 	# 2. 逻辑层 — 状态机与核心系统
@@ -323,20 +331,34 @@ func run_all_tests() -> void:
 	)
 	
 	_test("游戏场景存在", func():
-		return ResourceLoader.exists("res://scenes/game_scene.tscn")
+		return ResourceLoader.exists("res://scenes/scene1.tscn")
 	)
+
+	# P3 场景链完整性（scene2–scene8 全部存在，流转链 scene1→…→scene8→main_menu 接通）
+	for sid in ["scene2", "scene3", "scene4", "scene5", "scene6", "scene7", "scene8"]:
+		var path = "res://scenes/%s.tscn" % sid
+		_test("场景存在: " + sid, func():
+			return ResourceLoader.exists(path)
+		)
 	
 	_test("API配置脚本存在", func():
 		return ResourceLoader.exists("res://config/api_config.gd")
 	)
 	
 	var required_scripts = [
-		"res://scripts/scene/scene_controller.gd",
-		"res://scripts/scene/game_scene.gd",
+		"res://scripts/scene/detective_scene.gd",
+		"res://scripts/scene/scene1.gd",
+		"res://scripts/scene/scene2.gd",
+		"res://scripts/scene/scene3.gd",
+		"res://scripts/scene/scene4.gd",
+		"res://scripts/scene/scene5.gd",
+		"res://scripts/scene/scene6.gd",
+		"res://scripts/scene/scene7.gd",
+		"res://scripts/scene/scene8.gd",
 		"res://scripts/dialogue/dialogue_manager.gd",
 		"res://scripts/dialogue/dialogue_renderer.gd",
 		"res://scripts/tool/tool_bar.gd",
-		"res://scripts/clue/reasoning_wall_ui.gd",
+		"res://scripts/clue/reasoning_wall.gd",
 		"res://scripts/ui/main_menu.gd",
 		"res://scripts/ui/screen_manager.gd",
 		"res://scripts/ui/top_bar.gd",

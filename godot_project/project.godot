@@ -44,6 +44,12 @@ DialogueProgress="*res://autoload/dialogue_progress.gd"
 AudioManager="*res://autoload/audio_manager.gd"
 GameStateMachine="*res://autoload/game_state_machine.gd"
 SaveSystem="*res://autoload/save_system.gd"
+BadgeSystem="*res://autoload/badge_system.gd"
+EndingSystem="*res://autoload/ending_system.gd"
+ProgressSystem="*res://autoload/progress_system.gd"
+TimelineSystem="*res://autoload/timeline_system.gd"
+KnowledgeBaseSystem="*res://autoload/knowledge_base_system.gd"
+ToolSystem="*res://autoload/tool_system.gd"
 
 [display]
 

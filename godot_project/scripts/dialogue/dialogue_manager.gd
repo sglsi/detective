@@ -140,25 +140,49 @@ func advance_to(node_id: String) -> void:
 func advance() -> void:
 	if not dialogue_active or not current_node:
 		return
+	if DifficultyManager != null:
+		DifficultyManager.record_interaction()
 	
 	# 如果是 choice 类型，等待玩家选择
 	if current_node.trigger == "choice":
+		# 若所有选项都被条件（难度/验证结果）过滤掉，呈现空选项面板会让对话卡死；
+		# 改为主动推进到首个原始 next 节点（由其 should_show/end 逻辑收口）。
+		var raw := current_node.next_nodes
+		var any_shown := false
+		for nid in raw:
+			if nid == "end":
+				any_shown = true
+				break
+			var nn = dialogue_resource.find_node(nid)
+			if nn and nn.should_show(current_difficulty, current_verify_result):
+				any_shown = true
+				break
+		if not any_shown:
+			if raw.is_empty():
+				_end_dialogue()
+			else:
+				_go_to_node(raw[0])
+			return
 		_present_choices(current_node)
 		return
-	
+
 	# 获取可用下一个节点
 	var next_list = current_node.get_available_next(current_difficulty, current_verify_result)
-	
+
 	if next_list.is_empty():
 		_end_dialogue()
 		return
-	
+
 	# 取第一个可用节点
 	var next_id = next_list[0]
 	if next_id == "end":
 		_end_dialogue()
 		return
-	
+	# 防自环：next 指向自身会形成自动推进死循环（卡死），直接结束对话
+	if next_id == current_node.node_id:
+		_end_dialogue()
+		return
+
 	_go_to_node(next_id)
 
 ## 玩家选择选项
@@ -166,6 +190,8 @@ func select_choice(choice_id: String) -> void:
 	if choice_id == "end":
 		_end_dialogue()
 		return
+	if DifficultyManager != null:
+		DifficultyManager.record_interaction()
 	_go_to_node(choice_id)
 
 # ============ 内部方法 ============
@@ -174,7 +200,7 @@ func select_choice(choice_id: String) -> void:
 ## 注意：原函数含 `await`，使其成为协程，但全部调用点（advance_to/advance/start_dialogue/
 ## select_choice 及场景脚本）均未 await，导致 Godot 4.7 编译失败。改为同步执行 +
 ## 一次性计时器延迟推进，既修复编译错误，又保留原 0.15s 自动推进节奏，且无需改动任何调用方。
-func _go_to_node(node_id: String) -> bool:
+func _go_to_node(node_id: String, visited: Array = []) -> bool:
 	var node = dialogue_resource.find_node(node_id)
 	if not node:
 		push_error("[DialogueManager] 节点不存在: %s" % node_id)
@@ -186,10 +212,14 @@ func _go_to_node(node_id: String) -> bool:
 
 	# 检查是否应显示
 	if not node.should_show(current_difficulty, current_verify_result):
-		# 跳过此节点，尝试下一个
+		# 跳过此节点，尝试下一个；用 visited 防止「不可见节点成环」导致无限递归（卡死/栈溢出）
 		var next_list = node.get_available_next(current_difficulty, current_verify_result)
 		if not next_list.is_empty() and next_list[0] != node_id:
-			return _go_to_node(next_list[0])
+			if node_id in visited:
+				_end_dialogue()
+				return false
+			visited.append(node_id)
+			return _go_to_node(next_list[0], visited)
 		_end_dialogue()
 		return false
 
@@ -218,6 +248,18 @@ func _go_to_node(node_id: String) -> bool:
 		"sfx":
 			sfx_triggered.emit(node.stage_direction)
 		"clue":
+			# P3-0：对话节点授予线索 —— 与观察器路径共用 ClueSystem.collect_clue_from_catalog
+			# 单一漏斗（单一机制 / 单一真相源），幂等；source 用对话资源 scene_name 与场景
+			# clue_source() 对齐，确保推理墙按 source 正确归类。grants_clues 元素为
+			# {"id","name","desc","correct"} 字典，catalog 缺失时回退内联文本。
+			if ClueSystem and node.grants_clues.size() > 0:
+				for c in node.grants_clues:
+					if c is Dictionary:
+						# P3.1：内联线索无 .tres，权重由 grants 的 "w" 字段提供（缺省 -1→回退一般2）
+						ClueSystem.collect_clue_from_catalog(
+							c.get("id", ""), c.get("name", ""), c.get("desc", ""),
+							c.get("correct", true), dialogue_resource.scene_name,
+							int(c.get("w", -1)))
 			ClueEventBus.emit_signal("clue_discovered", node_id)
 
 	# 发射信号
@@ -243,30 +285,40 @@ func _schedule_auto_advance(node: DialogueNodeResource) -> void:
 	, Object.CONNECT_ONE_SHOT)
 
 func _present_choices(node: DialogueNodeResource) -> void:
-	var choices: Array = []
 	var next_list = node.get_available_next(current_difficulty, current_verify_result)
-	
+	# 收集真实可显示分支节点（剔除 end 与不可见节点），交给 DifficultyManager 统一过滤
+	var real_nodes: Array = []
+	var id_map: Array = []
 	for next_id in next_list:
 		if next_id == "end":
-			choices.append({
-				"id": "end",
-				"text": "（结束对话）",
-			})
 			continue
-		
 		var next_node = dialogue_resource.find_node(next_id)
 		if next_node and next_node.should_show(current_difficulty, current_verify_result):
-			choices.append({
-				"id": next_id,
-				"text": next_node.text,
-				"speaker": next_node.speaker,
-			})
-	
+			real_nodes.append(next_node)
+			id_map.append(next_id)
+	# 困难模式：隐藏纯提示选项（is_hint_only），设计 08 §3.5 filter_choices
+	if DifficultyManager != null:
+		real_nodes = DifficultyManager.filter_choices(real_nodes)
+	var choices: Array = []
+	for i in real_nodes.size():
+		var nn = real_nodes[i]
+		choices.append({"id": id_map[i], "text": nn.text, "speaker": nn.speaker})
+	if next_list.has("end"):
+		choices.append({"id": "end", "text": "（结束对话）"})
+	# 安全护栏：若所有分支均为提示选项且被 HARD 隐藏（且无 end）→ 退回首个原始 next，避免选项面板空置卡死
+	if real_nodes.is_empty() and next_list.size() > 0 and not next_list.has("end"):
+		var fb_id = next_list[0]
+		var fb = dialogue_resource.find_node(fb_id)
+		if fb:
+			choices.insert(0, {"id": fb_id, "text": fb.text, "speaker": fb.speaker})
 	choice_presented.emit(choices)
 
 func _end_dialogue() -> void:
 	dialogue_active = false
 	current_node = null
+	# 进度检查点：动态调整普通模式提示概率（设计 08 §3.5 on_progress_check）
+	if DifficultyManager != null:
+		DifficultyManager.on_progress_check()
 	
 	# 发放评分
 	if dialogue_resource:

@@ -5,8 +5,8 @@ extends SceneTree
 #
 # 被测对象：ClueSystem 的线索五态机（clue_system.gd 中 enum ClueState）
 #   UNDISCOVERED=0, DISCOVERED=1, RECORDED=2, ANALYZED=3, LINKED=4
-# （注：reasoning_wall_ui.gd 原有一套同名 ClueState {COLLECTED,VERIFIED,EXPIRED,UNDISCOVERED}，
-#   已在 P5-5b 统一为 WallClueState 消除同名遮蔽；两套本就是不同维度的状态机，保留各自独立。本测试只针对 clue_system.gd 的五态机。）
+# （注：原 reasoning_wall_ui.gd 已于架构统一时删除；全项目仅保留 scripts/clue/reasoning_wall.gd
+#   一套推理墙机制（场景一/二/三共用）。其 WallClueState 概念已并入该机制。本测试只针对 clue_system.gd 的五态机。）
 #
 # 覆盖断言（共 12 项）：
 #   T1 discover → DISCOVERED 且 get_discovered_count 自 0 增至 1

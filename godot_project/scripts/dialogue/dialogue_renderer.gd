@@ -231,6 +231,9 @@ func _on_dialogue_ended() -> void:
 	choices_container.hide()
 	if step_indicator: step_indicator.hide()
 	DialogueEventBus.emit_signal("dialogue_finished")
+	# 修复：对话结束后必须隐藏渲染器本身，否则对话框 Control 一直 visible 停留在屏幕上、
+	# 且 dialogue_active=false 使输入被拦截，表现为「对话卡住、点哪都没反应」。
+	hide()
 
 func _on_choices_presented(choices: Array) -> void:
 	continue_hint.hide()

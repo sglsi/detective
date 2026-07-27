@@ -86,6 +86,12 @@ func _build_save_data() -> void:
 		"unlocked_locations": _get_unlocked_locations(),
 		"completed_milestones": _get_completed_milestones(),
 		"settings_snapshot": _get_settings_snapshot(),
+		"badges": BadgeSystem.get_unlocked_badges() if BadgeSystem else {},
+		"endings": EndingSystem.get_all_endings() if EndingSystem else {},
+		"progress": ProgressSystem.get_all_progress() if ProgressSystem else {},
+		"timeline": TimelineSystem.get_all_entries() if TimelineSystem else {},
+		"kb_notes": KnowledgeBaseSystem.get_notes() if KnowledgeBaseSystem else [],
+		"tools": ToolSystem.get_persistent_state() if ToolSystem else {},
 		"metadata": {
 			"version": "0.1.0",
 			"platform": OS.get_name(),
@@ -229,6 +235,18 @@ func _restore_from_dict(data: Dictionary) -> void:
 	if data.has("collected_clues") and ClueSystem:
 		ClueSystem.restore_collected_clues(data["collected_clues"])
 		print("[SaveManager] collected_clues 已恢复: ", ClueSystem.count_collected())
+	if data.has("badges") and BadgeSystem:
+		BadgeSystem.restore_badges(data["badges"])
+	if data.has("endings") and EndingSystem:
+		EndingSystem.restore_endings(data["endings"])
+	if data.has("progress") and ProgressSystem:
+		ProgressSystem.restore_progress(data["progress"])
+	if data.has("timeline") and TimelineSystem:
+		TimelineSystem.restore_timeline(data["timeline"])
+	if data.has("kb_notes") and KnowledgeBaseSystem:
+		KnowledgeBaseSystem.restore_notes(data["kb_notes"])
+	if data.has("tools") and ToolSystem:
+		ToolSystem.restore_state(data["tools"])
 
 # ============ 存档查询 ============
 
