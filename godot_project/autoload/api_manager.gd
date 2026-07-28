@@ -74,7 +74,7 @@ func _check_connectivity(retry: int = 1) -> void:
 			PackedStringArray(["Accept: application/json"]),
 			""
 		)
-		_set_online_status(res.get("code", 0) == 200, null)
+		_set_online_status(res.get("status", 0) == 200, null)
 		return
 
 	## 尝试连接后端 health 端点（桌面/编辑器端，已用 127.0.0.1 规避 IPv6 解析失败）
