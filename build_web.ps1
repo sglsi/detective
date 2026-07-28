@@ -36,7 +36,7 @@ if ($Restart) {
     # 停止服务
     Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*serve_web*" } | Stop-Process -Force
     Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*server.js*" } | Stop-Process -Force
-    
+    }
     Start-Sleep -Seconds 2
     
     # 启动后端

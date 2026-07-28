@@ -50,6 +50,7 @@ ProgressSystem="*res://autoload/progress_system.gd"
 TimelineSystem="*res://autoload/timeline_system.gd"
 KnowledgeBaseSystem="*res://autoload/knowledge_base_system.gd"
 ToolSystem="*res://autoload/tool_system.gd"
+PackManager="*res://autoload/pack_manager.gd"
 
 [display]
 
