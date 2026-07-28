@@ -13,7 +13,7 @@ import urllib.request
 import urllib.error
 
 PORT = 8080
-BACKEND = "http://127.0.0.1:3001"
+BACKEND = "http://127.0.0.1:3000"
 
 
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
