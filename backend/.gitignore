@@ -3,6 +3,17 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 
+# 本地开发/CI 存储产物（STORAGE_MODE=local 时由 SQLiteStorage 自动生成）
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# 环境配置（含可能的密钥/本地路径，绝不提交）
+.env
+
+# 仓库外持久库产生的备份与隔离文件（由 storage.js 生成）
+sherlock-detective/
+
 # 依赖与日志
 node_modules/
 *.log

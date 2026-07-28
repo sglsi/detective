@@ -9,6 +9,7 @@
 
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const os = require('os');
 
 // ============================================================
 // 抽象基类
@@ -71,9 +72,15 @@ class SQLiteStorage extends StorageAdapter {
     super();
     const fs = require('fs');
     const path = require('path');
-    const dataDir = path.join(__dirname, '..', '..', 'data');
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    const dbPath = toNativePath(process.env.SQLITE_PATH || path.join(dataDir, 'local_dev.db'));
+    // 1) 解析数据库路径（SQLITE_PATH 优先；否则落到仓库外的持久位置，避免被 .gitignore 的
+    //    data/ 在克隆/合并/重装时丢失；本地与 Docker 各自稳定，账号不再被空库覆盖）
+    const dbPath = SQLiteStorage._resolveDbPath();
+    // 2) 旧仓库内 data/local_dev.db 自动迁到持久位置（保留早期账号）
+    SQLiteStorage._migrateLegacyDb(dbPath);
+    // 3) 启动前自动备份（防误删 / 未来破坏性迁移）
+    SQLiteStorage._backupBeforeOpen(dbPath);
+    // 4) 完整性校验：损坏即隔离并从备份恢复，绝不静默用坏库
+    SQLiteStorage._ensureHealthy(dbPath);
     this.db = new DatabaseSync(dbPath);
     try {
       this.db.exec('PRAGMA journal_mode = WAL;');
@@ -81,7 +88,84 @@ class SQLiteStorage extends StorageAdapter {
       console.warn('  ⚠️ WAL 模式不可用，回退默认 journal：', e.message);
     }
     this._initSchema();
+    console.log('  [storage] SQLite 数据库路径:', dbPath);
   }
+
+  // 解析数据库绝对路径：SQLITE_PATH 环境变量优先（Docker 卷场景），否则仓库外持久位置
+  static _resolveDbPath() {
+    if (process.env.SQLITE_PATH) {
+      return toNativePath(process.env.SQLITE_PATH);
+    }
+    const base = process.env.APPDATA || os.homedir();
+    const dir = path.join(base, 'sherlock-detective');
+    return toNativePath(path.join(dir, 'local_dev.db'));
+  }
+
+  // 把旧默认位置（<backend>/data/local_dev.db，仓库内且被 gitignore）迁到持久位置
+  static _migrateLegacyDb(dbPath) {
+    const fs = require('fs');
+    const path = require('path');
+    const legacy = toNativePath(path.join(__dirname, '..', '..', 'data', 'local_dev.db'));
+    if (!fs.existsSync(legacy) || fs.existsSync(dbPath)) return;
+    const dir = path.dirname(dbPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    // 先把 WAL 落盘到主库，避免只拷主库丢未提交数据
+    try {
+      const tmp = new DatabaseSync(legacy);
+      tmp.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+      tmp.close();
+    } catch (e) { /* 忽略，继续拷贝 */ }
+    fs.copyFileSync(legacy, dbPath);
+    console.log('  [storage] 已从旧位置迁移数据库（保留已有账号）：', legacy, '→', dbPath);
+  }
+
+  // 启动前对现有库做时间戳备份，仅保留最近 5 份
+  static _backupBeforeOpen(dbPath) {
+    const fs = require('fs');
+    const path = require('path');
+    if (!fs.existsSync(dbPath)) return;
+    if (!fs.statSync(dbPath).size) return;
+    const backupDir = path.join(path.dirname(dbPath), 'backups');
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    fs.copyFileSync(dbPath, path.join(backupDir, 'local_dev.db.bak.' + ts));
+    const files = fs.readdirSync(backupDir)
+      .filter(f => f.startsWith('local_dev.db.bak.'))
+      .map(f => path.join(backupDir, f))
+      .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    for (const f of files.slice(5)) fs.unlinkSync(f);
+    console.log('  [storage] 已生成启动前备份（保留最近 5 份）');
+  }
+
+  // 完整性校验：库存在且非空时检查；损坏则隔离文件并从最新备份恢复，仍失败则重建空库
+  static _ensureHealthy(dbPath) {
+    const fs = require('fs');
+    const path = require('path');
+    if (!fs.existsSync(dbPath) || !fs.statSync(dbPath).size) return;
+    let healthy = false;
+    try {
+      const tmp = new DatabaseSync(dbPath);
+      const res = tmp.prepare('PRAGMA integrity_check').get();
+      healthy = !!res && res['integrity_check'] === 'ok';
+      tmp.close();
+    } catch (e) { healthy = false; }
+    if (healthy) return;
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const corrupt = dbPath + '.corrupt.' + ts;
+    if (fs.existsSync(dbPath)) fs.renameSync(dbPath, corrupt);
+    const backupDir = path.join(path.dirname(dbPath), 'backups');
+    let restored = false;
+    if (fs.existsSync(backupDir)) {
+      const files = fs.readdirSync(backupDir)
+        .filter(f => f.startsWith('local_dev.db.bak.'))
+        .map(f => path.join(backupDir, f))
+        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+      if (files.length) { fs.copyFileSync(files[0], dbPath); restored = true; }
+    }
+    console.warn('  ⚠️ 数据库完整性校验失败，已隔离损坏文件:', corrupt,
+      restored ? '（已从最新备份恢复）' : '（将重建空库，请检查备份目录）');
+  }
+
 
   _initSchema() {
     this.db.exec(`
