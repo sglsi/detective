@@ -1,0 +1,40 @@
+# 维多利亚伦敦探案 — 后端部署（持久卷方案）
+#
+# 设计要点：
+#   1. 继续用本地 SQLite（不切 Supabase，不引入第二套存储机制）。
+#   2. 用 Docker 命名卷 backend_data 挂载到容器 /data，
+#      并通过 SQLITE_PATH 把数据库指向 /data/local_dev.db。
+#   3. 命名卷跨「容器重启 / 重新 build / 重新部署」均保留，
+#      账号与存档不再随容器重建而丢失。
+#
+# 用法：
+#   cd detective
+#   docker compose up -d --build        # 首次构建并启动
+#   docker compose down                 # 停止（卷默认保留，勿加 -v）
+#   docker compose up -d --build        # 改代码后重新构建，数据仍在
+#
+# 前端连接地址：http://<部署机IP>:3000/api
+# （容器内 PORT 默认 3000；如需改端口，同步改 ports 映射与 PORT 环境变量）
+
+services:
+  backend:
+    build: ./backend
+    container_name: sherlock-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      # ★ 关键：把数据库指向持久卷挂载点，文件不再随容器重建而丢失
+      SQLITE_PATH: /data/local_dev.db
+      # 日后若要切 Supabase：填真实凭据即可，storage 工厂 auto 模式会自动切换
+      # SUPABASE_URL: ""
+      # SUPABASE_SERVICE_KEY: ""
+    volumes:
+      # 命名卷：持久化存储账号与存档
+      - backend_data:/data
+
+volumes:
+  backend_data:
+    driver: local
