@@ -246,8 +246,9 @@ NO other objects, isolated, game asset
 ## 本地开发环境
 
 ### Godot 引擎
-- **版本**：Godot 4.7 stable
+- **版本**：Godot 4.7.1 stable
 - **路径（Windows）**：`D:\AI\godot\Godot_v4.7-stable_win64\Godot_v4.7-stable_win64.exe`
+- **导出模板路径（Windows）**：`C:\Users\sglsi\AppData\Roaming\Godot\export_templates\4.7.stable`
 - **用途**：本地编译、测试和导出 Godot 项目
 
 ### 编译命令（Windows 本地）
