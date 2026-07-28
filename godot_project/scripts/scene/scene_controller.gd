@@ -270,9 +270,9 @@ func _setup_scene_view(scene_id: String = "sc_01_lab") -> void:
 	label.text = SCENE_TITLE.get(scene_id, "场景")
 	scene_view_container.add_child(label)
 	
-	# 教程场景：华生立绘（用现有立绘资源替代灰色占位块）
+	# 教程场景：华生立绘（真·华生站姿立绘；旧版误用 sherlock 表情图）
 	if scene_id == "sc_01_lab":
-		var watson_tex_path = "res://assets/portraits/sherlock_凝思.png"
+		var watson_tex_path = "res://assets/characters/watson/watson_standing.jpg"
 		var watson = TextureRect.new()
 		watson.name = "WatsonSilhouette"
 		if ResourceLoader.exists(watson_tex_path):
@@ -334,8 +334,8 @@ func activate_phase2() -> void:
 	if watson:
 		watson.hide()
 	
-	# 信使立绘（用现有立绘资源替代灰色占位块）
-	var messenger_tex_path = "res://assets/portraits/sherlock_神秘.png"
+	# 信使立绘（真·信使立绘；旧版误用 sherlock 表情图）
+	var messenger_tex_path = "res://assets/characters/messenger/messenger_portrait.png"
 	var messenger = TextureRect.new()
 	messenger.name = "MessengerSilhouette"
 	if ResourceLoader.exists(messenger_tex_path):
