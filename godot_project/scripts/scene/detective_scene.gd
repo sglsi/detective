@@ -53,6 +53,37 @@ func _init_game_state() -> void:
 func _build_ui() -> void:
 	_ui = SceneFramework.new(); _ui.name = "ui"; add_child(_ui)
 	_ui.setup(scene_title(), scene_time_text(), scene_background())
+	# 工具栏（v2：真实图标 + 主动操作交互）
+	_setup_toolbar()
+
+## 实例化 ToolBar 并连接信号（按 §4.3.4 六步闭环 Step 2）
+var _toolbar: ToolBar = null
+func _setup_toolbar() -> void:
+	if not ClassDB.class_exists("ToolBar"):
+		return  # tool_bar.gd 未加载时安全跳过
+	_toolbar = ToolBar.new(); _toolbar.name = "ToolBar"; add_child(_toolbar)
+	_toolbar.tool_activated.connect(_on_tool_activated)
+	_toolbar.tool_completed.connect(_on_tool_completed)
+	# 场景控制器进入 STEP_2_TOOL 时显示工具栏
+	if SceneEventBus:
+		SceneEventBus.step_changed.connect(_on_step_changed)
+
+func _on_tool_activated(tool_id: String) -> void:
+	print("[DetectiveScene] 工具激活:", tool_id)
+
+func _on_tool_completed(tool_id: String, target_id: String, result: String) -> void:
+	print("[DetectiveScene] 工具完成: %s → %s | %s" % [tool_id, target_id, result])
+	# 通知场景控制器推进到 Step 3（数据记录）
+	if SceneEventBus:
+		SceneEventBus.emit_signal("tool_used", tool_id, target_id)
+
+func _on_step_changed(step_name: String) -> void:
+	if not _toolbar: return
+	match step_name:
+		"STEP_2_TOOL":
+			_toolbar.show_toolbar()
+		"STEP_1_OBSERVE", "STEP_3_RECORD", _:
+			_toolbar.hide_toolbar()
 
 func _create_dummy_labels() -> void:
 	_obs_text_lbl = Label.new(); _obs_text_lbl.visible = false; add_child(_obs_text_lbl)

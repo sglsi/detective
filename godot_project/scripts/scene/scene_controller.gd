@@ -42,6 +42,15 @@ var guidance_level: int = 0
 # 多热点观察模式：场景2-3 需收集满指定数量再推进；教程为单点即推进
 var multi_observe: bool = false
 
+## 步骤变更（统一发射 step_changed 信号供 ToolBar 响应）
+func _set_step(step: ExplorationStep) -> void:
+	var old := current_step
+	current_step = step
+	if old != step:
+		var names := ["STEP_1_OBSERVE", "STEP_2_TOOL", "STEP_3_RECORD",
+			"STEP_4_KNOWLEDGE", "STEP_5_HYPOTHESIS", "STEP_6_VERIFY"]
+		SceneEventBus.emit_signal("step_changed", names[step])
+
 # ============ 场景 2-3 热点数据表（数据驱动，替代硬编码）============
 const HOTSPOT_TABLES := {
 	# 场景二：劳瑞斯顿花园街三号（室外）—— 车辙/蹄印/脚印 三类观察点
@@ -450,7 +459,7 @@ func _on_hotspot_clicked(hotspot_id: String) -> void:
 	# 教程（sc_01）：需观察满全部热点再进入 Step 2；场景 2-3 由 GameScene 推进
 	if not multi_observe:
 		if observed_hotspots.size() >= 4:
-			current_step = ExplorationStep.STEP_2_TOOL
+			_set_step(ExplorationStep.STEP_2_TOOL)
 
 func _on_tool_used(tool_name: String, target_id: String) -> void:
 	if current_step != ExplorationStep.STEP_2_TOOL:
@@ -459,7 +468,7 @@ func _on_tool_used(tool_name: String, target_id: String) -> void:
 	print("[SceneController] 使用 %s 观察: %s" % [tool_name, target_id])
 	
 	# Step 3: 数据记录
-	current_step = ExplorationStep.STEP_3_RECORD
+	_set_step(ExplorationStep.STEP_3_RECORD)
 
 func _on_note_recorded(clue_id: String) -> void:
 	recorded_clues.append(clue_id)
