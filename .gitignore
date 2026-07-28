@@ -29,5 +29,10 @@ godot_project/web_build/index.pck
 # ===== AI agent workspace (session data, not game code) =====
 /agent/
 
-# Godot 4.x 生成的 UID 缓存（编辑器产物，非源码）
+# Godot 4.x 生成�? UID 缓存（编辑器产物，非源码�?
 *.uid
+
+# ===== 调试/�诊脉本代�?AI 排查时���?�?=====
+godot_project/tools/p16_lance_wall_repro.gd
+tools/web_diag.cjs
+tools/web_diag.mjs
