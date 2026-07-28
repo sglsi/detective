@@ -31,9 +31,9 @@ else
     echo "[coze-preview-run] 后端可能未成功启动，检查日志: /tmp/coze-backend.log"
 fi
 
-# 回到项目根目录，启动 Web 原型静态服务（前台）
+# 回到项目根目录，启动代理服务器（支持 API 转发）
 cd "$PROJECT_DIR"
-echo "[coze-preview-run] 启动 Web 原型预览 (端口 5000)..."
+echo "[coze-preview-run] 启动代理服务器 (端口 5000)..."
 
-# 使用 Python 的 http.server 在 5000 端口服务 web_prototype 目录
-exec python3 -m http.server 5000 --directory web_prototype --bind 0.0.0.0
+# 使用代理服务器，将 /api/* 请求转发到后端
+exec python3 proxy_server.py --port 5000 --directory web_prototype
