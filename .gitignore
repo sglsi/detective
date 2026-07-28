@@ -25,3 +25,6 @@ coverage/
 
 # Godot web build pck (build artifact, regenerated locally via export; not versioned)
 godot_project/web_build/index.pck
+
+# ===== AI agent workspace (session data, not game code) =====
+/agent/
