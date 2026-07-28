@@ -55,12 +55,27 @@ func _create_ui() -> void:
 	for i in _clues.size():
 		var c = _clues[i]
 		var card = Button.new()
-		card.text = c.get("name", c.get("label", c.get("id", "")))
-		card.position = Vector2(40, 155 + i * 65)
-		card.size = Vector2(280, 55)
+		var display_name := c.get("name", c.get("label", c.get("id", "")))
+		var display_desc := c.get("desc", "")
+		card.text = display_name
+		if display_desc.length() > 0:
+			# 副文本：截断描述作为提示（解决"无线索提示"）
+			card.tooltip_text = display_desc if display_desc.length() <= 120 else display_desc.left(117) + "..."
+		card.position = Vector2(40, 155 + i * 72)  # 加大间距容纳副标签
+		card.size = Vector2(280, 62)
 		card.add_theme_font_size_override("font_size", 16)
 		card.add_theme_color_override("font_color", Color(0.95, 0.90, 0.78))
 		_style_card(card, false)
+
+		# 正确/误导标记
+		if not c.get("correct", true):
+			var tag := Label.new()
+			tag.text = "⚠"
+			tag.add_theme_font_size_override("font_size", 12)
+			tag.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
+			tag.position = Vector2(252, 4)
+			card.add_child(tag)
+
 		card.pressed.connect(_on_card_clicked.bind(c["id"]))
 		add_child(card)
 		_card_btns[c["id"]] = card
@@ -158,10 +173,14 @@ func _add_label(t: String, fs: int, fc: Color, pos: Vector2, sz: Vector2) -> voi
 	l.position = pos; l.size = sz
 	add_child(l)
 
-func _style_card(btn: Button, selected: bool) -> void:
+func _style_card(btn: Button, associated: bool) -> void:
 	var sn = StyleBoxFlat.new()
-	sn.bg_color = Color(0.18, 0.14, 0.09, 0.95)
-	sn.border_color = Color(0.95, 0.78, 0.40) if selected else Color(0.55, 0.42, 0.20)
+	if associated:
+		sn.bg_color = Color(0.08, 0.30, 0.08, 0.95)
+		sn.border_color = Color(0.2, 0.8, 0.2)
+	else:
+		sn.bg_color = Color(0.18, 0.14, 0.09, 0.95)
+		sn.border_color = Color(0.55, 0.42, 0.20)
 	sn.border_width_left = 2; sn.border_width_right = 2
 	sn.border_width_top = 2; sn.border_width_bottom = 2
 	sn.set_corner_radius_all(6)
@@ -177,37 +196,101 @@ func _on_card_clicked(cid: String) -> void:
 			break
 	if idx < 0: return
 
+	# 显示线索详情弹窗（解决"点击无反应/无提示"）
+	_show_clue_detail(clue)
+
+## 线索详情弹窗：显示完整信息 + 关联/取消操作
+var _detail_popup: AcceptDialog = null
+
+func _show_clue_detail(clue: Dictionary) -> void:
+	if _detail_popup and is_instance_valid(_detail_popup):
+		_detail_popup.queue_free()
+
+	_detail_popup = AcceptDialog.new()
+	_detail_popup.title = "线索详情"
+	_detail_popup.min_size = Vector2(420, 300)
+	_detail_popup.exclusive = true
+
+	var vb := VBoxContainer.new()
+	vb.name = "DetailContent"
+	vb.add_theme_constant_override("separation", 8)
+
+	# 名称
+	var name_lbl := Label.new()
+	name_lbl.text = clue.get("name", clue.get("label", clue.get("id", "")))
+	name_lbl.add_theme_font_size_override("font_size", 22)
+	name_lbl.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))
+	vb.add_child(name_lbl)
+
+	# 描述
+	var desc_lbl := Label.new()
+	desc_lbl.text = clue.get("desc", "（暂无描述）")
+	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_lbl.custom_minimum_size = Vector2(380, 80)
+	desc_lbl.add_theme_font_size_override("font_size", 15)
+	desc_lbl.add_theme_color_override("font_color", Color(0.85, 0.80, 0.70))
+	vb.add_child(desc_lbl)
+
+	# 属性标签
+	var tags := HBoxContainer.new()
+	var correct_tag := clue.get("correct", true)
+	var ct := Button.new()
+	ct.text = "✓ 正确线索" if correct_tag else "⚠ 误导项"
+	ct.disabled = true
+	if correct_tag:
+		ct.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
+	else:
+		ct.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
+	tags.add_child(ct)
+	var src_tag := Label.new()
+	src_tag.text = "  来源: " + str(clue.get("source", "?"))
+	src_tag.add_theme_color_override("font_color", Color(0.5, 0.48, 0.40))
+	tags.add_child(src_tag)
+	vb.add_child(tags)
+
+	# 操作按钮行
+	var btn_row := HBoxContainer.new()
+	var assoc_btn := Button.new()
+	var is_assoc := clue.get("associated", false)
+	assoc_btn.text = "取消关联" if is_assoc else "→ 关联到假设面板"
+	assoc_btn.pressed.connect(func():
+		_detail_popup.hide()
+		_toggle_association(clue["id"])
+	)
+	btn_row.add_child(assoc_btn)
+	var close_btn := Button.new()
+	close_btn.text = "关闭"
+	close_btn.pressed.connect(func(): _detail_popup.hide())
+	btn_row.add_child(close_btn)
+	vb.add_child(btn_row)
+
+	_detail_popup.add_child(vb)
+	add_child(_detail_popup)
+	_detail_popup.popup_centered()
+
+## 切换关联状态（从原 _on_card_clicked 的核心逻辑提取）
+func _toggle_association(cid: String) -> void:
+	var clue: Dictionary = {}
+	for c in _clues:
+		if c["id"] == cid:
+			clue = c; break
+	if clue.is_empty(): return
+
 	var card = _card_btns.get(cid)
 	if not card: return
 
 	if clue.get("associated", false):
-		# 已关联 → 取消关联（从面板移除）
 		clue["associated"] = false
 		_associated -= 1
 		if not clue.get("correct", true): _contradicting -= 1
-		# 恢复卡片样式
-		var sn = StyleBoxFlat.new()
-		sn.bg_color = Color(0.18, 0.14, 0.09, 0.95)
-		sn.border_color = Color(0.55, 0.42, 0.20)
-		sn.border_width_left = 2; sn.border_width_right = 2
-		sn.border_width_top = 2; sn.border_width_bottom = 2
-		sn.set_corner_radius_all(6)
-		card.add_theme_stylebox_override("normal", sn)
+		_style_card(card, false)
 		_status_lbl.text = "已取消关联: " + cid + " (共" + str(_associated) + "条)"
 		_status_lbl.add_theme_color_override("font_color", Color(0.65, 0.55, 0.35))
 	else:
-		# 未关联 → 直接推入面板
 		clue["associated"] = true
 		_associated += 1
 		if not clue.get("correct", true): _contradicting += 1
-		# 卡片变绿
-		var sn = StyleBoxFlat.new()
-		sn.bg_color = Color(0.08, 0.30, 0.08, 0.95)
-		sn.border_color = Color(0.2, 0.8, 0.2)
-		sn.border_width_left = 2; sn.border_width_right = 2
-		sn.border_width_top = 2; sn.border_width_bottom = 2
-		sn.set_corner_radius_all(6)
-		card.add_theme_stylebox_override("normal", sn)
+		_style_card(card, true)
 		_status_lbl.text = "线索已关联: " + cid + " (共" + str(_associated) + "条)"
 		_status_lbl.add_theme_color_override("font_color", Color(0.5, 0.9, 0.5))
 

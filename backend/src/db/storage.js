@@ -10,6 +10,7 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const os = require('os');
+const path = require('path');
 
 // ============================================================
 // 抽象基类

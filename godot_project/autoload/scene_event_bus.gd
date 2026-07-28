@@ -15,6 +15,9 @@ signal hotspot_clicked(hotspot_id: String)
 signal tool_requested(tool_name: String)
 signal tool_used(tool_name: String, target_id: String)
 
+# ============ 六步闭环步骤变更（v2：供 ToolBar 显示/隐藏）============
+signal step_changed(step_name: String)
+
 # ============ 笔记 ============
 signal note_recorded(note_text: String)
 

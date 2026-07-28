@@ -66,15 +66,16 @@ func _base() -> String:
 	return base_url
 
 func _check_connectivity(retry: int = 1) -> void:
-	## Web 导出下 HTTPRequest 对部分请求回调不稳，健康检查统一走浏览器原生 fetch
+	## Web 导出下：同源优先走 HTTPRequest（可靠），跨域才降级 _web_fetch
 	if OS.has_feature("web"):
-		var res = await _web_fetch(
+		var res = await _web_request(
 			HTTPClient.METHOD_GET,
 			_base() + "/api/health" + url_suffix,
 			PackedStringArray(["Accept: application/json"]),
 			""
 		)
-		_set_online_status(res.get("status", 0) == 200, null)
+		var code = res.get("status", res.get("code", 0))
+		_set_online_status(code == 200, null)
 		return
 
 	## 尝试连接后端 health 端点（桌面/编辑器端，已用 127.0.0.1 规避 IPv6 解析失败）
@@ -154,7 +155,10 @@ func _perform_request(method: int, endpoint: String, body_dict: Dictionary, auth
 		body_str = JSON.stringify(body_dict)
 
 	if OS.has_feature("web"):
-		return await _web_fetch(method, url, headers, body_str)
+		# 同源（本机 localhost 经 serve_web.py 代理）下 HTTPRequest 可靠且无 CORS 问题；
+		# 跨域（沙箱预览）下 HTTPRequest 受 CORS 限制会失败/回调丢失，_web_request 内部
+		# 会自动降级到 _web_fetch（浏览器原生 fetch + 沙箱查询串路由）。
+		return await _web_request(method, url, headers, body_str)
 
 	var http = HTTPRequest.new()
 	add_child(http)
@@ -232,6 +236,14 @@ func _parse_response(result: int, code: int, body: PackedByteArray) -> Dictionar
 # Godot Web 导出的 HTTPRequest 在浏览器中对 POST/带 body 请求常回调丢失，
 # 这里直接用浏览器原生 fetch（经 JavaScriptBridge）发请求，并把结果写回 JS 全局对象，
 # GDScript 侧以唯一 key 轮询读取。非 Web 环境不会走到此分支。
+
+## Web 环境统一请求入口
+## 注意：Godot 的 HTTPRequest 节点在 Web 导出中**不接受相对路径**，会报
+## "Error parsing URL: '/api/...'" 并回调失败；且 POST/带 body 请求在部分浏览器下回调丢失。
+## 因此 Web 下统一走浏览器原生 fetch（_web_fetch），它能正确处理同源相对路径，
+## 跨域（沙箱预览）场景由 _web_fetch 用沙箱查询串做端口路由。
+func _web_request(method: int, url: String, headers: PackedStringArray, body_str: String) -> Dictionary:
+	return await _web_fetch(method, url, headers, body_str)
 
 func _web_fetch(method: int, url: String, headers: PackedStringArray, body_str: String) -> Dictionary:
 	# 局部状态，避免并发请求（游客会话 / 注册 / 登录）互相覆盖导致请求永不完成
