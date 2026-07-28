@@ -112,7 +112,7 @@ func _init_game_state() -> void:
 func _build_ui() -> void:
 	_ui = SceneFramework.new(); _ui.name = "ui"; add_child(_ui)
 	_ui.setup("贝克街221B", "DAY 1 上午10:30")
-	var tex = load("res://assets/characters/watson/watson_standing.jpg")
+	var tex = load("res://assets/characters/watson/watson_teaching.png")
 	if tex: _ui.add_portrait(tex, "华生", Vector2(160, 350), Vector2(280, 360))
 
 ## 场景一用 UI 内部对话标签渲染观察层，不需要占位标签
@@ -121,14 +121,14 @@ func _create_dummy_labels() -> void:
 
 ## 创建两组观察器（华生 / 信使），各自连线到本场景回调
 func _create_observers() -> void:
-	var tex = load("res://assets/characters/watson/watson_standing.jpg")
+	var tex = load("res://assets/characters/watson/watson_teaching.png")
 	var sa = _ui.get_scene_area()
 	_watson_obs = ClueObserver.new(); _watson_obs.name = "watson_observer"; add_child(_watson_obs)
 	_watson_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, [
-		{"id":"wrist","label":"手腕肤色","x":550,"y":370,"w":120,"h":50,"desc":"长期日晒痕迹 -> 刚从热带回来"},
-		{"id":"arm","label":"左臂旧伤","x":420,"y":440,"w":110,"h":60,"desc":"袖口疤痕 -> 曾受枪伤"},
-		{"id":"face","label":"憔悴面容","x":530,"y":220,"w":100,"h":60,"desc":"面容消瘦 -> 长期患病"},
-		{"id":"pose","label":"军人站姿","x":480,"y":580,"w":120,"h":60,"desc":"身板挺直 -> 军事训练"},
+		{"id":"wrist","label":"手腕肤色分界","x":580,"y":400,"w":100,"h":60,"desc":"手部微晒黑，手腕偏白 -> 刚从热带回来"},
+		{"id":"arm","label":"左臂僵硬","x":450,"y":450,"w":100,"h":70,"desc":"左臂动作略显僵硬 -> 战场负伤"},
+		{"id":"face","label":"面色憔悴","x":520,"y":240,"w":110,"h":70,"desc":"面色微晒黑且憔悴 -> 久病初愈"},
+		{"id":"pose","label":"军人站姿","x":500,"y":600,"w":130,"h":80,"desc":"站姿挺拔 -> 阿富汗军医"},
 	], tex)
 	_watson_obs.all_recorded.connect(_on_watson_all_recorded)
 	_watson_obs.clue_recorded.connect(_on_collect_clue.bind("watson"))
