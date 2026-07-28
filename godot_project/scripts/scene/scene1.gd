@@ -327,7 +327,7 @@ func _show_messenger_reasoning_wall() -> void:
 	var hypo := {"title": "信使是海军陆战队军士？", "description": "从信使身上（锚形文身、络腮胡、挺拔站姿、发号施令神态、袖口磨损）推断其军旅身份；注意分辨干扰项（袖口磨损、轻微跛行）。"}
 	_open_wall("messenger", hypo, func(v: int):
 		_messenger_v = v
-		_calc_stars(); _show_rating()
+		_calc_stars(); _show_commission_letter_dialogue()
 	)
 
 func _calc_stars() -> void:
@@ -368,7 +368,7 @@ func _show_rating() -> void:
 	var cont = Button.new(); cont.text = "存档并进入场景二"; cont.position = Vector2(660,700); cont.size = Vector2(600,65)
 	cont.add_theme_font_size_override("font_size",26); cont.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
 	cont.add_theme_stylebox_override("normal", _sb(Color(0.50,0.10,0.10,0.95), Color(0.85,0.65,0.25), 2, 4))
-	cont.pressed.connect(_on_rating_continue.bind(w))
+	cont.pressed.connect(_show_case_branch.bind(w))
 	w.add_child(cont)
 
 func _on_rating_continue(w: Control) -> void:
@@ -389,6 +389,88 @@ func _save_and_continue() -> void:
 	else: _create_notification("注册后可解锁云端存档")
 	await get_tree().create_timer(2.0).timeout
 	get_tree().change_scene_to_file("res://scenes/scene2.tscn")
+
+# ===== 委托信解锁 + 双钩子结尾（依据 02 §9 双钩子系统 + 委托信解锁） =====
+func _show_commission_letter_dialogue() -> void:
+	_phase = Phase.RATING
+	# 委托信解锁为线索（B-01 前置：信使验证通过 ≥ SUPPORTED 后解锁）
+	if ClueSystem:
+		ClueSystem.collect_clue_from_catalog(
+			"commission_letter", "案件委托信",
+			"葛莱森警长的委托：劳瑞斯顿花园街3号发现一具无外伤男尸，疑似中毒。这是承接「血字的研究」一案的正式起点。",
+			true, "commission")
+	_dm = DialogueManager.new(); add_child(_dm)
+	_dm.dialogue_advanced.connect(_on_line)
+	_dm.dialogue_ended.connect(_on_commission_ended)
+	var nodes: Array[Resource] = []
+	nodes.append(_dn("cl0","福尔摩斯","信使留下的，是葛莱森警长的委托信。花园街3号，一具男尸，无外伤——像是中毒。","click",["cl1"],"从容"))
+	nodes.append(_dn("cl1","华生","所以真正的案子，从这一刻开始。","click",["cl2"],"思考"))
+	nodes.append(_dn("cl2","system","📜 案件委托信已解锁 — 记入侦探笔记（来源：案件委托）","click",["end"],"guide"))
+	var res = DialogueResource.new(); res.scene_id="s1_letter"; res.nodes=nodes
+	res.easy_start_node="cl0"; res.normal_start_node="cl0"; res.hard_start_node="cl0"
+	_dm.dialogue_resource=res; _dm.start_dialogue()
+
+func _on_commission_ended() -> void:
+	_show_hooks_dialogue()
+
+## 双钩子（剧情钩子 + 谜题钩子），融入对话不做独立 UI（02 §9 §11）
+func _show_hooks_dialogue() -> void:
+	_dm = DialogueManager.new(); add_child(_dm)
+	_dm.dialogue_advanced.connect(_on_line)
+	_dm.dialogue_ended.connect(_on_hooks_ended)
+	var nodes: Array[Resource] = []
+	# 剧情钩子
+	nodes.append(_dn("hk0","福尔摩斯","（瞥了一眼信，嘴角微扬）有意思——伦敦郊区发生了一起谋杀案，警方束手无策。","click",["hk1"],"从容"))
+	nodes.append(_dn("hk1","华生","你要去吗？","click",["hk2"],"好奇"))
+	nodes.append(_dn("hk2","福尔摩斯","当然。正好——让你见识一下什么叫真正的侦探工作。","click",["hk3"],"自信"))
+	# 谜题钩子
+	nodes.append(_dn("hk3","system","委托信上只有短短几行字——死者是谁？死在哪？怎么死的？（推理战场「案件三要素」待解问题已记录）","click",["end"],"guide"))
+	var res = DialogueResource.new(); res.scene_id="s1_hooks"; res.nodes=nodes
+	res.easy_start_node="hk0"; res.normal_start_node="hk0"; res.hard_start_node="hk0"
+	_dm.dialogue_resource=res; _dm.start_dialogue()
+
+func _on_hooks_ended() -> void:
+	_show_rating()
+
+# ===== 分支 B-01：承接 / 拒绝案件（02 §9 §7） =====
+func _show_case_branch(w: Control) -> void:
+	w.queue_free()
+	var p = Control.new(); p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); p.mouse_filter = Control.MOUSE_FILTER_STOP; add_child(p)
+	var dim = ColorRect.new(); dim.color = Color(0,0,0,0.7); dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE; p.add_child(dim)
+	var f = Panel.new(); f.size = Vector2(660,360); f.position = Vector2(630,310)
+	f.add_theme_stylebox_override("panel", _sb(Color(0.13,0.10,0.07,0.97), Color(0.78,0.62,0.28),3,8)); p.add_child(f)
+	var t = Label.new(); t.text = "是否承接这桩案件？"; t.add_theme_font_size_override("font_size",26)
+	t.add_theme_color_override("font_color", Color(0.92,0.82,0.45)); t.position = Vector2(40,28); t.size = Vector2(580,40); f.add_child(t)
+	var sub = Label.new(); sub.text = "（分支 B-01）承接后将前往劳瑞斯顿花园街3号勘查现场"; sub.add_theme_font_size_override("font_size",15)
+	sub.add_theme_color_override("font_color", Color(0.6,0.55,0.45)); sub.position = Vector2(40,76); sub.size = Vector2(580,36); f.add_child(sub)
+	var accept = Button.new(); accept.text = "承接案件"; accept.position = Vector2(60,210); accept.size = Vector2(250,60)
+	accept.add_theme_font_size_override("font_size",22); accept.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
+	accept.add_theme_stylebox_override("normal", _sb(Color(0.20,0.40,0.15,0.95), Color(0.60,0.85,0.30),2,4))
+	accept.pressed.connect(func(): p.queue_free(); _accept_case()); f.add_child(accept)
+	var reject = Button.new(); reject.text = "拒绝委托"; reject.position = Vector2(350,210); reject.size = Vector2(250,60)
+	reject.add_theme_font_size_override("font_size",22); reject.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
+	reject.add_theme_stylebox_override("normal", _sb(Color(0.40,0.15,0.10,0.95), Color(0.85,0.45,0.25),2,4))
+	reject.pressed.connect(func(): p.queue_free(); _reject_case()); f.add_child(reject)
+
+func _accept_case() -> void:
+	_phase = Phase.COMPLETE
+	if GameStateMachine: GameStateMachine.add_milestone("sc_01_completed")
+	if not (GameManager and GameManager.is_guest) and SaveManager:
+		var ids: Array = []
+		for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
+		for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
+		await SaveSystem.request_save("scene1", Phase.COMPLETE, {"clue_ids": ids})
+		_create_notification("进度已保存")
+	else: _create_notification("注册后可解锁云端存档")
+	await get_tree().create_timer(1.0).timeout
+	get_tree().change_scene_to_file("res://scenes/scene2.tscn")
+
+func _reject_case() -> void:
+	_create_notification("你拒绝了这桩委托 — 回到贝克街的日常")
+	await get_tree().create_timer(1.5).timeout
+	if GameStateMachine: GameStateMachine.go_menu()
+	else: get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 # ===== 笔记、证物（场景一自建弹窗内容，沿用基类 _popup 统一样式） =====
 func _clue_sources() -> Array:
