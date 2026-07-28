@@ -24,7 +24,7 @@ import urllib.error
 PORT = 8081
 # 必须用 127.0.0.1 而非 localhost：Windows 上 localhost 优先解析到 IPv6 ::1，
 # 而后端 server.js 只监听 IPv4 0.0.0.0，会导致代理转发失败。
-BACKEND = "http://127.0.0.1:3000"
+BACKEND = "http://127.0.0.1:3001"
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
