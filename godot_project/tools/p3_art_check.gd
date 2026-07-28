@@ -22,34 +22,27 @@ func _check_skip_missing(name: String, path: String) -> void:
 	_check(name, load(path))
 
 func _process(_delta: float) -> bool:
-	# 1. 头像（dialogue_renderer.gd 的 expression_map 实际引用的 8 个）
-	#    ⚠️ sherlock_*.png 源图当前缺失（仅 .import 占位），按缺口跳过（见 _check_skip_missing）。
-	var portraits = [
-		"res://assets/portraits/sherlock_自信.png",
-		"res://assets/portraits/sherlock_神秘.png",
-		"res://assets/portraits/sherlock_思考.png",
-		"res://assets/portraits/sherlock_喜悦.png",
-		"res://assets/portraits/sherlock_凝思.png",
-		"res://assets/portraits/sherlock_坚定.png",
-		"res://assets/portraits/sherlock_狡黠.png",
-		"res://assets/portraits/sherlock_兴奋.png",
-	]
-	for p in portraits:
-		_check_skip_missing("portrait:" + p.get_file(), p)
+	# 1. 立绘 — 统一以 PortraitLibrary 为数据源校验（2026-07-28 收口）
+	#    福尔摩斯像素表情（assets/portraits/pixel/）：映射到的每张图必须可加载
+	var sherlock_files := {}
+	for mood in PortraitLibrary.SHERLOCK_MOODS:
+		sherlock_files[PortraitLibrary.SHERLOCK_MOODS[mood]] = true
+	for f in sherlock_files:
+		var p: String = PortraitLibrary.SHERLOCK_DIR % f
+		_check("portrait(sherlock):" + p.get_file(), load(p))
 
-	# 1b. 预留头像（美术扩展包 7 张，已接入 expression_map）
-	#    ⚠️ 同上，sherlock 预留头像源图缺失，按缺口跳过。
-	var reserved = [
-		"res://assets/portraits/sherlock_开心.png",
-		"res://assets/portraits/sherlock_愤怒.png",
-		"res://assets/portraits/sherlock_沉默.png",
-		"res://assets/portraits/sherlock_生气.png",
-		"res://assets/portraits/sherlock_疑惑.png",
-		"res://assets/portraits/sherlock_疲惫.png",
-		"res://assets/portraits/sherlock_神秘2.png",
-	]
-	for p in reserved:
-		_check_skip_missing("portrait(reserved):" + p.get_file(), p)
+	# 1b. 华生表情（assets/characters/watson/*.jpg）
+	var watson_files := {}
+	for mood in PortraitLibrary.WATSON_MOODS:
+		watson_files[PortraitLibrary.WATSON_MOODS[mood]] = true
+	for f in watson_files:
+		var p: String = PortraitLibrary.WATSON_DIR % f
+		_check("portrait(watson):" + p.get_file(), load(p))
+
+	# 1c. NPC 单表情立绘（assets/characters/<角色>/）
+	for spk in PortraitLibrary.NPC_PORTRAITS:
+		var p: String = PortraitLibrary.NPC_PORTRAITS[spk]
+		_check("portrait(npc:%s):%s" % [spk, p.get_file()], load(p))
 
 	# 2. UI 参考图（jpg / png）
 	var ui = [

@@ -33,6 +33,7 @@ var _scene_area: Control
 var _dialogue_bar: Control
 var _speaker_label: Label
 var _dialogue_label: Label
+var _speaker_portrait: TextureRect
 var _portraits: Array = []
 var _action_btns: Dictionary = {}
 var _nav_btns: Dictionary = {}
@@ -72,9 +73,17 @@ func add_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vector2
 
 func get_scene_area() -> Control: return _scene_area
 
-func set_dialogue(speaker: String, text: String) -> void:
+func set_dialogue(speaker: String, text: String, mood: String = "") -> void:
 	if _speaker_label: _speaker_label.text = speaker
 	if _dialogue_label: _dialogue_label.text = text
+	# 说话人立绘（统一走 PortraitLibrary；无立绘的说话人自动隐藏）
+	if _speaker_portrait:
+		var tex: Texture2D = PortraitLibrary.get_portrait(speaker, mood)
+		if tex != null:
+			_speaker_portrait.texture = tex
+			_speaker_portrait.show()
+		else:
+			_speaker_portrait.hide()
 
 func set_dialogue_color(c: Color) -> void:
 	if _speaker_label: _speaker_label.add_theme_color_override("font_color", c)
@@ -426,6 +435,17 @@ func _build_dialogue_bar() -> void:
 	bot_bar.position = Vector2(0, DIALOGUE_H - 2); bot_bar.size = Vector2(1920, 2)
 	bot_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dialogue_bar.add_child(bot_bar)
+
+	# 说话人立绘（悬浮在对话栏左上方，不挤占文本区；无立绘时隐藏）
+	_speaker_portrait = TextureRect.new()
+	_speaker_portrait.name = "speaker_portrait"
+	_speaker_portrait.position = Vector2(24, -292)   # 相对对话栏，浮于其上方
+	_speaker_portrait.size = Vector2(280, 280)
+	_speaker_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_speaker_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_speaker_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_speaker_portrait.visible = false
+	_dialogue_bar.add_child(_speaker_portrait)
 
 	# 角色名 (左侧烫金深褐框)
 	var name_panel = Panel.new()

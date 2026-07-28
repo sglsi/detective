@@ -318,11 +318,13 @@ func _start_dialogue(nodes: Array, start: String, on_end: Callable) -> void:
 
 func _on_line(_id: String) -> void:
 	var n = _dm.current_node
-	if n: _ui.set_dialogue(n.speaker, n.text)
+	if n: _ui.set_dialogue(n.speaker, n.text, n.mood)
 
 ## 构造对话节点：末节点不挂 next（advance() 检测到 next 为空即干净结束，
 ## 避免把末节点指到不存在的虚拟节点而刷 ERROR——已在场景二/三根治）。
 func _make_nodes(raw: Array) -> Array:
+	# 行格式: [id, speaker, text] 或 [id, speaker, text, next] 或 [id, speaker, text, next, mood]
+	# next 传 "" 表示按 id 自增推导（与省略等价），便于只想指定 mood 的行。
 	var nodes: Array[Resource] = []
 	var last_idx := raw.size() - 1
 	for i in raw.size():
@@ -331,13 +333,15 @@ func _make_nodes(raw: Array) -> Array:
 		n.node_id = r[0]; n.speaker = r[1]; n.text = r[2]; n.trigger = "click"
 		var nxt: Array[String] = []
 		if i < last_idx:
-			if len(r) > 3:
+			if len(r) > 3 and str(r[3]) != "":
 				nxt.append(r[3])
 			else:
 				var base: String = r[0]
 				var num: int = int(base.substr(1)) + 1
 				nxt.append(base[0] + str(num))
-		n.next_nodes = nxt; n.mood = "neutral"; nodes.append(n)
+		n.next_nodes = nxt
+		n.mood = r[4] if len(r) > 4 else "neutral"
+		nodes.append(n)
 	return nodes
 
 func _make_dialogue_resource(sid: String, ns: Array, start: String):
@@ -347,7 +351,7 @@ func _make_dialogue_resource(sid: String, ns: Array, start: String):
 
 ## P3-0 构造对话节点：支持 trigger 与 grants_clues（对话授予线索）。
 ## 默认 trigger=="click" 即点即推进；grants 为 [{"id","name","desc","correct"}, ...]。
-func _mk_node(id: String, speaker: String, text: String, trigger: String = "click", next: Array = [], grants: Array = []) -> DialogueNodeResource:
+func _mk_node(id: String, speaker: String, text: String, trigger: String = "click", next: Array = [], grants: Array = [], mood: String = "neutral") -> DialogueNodeResource:
 	var n = DialogueNodeResource.new()
 	n.node_id = id; n.speaker = speaker; n.text = text; n.trigger = trigger
 	var nn: Array[String] = []
@@ -355,7 +359,7 @@ func _mk_node(id: String, speaker: String, text: String, trigger: String = "clic
 		if s is String: nn.append(s)
 	n.next_nodes = nn
 	n.grants_clues = grants
-	n.mood = "neutral"
+	n.mood = mood
 	return n
 
 ## 同步本地 _clues 数组（证据库/物品栏展示用）为 ClueSystem 中本场景 source 的已收集线索。

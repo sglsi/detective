@@ -292,7 +292,7 @@ func _on_line(_id: String) -> void:
 	var sp = n.speaker
 	var col = Color(0.7,0.8,0.9) if sp=="华生" else Color(0.5,0.9,0.5) if sp=="system" else Color(0.85,0.75,0.45)
 	if sp=="赫德森太太": col = Color(0.95,0.80,0.60)
-	_ui.set_dialogue(sp if sp!="system" else "提示", n.text)
+	_ui.set_dialogue(sp if sp!="system" else "提示", n.text, n.mood)
 	_ui.set_dialogue_color(col)
 
 # ===== 推理墙辅助（场景一为双组：watson / messenger，均走基类统一 _open_wall） =====
@@ -312,7 +312,7 @@ func _start_messenger_phase() -> void:
 	var nodes: Array[Resource] = []
 	nodes.append(_dn("m0","福尔摩斯","很好。我们的信使朋友带来了葛莱森警长的委托。","click",["m1"],"从容"))
 	nodes.append(_dn("m1","信使","先生们，这是葛莱森警长的信。花园街3号。","click",["m2"]))
-	nodes.append(_dn("m2","福尔摩斯","先别急。华生，第二次练习机会。从这位信使身上，你能读出什么？","click",["m3"]))
+	nodes.append(_dn("m2","福尔摩斯","先别急。华生，第二次练习机会。从这位信使身上，你能读出什么？","click",["m3"],"指导"))
 	nodes.append(_dn("m3","system","点击信使身上的可交互区域。完成后进入推理墙验证。","click",["end"]))
 	var res = DialogueResource.new(); res.scene_id="s1_mess"; res.nodes=nodes; res.easy_start_node="m0"; res.normal_start_node="m0"; res.hard_start_node="m0"
 	_dm.dialogue_resource=res; _dm.start_dialogue()

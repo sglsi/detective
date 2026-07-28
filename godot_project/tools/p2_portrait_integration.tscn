@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3 uid="uid://p2_portrait_integration"]
+
+[ext_resource type="Script" path="res://tools/p2_portrait_integration.gd" id="1_pi"]
+[node name="P2PortraitIntegration" type="Node"]
+script = ExtResource("1_pi")
