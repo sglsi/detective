@@ -54,7 +54,9 @@ func map_locations() -> Array:
 func casebook_steps() -> Array:
 	return ["查出租马车登记", "登失物招领启事", "询问维金斯", "推理墙验证"]
 func casebook_done_flags() -> Array:
-	return [_phase >= Phase.ARRIVAL, _clues.size() >= CLUES.size(), _phase >= Phase.REASONING]
+	# 必须与 casebook_steps() 一一对应（基类按索引取值）：
+	# 501/502=马车登记；503=启事；504/505=维金斯回报
+	return [_clues.size() >= 2, _clues.size() >= 3, _clues.size() >= CLUES.size(), _phase >= Phase.REASONING]
 
 func inventory_items() -> Array:
 	return ["🔍 放大镜（初始）", "📏 卷尺（场景二解锁）", "🧪 化学试剂盒（场景三解锁）", "📖 黄页（场景五解锁）"]
