@@ -1,6 +1,6 @@
 // 编辑器集成测试：读 → 保存（原样回写临时文件）→ 校验 → 复读一致 → 清理
 // 使用临时文件名，避免污染真实场景资源；验证 Module 9 的 save 产物 Godot 可加载。
-const BASE = 'http://localhost:3000';
+const BASE = process.env.TEST_BASE_URL || 'http://localhost:3000';
 const SRC = 'scene_04_police.tres';
 const TMP = '_ci_edit_test.tres';
 const fs = require('fs');

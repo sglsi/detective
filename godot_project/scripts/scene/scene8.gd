@@ -79,7 +79,8 @@ func map_locations() -> Array:
 func casebook_steps() -> Array:
 	return ["听霍普自白", "勘查霍普痕迹", "推理墙验证", "结案"]
 func casebook_done_flags() -> Array:
-	return [_phase >= Phase.OBSERVE, _clues.size() >= (HOTSPOTS.size() + DIALOGUE_CLUES.size()), _phase >= Phase.REASONING]
+	# 必须与 casebook_steps() 一一对应（基类按索引取值）
+	return [_phase >= Phase.OBSERVE, _clues.size() >= (HOTSPOTS.size() + DIALOGUE_CLUES.size()), _phase >= Phase.REASONING, _phase >= Phase.TRANSITION]
 
 func inventory_items() -> Array:
 	return ["🔍 放大镜（初始）", "📏 卷尺（场景二解锁）", "🧪 化学试剂盒（场景三解锁）", "📖 黄页（场景五解锁）"]

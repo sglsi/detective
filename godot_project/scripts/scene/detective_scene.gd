@@ -130,7 +130,9 @@ func _show_casebook_panel() -> void:
 	var steps := casebook_steps()
 	var done := casebook_done_flags()
 	for i in steps.size():
-		items.append({"name": ("✅ " if done[i] else "⬜ ") + steps[i], "desc": ""})
+		# 防御：done 与 steps 长度不齐时按未完成处理，绝不越界崩溃
+		var is_done: bool = i < done.size() and bool(done[i])
+		items.append({"name": ("✅ " if is_done else "⬜ ") + steps[i], "desc": ""})
 	_popup("案件簿 — 血字的研究 · " + scene_id(), items)
 
 func _show_inventory_panel() -> void:

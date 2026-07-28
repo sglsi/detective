@@ -21,6 +21,7 @@ func _process(_delta: float) -> bool:
 		else:
 			print("SMOKE_FAIL: " + str(failures))
 		quit()
+		return true  # quit() 是异步的，必须返回，否则继续执行 files[idx] 越界
 	var p: String = files[idx]
 	idx += 1
 	var res: Resource = load(p)
