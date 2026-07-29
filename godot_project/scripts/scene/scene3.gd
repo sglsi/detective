@@ -89,6 +89,21 @@ func reasoning_hypothesis() -> Dictionary:
 	return {
 		"title": "死者身份、死因与血字真相（推理战场 M1）",
 		"description": "死者是美国克利夫兰人德雷伯，死于生物碱中毒（非暴力）；墙上的「RACHE」血字是凶手伪装成德国人复仇的假象，真正的线索是那枚刻着「L·F」的女性结婚戒指。\n\n活跃假设：\n· H3-01 死者死于服毒非外伤（强）\n· H3-02 血字RACHE是德语'复仇'（中强）\n· H3-03 血字不是德国人写的（中·需Step4检索）\n· H3-04 凶手右手指甲很长（弱·需细看）\n· 承接 H2-02→身高约6英尺 / H2-03→方头靴（升级为强）\n\n矛盾标记：\n· C3-01 服毒死亡 vs 现场无药瓶\n· C3-02 复仇杀人 vs 带走凶器（药瓶）\n· C3-03 血字是德语 vs 书写者不像德国人\n· C3-04 情杀论（戒指）vs 服毒预谋杀人\n\n自我误导陷阱 C-06：指甲缝白色粉末——易误判为毒粉，实为凶手写血字刮下的墙粉。"
+		"battlefield": {
+			"hypotheses": [
+				{"id":"H3-01","text":"死者死于服毒而非外伤","correct":true},
+				{"id":"H3-02","text":"血字 RACHE 意为德语「复仇」","correct":true},
+				{"id":"H3-03","text":"血字并非德国人所写（伪装）","correct":true},
+				{"id":"H3-04","text":"凶手右手指甲很长","correct":true}
+			],
+			"contradictions": [
+				{"id":"C3-01","text":"服毒死亡 vs 现场无药瓶","correct":true},
+				{"id":"C3-02","text":"复仇杀人 vs 带走凶器（药瓶）","correct":true},
+				{"id":"C3-03","text":"血字是德语 vs 书写者不像德国人","correct":true},
+				{"id":"C3-04","text":"情杀论（戒指）vs 服毒预谋杀人","correct":true},
+				{"id":"C-06","text":"自我误导：指甲缝白色粉末=墙粉而非毒粉","correct":true}
+			],
+		}
 	}
 
 # ===== 面板内容 =====

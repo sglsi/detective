@@ -7,6 +7,12 @@ enum Verdict { INSUFFICIENT=1, SUPPORTED=2, VERIFIED=3, CONTRADICTORY=0 }
 
 var _clues: Array = []       # [{id, name, desc, correct, associated}]
 var _hypothesis: Dictionary = {}
+var _battle: Dictionary = {}  # hypothesis["battlefield"]: {hypotheses:[{id,text,correct}], contradictions:[{id,text}]}
+var _battle_hypo_states: Dictionary = {}  # 假设卡状态: id -> 0未定 / 1采纳 / 2排除
+var _battle_contra_states: Dictionary = {}  # 矛盾卡状态: id -> bool(已识别)
+var _battle_hypo_btns: Dictionary = {}  # 假设卡按钮引用
+var _battle_contra_btns: Dictionary = {}  # 矛盾卡按钮引用
+var _battle_status: Label
 var _associated := 0
 var _contradicting := 0
 var _on_verify: Callable
@@ -21,6 +27,7 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_hypothesis = hypothesis
 	_on_verify = on_verify
 	_on_close = on_close
+	_battle = hypothesis.get("battlefield", {})
 	_create_ui()
 
 func get_verdict() -> int:
@@ -164,6 +171,7 @@ func _create_ui() -> void:
 	cl.pressed.connect(_on_back_pressed)
 	add_child(cl)
 
+	_create_battlefield_ui()
 	_add_label("提示: 点击线索卡片=推入面板，再次点击=取消关联。绿色=已关联，灰色=未关联。", 13, Color(0.40, 0.35, 0.28), Vector2(40, 700), Vector2(1840, 25))
 
 func _add_label(t: String, fs: int, fc: Color, pos: Vector2, sz: Vector2) -> void:
@@ -300,6 +308,140 @@ func _on_hypo_clicked() -> void:
 	# 假设区本身点击暂无额外行为（关联由线索卡片完成）
 	pass
 
+# ===== 推理战场 M1：假设/矛盾可交互卡 =====
+## 在右侧渲染推理战场：假设卡（三态：未定/采纳/排除）+ 矛盾卡（识别/未识别），
+## 玩家标记判断后实时显示命中评定；验证时附战场小结。
+func _create_battlefield_ui() -> void:
+	if _battle.is_empty(): return
+	var hypos: Array = _battle.get("hypotheses", [])
+	var contras: Array = _battle.get("contradictions", [])
+	if hypos.is_empty() and contras.is_empty(): return
+
+	var bx := 1240
+	var bw := 660
+	var panel = ColorRect.new()
+	panel.color = Color(0.08, 0.07, 0.10, 0.92)
+	panel.position = Vector2(bx, 95); panel.size = Vector2(bw, 595)
+	add_child(panel)
+	_add_label("推理战场 · M1（标记你的判断）", 20, Color(0.85, 0.78, 0.62), Vector2(bx+15, 108), Vector2(bw-30, 30))
+
+	var y := 150
+	if not hypos.is_empty():
+		_add_label("活跃假设（点按钮：未定→采纳✓→排除✗）", 15, Color(0.70, 0.85, 0.95), Vector2(bx+15, y), Vector2(bw-30, 24)); y += 30
+		for h in hypos:
+			y = _add_battle_hypo_card(h, bx+15, y, bw-30)
+	if not contras.is_empty():
+		_add_label("矛盾标记（点按钮：未识别→已识别）", 15, Color(0.95, 0.80, 0.70), Vector2(bx+15, y), Vector2(bw-30, 24)); y += 30
+		for c in contras:
+			y = _add_battle_contra_card(c, bx+15, y, bw-30)
+
+	_battle_status = Label.new()
+	_battle_status.add_theme_font_size_override("font_size", 16)
+	_battle_status.add_theme_color_override("font_color", Color(0.60, 0.90, 0.60))
+	_battle_status.position = Vector2(bx+15, y+8); _battle_status.size = Vector2(bw-30, 60)
+	add_child(_battle_status)
+	_update_battle_status()
+
+func _add_battle_hypo_card(h: Dictionary, x: int, y: int, w: int) -> int:
+	var id: String = h.get("id", "?")
+	var text: String = h.get("text", "")
+	var card = Control.new()
+	card.position = Vector2(x, y); card.size = Vector2(w, 64)
+	var tl = Label.new()
+	tl.text = id + "  " + text
+	tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tl.add_theme_font_size_override("font_size", 13)
+	tl.add_theme_color_override("font_color", Color(0.88, 0.84, 0.74))
+	tl.position = Vector2(0, 0); tl.size = Vector2(w-200, 60)
+	card.add_child(tl)
+	var btn = Button.new()
+	btn.text = "未定"
+	btn.position = Vector2(w-190, 14); btn.size = Vector2(180, 36)
+	btn.add_theme_font_size_override("font_size", 14)
+	_style_battle_btn(btn, 0)
+	btn.pressed.connect(_on_battle_hypo_pressed.bind(id))
+	card.add_child(btn)
+	_battle_hypo_btns[id] = btn
+	add_child(card)
+	return y + 70
+
+func _add_battle_contra_card(c: Dictionary, x: int, y: int, w: int) -> int:
+	var id: String = c.get("id", "?")
+	var text: String = c.get("text", "")
+	var card = Control.new()
+	card.position = Vector2(x, y); card.size = Vector2(w, 52)
+	var tl = Label.new()
+	tl.text = id + "  " + text
+	tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tl.add_theme_font_size_override("font_size", 13)
+	tl.add_theme_color_override("font_color", Color(0.88, 0.84, 0.74))
+	tl.position = Vector2(0, 0); tl.size = Vector2(w-200, 48)
+	card.add_child(tl)
+	var btn = Button.new()
+	btn.text = "未识别"
+	btn.position = Vector2(w-190, 8); btn.size = Vector2(180, 36)
+	btn.add_theme_font_size_override("font_size", 14)
+	_style_battle_btn(btn, 0)
+	btn.pressed.connect(_on_battle_contra_pressed.bind(id))
+	card.add_child(btn)
+	_battle_contra_btns[id] = btn
+	add_child(card)
+	return y + 58
+
+func _on_battle_hypo_pressed(id: String) -> void:
+	var st: int = _battle_hypo_states.get(id, 0)
+	st = (st + 1) % 3
+	_battle_hypo_states[id] = st
+	var btn = _battle_hypo_btns.get(id)
+	if btn:
+		btn.text = ["未定", "采纳✓", "排除✗"][st]
+		_style_battle_btn(btn, st)
+	_update_battle_status()
+
+func _on_battle_contra_pressed(id: String) -> void:
+	var st: bool = not _battle_contra_states.get(id, false)
+	_battle_contra_states[id] = st
+	var btn = _battle_contra_btns.get(id)
+	if btn:
+		btn.text = "已识别" if st else "未识别"
+		_style_battle_btn(btn, 1 if st else 0)
+	_update_battle_status()
+
+func _update_battle_status() -> void:
+	if not _battle_status: return
+	var hypos: Array = _battle.get("hypotheses", [])
+	var contras: Array = _battle.get("contradictions", [])
+	var h_ok := 0; var h_tot := hypos.size()
+	for h in hypos:
+		var id: String = h.get("id", "")
+		var st: int = _battle_hypo_states.get(id, 0)
+		var correct: bool = h.get("correct", false)
+		if (st == 1 and correct) or (st == 2 and not correct):
+			h_ok += 1
+	var c_ok := 0; var c_tot := contras.size()
+	for c in contras:
+		var cid: String = c.get("id", "")
+		if _battle_contra_states.get(cid, false):
+			c_ok += 1
+	_battle_status.text = "推理战场评定：假设命中 %d/%d · 矛盾识别 %d/%d" % [h_ok, h_tot, c_ok, c_tot]
+
+func _style_battle_btn(btn: Button, st: int) -> void:
+	var sn = StyleBoxFlat.new()
+	match st:
+		1:  # 采纳/已识别（绿）
+			sn.bg_color = Color(0.08, 0.28, 0.08, 0.95)
+			sn.border_color = Color(0.2, 0.8, 0.2)
+		2:  # 排除（红）
+			sn.bg_color = Color(0.32, 0.08, 0.08, 0.95)
+			sn.border_color = Color(0.85, 0.35, 0.25)
+		_:  # 未定（灰）
+			sn.bg_color = Color(0.18, 0.14, 0.09, 0.95)
+			sn.border_color = Color(0.55, 0.42, 0.20)
+	sn.border_width_left = 2; sn.border_width_right = 2
+	sn.border_width_top = 2; sn.border_width_bottom = 2
+	sn.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("normal", sn)
+
 func _update_hypo() -> void:
 	var names: Array = []
 	for c in _clues:
@@ -350,6 +492,16 @@ func _on_verify_pressed() -> void:
 	rl.position = Vector2(0, 350); rl.size = Vector2(1920, 80)
 	rl.horizontal_alignment = 1
 	add_child(rl)
+
+	# 推理战场小结（M1）：若本场景结构化了假设/矛盾，验证时一并汇报命中
+	if not _battle.is_empty() and _battle_status:
+		var summ = Label.new()
+		summ.text = _battle_status.text
+		summ.add_theme_font_size_override("font_size", 18)
+		summ.add_theme_color_override("font_color", Color(0.7, 0.9, 0.7))
+		summ.position = Vector2(0, 440); summ.size = Vector2(1920, 40)
+		summ.horizontal_alignment = 1
+		add_child(summ)
 
 	await get_tree().create_timer(2.5).timeout
 	if _on_verify: _on_verify.call(v)
