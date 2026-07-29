@@ -40,7 +40,7 @@ func clue_source() -> String: return "scene4"
 func hotspots() -> Array: return []
 func scene_title() -> String: return "奥德利大院 四十六号"
 func scene_time_text() -> String: return "DAY 1 深夜"
-func scene_background() -> Texture2D: return null
+func scene_background() -> Texture2D: return load("res://assets/scenes/sc_04_police.jpg")
 
 ## 深夜氛围遮罩（迷雾/灯光）：场景四为深夜奥德利大院，开启 Night 预设增强沉浸。
 ## 背景位图由 Req3（#97）统一选配，此处先以程序化夜雾兜底。

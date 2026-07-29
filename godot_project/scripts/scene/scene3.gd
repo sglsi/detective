@@ -51,7 +51,7 @@ func use_procedural_background() -> bool: return procedural_bg
 func wants_atmosphere() -> bool: return true
 func atmosphere_preset() -> String: return "Night"
 
-func scene_background() -> Texture2D: return load("res://assets/scenes/sc_03_indoor.png")
+func scene_background() -> Texture2D: return load("res://assets/scenes/sc_03_indoor.jpg")
 
 # ===== 阶段 / 进度判断 =====
 func _phase_name(p: int) -> String:

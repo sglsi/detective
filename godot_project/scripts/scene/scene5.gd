@@ -45,7 +45,7 @@ func clue_source() -> String: return "scene5"
 func hotspots() -> Array: return []
 func scene_title() -> String: return "贝克街 221B 会客厅"
 func scene_time_text() -> String: return "DAY 1 晚 20:00-21:00"
-func scene_background() -> Texture2D: return null
+func scene_background() -> Texture2D: return load("res://assets/scenes/sc_05_parlor.jpg")
 
 ## 夜间会客厅氛围：壁炉 + 煤气灯。开 Night 预设增强沉浸，背景位图由 Req3(#97) 统一选配。
 func wants_atmosphere() -> bool: return true

@@ -23,6 +23,8 @@ var _stars_insight := 1
 var _look_active := false
 var _talk_active := false
 
+func scene_background() -> Texture2D: return load("res://assets/scenes/sc_01_lab.jpg")
+
 func _ready() -> void:
 	super._ready()
 
