@@ -6,14 +6,18 @@ class_name ClueObserver
 
 # 热点定义: {"id":"wrist","label":"手腕肤色","x":550,"y":300,"w":120,"h":50,"desc":"...","correct":true}
 # correct 字段可选，默认 true（华生场景所有线索都正确）
+# silent 字段可选，默认 false；silent=true 表示「沉默线索」——可选发现，不计入场景完成条件
+#   （见 02 §11 沉默线索 D1：自由探索发现，给洞察奖励，但不阻塞场景推进）
 
 signal hotspot_clicked(clue_id: String)
 signal clue_recorded(clue_id: String, clue_data: Dictionary)
-signal all_recorded(clues: Array)  # 全部线索记录完毕
+signal all_recorded(clues: Array)  # 全部「必点」线索记录完毕（silent 线索不触发）
 
 var _hotspots: Array = []           # 热点定义
 var _btns: Array = []               # 按钮引用
-var _recorded := 0                  # 已记录数
+var _recorded := 0                  # 已记录数（含 silent 可选线索）
+var _required_total: int = 0        # 必点热点总数（排除 silent）
+var _required_recorded: int = 0     # 已记录的必点热点数
 var _recorded_clues: Array = []     # 已记录的线索数据
 var _recorded_ids: Array = []       # 已记录的热点 ID，用于正确隐藏
 var _active := false                # 是否处于观察模式
@@ -30,6 +34,11 @@ func setup(parent: Control, text_lbl: Label, speaker_lbl: Label,
 	_hotspots = hotspots
 	_portrait_texture = portrait_tex
 	_create_buttons()
+	# 计算必点总数（silent 线索不计入完成条件，仅作可选奖励）
+	_required_total = 0
+	for hs in _hotspots:
+		if not hs.get("silent", false):
+			_required_total += 1
 
 func _create_buttons() -> void:
 	for hs in _hotspots:
@@ -64,11 +73,17 @@ func hide_button_by_id(clue_id: String) -> void:
 			return
 
 ## 标记某条线索为已记录状态（用于存档恢复），隐藏按钮、登记 ID、递增计数器，
-## 并重建线索数据写入 _recorded_clues，确保读档后推理墙能拿到完整线索（含 correct 标志）
+## 并重建线索数据写入 _recorded_clues，确保读档后推理墙能拿到完整线索（含 correct 标志）。
+## 同时维护 _required_recorded（与正常记录路径一致，避免恢复后完成判定错位）。
 func mark_recorded(clue_id: String) -> void:
 	if _recorded_ids.has(clue_id): return
 	_recorded_ids.append(clue_id)
 	_recorded += 1
+	for hs in _hotspots:
+		if hs["id"] == clue_id:
+			if not hs.get("silent", false):
+				_required_recorded += 1
+			break
 	hide_button_by_id(clue_id)
 	var hs_data: Dictionary = {"id": clue_id, "name": clue_id, "desc": "", "correct": true}
 	for hs in _hotspots:
@@ -81,13 +96,19 @@ func is_active() -> bool:
 	return _active
 
 func get_recorded() -> int:
+	# 保持原语义：返回「全部已记录数」（含 silent）。场景一用此值配硬编码阈值
+	# (>=4 / >=6) 做完成判定，且全为非 silent 线索，语义不变。
 	return _recorded
+
+func get_required_recorded() -> int:
+	return _required_recorded
 
 func get_recorded_clues() -> Array:
 	return _recorded_clues
 
 func needs_count() -> int:
-	return _hotspots.size()
+	# 返回「必点」线索总数（排除 silent 可选线索），供进度展示使用
+	return _required_total
 
 # ── 内部回调 ──
 
@@ -185,19 +206,28 @@ func _on_record(clue_id: String, desc: String) -> void:
 	var hs_data: Dictionary = {"id": clue_id, "name": clue_id, "desc": desc, "correct": true}
 	for hs in _hotspots:
 		if hs["id"] == clue_id:
-			hs_data = {"id": hs["id"], "name": hs["label"], "desc": hs["desc"], "correct": hs.get("correct", true)}
+			hs_data = {"id": hs["id"], "name": hs["label"], "desc": hs.get("desc", ""), "correct": hs.get("correct", true)}
 			break
 
 	_recorded_clues.append(hs_data)
 	_recorded_ids.append(clue_id)
 	clue_recorded.emit(clue_id, hs_data)
 
-	# 更新底部文字
-	var parts = {0:"第一",1:"第二",2:"第三",3:"第四",4:"第五",5:"第六"}
-	var total = _hotspots.size()
-	_text_lbl.text = "线索已记录！%s条线索 (%d/%d)" % [parts.get(_recorded-1, ""), _recorded, total]
+	# 维护必点计数（silent 线索不计入完成条件）
+	var rec_silent := false
+	for hs in _hotspots:
+		if hs["id"] == clue_id:
+			rec_silent = hs.get("silent", false)
+			break
+	if not rec_silent:
+		_required_recorded += 1
 
-	if _recorded >= total:
+	# 更新底部文字（进度只统计必点线索；沉默线索为额外奖励，不计入分母）
+	var parts = {0:"第一",1:"第二",2:"第三",3:"第四",4:"第五",5:"第六"}
+	_text_lbl.text = "线索已记录！%s条线索 (%d/%d)" % [parts.get(_recorded-1, ""), _required_recorded, _required_total]
+
+	# 完成判定基于「必点」线索：silent 未点也能推进场景
+	if _required_recorded >= _required_total:
 		_active = false
 		all_recorded.emit(_recorded_clues)
 	else:
