@@ -17,7 +17,7 @@ var _associated := 0
 var _contradicting := 0
 var _on_verify: Callable
 var _card_btns: Dictionary = {}  # clue_id -> Button
-var _hypo_btn: Button
+var _hypo_list: VBoxContainer = null   # 关联面板：已关联线索列表（点击条目弹详情）
 var _status_lbl: Label
 var _on_close: Callable = Callable()   # 关闭时回调（用于返回玩家进入前的状态）
 var _verifying := false                 # 验证结果展示中，锁定「返回」避免误关
@@ -49,7 +49,7 @@ func _create_ui() -> void:
 
 	# 标题
 	_add_label("推理墙 — 假设构建", 32, Color(0.92, 0.82, 0.45), Vector2(40, 20), Vector2(1840, 45))
-	_add_label("点击线索卡片直接推入面板 | 再次点击取消 | 绿色=已关联", 14, Color(0.45, 0.40, 0.30), Vector2(40, 65), Vector2(1840, 25))
+	_add_label("点击左栏线索卡 = 推入关联面板（再点退出）· 点关联面板内线索 = 查看详情 · 绿色=已关联", 14, Color(0.45, 0.40, 0.30), Vector2(40, 65), Vector2(1840, 25))
 
 	# 分割线
 	var div = ColorRect.new()
@@ -87,7 +87,7 @@ func _create_ui() -> void:
 		add_child(card)
 		_card_btns[c["id"]] = card
 
-	# 中央：假设区域
+	# 中央：关联面板（点击左栏线索推入/退出；点面板内线索看详情）
 	var hypo_area = Control.new()
 	hypo_area.position = Vector2(380, 110)
 	hypo_area.size = Vector2(800, 600)
@@ -100,26 +100,20 @@ func _create_ui() -> void:
 
 	_add_label("核心问题: " + _hypothesis.get("title", ""), 24, Color(0.88, 0.82, 0.72), Vector2(20, 15), Vector2(760, 35))
 	_add_label(_hypothesis.get("description", ""), 15, Color(0.6, 0.55, 0.45), Vector2(20, 55), Vector2(760, 45))
+	_add_label("关联面板 — 点击左栏线索推入，再点退出；点面板内线索看详情", 17, Color(0.85, 0.78, 0.62), Vector2(20, 100), Vector2(760, 26))
 
-	# 假设卡槽
-	_hypo_btn = Button.new()
-	_hypo_btn.text = "关联的证据将在此显示\n\n点击左侧线索卡片加入或移除"
-	_hypo_btn.position = Vector2(50, 130)
-	_hypo_btn.size = Vector2(700, 320)
-	_hypo_btn.add_theme_font_size_override("font_size", 20)
-	_hypo_btn.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
-	var hbn = StyleBoxFlat.new()
-	hbn.bg_color = Color(0.08, 0.06, 0.04, 0.95)
-	hbn.border_color = Color(0.45, 0.35, 0.15)
-	hbn.border_width_left = 3; hbn.border_width_right = 3
-	hbn.border_width_top = 3; hbn.border_width_bottom = 3
-	hbn.set_corner_radius_all(9)
-	_hypo_btn.add_theme_stylebox_override("normal", hbn)
-	var hbh = hbn.duplicate()
-	hbh.border_color = Color(0.75, 0.58, 0.30)
-	_hypo_btn.add_theme_stylebox_override("hover", hbh)
-	_hypo_btn.pressed.connect(_on_hypo_clicked)
-	hypo_area.add_child(_hypo_btn)
+	# 关联面板：可滚动列表（已关联线索）
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(20, 132); scroll.size = Vector2(760, 340)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	hypo_area.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.name = "AssocList"
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 6)
+	scroll.add_child(list)
+	_hypo_list = list
+	_update_hypo()
 
 	# 状态标签
 	_status_lbl = Label.new()
@@ -172,7 +166,7 @@ func _create_ui() -> void:
 	add_child(cl)
 
 	_create_battlefield_ui()
-	_add_label("提示: 点击线索卡片=推入面板，再次点击=取消关联。绿色=已关联，灰色=未关联。", 13, Color(0.40, 0.35, 0.28), Vector2(40, 700), Vector2(1840, 25))
+	_add_label("提示: 点击左栏线索卡=推入关联面板（再点退出）；点关联面板内线索=弹出详情。绿色=已关联。", 13, Color(0.40, 0.35, 0.28), Vector2(40, 700), Vector2(1840, 25))
 
 func _add_label(t: String, fs: int, fc: Color, pos: Vector2, sz: Vector2) -> void:
 	var l = Label.new(); l.text = t
@@ -195,17 +189,9 @@ func _style_card(btn: Button, associated: bool) -> void:
 	btn.add_theme_stylebox_override("normal", sn)
 
 func _on_card_clicked(cid: String) -> void:
-	# 查找线索数据
-	var clue: Dictionary = {}
-	var idx := -1
-	for i in _clues.size():
-		if _clues[i]["id"] == cid:
-			clue = _clues[i]; idx = i
-			break
-	if idx < 0: return
-
-	# 显示线索详情弹窗（解决"点击无反应/无提示"）
-	_show_clue_detail(clue)
+	# 点击左栏线索卡片 = 推入/退出关联面板（toggle）。
+	# 在关联面板内点击某条线索时，才会弹出线索详情（见 _update_hypo）。
+	_toggle_association(cid)
 
 ## 线索详情弹窗：显示完整信息 + 关联/取消操作
 var _detail_popup: AcceptDialog = null
@@ -303,10 +289,6 @@ func _toggle_association(cid: String) -> void:
 		_status_lbl.add_theme_color_override("font_color", Color(0.5, 0.9, 0.5))
 
 	_update_hypo()
-
-func _on_hypo_clicked() -> void:
-	# 假设区本身点击暂无额外行为（关联由线索卡片完成）
-	pass
 
 # ===== 推理战场 M1：假设/矛盾可交互卡 =====
 ## 在右侧渲染推理战场：假设卡（三态：未定/采纳/排除）+ 矛盾卡（识别/未识别），
@@ -443,14 +425,30 @@ func _style_battle_btn(btn: Button, st: int) -> void:
 	btn.add_theme_stylebox_override("normal", sn)
 
 func _update_hypo() -> void:
-	var names: Array = []
+	if not _hypo_list: return
+	for c in _hypo_list.get_children(): c.queue_free()
+	var assoc: Array = []
 	for c in _clues:
 		if c.get("associated", false):
-			names.append(c.get("name", c.get("label", c.get("id", ""))))
-	if names.is_empty():
-		_hypo_btn.text = "关联的证据将在此显示\n\n点击左侧线索卡片加入或移除"
-	else:
-		_hypo_btn.text = "已关联证据 (" + str(names.size()) + "):\n" + "\n".join(names)
+			assoc.append(c)
+	if assoc.is_empty():
+		var ph := Label.new()
+		ph.text = "（暂无关联线索）\n点击左栏线索卡片推入此面板；再次点击同一卡片可退出。"
+		ph.add_theme_font_size_override("font_size", 16)
+		ph.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
+		ph.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ph.custom_minimum_size = Vector2(720, 80)
+		_hypo_list.add_child(ph)
+		return
+	for c in assoc:
+		var b := Button.new()
+		b.text = c.get("name", c.get("label", c.get("id", "")))
+		b.add_theme_font_size_override("font_size", 17)
+		b.add_theme_color_override("font_color", Color(0.95, 0.90, 0.78))
+		b.custom_minimum_size = Vector2(720, 46)
+		_style_card(b, true)
+		b.pressed.connect(_show_clue_detail.bind(c))
+		_hypo_list.add_child(b)
 
 func _input(event: InputEvent) -> void:
 	if _verifying: return

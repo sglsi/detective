@@ -42,6 +42,8 @@ func scene_time_text() -> String: return "DAY 1 正午12:05"
 @export var procedural_bg: bool = false
 
 func use_procedural_background() -> bool: return procedural_bg
+func wants_atmosphere() -> bool: return true
+func atmosphere_preset() -> String: return "Night"
 
 func scene_background() -> Texture2D: return load("res://assets/scenes/sc_03_indoor.png")
 
