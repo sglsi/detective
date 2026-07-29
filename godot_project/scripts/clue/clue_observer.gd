@@ -138,14 +138,33 @@ func _show_observation_layer(clue_id: String, desc: String) -> void:
 	dim.name = "obs_dim"
 	_parent.add_child(dim)
 
-	# 放大的肖像图
+	# 放大的肖像图（优先局部裁剪，无 crop 则显示整图）
 	var img = TextureRect.new()
 	img.name = "obs_img"
 	img.position = Vector2(260, 60); img.size = Vector2(700, 950)
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	if _portrait_texture:
-		img.texture = _portrait_texture
+		# 查找当前线索的裁剪区域（归一化坐标）
+		var hs_crop: Dictionary = {}
+		for hs in _hotspots:
+			if hs["id"] == clue_id and hs.has("crop"):
+				hs_crop = hs["crop"]
+				break
+		if not hs_crop.is_empty() and _portrait_texture:
+			var at := AtlasTexture.new()
+			at.atlas = _portrait_texture
+			var tw: float = _portrait_texture.get_width()
+			var th: float = _portrait_texture.get_height()
+			at.region = Rect2(
+				float(hs_crop.get("x", 0)) * tw,
+				float(hs_crop.get("y", 0)) * th,
+				(float(hs_crop.get("cx", 1)) - float(hs_crop.get("x", 0))) * tw,
+				(float(hs_crop.get("cy", 1)) - float(hs_crop.get("y", 0))) * th
+			)
+			img.texture = at
+		else:
+			img.texture = _portrait_texture
 	_parent.add_child(img)
 
 	# 标题

@@ -41,21 +41,32 @@ func peek_save_state(scene_id: String) -> Dictionary:
 ##   scene_id : 场景标识（如 "scene1"），用于读档归属判定
 ##   phase    : 场景自定义的当前阶段值（int）
 ##   data     : 场景自定义的附加状态字典（如 {"clue_ids":[...]}）
-func request_save(scene_id: String, phase: int, data: Dictionary) -> void:
+##   slot     : 指定存档槽位（0..2）；缺省 -1 表示自动分配（空槽位优先，满则覆盖最旧）。
+func request_save(scene_id: String, phase: int, data: Dictionary, slot: int = -1) -> void:
 	if GameManager:
 		GameManager.current_scene_id = scene_id
-	await GameManager.do_save(phase, data)
+	await GameManager.do_save(phase, data, slot)
 
 ## 真正读档：刷新 GameManager.scene_state 与 ClueSystem，返回是否成功。
 ## 场景/UI 一律经此门面读档，不要直接调 SaveManager.load_game()。
-func load_game() -> bool:
+##   slot     : 指定读取槽位；缺省 -1 表示沿用当前 current_slot。
+func load_game(slot: int = -1) -> bool:
 	if not SaveManager:
 		return false
-	return await SaveManager.load_game()
+	var target := slot if slot >= 0 else (GameManager.current_slot if GameManager else 0)
+	return await SaveManager.load_slot(target)
 
 ## 是否存在任意本地存档（用于「继续游戏」按钮可用性）
 func has_save() -> bool:
-	return SaveManager.has_local_save() if SaveManager else false
+	return SaveManager.has_any_save() if SaveManager else false
+
+## 读取全部槽位的摘要列表（按槽位号顺序）
+func list_slots() -> Array:
+	return SaveManager.get_slot_list() if SaveManager else []
+
+## 读取「已有存档」槽位列表，按时间倒序（最新在上）——读档面板专用
+func list_slots_sorted() -> Array:
+	return SaveManager.get_slot_list_sorted() if SaveManager else []
 
 # ============ 新游戏：清空一切运行时进度 ============
 

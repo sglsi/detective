@@ -102,9 +102,14 @@ func _ready() -> void:
 	# 游客（不存档，先选难度再进游戏）
 	var bg2 = mkbtn("以游客身份继续", Vector2(660, 810), Vector2(600, 45), false, true)
 	bg2.pressed.connect(func():
-		if GameManager: GameManager.is_guest = true
+		if GameManager: GameManager.is_guest = true; GameManager.current_slot = 0
 		_go_scene("res://scenes/difficulty_select.tscn"))
 	_root.add_child(bg2)
+
+	# 注册 / 登录（在线走后端 127.0.0.1:3001；后端不可达时降级为本地账号）
+	var br = mkbtn("注 册 / 登 录", Vector2(660, 865), Vector2(600, 45), false, true)
+	br.pressed.connect(func(): _show_auth(false))
+	_root.add_child(br)
 
 	# 版权
 	var footer = Label.new()
@@ -119,12 +124,12 @@ func _ready() -> void:
 	if AuthManager:
 		AuthManager.login_success.connect(func(_id, _un):
 			if _auth_panel and is_instance_valid(_auth_panel): _auth_panel.queue_free(); _auth_panel = null
-			_check_and_go())
+			_show_start_panel())
 		AuthManager.login_failed.connect(func(err):
 			if _message_lbl: _message_lbl.text = "X " + err)
 		AuthManager.registration_success.connect(func(_id, _un):
 			if _auth_panel and is_instance_valid(_auth_panel): _auth_panel.queue_free(); _auth_panel = null
-			_check_and_go())
+			_show_start_panel())
 		AuthManager.registration_failed.connect(func(err):
 			if _message_lbl: _message_lbl.text = "X " + err)
 
@@ -162,101 +167,138 @@ func mkbtn(text: String, pos: Vector2, sz: Vector2, primary: bool, small := fals
 # -- 开始游戏流程 --
 
 func _on_start_pressed() -> void:
-	if AuthManager and AuthManager.is_authenticated():
-		_check_and_go()
+	# 存档是登录用户专属内容：未登录 → 先弹登录面板（登录/注册成功后自动进入存档面板）
+	if AuthManager and not AuthManager.is_guest():
+		_show_start_panel()
 	else:
 		_show_auth(false)
 
-## 解析云端存档查询响应：是否已有存档（error 默认为 true，data 为空视为无存档）
-func _has_cloud_save(r: Dictionary) -> bool:
-	return not r.get("error", true) and not r.get("data", {}).is_empty()
-
-## 注册用户查存档，游客跳过
-func _check_and_go() -> void:
-	var is_guest := GameManager.is_guest if GameManager else false
-	if is_guest:
-		_go_scene("res://scenes/difficulty_select.tscn")
-		return
-
-	# 注册用户：查云端存档（无后端则先选难度再进游戏）
-	if not SaveManager or not APIManager or not APIManager.is_online:
-		_go_scene("res://scenes/difficulty_select.tscn")
-		return
-
-	if GameManager: GameManager.current_case_id = "case_blood_letter"
-	var r = await APIManager.get_latest_save("case_blood_letter")
-	if _has_cloud_save(r): _show_save_dialog()
-	else: _go_scene("res://scenes/difficulty_select.tscn")
-
-func _show_save_dialog() -> void:
+## 开始游戏（已登录）→ 存档面板：已有存档按时间倒序（最新在上）/ 重新开始 / 返回
+func _show_start_panel() -> void:
 	var p = Control.new()
 	p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(p)
 
 	var dim = ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.70)
+	dim.color = Color(0, 0, 0, 0.72)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(dim)
 
 	var f = Panel.new()
-	f.size = Vector2(600, 380)
-	f.position = Vector2(1920/2 - 300, 1080/2 - 190)
+	# 仅显示已有存档，按时间倒序（最新在最上面）；空槽位不显示
+	var slots = SaveManager.get_slot_list_sorted() if SaveManager else []
+	var fw := 760.0
+	var fh := 150.0 + maxf(float(slots.size()), 1.0) * 84.0 + 80.0
+	f.size = Vector2(fw, fh)
+	f.position = Vector2(1920.0 / 2.0 - fw / 2.0, 1080.0 / 2.0 - fh / 2.0)
 	var sb = StyleBoxFlat.new()
-	sb.bg_color = Color(0.13, 0.10, 0.07, 0.97)
+	sb.bg_color = Color(0.13, 0.10, 0.07, 0.98)
 	sb.border_color = Color(0.78, 0.62, 0.28)
-	sb.border_width_left = 3; sb.border_width_right = 3
-	sb.border_width_top = 3; sb.border_width_bottom = 3
+	sb.border_width_left = 3; sb.border_width_right = 3; sb.border_width_top = 3; sb.border_width_bottom = 3
 	sb.set_corner_radius_all(8)
 	f.add_theme_stylebox_override("panel", sb)
 	p.add_child(f)
 
 	var tl = Label.new()
-	tl.text = "检测到存档进度"
+	tl.text = "选择进度"
 	tl.add_theme_font_size_override("font_size", 30)
 	tl.add_theme_color_override("font_color", Color(0.92, 0.82, 0.45))
-	tl.position = Vector2(40, 30); tl.size = Vector2(520, 45)
+	tl.position = Vector2(30, 22); tl.size = Vector2(fw - 60, 40)
 	f.add_child(tl)
 
 	var sep = ColorRect.new()
 	sep.color = Color(0.55, 0.42, 0.20, 0.5)
-	sep.position = Vector2(40, 85); sep.size = Vector2(520, 2)
+	sep.position = Vector2(30, 70); sep.size = Vector2(fw - 60, 2)
 	f.add_child(sep)
 
-	var dl = Label.new()
-	dl.text = "你之前在贝克街221B的冒险尚未完成。\n是否要继续上次的进度？"
-	dl.add_theme_font_size_override("font_size", 20)
-	dl.add_theme_color_override("font_color", Color(0.88, 0.82, 0.72))
-	dl.position = Vector2(40, 105); dl.size = Vector2(520, 70)
-	f.add_child(dl)
+	var y := 88.0
+	if slots.is_empty():
+		var el = Label.new()
+		el.text = "（暂无存档 — 点击「重新开始」开启新的探案）"
+		el.add_theme_font_size_override("font_size", 17)
+		el.add_theme_color_override("font_color", Color(0.72, 0.66, 0.54))
+		el.position = Vector2(30, y + 20); el.size = Vector2(fw - 60, 32)
+		el.horizontal_alignment = 1
+		f.add_child(el)
+		y += 84.0
+	var row_idx := 0
+	for meta in slots:
+		var slot: int = meta.get("slot", 0)
+		var exists: bool = meta.get("exists", false)
+		var row = Panel.new()
+		row.position = Vector2(30, y); row.size = Vector2(fw - 60, 72)
+		var rsb = StyleBoxFlat.new()
+		rsb.bg_color = Color(0.20, 0.16, 0.10, 0.55)
+		rsb.border_color = Color(0.50, 0.38, 0.18)
+		rsb.border_width_left = 1; rsb.border_width_right = 1; rsb.border_width_top = 1; rsb.border_width_bottom = 1
+		rsb.set_corner_radius_all(4)
+		row.add_theme_stylebox_override("panel", rsb)
+		f.add_child(row)
 
-	var bc = mkbtn("继 续 游 戏", Vector2(40, 190), Vector2(520, 60), true)
-	bc.pressed.connect(func():
-		p.queue_free()
-		_go_save())
-	f.add_child(bc)
+		var nl = Label.new()
+		nl.text = "🕐 最新" if row_idx == 0 else "存档 " + str(row_idx + 1)
+		nl.add_theme_font_size_override("font_size", 20)
+		nl.add_theme_color_override("font_color", Color(0.90, 0.82, 0.58))
+		nl.position = Vector2(20, 10); nl.size = Vector2(150, 28)
+		row.add_child(nl)
 
-	var bn = mkbtn("重 新 开 始", Vector2(40, 265), Vector2(520, 48), false)
+		var il = Label.new()
+		if exists:
+			il.text = _scene_name(meta.get("scene_id", "")) + "  ·  " + _fmt_time(meta.get("timestamp", 0))
+		else:
+			il.text = "（空）"
+		il.add_theme_font_size_override("font_size", 16)
+		il.add_theme_color_override("font_color", Color(0.80, 0.74, 0.62))
+		il.position = Vector2(180, 16); il.size = Vector2(fw - 280, 24)
+		row.add_child(il)
+
+		var bb = mkbtn("继 续" if exists else "—", Vector2(fw - 60 - 150, 16), Vector2(130, 40), exists, true)
+		bb.disabled = not exists
+		if exists:
+			bb.pressed.connect(func():
+				p.queue_free()
+				_continue_slot(slot))
+		row.add_child(bb)
+		y += 84.0
+		row_idx += 1
+
+	# 重新开始（新游戏）
+	var bn = mkbtn("重 新 开 始", Vector2(30, y + 10), Vector2((fw - 70) / 2.0, 56), false)
 	bn.pressed.connect(func():
 		p.queue_free()
-		if SaveSystem: SaveSystem.new_game()
-		if GameManager: GameManager.current_scene_id = "scene1"
-		_go_scene("res://scenes/difficulty_select.tscn"))
+		_restart_game())
 	f.add_child(bn)
 
-	var bx = mkbtn("返    回", Vector2(40, 324), Vector2(520, 38), false, true)
+	# 返回
+	var bx = mkbtn("返    回", Vector2(40 + (fw - 70) / 2.0, y + 10), Vector2((fw - 70) / 2.0, 56), false, true)
 	bx.pressed.connect(func(): p.queue_free())
 	f.add_child(bx)
 
-# -- 加载存档 --
+func _scene_name(scene_id: String) -> String:
+	var names := {
+		"scene1": "第一案 · 贝克街221B",
+		"scene2": "第二案 · 劳瑞斯顿花园",
+		"scene3": "第三案 · 尸体现场",
+		"scene4": "第四案 · 奥德利大院",
+		"scene5": "第五案 · 出租马车",
+		"scene6": "第六案 · 卡彭蒂耶家",
+		"scene7": "第七案 · 郝黎代旅馆",
+		"scene8": "第八案 · 复仇终章",
+	}
+	return names.get(scene_id, scene_id)
 
-func _go_save() -> void:
-	if not SaveManager:
-		_go_scene("res://scenes/scene1.tscn")
-		return
+func _fmt_time(t: int) -> String:
+	if t <= 0:
+		return ""
+	return Time.get_datetime_string_from_unix_time(t)
+
+## 继续指定槽位的进度
+func _continue_slot(slot: int) -> void:
+	if GameManager: GameManager.current_slot = slot
 	if GameManager: GameManager.current_case_id = "case_blood_letter"
-	var ok = await SaveSystem.load_game()
+	var ok = await SaveSystem.load_game(slot)
 	if ok and GameManager.current_scene_id != "":
 		var spath = "res://scenes/" + GameManager.current_scene_id + ".tscn"
 		if ResourceLoader.exists(spath):
@@ -265,6 +307,14 @@ func _go_save() -> void:
 	# 加载失败 → 从头开始
 	if GameManager: GameManager.current_scene_id = "scene1"
 	_go_scene("res://scenes/scene1.tscn")
+
+## 重新开始（新游戏）：不再手选槽位——保存时自动分配，直接进入难度选择
+func _restart_game() -> void:
+	if SaveSystem: SaveSystem.new_game()
+	if GameManager:
+		GameManager.current_scene_id = "scene1"
+		GameManager.current_slot = SaveManager.pick_auto_slot() if SaveManager else 0
+	_go_scene("res://scenes/difficulty_select.tscn")
 
 ## 可靠场景跳转
 func _go_scene(path: String) -> void:

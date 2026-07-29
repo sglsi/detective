@@ -21,6 +21,110 @@ var save_data: Dictionary = {}
 var save_version: int = 1
 var last_save_timestamp: int = 0
 var last_save_id: String = ""
+var last_save_slot: int = 0
+
+# ============ 多槽位存档 ============
+# 3 个本地槽位，按登录用户隔离，存于 user://saves/<用户>/slot_0.json .. slot_2.json。
+# 各用户的存档相互独立：用户 A 登录看不到用户 B 的存档。
+# 保存不需要玩家选槽位：自动分配（先用空槽位，满了覆盖最旧的），
+# 形成「最近 3 次存档」滚动历史；读档列表按时间倒序（最新在上）。
+const SLOT_COUNT: int = 3
+const SLOT_DIR: String = "user://saves/"
+const SLOT_FILE_PREFIX: String = "slot_"
+
+## 文件名安全化：仅保留字母/数字/下划线/连字符，其余替换为下划线
+func _sanitize_dir_name(raw: String) -> String:
+	var out := ""
+	for ch in raw:
+		var c: String = ch
+		if (c >= "a" and c <= "z") or (c >= "A" and c <= "Z") or (c >= "0" and c <= "9") or c == "_" or c == "-":
+			out += c
+		else:
+			out += "_"
+	return out if not out.is_empty() else "unknown"
+
+## 当前用户的存档命名空间（登录用户 = user_id；游客 = guest）
+func _user_namespace() -> String:
+	if AuthManager and AuthManager.is_authenticated():
+		var raw: String = str(AuthManager.get_user_id())
+		if raw.is_empty():
+			raw = str(AuthManager.get_username())
+		return _sanitize_dir_name(raw)
+	return "guest"
+
+## 当前用户的存档目录（user:// 相对路径形式，供 make_dir_recursive 用）
+func _user_save_subdir() -> String:
+	return "saves/" + _user_namespace()
+
+## 槽位 N 的文件路径（按当前登录用户隔离）
+func slot_path(slot: int) -> String:
+	return SLOT_DIR + _user_namespace() + "/" + SLOT_FILE_PREFIX + str(slot) + ".json"
+
+## 是否存在任意槽位存档（用于「继续游戏」可用性）
+func has_any_save() -> bool:
+	for i in SLOT_COUNT:
+		if FileAccess.file_exists(slot_path(i)):
+			return true
+	return false
+
+## 读取单个槽位的摘要信息（不加载完整进度，仅用于列表展示）
+func get_slot_meta(slot: int) -> Dictionary:
+	var path = slot_path(slot)
+	if not FileAccess.file_exists(path):
+		return {"slot": slot, "exists": false, "timestamp": 0, "scene_id": "", "case_id": "", "difficulty": 0, "label": ""}
+	var file = FileAccess.open(path, FileAccess.READ)
+	var text = file.get_as_text()
+	file.close()
+	var json = JSON.parse_string(text)
+	if not json:
+		return {"slot": slot, "exists": false, "timestamp": 0, "scene_id": "", "case_id": "", "difficulty": 0, "label": ""}
+	return {
+		"slot": slot,
+		"exists": true,
+		"timestamp": json.get("timestamp", 0),
+		"scene_id": json.get("scene_id", ""),
+		"case_id": json.get("case_id", ""),
+		"difficulty": json.get("difficulty", 0),
+		"label": json.get("label", ""),
+	}
+
+## 读取全部槽位的摘要列表（按槽位号顺序）
+func get_slot_list() -> Array:
+	var list: Array = []
+	for i in SLOT_COUNT:
+		list.append(get_slot_meta(i))
+	return list
+
+## 读取「已有存档」的槽位摘要，按时间倒序（最新在最上面）——读档面板专用
+func get_slot_list_sorted() -> Array:
+	var list: Array = []
+	for i in SLOT_COUNT:
+		var meta = get_slot_meta(i)
+		if meta.get("exists", false):
+			list.append(meta)
+	list.sort_custom(func(a, b): return int(a.get("timestamp", 0)) > int(b.get("timestamp", 0)))
+	return list
+
+## 自动分配存档槽位：优先空槽位；全满时覆盖时间戳最旧的槽位。
+## 保存永远不需要玩家手选槽位（滚动保留最近 SLOT_COUNT 次存档）。
+func pick_auto_slot() -> int:
+	var oldest_slot := 0
+	var oldest_ts := 9223372036854775807
+	for i in SLOT_COUNT:
+		var meta = get_slot_meta(i)
+		if not meta.get("exists", false):
+			return i
+		var ts := int(meta.get("timestamp", 0))
+		if ts < oldest_ts:
+			oldest_ts = ts
+			oldest_slot = i
+	return oldest_slot
+
+## 删除指定槽位存档
+func clear_slot(slot: int) -> void:
+	var path = slot_path(slot)
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
 
 # ============ 生命周期 ============
 
@@ -50,11 +154,20 @@ func _on_connectivity_changed(online: bool) -> void:
 ## 设计：本地缓存文件（user://save_game.json）是会话内读档的权威来源，
 ## 每次存档都先写本地；注册用户在线时再同步到云端（云端异常不影响本地已存）。
 ## 这样无论网络/后端如何波动，存档→读档一定闭环（符合「存/读档是通用功能」原则）。
+## 默认存档（无槽位参数）写入槽位 0，保持旧调用方兼容
 func save_game() -> Dictionary:
-	_build_save_data()
+	return await save_to_slot(0)
 
-	# 1) 始终写入本地缓存
-	var local_res = _save_local()
+## 保存到指定槽位（0..SLOT_COUNT-1）。本地槽位文件为权威；注册用户在线时再镜像云端。
+func save_to_slot(slot: int) -> Dictionary:
+	if slot < 0 or slot >= SLOT_COUNT:
+		return {"error": true, "message": "无效存档槽位: " + str(slot)}
+	_build_save_data()
+	save_data["slot"] = slot
+	last_save_slot = slot
+
+	# 1) 始终写入本地槽位
+	var local_res = _write_slot_file(slot, save_data)
 	var result = local_res
 
 	# 2) 注册用户在线时同步到云端（仅作镜像，失败不影响本地）
@@ -102,21 +215,27 @@ func _build_save_data() -> void:
 
 # ============ 本地存档 ============
 
-func _save_local() -> Dictionary:
-	var file = FileAccess.open("user://save_game.json", FileAccess.WRITE)
+func _write_slot_file(slot: int, data: Dictionary) -> Dictionary:
+	var dir = DirAccess.open("user://")
+	if dir:
+		dir.make_dir_recursive(_user_save_subdir())
+	var path = slot_path(slot)
+	var file = FileAccess.open(path, FileAccess.WRITE)
 	if not file:
-		return {"error": true, "message": "无法写入本地存档文件"}
-	
-	file.store_string(JSON.stringify(save_data, "\t"))
+		return {"error": true, "message": "无法写入本地存档文件: " + path}
+
+	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
 
-	print("[SaveManager] 本地存档已保存")
-	SystemEventBus.emit_signal("game_saved", "local", last_save_timestamp)
-	game_saved.emit("local", last_save_timestamp)
-	return {"error": false, "save_id": "local", "timestamp": last_save_timestamp}
+	print("[SaveManager] 本地存档已保存 (槽位 ", slot, "): ", path)
+	SystemEventBus.emit_signal("game_saved", "slot_" + str(slot), last_save_timestamp)
+	game_saved.emit("slot_" + str(slot), last_save_timestamp)
+	last_save_id = "slot_" + str(slot)
+	return {"error": false, "save_id": "slot_" + str(slot), "slot": slot, "timestamp": last_save_timestamp}
 
+## 兼容别名：是否存在任意本地存档
 func has_local_save() -> bool:
-	return FileAccess.file_exists("user://save_game.json")
+	return has_any_save()
 
 # ============ 云端存档 ============
 
@@ -143,42 +262,37 @@ func _save_to_server() -> Dictionary:
 
 # ============ 读档操作 ============
 
-## 加载游戏
-## 设计：本地缓存为权威来源；注册用户在线时若云端有更新则覆盖本地结果。
-## 只要本地或云端任一成功即视为读档成功，绝不再因云端返回空而丢弃本地进度。
-func load_game() -> bool:
-	if GameManager.is_guest:
-		return await _load_local()
-	
-	# 注册用户：先用本地缓存（权威），在线再尝试云端更新覆盖
-	var ok := false
-	if has_local_save():
-		ok = await _load_local()
-	
-	if APIManager and APIManager.is_online:
-		if await _load_from_server():
-			ok = true
-	
-	if not ok:
-		no_save_found.emit()
-	return ok
+## 默认读档（无槽位参数）读取槽位 0，保持旧调用方兼容
+func load_game(slot: int = 0) -> bool:
+	return await load_slot(slot)
 
-func _load_local() -> bool:
-	if not FileAccess.file_exists("user://save_game.json"):
+## 从指定槽位读取本地存档。离线优先；无后端时本地槽位即权威来源。
+func load_slot(slot: int) -> bool:
+	if slot < 0 or slot >= SLOT_COUNT:
 		no_save_found.emit()
 		return false
-	
-	var file = FileAccess.open("user://save_game.json", FileAccess.READ)
+	if not FileAccess.file_exists(slot_path(slot)):
+		no_save_found.emit()
+		return false
+	return await _load_slot_file(slot)
+
+func _load_slot_file(slot: int) -> bool:
+	var path = slot_path(slot)
+	if not FileAccess.file_exists(path):
+		no_save_found.emit()
+		return false
+
+	var file = FileAccess.open(path, FileAccess.READ)
 	var text = file.get_as_text()
 	file.close()
-	
+
 	var json = JSON.parse_string(text)
 	if json:
 		_restore_from_dict(json)
 		SystemEventBus.emit_signal("game_loaded")
-		game_loaded.emit("local", json.get("case_id", ""))
+		game_loaded.emit("slot_" + str(slot), json.get("case_id", ""))
 		return true
-	
+
 	return false
 
 func _load_from_server() -> bool:
@@ -214,6 +328,8 @@ func _load_from_server() -> bool:
 func _restore_from_dict(data: Dictionary) -> void:
 	GameManager.current_case_id = data.get("case_id", "")
 	GameManager.current_scene_id = data.get("scene_id", "")
+	if GameManager and "current_slot" in GameManager:
+		GameManager.current_slot = data.get("slot", 0)
 	DifficultyManager.set_difficulty(data.get("difficulty", 0))
 	StarRatingSystem.observation_score = data.get("observation_score", 0)
 	StarRatingSystem.reasoning_score = data.get("reasoning_score", 0)

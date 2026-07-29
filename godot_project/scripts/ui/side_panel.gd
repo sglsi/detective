@@ -72,11 +72,19 @@ func _on_btn_pressed(action: String) -> void:
 		"journal":
 			UIManager.show_notification("侦探笔记已打开")
 		"save":
-			SaveManager.save_game()
-			UIManager.show_notification("游戏已保存")
-		"load":
-			var loaded = await SaveSystem.load_game()
-			if loaded:
-				UIManager.show_notification("存档已加载")
+			var sc = get_tree().current_scene
+			if sc and sc.has_method("_do_save"):
+				sc._do_save()
 			else:
-				UIManager.show_notification("没有可用的存档")
+				SaveManager.save_game()
+				UIManager.show_notification("游戏已保存")
+		"load":
+			var sc = get_tree().current_scene
+			if sc and sc.has_method("_do_load"):
+				sc._do_load()
+			else:
+				var loaded = await SaveSystem.load_game()
+				if loaded:
+					UIManager.show_notification("存档已加载")
+				else:
+					UIManager.show_notification("没有可用的存档")

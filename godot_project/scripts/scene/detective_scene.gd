@@ -123,7 +123,8 @@ func _init_atmosphere() -> void:
 	mat.shader = preload("res://shaders/fog_atmosphere.gdshader")
 	_apply_fog_preset(mat, atmosphere_preset())
 	fog.material = mat
-	fog.z_index = 4
+	# 迷雾/灯光层应位于背景之上、人物立绘与推理墙之下，避免遮盖人物导致颜色失真。
+	fog.z_index = -5
 	area.add_child(fog)
 	_fog_overlay = fog
 
@@ -390,8 +391,11 @@ func _show_journal() -> void:
 	_popup("侦探笔记", items)
 
 # ===================== 存 / 读档（通用核心） =====================
-func _do_save() -> void:
-	if GameManager.is_guest: _ui.show_notification("游客模式下无法存档，请先注册账号。"); return
+func _do_save(slot: int = -1) -> void:
+	# 存档为登录用户专属（游客不可存档）
+	if GameManager and GameManager.is_guest:
+		_ui.show_notification("游客模式不支持存档 — 请返回主菜单注册/登录")
+		return
 	var data := {"clue_ids": []}
 	# 以本场景本地进度为权威（不读全局 ClueSystem，避免跨轮累计污染存档）
 	var ids: Array = []
@@ -400,21 +404,38 @@ func _do_save() -> void:
 		for c in _obs.get_recorded_clues(): ids.append(c.get("id", ""))
 	data["clue_ids"] = ids
 	print("[SAVE " + scene_id() + "] _phase=", _phase, " data=", data)
-	await SaveSystem.request_save(scene_id(), _phase, data)
-	_ui.show_notification("✅ 进度已保存")
+	# 保存不需要选槽位：自动分配（空槽位优先，满则覆盖最旧），滚动保留最近 3 次存档
+	await SaveSystem.request_save(scene_id(), _phase, data, slot)
+	_ui.show_notification("✅ 进度已保存 " + Time.get_datetime_string_from_unix_time(int(Time.get_unix_time_from_system())).replace("T", " "))
 
 func _do_load() -> void:
-	_ui.show_notification("正在读取存档…")
+	# 存档为登录用户专属（游客不可读档）
+	if GameManager and GameManager.is_guest:
+		_ui.show_notification("游客模式不支持读档 — 请返回主菜单注册/登录")
+		return
 	if not SaveManager:
 		_ui.show_notification("存档系统不可用")
 		return
-	# 从磁盘/云端重新读取最新存档，刷新 GameManager.scene_state 与 ClueSystem
-	var ok = await SaveSystem.load_game()
-	if not ok:
-		_ui.show_notification("没有可用的存档")
+	# 读档时才显示槽位：仅列出已有存档，按时间倒序（最新在最上面）
+	var slots: Array = SaveManager.get_slot_list_sorted()
+	if slots.is_empty():
+		_ui.show_notification("暂无存档")
 		return
-	# 就地重置当前场景：_ready 会调用 _restore_saved_state，从刚刷新的存档恢复进度
-	get_tree().reload_current_scene()
+	var dlg = preload("res://scripts/ui/slot_dialog.gd").new()
+	dlg.configure("load", slots, func(slot):
+		var ok = await SaveSystem.load_game(slot)
+		if ok:
+			# 关键：跳转到「存档所属场景」，而不是盲目重载当前场景。
+			# 否则跨场景读档时 scene_id 不匹配 → take_save_state 返回空 → 场景从头开始（读档失效）。
+			var target_id: String = GameManager.current_scene_id if GameManager else ""
+			var target_path := "res://scenes/" + target_id + ".tscn"
+			if target_id != "" and target_id != scene_id() and ResourceLoader.exists(target_path):
+				SceneLoader.transition_to(target_path)
+			else:
+				get_tree().reload_current_scene()
+		else:
+			_ui.show_notification("没有可用的存档"))
+	add_child(dlg)
 
 ## 恢复存档进度（单组场景的通用实现：场景一覆盖为两组版本）
 ## 返回 true 表示有存档且已恢复，false 表示新游戏。
