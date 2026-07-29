@@ -122,7 +122,7 @@ func _build_lens_overlay() -> void:
 	glass.name = "Glass"
 	glass.size = Vector2(148, 148)
 	glass.position = Vector2(-74, -74)
-	glass.stretch_mode = TextureRect.STRETCH_KEEPAspectCentered
+	glass.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	glass.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_lens_overlay.add_child(glass)
@@ -205,6 +205,11 @@ func _on_tool_button_pressed(tool_id: String) -> void:
 		UIManager.show_notification("该工具尚未解锁")
 		return
 
+	# 同一工具再点 = 关闭当前交互（点一次出现，再点一次关闭）
+	if selected_tool_id == tool_id and _is_overlay_active():
+		_cancel_tool()
+		return
+
 	selected_tool_id = tool_id
 	_highlight_tool(tool_id)
 	tool_activated.emit(tool_id)
@@ -230,6 +235,12 @@ func _highlight_tool(tool_id: String) -> void:
 			btn.modulate = Color(1.2, 1.1, 0.6)  # 金色高亮
 		else:
 			btn.modulate = Color(1, 1, 1)
+
+## 当前是否有交互覆盖层处于显示中（放大镜/卷尺/弹窗）。
+func _is_overlay_active() -> bool:
+	return (_lens_overlay and _lens_overlay.visible) \
+		or (_tape_overlay and _tape_overlay.visible) \
+		or (_interaction_popup and _interaction_popup.visible)
 
 # ---- 放大镜交互（§4.3.4：移动镜片发现细节）----
 
@@ -408,14 +419,21 @@ func _show_directory_panel() -> void:
 
 # ---- 其他工具直接完成 ----
 
+func _tool_def(tool_id: String) -> Dictionary:
+	var idx = TOOL_DEFS.find(func(d): return d["id"] == tool_id)
+	if idx >= 0:
+		return TOOL_DEFS[idx]
+	return {}
+
 func _complete_immediate(tool_id: String) -> void:
 	var result := ""
 	if ToolSystem:
 		result = ToolSystem.use_tool_on(tool_id, _current_target_id)
+	var def = _tool_def(tool_id)
 	if result == "":
-		result = "使用了 %s，无特殊发现。" % [TOOL_DEFS.find(func(d): return d["id"] == tool_id)["name"]]
+		result = "使用了 %s，无特殊发现。" % def.get("name", tool_id)
 	tool_completed.emit(tool_id, _current_target_id, result)
-	_show_observation_result(TOOL_DEFS.find(func(d): return d["id"] == tool_id)["icon"] + " " + TOOL_DEFS.find(func(d): return d["id"] == tool_id)["name"], result)
+	_show_observation_result("%s %s" % [def.get("icon", ""), def.get("name", tool_id)], result)
 	selected_tool_id = ""
 
 # ---- 弹窗回调 ----
@@ -428,6 +446,14 @@ func _on_popup_cancelled() -> void:
 
 # ---- 观察结果显示 ----
 
+## 取当前场景的线索来源名（garden/indoor/scene5...）。
+## ToolBar 是独立 CanvasLayer autoload，自身无 clue_source()，需经当前场景转发。
+func _current_clue_source() -> String:
+	var sc = get_tree().current_scene
+	if sc and sc.has_method("clue_source"):
+		return sc.clue_source()
+	return "default"
+
 func _show_observation_result(title: String, text: String) -> void:
 	# 通过 UIManager 显示观察结果通知（持久几秒）
 	if UIManager:
@@ -439,7 +465,7 @@ func _show_observation_result(title: String, text: String) -> void:
 			title,
 			text,
 			true,  # 观察默认为正确线索
-			clue_source() if has_method("clue_source") else "default",
+			_current_clue_source(),
 			2
 		)
 

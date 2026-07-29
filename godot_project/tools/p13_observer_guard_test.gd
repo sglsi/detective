@@ -62,8 +62,8 @@ func _initialize() -> void:
 	for h in s3.HOTSPOTS:
 		obs._on_record(h["id"], "d")  # 补齐剩余（重复的会被守卫忽略）
 	await process_frame
-	if obs.get_recorded() != 9:
-		ok = false; print("P13_FAIL 补齐后 recorded=", obs.get_recorded())
+	if obs.get_recorded() != s3.HOTSPOTS.size():
+		ok = false; print("P13_FAIL 补齐后 recorded=", obs.get_recorded(), "（期望 ", s3.HOTSPOTS.size(), "）")
 	if all_count[0] != 1:
 		ok = false; print("P13_FAIL all_recorded 触发次数=", all_count[0], "（期望 1）")
 	else:
@@ -77,7 +77,7 @@ func _initialize() -> void:
 	else:
 		print("[P13] show() 不复活已记录热点 OK")
 
-	# ---- 4) 读档死局防御：勘查阶段 + 线索 9/9（clue_ids 已满）→ 自动进推理 ----
+	# ---- 4) 读档死局防御：勘查阶段 + 线索全满（clue_ids 已满）→ 自动进推理 ----
 	# 注意：以存档 clue_ids 为权威（已收满 9 条），而非依赖全局 ClueSystem 累计，
 	# 这样「clue_ids 空但 ClueSystem 满」这类不一致存档不会再被误判为「已集齐」。
 	var all_ids = []
@@ -95,7 +95,7 @@ func _initialize() -> void:
 	elif s3b.find_child("ReasoningWall", true, false) == null:
 		ok = false; print("P13_FAIL 读档死局：推理墙未自动打开")
 	else:
-		print("[P13] 读档死局防御 OK（勘查+9/9 → 自动进推理墙）")
+		print("[P13] 读档死局防御 OK（勘查+", s3.HOTSPOTS.size(), "/", s3.HOTSPOTS.size(), " → 自动进推理墙）")
 
 	if ok: print("P13_GUARD_OK 观察器守卫与读档死局防御全部通过")
 	else: print("P13_GUARD_FAIL 存在未通过项")

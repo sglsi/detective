@@ -62,8 +62,8 @@ func _create_ui() -> void:
 	for i in _clues.size():
 		var c = _clues[i]
 		var card = Button.new()
-		var display_name := c.get("name", c.get("label", c.get("id", "")))
-		var display_desc := c.get("desc", "")
+		var display_name: String = c.get("name", c.get("label", c.get("id", "")))
+		var display_desc: String = c.get("desc", "")
 		card.text = display_name
 		if display_desc.length() > 0:
 			# 副文本：截断描述作为提示（解决"无线索提示"）
@@ -241,7 +241,7 @@ func _show_clue_detail(clue: Dictionary) -> void:
 
 	# 属性标签
 	var tags := HBoxContainer.new()
-	var correct_tag := clue.get("correct", true)
+	var correct_tag: bool = clue.get("correct", true)
 	var ct := Button.new()
 	ct.text = "✓ 正确线索" if correct_tag else "⚠ 误导项"
 	ct.disabled = true
@@ -259,7 +259,7 @@ func _show_clue_detail(clue: Dictionary) -> void:
 	# 操作按钮行
 	var btn_row := HBoxContainer.new()
 	var assoc_btn := Button.new()
-	var is_assoc := clue.get("associated", false)
+	var is_assoc: bool = clue.get("associated", false)
 	assoc_btn.text = "取消关联" if is_assoc else "→ 关联到假设面板"
 	assoc_btn.pressed.connect(func():
 		_detail_popup.hide()
@@ -458,6 +458,10 @@ func _input(event: InputEvent) -> void:
 		if event.keycode == KEY_ESCAPE:
 			get_viewport().set_input_as_handled()
 			_on_back_pressed()
+
+## 公开关闭入口（供 DetectiveScene 做「点一次开/再点一次关」单例切换）。
+func close_wall() -> void:
+	_on_back_pressed()
 
 ## 返回/关闭：先通知场景（用于恢复玩家进入前的状态），再销毁浮层。
 ## 验证结果展示期间锁定，避免误关丢失判定。

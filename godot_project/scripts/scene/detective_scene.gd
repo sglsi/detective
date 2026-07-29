@@ -21,6 +21,9 @@ var _difficulty := 1
 var _obs: ClueObserver                 # 单组观察器（场景二/三使用；场景一覆盖为两组）
 var _clues: Array = []                 # 本场景已收集线索（本地权威，不读全局 ClueSystem）
 var _wall_auto := false                # 推理墙验证后是否自动推进过渡
+var _wall_instance: Control = null      # 当前已打开的推理墙（单例，避免多重叠加）
+var _modal_panel: Control = null        # 当前已打开的弹窗/面板（单例，避免多重叠加）
+var _modal_title: String = ""           # 当前弹窗标题（用于同按钮开关切换）
 var _obs_text_lbl: Label               # ClueObserver 文本标签（场景二/三用占位标签）
 var _obs_speaker_lbl: Label
 
@@ -185,6 +188,11 @@ func _show_inventory_panel() -> void:
 	_popup("物品栏", items)
 
 func _show_options_panel() -> void:
+	# 单例 + 开关：选项面板已开 -> 关闭（toggle）；否则开新的，杜绝多重叠加
+	if _modal_panel and is_instance_valid(_modal_panel):
+		if _modal_title == "⚙ 选项":
+			_close_modal(); return
+		_modal_panel.queue_free(); _modal_panel = null
 	var p = Control.new(); p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); p.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(p)
 	var dim = ColorRect.new(); dim.color = Color(0, 0, 0, 0.7); dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -201,7 +209,8 @@ func _show_options_panel() -> void:
 		f.add_child(l); y += 35
 	var cl = Button.new(); cl.text = "关闭"; cl.position = Vector2(190, 415); cl.size = Vector2(140, 38)
 	cl.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); cl.add_theme_font_size_override("font_size", 18)
-	cl.pressed.connect(func(): p.queue_free()); f.add_child(cl); p.add_child(f)
+	cl.pressed.connect(_close_modal); f.add_child(cl); p.add_child(f)
+	_register_modal(p, "⚙ 选项")
 
 ## 证据库来源列表：默认本场景单一 source；多组场景（如场景一 watson/messenger）覆盖。
 func _clue_sources() -> Array:
@@ -255,6 +264,10 @@ func _use_magnifier() -> void:
 ## on_verify —— 验证后回调（默认 _default_wall_verify，按 _wall_auto 推进过渡）。
 ## 这样场景一与场景二/三共用同一套墙，杜绝「手搓墙 + 基类墙」两套机制并存。
 func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Callable = Callable()) -> void:
+	# 单例 + 开关：已开则关闭（点一次出现，再点一次关闭），杜绝多重墙叠加导致显示异常
+	if _wall_instance and is_instance_valid(_wall_instance):
+		_wall_instance.close_wall()
+		return
 	var src := source if source != "" else clue_source()
 	if (ClueSystem and ClueSystem.count_collected(src) == 0) and _clues.is_empty():
 		_ui.show_notification("推理墙需要至少一条线索才能打开。"); return
@@ -264,6 +277,12 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var rw = load("res://scripts/clue/reasoning_wall.gd")
 	if not rw: _ui.show_notification("推理墙模块未找到"); return
 	var wall = rw.new(); wall.name = "ReasoningWall"; add_child(wall)
+	# 墙销毁时自动清空单例引用，保证下次「思考」能正确开关
+	wall.tree_exiting.connect(func():
+		if _wall_instance == wall: _wall_instance = null
+	)
+	_wall_instance = wall
+	if _toolbar: _toolbar.hide_toolbar()   # 确保墙置顶、不被工具栏 CanvasLayer(layer 128) 遮挡
 	# 推理墙读取通用线索登记（单一真相源），与场景内 _clues 保持一致
 	var clues: Array = ClueSystem.get_collected(src) if ClueSystem else _clues
 	var hypo := hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
@@ -347,7 +366,7 @@ func _apply_restored_phase(_phase_val: int, _ids: Array, _clues_arr: Array) -> b
 
 # ===================== 对话引擎（通用） =====================
 ## 启动一段对话：复用/重建 DialogueManager，连接通用 _on_line 与给定结束回调。
-func _start_dialogue(nodes: Array, start: String, on_end: Callable) -> void:
+func _start_dialogue(nodes: Array[Resource], start: String, on_end: Callable) -> void:
 	if _dm:
 		if _dm.dialogue_advanced.is_connected(_on_line): _dm.dialogue_advanced.disconnect(_on_line)
 		_dm.queue_free()
@@ -363,7 +382,7 @@ func _on_line(_id: String) -> void:
 
 ## 构造对话节点：末节点不挂 next（advance() 检测到 next 为空即干净结束，
 ## 避免把末节点指到不存在的虚拟节点而刷 ERROR——已在场景二/三根治）。
-func _make_nodes(raw: Array) -> Array:
+func _make_nodes(raw: Array) -> Array[Resource]:
 	# 行格式: [id, speaker, text] 或 [id, speaker, text, next] 或 [id, speaker, text, next, mood]
 	# next 传 "" 表示按 id 自增推导（与省略等价），便于只想指定 mood 的行。
 	var nodes: Array[Resource] = []
@@ -385,7 +404,7 @@ func _make_nodes(raw: Array) -> Array:
 		nodes.append(n)
 	return nodes
 
-func _make_dialogue_resource(sid: String, ns: Array, start: String):
+func _make_dialogue_resource(sid: String, ns: Array[Resource], start: String):
 	var r = DialogueResource.new(); r.scene_id = sid; r.scene_name = scene_id()
 	r.nodes = ns; r.easy_start_node = start; r.normal_start_node = start; r.hard_start_node = start
 	return r
@@ -454,7 +473,25 @@ func _sb(bg: Color, bc: Color, bw: int, cr: int) -> StyleBoxFlat:
 	s.border_width_top = bw; s.border_width_bottom = bw; s.border_color = bc
 	s.set_corner_radius_all(cr); return s
 
+## 弹窗单例注册：记录当前打开的面板并隐藏工具栏，避免被 CanvasLayer 遮挡。
+func _register_modal(panel: Control, title: String) -> void:
+	_modal_panel = panel
+	_modal_title = title
+	if _toolbar: _toolbar.hide_toolbar()
+
+## 弹窗单例关闭：释放当前面板并清空引用（点一次开/再点一次关）。
+func _close_modal() -> void:
+	if _modal_panel and is_instance_valid(_modal_panel):
+		_modal_panel.queue_free()
+	_modal_panel = null
+	_modal_title = ""
+
 func _popup(title_txt: String, items: Array) -> void:
+	# 单例 + 开关：同标题面板已开 -> 关闭（toggle）；否则关闭旧的再开新的，杜绝多重叠加
+	if _modal_panel and is_instance_valid(_modal_panel):
+		if _modal_title == title_txt:
+			_close_modal(); return
+		_modal_panel.queue_free(); _modal_panel = null
 	var o = Panel.new(); o.position = Vector2(460, 120); o.size = Vector2(1000, 700); o.z_index = 100
 	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
 	var tt = Label.new(); tt.text = title_txt; tt.position = Vector2(30, 20); tt.add_theme_font_size_override("font_size", 28)
@@ -472,7 +509,8 @@ func _popup(title_txt: String, items: Array) -> void:
 	sc.add_child(ct); o.add_child(sc)
 	var cl = Button.new(); cl.text = "关闭"; cl.position = Vector2(430, 620); cl.size = Vector2(140, 45)
 	cl.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); cl.add_theme_font_size_override("font_size", 20)
-	cl.pressed.connect(func(): o.queue_free()); o.add_child(cl); add_child(o)
+	cl.pressed.connect(_close_modal); o.add_child(cl); add_child(o)
+	_register_modal(o, title_txt)
 
 # ===================== 子类需实现的「内容」钩子 =====================
 func _phase_name(_p: int) -> String: return "未知阶段"
