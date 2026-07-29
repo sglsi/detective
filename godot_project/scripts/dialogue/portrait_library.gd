@@ -80,6 +80,12 @@ const NPC_PORTRAITS := {
 	"信使": "res://assets/characters/messenger/messenger_portrait.png",
 	"人事官员": "res://assets/characters/recorder/recorder_portrait.png",
 	"斯坦格森": "res://assets/characters/stangerson/stangerson_portrait.png",
+	# —— 以下为对话中实际使用的别名/缺失角色（与场景 speaker 字段对齐）——
+	"霍普": "res://assets/characters/jefferson_hope/jefferson_hope_portrait.png",
+	"送奶工": "res://assets/characters/milk_boy/milk_boy_portrait.png",
+	"老太婆": "res://assets/characters/old_woman/old_woman_portrait.png",
+	"哈珀中士": "res://assets/characters/harper/harper_portrait.png",
+	"分队小孩": "res://assets/characters/team_kid/team_kid_portrait.png",
 }
 
 # ============ 查询接口 ============
