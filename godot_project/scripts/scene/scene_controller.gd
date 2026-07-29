@@ -134,14 +134,14 @@ const HOTSPOT_TABLES := {
 
 # 场景 -> 真实美术资源映射表（P5-3：TextureRect 替换占位 ColorRect，避免逐幕硬编码）
 const SCENE_ART := {
-	"sc_01_lab": "res://assets/scenes/sc_01_lab.png",
-	"sc_02_garden": "res://assets/scenes/sc_02_garden.png",
-	"sc_03_indoor": "res://assets/scenes/sc_03_indoor.png",
-	"sc_04_police": "res://assets/scenes/sc_04_police.png",
-	"sc_05_parlor": "res://assets/scenes/sc_05_parlor.png",
-	"sc_06_apartment": "res://assets/scenes/sc_06_apartment.png",
-	"sc_07_hotel": "res://assets/scenes/sc_07_hotel.png",
-	"sc_08_finale": "res://assets/scenes/sc_08_finale.png",
+	"sc_01_lab": "res://assets/scenes/sc_01_lab.jpg",
+	"sc_02_garden": "res://assets/scenes/sc_02_garden.jpg",
+	"sc_03_indoor": "res://assets/scenes/sc_03_indoor.jpg",
+	"sc_04_police": "res://assets/scenes/sc_04_police.jpg",
+	"sc_05_parlor": "res://assets/scenes/sc_05_parlor.jpg",
+	"sc_06_apartment": "res://assets/scenes/sc_06_apartment.jpg",
+	"sc_07_hotel": "res://assets/scenes/sc_07_hotel.jpg",
+	"sc_08_finale": "res://assets/scenes/sc_08_finale.jpg",
 }
 const SCENE_TITLE := {
 	"sc_01_lab": "贝克街221B — 福尔摩斯私人实验室",

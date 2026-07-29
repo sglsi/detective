@@ -1,31 +1,44 @@
 extends DetectiveScene
 ## Scene 8 — 贝克街221B起居室（最终对决 · 真相闭环）
-## 混合驱动：霍普自白对话授予 803/804/805；观察热点 801/802（衣领马虱卵=决定性证据）。
-## 完成时调用 GameManager.end_case() 触发结局评定（EndingSystem/BadgeSystem）。
-## 设计依据：03_关卡设计稿 §3.9 + 线索全表 C_SOTCB_801~805
+## 抓捕演出（维金斯通报/皮箱机关/霍普被铐/跳窗未遂）→ 三段式自白
+## （盐湖城往事 / 复仇之路 / 作案细节）→ 勘查霍普（衣领马虱卵=马车夫铁证）→
+## 推理墙（全案验证）→ 双钩子（善恶升华 + 四签名预告）→ 结局评定。
+##
+## ⚠️ 分支说明（根因）：框架 DialogueManager 的 trigger=="choice" 未被 SceneFramework 渲染，
+## 故自白追问方向、结案走向一律用自定义选项面板，安全不卡死（同 scene4-7）。
+##
+## 设计依据：02_血字的研究_场景设计与流程 §16（v3.16.0）+ 08_血字的研究_对话台词库 场景八（v3.16.0）
+##
+## 红线修正（根因，非表面）：旧实现把线索 803「霍普太阳穴血管跳动」标为 correct=false（误导项）。
+## 但 02 §16 自白 A-4 明确「凶手患有某种疾病 → VERIFIED（主动脉瘤）」，08 亦将其判为真实症状。
+## 太阳穴青筋突跳是霍普主动脉瘤的真实体征，并非误导——旧实现误读。故按 02/08 权威改为 correct=true。
 
 enum Phase { ARRIVAL, OBSERVE, REASONING, TRANSITION }
 
-# P3.1：热点权重用 "wt"（"w" 为矩形宽度）；对话线索用 "w"。关键10/重要5/一般2/误导0。
+# 热点权重用 "wt"（"w" 为矩形宽度）；对话线索用 "w"。关键10/重要5/一般2/误导0。
 const HOTSPOTS = [
 	{"id":"C_SOTCB_801","label":"手背血迹","name":"霍普手背有血","x":700,"y":340,"w":160,"h":48,"wt":5,
-	 "desc":"霍普手背沾着干涸血迹，证实他确实到过命案现场。","tool":"none","correct":true},
+	 "desc":"霍普手背沾着干涸血迹，证实他确实到过命案现场、搏斗中割破。","tool":"none","correct":true},
 	{"id":"C_SOTCB_802","label":"衣领马虱卵","name":"霍普衣领马虱卵","x":820,"y":270,"w":160,"h":46,"wt":10,
 	 "desc":"霍普衣领里嵌着马虱卵——长期与马相伴，马车夫职业的铁证。这是场景八的决定性证据。","tool":"放大镜","correct":true},
 ]
 
 const DIALOGUE_CLUES = {
-	"C_SOTCB_803": {"id":"C_SOTCB_803","name":"霍普太阳穴血管跳动","desc":"霍普太阳穴青筋突跳、神情亢奋，似有隐疾或极度执念——实为误导，勿忽略。","correct":false,"w":0},
+	"C_SOTCB_803": {"id":"C_SOTCB_803","name":"霍普太阳穴青筋","desc":"霍普太阳穴青筋突跳、神情亢奋——实为主动脉瘤症状（真实特征，非误导），他自述过不了几天血瘤就要破裂。","correct":true,"w":5},
 	"C_SOTCB_804": {"id":"C_SOTCB_804","name":"霍普自白动机","desc":"霍普自白：十八年前犹他荒漠，费里尔父女被摩门教迫害，他立誓复仇——真相闭环。","correct":true,"w":10},
 	"C_SOTCB_805": {"id":"C_SOTCB_805","name":"戒指归还","desc":"福尔摩斯将那枚'L·F'戒指交还霍普——物证闭环，呼应场景三核心线索。","correct":true,"w":5},
+	"C_SOTCB_806": {"id":"C_SOTCB_806","name":"上帝裁决（药丸选择）","desc":"霍普自白：让德雷伯在兩粒药丸中挑一粒（一粒毒一粒无毒），'让上帝裁决'——斯特兰森拒选才被迫动刀。","correct":true,"w":5},
+	"C_SOTCB_807": {"id":"C_SOTCB_807","name":"血字RACHE是复仇宣言","desc":"霍普自白：墙上RACHE是蘸自己鼻血写的，既为复仇宣言，也是为把警察引入歧途的'恶作剧'。","correct":true,"w":2},
 }
+
+var _confessed: Dictionary = {}   # 已听取的自白段落（A作案/B动机/C细节）
 
 func scene_id() -> String: return "scene8"
 func clue_source() -> String: return "scene8"
 func hotspots() -> Array: return HOTSPOTS
 func scene_title() -> String: return "贝克街221B 起居室"
-func scene_time_text() -> String: return "DAY 3 凌晨02:15"
-func scene_background() -> Texture2D: return null
+func scene_time_text() -> String: return "DAY 3 凌晨"
+func scene_background() -> Texture2D: return load("res://assets/scenes/sc_08_finale.jpg")
 
 func _phase_name(p: int) -> String:
 	match p:
@@ -65,8 +78,20 @@ func _on_observe_complete() -> void:
 
 func reasoning_hypothesis() -> Dictionary:
 	return {
-		"title": "真相闭环：霍普为费里尔父女复仇",
-		"description": "霍普自白动机（十八年前费里尔父女被摩门教迫害，立誓复仇）；手背血迹证其到过现场；衣领马虱卵是马车夫职业的铁证；戒指归还完成物证闭环。全部线索指向同一结论：杰弗森·霍普为复仇连杀德雷伯与斯特兰森。"
+		"title": "真相闭环：杰弗森·霍普为费里尔父女复仇，连杀德雷伯与斯特兰森",
+		"description": "霍普自白动机（十八年前费里尔父女被摩门教迫害，立誓复仇）；手背血迹证其到过现场；衣领马虱卵是马车夫职业铁证；戒指归还完成物证闭环；上帝裁决解释两种杀人方式。\n\n活跃假设（全案最终确认）：\n· H8-01 凶手=杰弗森·霍普（极强：自白+物证+人证）\n· H8-02 复仇动机（露茜·费里尔）（极强：自白+戒指+背景）\n· H8-03 凶手是马车夫（强：车轮印+马蹄印+无马鞭+跳上马车+马虱卵）\n\n矛盾解决总览（全案21组矛盾清零）：\n· C8-01 老太婆=霍普伪装 vs 霍普本人（已验证：跳上马车+换装+自白）\n· C8-02 血字RACHE=复仇宣言 vs 误导警方（实为双重含义，皆成立）\n· C8-03 卡彭蒂耶中尉=排除 vs 动机吻合（体貌+不在场证明+尸体无伤三重排除）",
+		"battlefield": {
+			"hypotheses": [
+				{"id":"H8-01","text":"凶手=杰弗森·霍普","correct":true},
+				{"id":"H8-02","text":"复仇动机（露茜·费里尔）","correct":true},
+				{"id":"H8-03","text":"凶手是马车夫","correct":true}
+			],
+			"contradictions": [
+				{"id":"C8-01","text":"老太婆伪装 vs 霍普本人","correct":true},
+				{"id":"C8-02","text":"血字RACHE=复仇 vs 误导","correct":true},
+				{"id":"C8-03","text":"卡彭蒂耶动机吻合 vs 排除","correct":true}
+			],
+		}
 	}
 
 func map_locations() -> Array:
@@ -79,7 +104,6 @@ func map_locations() -> Array:
 func casebook_steps() -> Array:
 	return ["听霍普自白", "勘查霍普痕迹", "推理墙验证", "结案"]
 func casebook_done_flags() -> Array:
-	# 必须与 casebook_steps() 一一对应（基类按索引取值）
 	return [_phase >= Phase.OBSERVE, _clues.size() >= (HOTSPOTS.size() + DIALOGUE_CLUES.size()), _phase >= Phase.REASONING, _phase >= Phase.TRANSITION]
 
 func inventory_items() -> Array:
@@ -88,22 +112,66 @@ func inventory_items() -> Array:
 func options_lines() -> Array:
 	return [
 		"难度：" + ["简单","普通","困难"][_difficulty],
-		"操作：听自白 → 观察 → 推理墙 → 结案",
-		"💡 衣领马虱卵是场景八决定性证据",
-		"⚠️ 太阳穴跳动是误导项",
+		"操作：抓捕演出 → 三段自白 → 观察 → 推理墙 → 结案",
+		"💡 衣领马虱卵是场景八决定性证据（马车夫铁证）",
+		"💡 太阳穴青筋是主动脉瘤真实症状（非误导）",
 	]
 
-func _enter_arrival() -> void:
-	_start_dialogue([
-		_mk_node("a0","霍普","你们想知道为什么？那就听我把话说完——这桩事，憋了快二十年。","click",["a1"]),
-		_mk_node("a1","霍普","十八年前，犹他荒漠。费里尔父女被摩门教的人逼得走投无路，是我把他们护了下来。后来……他们还是没能逃过那一劫。","clue",["a2"],[DIALOGUE_CLUES["C_SOTCB_804"]]),
-		_mk_node("a2","霍普","（太阳穴青筋突跳，呼吸急促）我这身子，怕是熬不了几天了。可恨没亲手了结那桩宿怨。","clue",["a3"],[DIALOGUE_CLUES["C_SOTCB_803"]]),
-		_mk_node("a3","福尔摩斯","（缓缓）手背的血、衣领里的马虱卵，都替你说了。先让我看个仔细。","click",["a4"]),
-		_mk_node("a4","霍普","那枚戒指，是她的。还给我吧——这趟我了无牵挂了。","clue",["end"],[DIALOGUE_CLUES["C_SOTCB_805"]]),
-	], "a0", _on_arrival_ended)
+# ===================== 流程：抓捕演出 → 三段自白 → 观察 → 推理 → 双钩子 =====================
 
-func _on_arrival_ended() -> void:
-	_enter_observe()
+func _enter_arrival() -> void:
+	_phase = Phase.ARRIVAL
+	# 对齐 08 稿 场景八·抓捕演出（L4699-4750 分支A）+ 自白总起（L4844-4872）
+	_start_dialogue([
+		_mk_node("c0","系统","（贝克街221B·雨夜）维金斯在楼下叫到马车。福尔摩斯把一只旅行皮箱摆在门边，箱扣松着。","guide",["c1"]),
+		_mk_node("c1","维金斯","（门外）先生，马车喊到了，就在下边！","click",["c2"]),
+		_mk_node("c2","福尔摩斯","（高声）好孩子！让车夫上来帮我搬箱子。（低声）准备好——他来了。","click",["c3"]),
+		_mk_node("c3","系统","（门推开。一个身材魁梧、肤色黝黑的马车夫走进来，目光扫过房间，微微一怔）","guide",["c4"]),
+		_mk_node("c4","福尔摩斯","（头也不抬摆弄皮箱）车夫，帮我扣好这个皮带扣。","click",["c5"]),
+		_mk_node("c5","系统","（咔嗒——手铐锁死。霍普怒吼挣脱，向窗子冲去，撞碎木框玻璃；葛莱森、雷斯垂德一拥而上，激烈搏斗后将其制伏）","guide",["c6"]),
+		_mk_node("c6","福尔摩斯","（喘着气，微笑）他的马车就在下面——就用他的马车送他去苏格兰场吧。在走之前，你有什么要说的吗？","click",["c7"]),
+		_mk_node("c7","霍普","（平静地笑了笑）我也许永远不会受到审讯了——我得了主动脉瘤症，过不了几天血瘤就要破裂。我愿意在死前把这件事交代明白。","clue",["c8"],[DIALOGUE_CLUES["C_SOTCB_803"]]),
+		_mk_node("c8","福尔摩斯","（拉过椅子坐下）霍普先生，我建议你从头讲起。你想问什么就问吧——他的时间不多了。","click",["end"]),
+	], "c0", _show_confession_panel)
+
+func _show_confession_panel() -> void:
+	# 对齐 08 稿 自白环节·追问方向选择（L4866-4872）：A 作案经过 / B 动机背景 / C 作案细节，可反复，直至「够了」
+	var opts := []
+	if not _confessed.has("a"):
+		opts.append({"text":"🗡 作案经过 —— 德雷伯怎么死的？", "cb": Callable(self, "_confess_a")})
+	if not _confessed.has("b"):
+		opts.append({"text":"💔 动机背景 —— 你为什么恨他们？", "cb": Callable(self, "_confess_b")})
+	if not _confessed.has("c"):
+		opts.append({"text":"⚗ 作案细节 —— 药丸与血字", "cb": Callable(self, "_confess_c")})
+	opts.append({"text":"✅ 够了，我都知道了 —— 进入勘查", "cb": Callable(self, "_enter_observe")})
+	_show_choice_panel("霍普的自白 · 选择追问方向", opts)
+
+func _confess_a() -> void:
+	_confessed["a"] = true
+	_start_dialogue([
+		_mk_node("a0","霍普","（闭眼）德雷伯……第一个。那天我在陶尔魁里一带徘徊，看见他和斯特兰森上了马车，远远跟着。在尤斯顿车站，德雷伯说有点私事要去办，十一点前回月台。","click",["a1"]),
+		_mk_node("a1","霍普","他醉醺醺回来，坐了我的车。到劳瑞斯顿花园街三号那所空宅，我点亮蜡烛，把脸凑近他：'伊诺克·德雷伯，现在你看看我是谁！'他认出我，吓得面如土色。","click",["a2"]),
+		_mk_node("a2","霍普","我让他挑一粒药丸——'让上帝裁决'。他吞下毒的那粒，惨叫一声倒地。临死前，我用露茜的戒指举到他眼前。","clue",["a3"],[DIALOGUE_CLUES["C_SOTCB_805"]]),
+		_mk_node("a3","霍普","（耸肩）墙上那个RACHE？蘸着我自己的鼻血写的——既是复仇的宣告，也算把警察引入歧途的小把戏。","clue",["a4"],[DIALOGUE_CLUES["C_SOTCB_807"]]),
+		_mk_node("a4","华生","（低声）二十年的追踪，竟是以这样的方式收场……","click",["end"]),
+	], "a0", _show_confession_panel)
+
+func _confess_b() -> void:
+	_confessed["b"] = true
+	_start_dialogue([
+		_mk_node("b0","霍普","（目光穿过墙壁）你们不懂盐湖城。我父亲是最早的拓荒者，老约翰·费里尔是我最好的朋友，露茜是他女儿——我在荒野里看着她长大。","click",["b1"]),
+		_mk_node("b1","霍普","我和露茜相爱了，约定等她十八岁就结婚。可摩门教长老把女人当财产，德雷伯是长老的侄子、教里'明日之星'。他们逼婚，露茜宁死不从，和她父亲都死在了那些人手里。","click",["b2"]),
+		_mk_node("b2","霍普","（声音低沉）我立誓：踏遍两大洲，也要让德雷伯看着这只戒指毙命。这一追，就是二十年。","clue",["b3"],[DIALOGUE_CLUES["C_SOTCB_804"]]),
+		_mk_node("b3","福尔摩斯","（轻声）所以斯特兰森——是他先认出了你，还是你先找到了他？","click",["end"]),
+	], "b0", _show_confession_panel)
+
+func _confess_c() -> void:
+	_confessed["c"] = true
+	_start_dialogue([
+		_mk_node("e0","霍普","斯特兰森比德雷伯还阴毒。我爬梯子从窗户进他房里，本想也让他挑药丸——可这厮不肯选。","click",["e1"]),
+		_mk_node("e1","霍普","他拒不就范，我只好拔了刀。毒杀也好、刀刺也好，人都是同一个。两粒药丸，一粒毒一粒无毒——上帝的裁决，由不得他挑。","clue",["e2"],[DIALOGUE_CLUES["C_SOTCB_806"]]),
+		_mk_node("e2","华生","（倒吸凉气）所以手法变了，是因为斯特兰森不肯接受'赌命'……","click",["end"]),
+	], "e0", _show_confession_panel)
 
 func _enter_observe() -> void:
 	_phase = Phase.OBSERVE
@@ -113,36 +181,65 @@ func _enter_observe() -> void:
 func _enter_reasoning() -> void:
 	_phase = Phase.REASONING; _wall_auto = true
 	_sync_clues()
-	_ui.set_dialogue("福尔摩斯", "华生，动机、血迹、马虱卵、戒指——都齐了。把这五条摆上推理墙，给这桩跨越十八年的复仇收尾。")
+	_ui.set_dialogue("福尔摩斯", "华生，动机、血迹、马虱卵、戒指、上帝裁决——都齐了。把这五条摆上推理墙，给这桩跨越十八年的复仇收尾。", "自信")
 	await get_tree().create_timer(2.5).timeout
 	_open_wall()
 
 func _enter_transition() -> void:
 	_phase = Phase.TRANSITION
 	_award()
+	# 双钩子（08 §12；02 §16 §12）：案件完结升华（善恶灰色）+ 四签名预告
 	_start_dialogue([
-		_mk_node("t0","福尔摩斯","推理墙印证了：杰弗森·霍普，为费里尔父女复仇，连杀德雷伯与斯特兰森。案子了了。","click",["t1"]),
-		_mk_node("t1","华生","一桩复仇，缠了二十年。福尔摩斯，这案子……你打算怎么写进报告？","click",["end"]),
-	], "t0", _go_to_next_scene)
+		_mk_node("z0","福尔摩斯","（点燃烟斗，望着窗外的雨）华生，你看——这就是人性。一个人可以为了复仇横跨半个世界，也可以因为一个女孩的死变成魔鬼。","click",["z1"]),
+		_mk_node("z1","华生","那他……是好人还是坏人？","click",["z2"]),
+		_mk_node("z2","福尔摩斯","这不是我们能评判的。我们只负责找出真相。","click",["z3"]),
+		_mk_node("z3","系统","（画面渐暗。黑屏白字）几个月后——贝克街221B。一位年轻女士的来访：'福尔摩斯先生，我父亲失踪了。'《四签名》· 敬请期待。","guide",["z4"]),
+		_mk_node("z4","葛莱森警长","（喃喃）杰弗森·霍普……马车夫……我怎么就没想到呢。","click",["end"]),
+	], "z0", _go_to_next_scene)
 
 func _award() -> void:
 	if StarRatingSystem:
-		StarRatingSystem.add_observation(ClueSystem.total_weight(clue_source()) if ClueSystem else 0)  # P3.1：按线索分级权重累加
+		StarRatingSystem.add_observation(ClueSystem.total_weight(clue_source()) if ClueSystem else 0)  # 按线索分级权重累加
 		StarRatingSystem.add_reasoning(1)
 		StarRatingSystem.add_insight(1)
 
 func _go_to_next_scene() -> void:
-	# 注意：星级评定已在 _enter_transition() 中 _award() 一次；此处不再重复，
-	# 否则 scene8 星级会被双倍计入（与 scene4–7 仅在 _enter_transition 评定的行为一致）。
 	if GameManager and not GameManager.is_guest and SaveManager:
 		var ids := ClueSystem.get_collected_ids(clue_source()) if ClueSystem else []
 		await SaveSystem.request_save("scene8", Phase.TRANSITION, {"clue_ids": ids})
-	# 触发结局评定（EndingSystem 依据总星级占比判定档位；BadgeSystem 同步徽章）
 	if GameManager:
 		GameManager.end_case("completed")
 	_create_notification("案件告破 — 结局已评定")
 	await get_tree().create_timer(2.5).timeout
 	SceneLoader.transition_to("res://scenes/main_menu.tscn")
+
+# ===================== 自定义选项面板（安全分支） =====================
+func _show_choice_panel(title_txt: String, options: Array) -> void:
+	if _modal_panel and is_instance_valid(_modal_panel):
+		_modal_panel.queue_free(); _modal_panel = null
+	var o := Panel.new()
+	o.position = Vector2(460, 180); o.size = Vector2(1000, 640); o.z_index = 100
+	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
+	var tt := Label.new(); tt.text = title_txt; tt.position = Vector2(30, 20); tt.add_theme_font_size_override("font_size", 26)
+	tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
+	var y := 84
+	for opt in options:
+		var b := Button.new()
+		b.text = opt["text"]
+		b.position = Vector2(40, y); b.size = Vector2(920, 70)
+		b.add_theme_font_size_override("font_size", 20)
+		b.add_theme_color_override("font_color", Color(0.92, 0.85, 0.65))
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var bs := StyleBoxFlat.new(); bs.bg_color = Color(0.14, 0.10, 0.06, 0.95); bs.border_color = Color(0.55, 0.42, 0.20)
+		bs.border_width_left = 2; bs.border_width_right = 2; bs.border_width_top = 2; bs.border_width_bottom = 2; bs.set_corner_radius_all(4)
+		b.add_theme_stylebox_override("normal", bs)
+		var bsh := StyleBoxFlat.new(); bsh.bg_color = Color(0.25, 0.16, 0.08, 0.95); bsh.border_color = Color(0.80, 0.68, 0.38)
+		bsh.border_width_left = 2; bsh.border_width_right = 2; bsh.border_width_top = 2; bsh.border_width_bottom = 2; bsh.set_corner_radius_all(4)
+		b.add_theme_stylebox_override("hover", bsh)
+		var cb_callable: Callable = opt["cb"]
+		b.pressed.connect(func(): _close_modal(); cb_callable.call())
+		o.add_child(b); y += 80
+	add_child(o); _register_modal(o, "choice_" + title_txt)
 
 func _do_save(slot: int = -1) -> void:
 	var ids: Array = []
