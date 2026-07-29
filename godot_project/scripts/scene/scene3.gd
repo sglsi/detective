@@ -39,6 +39,10 @@ func clue_source() -> String: return "indoor"
 func hotspots() -> Array: return HOTSPOTS
 func scene_title() -> String: return "劳瑞斯顿花园街 3号 · 室内"
 func scene_time_text() -> String: return "DAY 1 正午12:05"
+@export var procedural_bg: bool = false
+
+func use_procedural_background() -> bool: return procedural_bg
+
 func scene_background() -> Texture2D: return load("res://assets/scenes/sc_03_indoor.png")
 
 # ===== 阶段 / 进度判断 =====

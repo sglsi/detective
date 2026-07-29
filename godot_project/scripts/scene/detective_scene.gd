@@ -43,6 +43,9 @@ func scene_title() -> String: return ""
 func scene_time_text() -> String: return "DAY 1"
 func scene_background() -> Texture2D: return null
 
+# 程序化氛围背景开关：返回 true 时底层用 ProceduralBackground 替代位图背景（默认关）
+func use_procedural_background() -> bool: return false
+
 # ===== 构建 =====
 func _init_game_state() -> void:
 	if GameManager:
@@ -51,8 +54,15 @@ func _init_game_state() -> void:
 		if AuthManager: GameManager.is_guest = AuthManager.is_guest()
 
 func _build_ui() -> void:
-	_ui = SceneFramework.new(); _ui.name = "ui"; add_child(_ui)
-	_ui.setup(scene_title(), scene_time_text(), scene_background())
+	if use_procedural_background():
+		var pb := ProceduralBackground.new()
+		pb.name = "ProceduralBG"
+		add_child(pb)
+		_ui = SceneFramework.new(); _ui.name = "ui"; add_child(_ui)
+		_ui.setup(scene_title(), scene_time_text(), null)
+	else:
+		_ui = SceneFramework.new(); _ui.name = "ui"; add_child(_ui)
+		_ui.setup(scene_title(), scene_time_text(), scene_background())
 	# 工具栏（v2：真实图标 + 主动操作交互）
 	_setup_toolbar()
 

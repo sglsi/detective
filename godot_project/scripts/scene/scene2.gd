@@ -27,6 +27,10 @@ func clue_source() -> String: return "garden"
 func hotspots() -> Array: return HOTSPOTS
 func scene_title() -> String: return "劳瑞斯顿花园街 3号"
 func scene_time_text() -> String: return "DAY 1 上午11:15"
+@export var procedural_bg: bool = false
+
+func use_procedural_background() -> bool: return procedural_bg
+
 func scene_background() -> Texture2D: return load("res://assets/characters/watson/watson_standing.jpg")
 
 # ===== 阶段 / 进度判断 =====
