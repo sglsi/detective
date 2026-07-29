@@ -104,12 +104,10 @@ func _go_to_next_scene() -> void:
 		await SaveSystem.request_save("scene6", Phase.TRANSITION, {"clue_ids": ids})
 	SceneLoader.transition_to("res://scenes/scene7.tscn")
 
-func _do_save() -> void:
-	if GameManager.is_guest:
-		_ui.show_notification("游客模式下无法存档，请先注册账号。"); return
+func _do_save(slot: int = -1) -> void:
 	var ids := ClueSystem.get_collected_ids(clue_source()) if ClueSystem else []
 	print("[SAVE scene6] _phase=", _phase, " ids=", ids)
-	await SaveSystem.request_save("scene6", _phase, {"clue_ids": ids})
+	await SaveSystem.request_save("scene6", _phase, {"clue_ids": ids}, slot)
 	_ui.show_notification("✅ 进度已保存")
 
 func _restore_saved_state() -> bool:

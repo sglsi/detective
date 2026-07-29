@@ -281,7 +281,7 @@ func _setup_scene_view(scene_id: String = "sc_01_lab") -> void:
 	
 	# 教程场景：华生立绘（真·华生站姿立绘；旧版误用 sherlock 表情图）
 	if scene_id == "sc_01_lab":
-		var watson_tex_path = "res://assets/characters/watson/watson_standing.jpg"
+		var watson_tex_path = "res://assets/characters/watson/watson_standing.png"
 		var watson = TextureRect.new()
 		watson.name = "WatsonSilhouette"
 		if ResourceLoader.exists(watson_tex_path):

@@ -223,14 +223,9 @@ func _phase_6_save_check() -> void:
 		_safe_connect(SaveManager.game_loaded, _on_load_completed)
 		_safe_connect(SaveManager.no_save_found, _on_no_save)
 		
-		# 检查是否有存档
-		var has_save = false
-		if GameManager.is_guest:
-			has_save = FileAccess.file_exists("user://save_game.json")
-		else:
-			# 云端存档检查（异步，不阻塞）
-			has_save = false
-		
+		# 检查是否有存档（5 槽位本地存档，离线可用）
+		var has_save = SaveManager.has_any_save()
+
 		if has_save:
 			print("  📁 发现存档")
 			GameManager.has_existing_save = true

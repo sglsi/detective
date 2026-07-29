@@ -15,6 +15,9 @@ var current_auth_state: AuthState = AuthState.GUEST
 var user_data: Dictionary = {}
 var session_token: String = ""
 
+# 离线本地账号存储（无后端时可用，密码以 SHA256 哈希保存，不存明文）
+const ACCOUNTS_PATH: String = "user://accounts.json"
+
 # ============ 信号 ============
 
 signal auth_state_changed(old_state: int, new_state: int)
@@ -84,15 +87,12 @@ func register(username: String, email: String, password: String, phone: String =
 		else:
 			_on_auth_failed("register", result.get("message", "注册失败"))
 	else:
-		# 离线模式：缓存注册请求
-		if APIManager:
-			APIManager._queue_request("register", {
-				"email": email,
-				"password": password,
-				"username": username,
-				"phone": phone,
-			})
-		registration_failed.emit("离线模式：注册请求已加入队列，联网后自动重试")
+		# 离线模式：写入本地账号（SHA256 哈希，无明文），无需后端
+		var res = _register_local(username, email, password, phone)
+		if res.get("error", true):
+			_on_auth_failed("register", res.get("message", "注册失败"))
+		else:
+			_on_registration_success({"id": res.get("id"), "username": username, "email": email})
 
 func _on_registration_success(user: Dictionary) -> void:
 	var prev_state = current_auth_state
@@ -121,7 +121,12 @@ func login(email: String, password: String) -> void:
 		else:
 			_on_auth_failed("login", result.get("message", "登录失败"))
 	else:
-		_on_auth_failed("login", "网络不可用，无法登录")
+		# 离线模式：校验本地账号
+		var res = _login_local(email, password)
+		if res.get("error", true):
+			_on_auth_failed("login", res.get("message", "登录失败"))
+		else:
+			_on_login_success({"user": res.get("user", {}), "token": "local"})
 
 func _on_login_success(data: Dictionary) -> void:
 	var prev_state = current_auth_state
@@ -151,6 +156,62 @@ func _on_auth_failed(operation: String, error: String) -> void:
 		registration_failed.emit(error)
 	
 	print("[AuthManager] ", operation, " 失败: ", error)
+
+# ============ 离线本地账号（无后端可用） ============
+
+func _hash_password(p: String) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	ctx.update(p.to_utf8_buffer())
+	return ctx.finish().hex_encode()
+
+func _load_accounts() -> Dictionary:
+	if not FileAccess.file_exists(ACCOUNTS_PATH):
+		return {}
+	var f = FileAccess.open(ACCOUNTS_PATH, FileAccess.READ)
+	if not f:
+		return {}
+	var text = f.get_as_text()
+	f.close()
+	var json = JSON.parse_string(text)
+	return json if json is Dictionary else {}
+
+func _save_accounts(d: Dictionary) -> void:
+	var f = FileAccess.open(ACCOUNTS_PATH, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(d, "\t"))
+		f.close()
+
+## 注册本地账号：校验用户名/邮箱唯一性，密码哈希存储
+func _register_local(username: String, email: String, password: String, phone: String) -> Dictionary:
+	var accounts = _load_accounts()
+	for k in accounts:
+		var a = accounts[k]
+		if a.get("username", "") == username:
+			return {"error": true, "message": "用户名已被占用"}
+		if a.get("email", "") == email:
+			return {"error": true, "message": "邮箱已被注册"}
+	var id = "local_" + str(Time.get_unix_time_from_system())
+	accounts[id] = {
+		"id": id,
+		"username": username,
+		"email": email,
+		"phone": phone,
+		"password_hash": _hash_password(password),
+		"created_at": Time.get_datetime_string_from_system(),
+	}
+	_save_accounts(accounts)
+	return {"error": false, "id": id}
+
+## 本地登录：按邮箱 + 密码哈希校验
+func _login_local(email: String, password: String) -> Dictionary:
+	var accounts = _load_accounts()
+	var want = _hash_password(password)
+	for k in accounts:
+		var a = accounts[k]
+		if a.get("email", "") == email and a.get("password_hash", "") == want:
+			return {"error": false, "user": {"id": a.get("id"), "username": a.get("username"), "email": a.get("email")}}
+	return {"error": true, "message": "邮箱或密码错误"}
 
 # ============ 退出登录 ============
 

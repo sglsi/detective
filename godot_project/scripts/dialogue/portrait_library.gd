@@ -35,8 +35,8 @@ const SHERLOCK_MOODS := {
 	"疲惫": "疲惫",
 }
 
-## 华生：表情立绘 assets/characters/watson/watson_*.jpg（18 张实测存在）
-const WATSON_DIR := "res://assets/characters/watson/watson_%s.jpg"
+## 华生：表情立绘 assets/characters/watson/watson_*.png（18 张实测存在，已抠底透明）
+const WATSON_DIR := "res://assets/characters/watson/watson_%s.png"
 const WATSON_MOODS := {
 	"平静": "平静", "默认": "平静", "中性": "平静", "neutral": "平静",
 	"惊讶": "惊讶",

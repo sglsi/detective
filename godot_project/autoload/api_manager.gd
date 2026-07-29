@@ -81,6 +81,7 @@ func _check_connectivity(retry: int = 1) -> void:
 	## 尝试连接后端 health 端点（桌面/编辑器端，已用 127.0.0.1 规避 IPv6 解析失败）
 	var http = HTTPRequest.new()
 	add_child(http)
+	http.use_threads = true
 	http.request_completed.connect(_on_health_check.bind(http))
 	
 	var error = http.request(base_url + "/api/health" + url_suffix)
@@ -89,10 +90,9 @@ func _check_connectivity(retry: int = 1) -> void:
 		return
 	
 	# 超时探测：5s 内无回调（如后端刚启动）则再探测一次，仍失败才判离线。
-	# 注意：不要用 lambda 捕获 http——http 可能在 5s 内被 _on_health_check→_set_online_status
-	# queue_free，游离定时器触发时捕获释放会抛 "Lambda capture" 错误。改用 bound 方法，
-	# 即便 http 已释放也会以参数形式安全传入，由方法内部判活，不会在捕获阶段报错。
-	get_tree().create_timer(5.0).timeout.connect(_on_health_timeout.bind(http, retry))
+	# 用闭包捕获 http/retry（非 .bind 信号连接，避免 "Cannot convert argument" 转换错误）。
+	var t = get_tree().create_timer(5.0)
+	t.timeout.connect(func(): _on_health_timeout(http, retry))
 
 func _on_health_check(result: int, code: int, headers: PackedStringArray, body: PackedByteArray, http: HTTPRequest) -> void:
 	http.set_meta("checked", true)
@@ -162,6 +162,7 @@ func _perform_request(method: int, endpoint: String, body_dict: Dictionary, auth
 
 	var http = HTTPRequest.new()
 	add_child(http)
+	http.use_threads = true
 	var err = http.request(url, headers, method, body_str)
 	if err != OK:
 		http.queue_free()
@@ -169,34 +170,30 @@ func _perform_request(method: int, endpoint: String, body_dict: Dictionary, auth
 	return await _wait_for_response(http)
 
 ## 等待 HTTP 响应（含超时处理）
-## 注意：原先使用 get_tree().create_timer(request_timeout).timeout.connect(lambda) 做超时，
-## 但该 lambda 按声明顺序捕获了 http（capture 索引 0）。一旦请求提前完成、http 被
-## queue_free()，这个游离的定时器仍会在 request_timeout 秒后触发，调用已释放的 http ->
-## “Lambda capture at index 0 was freed. Passed null instead.”。改为在协程内用帧累加计时，
-## 彻底消除游离定时器与捕获释放问题。
+## 直接 await http.request_completed 信号（Godot 标准写法），避免用「while + 捕获变量
+## 轮询 process_frame」导致的协程陷阱：信号回调里把 completed=true 写回闭包捕获变量，
+## 但恢复中的 while 循环读到的仍是旧值，最终误判超时（表现为 register/login 全部“请求超时”、
+## 误以为无后端）。超时由独立定时器并发处理，二者谁先到谁生效。
 func _wait_for_response(http: HTTPRequest) -> Dictionary:
 	active_requests += 1
 
-	var completed = false
-	var response = {}
+	var completed := false
+	var response := {}
 
-	http.request_completed.connect(
-		func(result: int, code: int, headers: PackedStringArray, body: PackedByteArray):
-			if completed: return
-			completed = true
-			response = _parse_response(result, code, body)
+	# 超时定时器：与 request_completed 竞速，先到者生效
+	var timer = get_tree().create_timer(request_timeout)
+	timer.timeout.connect(func():
+		if completed:
+			return
+		completed = true
+		response = {"error": true, "message": "请求超时"}
+		http.cancel_request()
 	)
 
-	# 帧循环计时（无独立定时器，避免捕获释放）
-	var elapsed := 0.0
-	var step := 1.0 / 60.0
-	while not completed:
-		await get_tree().process_frame
-		elapsed += step
-		if elapsed >= request_timeout:
-			response = {"error": true, "message": "请求超时"}
-			http.cancel_request()
-			break
+	var args = await http.request_completed
+	if not completed:
+		completed = true
+		response = _parse_response(args[0], args[1], args[3])
 
 	http.queue_free()
 	active_requests -= 1
@@ -334,6 +331,7 @@ func _web_fetch_fallback(method: int, url: String, headers: PackedStringArray, b
 	print("[APIManager] _web_fetch 超时，降级到 HTTPRequest: ", url)
 	var http = HTTPRequest.new()
 	add_child(http)
+	http.use_threads = true
 	var err = http.request(url, headers, method, body_str)
 	if err != OK:
 		http.queue_free()

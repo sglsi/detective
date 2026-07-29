@@ -62,6 +62,8 @@ func set_scene_background(tex: Texture2D) -> void:
 	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 背景置于最底层，确保迷雾/灯光层（z_index=-5）叠在背景之上、人物立绘（z=0）之下。
+	bg.z_index = -10
 	_scene_area.add_child(bg)
 	_scene_area.move_child(bg, 0)
 
@@ -73,15 +75,42 @@ func add_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vector2
 
 func get_scene_area() -> Control: return _scene_area
 
+# === 对话人物位置映射 ===
+# 需求：有福尔摩斯时福尔摩斯在左下角；其他人物在右上角。
+# 底部人物对话内容左对齐，顶部人物对话内容右对齐。
+const POS_BL := "bottom_left"   # 福尔摩斯
+const POS_TR := "top_right"     # 华生 / NPC
+
+## 返回说话人的屏幕位置角色（bottom_left 或 top_right）
+static func speaker_position(speaker: String) -> String:
+	if speaker == "福尔摩斯":
+		return POS_BL
+	return POS_TR
+
 func set_dialogue(speaker: String, text: String, mood: String = "") -> void:
 	if _speaker_label: _speaker_label.text = speaker
-	if _dialogue_label: _dialogue_label.text = text
-	# 说话人立绘（统一走 PortraitLibrary；无立绘的说话人自动隐藏）
+	var pos := speaker_position(speaker)
+
+	# 文本对齐：底部人物左对齐，顶部人物右对齐
+	if _dialogue_label:
+		_dialogue_label.text = text
+		_dialogue_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if pos == POS_BL else HORIZONTAL_ALIGNMENT_RIGHT
+
+	# 立绘位置：按角色定位到对应角落
 	if _speaker_portrait:
 		var tex: Texture2D = PortraitLibrary.get_portrait(speaker, mood)
 		if tex != null:
 			_speaker_portrait.texture = tex
 			_speaker_portrait.show()
+			match pos:
+				POS_BL:
+					# 左下角：立绘浮于对话栏上方偏左
+					_speaker_portrait.position = Vector2(24, -310)
+					_speaker_portrait.size = Vector2(280, 340)
+				POS_TR:
+					# 右上角：立绘浮于对话栏上方偏右
+					_speaker_portrait.position = Vector2(1600, -560)
+					_speaker_portrait.size = Vector2(260, 300)
 		else:
 			_speaker_portrait.hide()
 
@@ -507,7 +536,7 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 	var frame = Panel.new()
 	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var fsb = StyleBoxFlat.new()
-	fsb.bg_color = Color(0.10, 0.07, 0.04, 0.95)
+	fsb.bg_color = Color(0.10, 0.07, 0.04, 0.00)   # 透明底（立绘已抠底透明）
 	fsb.border_color = COL_GOLD
 	fsb.border_width_left = 3; fsb.border_width_right = 3
 	fsb.border_width_top = 3; fsb.border_width_bottom = 3
@@ -538,7 +567,7 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 		var name_panel = Panel.new()
 		name_panel.position = Vector2(15, size.y - 36); name_panel.size = Vector2(size.x - 30, 30)
 		var npsb = StyleBoxFlat.new()
-		npsb.bg_color = Color(0.10, 0.07, 0.04, 0.95)
+		npsb.bg_color = Color(0.10, 0.07, 0.04, 0.00)   # 透明底
 		npsb.border_color = COL_GOLD
 		npsb.border_width_left = 1; npsb.border_width_right = 1
 		npsb.border_width_top = 1; npsb.border_width_bottom = 1

@@ -17,7 +17,8 @@ var _time: float = 0.0
 
 
 func _ready() -> void:
-    z_index = 5
+    # 灯光层应位于背景之上、人物立绘与推理墙之下。
+    z_index = -5
 
 
 func _process(delta: float) -> void:

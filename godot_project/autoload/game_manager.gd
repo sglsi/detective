@@ -24,6 +24,7 @@ var is_guest: bool = true
 var has_existing_save: bool = false
 var current_case_id: String = ""
 var current_scene_id: String = ""
+var current_slot: int = 0          # 当前活跃存档槽位（0..2），存/读档默认目标
 var game_start_time: int = 0
 var is_online: bool = false
 var completed_milestones: Array = []  # 已完成里程碑 ID 列表（P5-1 存档补全）
@@ -217,20 +218,29 @@ func restore_milestones(milestones: Array) -> void:
 ## 保存进度 — 各场景点保存按钮时调用
 ## phase: 当前阶段枚举值（如 Phase.GARDEN_OBSERVE）转为 int
 ## data: 场景专有数据字典（如 {"clue_ids":["c201","c202"], "phase_name":"garden"}）
-func do_save(phase: int, data: Dictionary) -> void:
+## slot: 指定存档槽位（0..2）；缺省 -1 表示自动分配（空槽位优先，满则覆盖最旧）。
+func do_save(phase: int, data: Dictionary, slot: int = -1) -> void:
+	if slot >= 0:
+		current_slot = slot
+	elif SaveManager:
+		current_slot = SaveManager.pick_auto_slot()
 	scene_state = data
 	scene_state["phase"] = phase
 	scene_state["scene_id"] = current_scene_id
-	print("[GameManager.do_save] phase=", phase, " scene_state=", scene_state)
+	scene_state["slot"] = current_slot
+	print("[GameManager.do_save] slot=", current_slot, " phase=", phase, " scene_state=", scene_state)
 	if SaveManager:
-		await SaveManager.save_game()
+		await SaveManager.save_to_slot(current_slot)
 
 ## 加载进度 — 检查是否有恢复的存档状态
 ## 返回 saved Dictionary（包含 phase + scene 专有数据）；无存档返回空字典
-func do_load() -> Dictionary:
+## slot: 指定读取槽位；缺省 -1 表示沿用当前 current_slot。
+func do_load(slot: int = -1) -> Dictionary:
+	if slot >= 0:
+		current_slot = slot
 	if not SaveManager:
 		return {}
-	var ok = await SaveManager.load_game()
+	var ok = await SaveManager.load_slot(current_slot)
 	if ok and not scene_state.is_empty():
 		return scene_state.duplicate()
 	return {}

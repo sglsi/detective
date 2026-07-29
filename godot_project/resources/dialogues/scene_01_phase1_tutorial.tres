@@ -264,7 +264,7 @@ note_text = "观察记录：手腕肤色对比/左臂僵硬/面容憔悴/军人�
 script = ExtResource("2_node")
 node_id = "s1_step3_easy"
 speaker = "福尔摩斯"
-text = "记下来。好记性不如烂笔头。笔记已自动填入关键描述，请用滑杆确认程度。"
+text = "记下来。好记性不如烂笔头。"
 mood = "从容"
 trigger = "auto"
 next_nodes = ["s1_step4_prompt"]
@@ -328,7 +328,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_step4_easy"
 speaker = "福尔摩斯"
-text = "皮肤的颜色会告诉你一个人去过哪里。翻翻知识库里「肤色与日晒」那条。"
+text = "不确定的时候，去知识库翻翻——知识是推理的燃料。"
 mood = "指导"
 trigger = "knowledge"
 next_nodes = ["s1_step5_prompt"]
@@ -392,7 +392,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_step5_easy"
 speaker = "福尔摩斯"
-text = "把你观察到的事实串起来。是热带服役的军人？还是刚从殖民地回来的商人？还是长期在海外漂泊的探险家？"
+text = "在有全部证据之前就下结论，是最大的错误。但我们可以先有个猜测。"
 mood = "指导"
 trigger = "choice"
 next_nodes = ["s1_step6_easy_verified", "s1_step6_supported", "s1_step6_insufficient"]
@@ -552,8 +552,120 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_holmes_explain"
 speaker = "福尔摩斯"
-text = "不错的初次表演。军人 + 医生 + 热带 + 负伤 = 阿富汗军医。这不是什么魔法，只是系统化的观察和推理。"
+text = "不错的初次表演。要知道，大多数人看到的只是表象，而侦探看到的是——历史。"
+mood = "欣赏"
+trigger = "auto"
+next_nodes = ["s1_holmes_explain2"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = "特写"
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_35"]
+script = ExtResource("2_node")
+node_id = "s1_holmes_explain2"
+speaker = "福尔摩斯"
+text = "介绍人说过你现在的职业是一名医生。那么，军人 + 医生 + 热带 + 负伤 = 阿富汗军医。这不是什么魔法，只是系统化的观察和推理。"
 mood = "从容"
+trigger = "auto"
+next_nodes = ["s1_watson_science"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_36"]
+script = ExtResource("2_node")
+node_id = "s1_watson_science"
+speaker = "华生"
+text = "系统化……听着像一门科学。"
+mood = "疑惑"
+trigger = "auto"
+next_nodes = ["s1_holmes_science"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_37"]
+script = ExtResource("2_node")
+node_id = "s1_holmes_science"
+speaker = "福尔摩斯"
+text = "它就是一门科学。只是大多数人不懂得运用。"
+mood = "微笑"
+trigger = "auto"
+next_nodes = ["s1_holmes_basis"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_38"]
+script = ExtResource("2_node")
+node_id = "s1_holmes_basis"
+speaker = "福尔摩斯"
+text = "这些，都是侦破工作的基础。而侦破最主要的工作就是用推理的方法，一层层地回溯事实。这是一种很有用的本领，不过，人们在实践中却不常应用它。"
+mood = "从容"
+trigger = "auto"
+next_nodes = ["s1_watson_curious"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_39"]
+script = ExtResource("2_node")
+node_id = "s1_watson_curious"
+speaker = "华生"
+text = "听起来……你经常做这样的事？"
+mood = "好奇"
+trigger = "auto"
+next_nodes = ["s1_holmes_hobby"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_40"]
+script = ExtResource("2_node")
+node_id = "s1_holmes_hobby"
+speaker = "福尔摩斯"
+text = "这是我的工作。准确地说——是我的爱好。"
+mood = "自信"
+trigger = "auto"
+next_nodes = ["s1_mrs_hudson"]
+difficulty_filter = 0
+verify_filter = ""
+exploration_step = 0
+is_step_entry = false
+stage_direction = ""
+note_text = ""
+
+
+[sub_resource type="Resource" id="node_41"]
+script = ExtResource("2_node")
+node_id = "s1_mrs_hudson"
+speaker = "赫德森太太"
+text = "福尔摩斯先生，茶来了。哦，华生医生，欢迎您。"
+mood = "温和"
 trigger = "auto"
 next_nodes = ["s1_end"]
 difficulty_filter = 0
@@ -564,11 +676,11 @@ stage_direction = ""
 note_text = ""
 
 
-[sub_resource type="Resource" id="node_35"]
+[sub_resource type="Resource" id="node_42"]
 script = ExtResource("2_node")
 node_id = "s1_end"
 speaker = "system"
-text = "【教程环节结束 —— 六步探索闭环完成】侦探笔记已更新 · 推理墙已开启"
+text = "【教程环节结束 —— 六步探索闭环完成】侦探笔记已更新 · 推理墙已开启 · 赫德森太太已登场"
 mood = "milestone"
 trigger = "milestone"
 next_nodes = ["end"]
