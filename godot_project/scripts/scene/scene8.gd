@@ -142,7 +142,7 @@ func _go_to_next_scene() -> void:
 		GameManager.end_case("completed")
 	_create_notification("案件告破 — 结局已评定")
 	await get_tree().create_timer(2.5).timeout
-	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	SceneLoader.transition_to("res://scenes/main_menu.tscn")
 
 func _do_save() -> void:
 	if GameManager.is_guest:

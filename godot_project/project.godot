@@ -51,6 +51,7 @@ TimelineSystem="*res://autoload/timeline_system.gd"
 KnowledgeBaseSystem="*res://autoload/knowledge_base_system.gd"
 ToolSystem="*res://autoload/tool_system.gd"
 PackManager="*res://autoload/pack_manager.gd"
+SceneLoader="*res://autoload/scene_loader.gd"
 
 [display]
 
