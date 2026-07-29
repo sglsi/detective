@@ -106,7 +106,7 @@ func _go_to_next_scene() -> void:
 	if GameManager and not GameManager.is_guest and SaveManager:
 		var ids := ClueSystem.get_collected_ids(clue_source()) if ClueSystem else []
 		await SaveSystem.request_save("scene4", Phase.TRANSITION, {"clue_ids": ids})
-	get_tree().change_scene_to_file("res://scenes/scene5.tscn")
+	SceneLoader.transition_to("res://scenes/scene5.tscn")
 
 func _do_save() -> void:
 	if GameManager.is_guest:

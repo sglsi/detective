@@ -269,10 +269,10 @@ func _go_save() -> void:
 ## 可靠场景跳转
 func _go_scene(path: String) -> void:
 	if ResourceLoader.exists(path):
-		get_tree().change_scene_to_file(path)
+		SceneLoader.transition_to(path)
 	else:
 		# 兜底：总是跳 scene1
-		get_tree().change_scene_to_file("res://scenes/scene1.tscn")
+		SceneLoader.transition_to("res://scenes/scene1.tscn")
 
 # -- 登录/注册面板 --
 

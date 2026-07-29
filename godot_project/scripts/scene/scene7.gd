@@ -143,7 +143,7 @@ func _go_to_next_scene() -> void:
 		var ids: Array = []
 		for c in _clues: ids.append(c.get("id", ""))
 		await SaveSystem.request_save("scene7", Phase.TRANSITION, {"clue_ids": ids})
-	get_tree().change_scene_to_file("res://scenes/scene8.tscn")
+	SceneLoader.transition_to("res://scenes/scene8.tscn")
 
 func _do_save() -> void:
 	if GameManager.is_guest:

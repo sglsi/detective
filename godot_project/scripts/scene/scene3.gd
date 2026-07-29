@@ -179,7 +179,7 @@ func _go_to_next_scene() -> void:
 		var ids: Array = []
 		for c in _clues: ids.append(c.get("id", ""))
 		await SaveSystem.request_save("scene3", Phase.TRANSITION, {"clue_ids": ids})
-	get_tree().change_scene_to_file("res://scenes/scene4.tscn")
+	SceneLoader.transition_to("res://scenes/scene4.tscn")
 
 # ===== 读档分支（ClueSystem 同步与通知已由基类 _restore_saved_state 完成） =====
 func _apply_restored_phase(p: int, ids: Array, _clues_arr: Array) -> bool:

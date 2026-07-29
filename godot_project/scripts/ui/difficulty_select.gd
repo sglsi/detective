@@ -43,4 +43,4 @@ func _confirm_difficulty(difficulty: int) -> void:
 	
 	# 进入游戏场景
 	GameManager.start_case("case_blood_letter")
-	get_tree().change_scene_to_file("res://scenes/scene1.tscn")
+	SceneLoader.transition_to("res://scenes/scene1.tscn")

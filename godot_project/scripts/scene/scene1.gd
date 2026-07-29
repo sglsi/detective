@@ -388,7 +388,7 @@ func _save_and_continue() -> void:
 		_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")
 	await get_tree().create_timer(2.0).timeout
-	get_tree().change_scene_to_file("res://scenes/scene2.tscn")
+	SceneLoader.transition_to("res://scenes/scene2.tscn")
 
 # ===== 委托信解锁 + 双钩子结尾（依据 02 §9 双钩子系统 + 委托信解锁） =====
 func _show_commission_letter_dialogue() -> void:
@@ -464,13 +464,13 @@ func _accept_case() -> void:
 		_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")
 	await get_tree().create_timer(1.0).timeout
-	get_tree().change_scene_to_file("res://scenes/scene2.tscn")
+	SceneLoader.transition_to("res://scenes/scene2.tscn")
 
 func _reject_case() -> void:
 	_create_notification("你拒绝了这桩委托 — 回到贝克街的日常")
 	await get_tree().create_timer(1.5).timeout
 	if GameStateMachine: GameStateMachine.go_menu()
-	else: get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	else: SceneLoader.transition_to("res://scenes/main_menu.tscn")
 
 # ===== 笔记、证物（场景一自建弹窗内容，沿用基类 _popup 统一样式） =====
 func _clue_sources() -> Array:
