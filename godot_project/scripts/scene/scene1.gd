@@ -356,7 +356,7 @@ func _show_rating() -> void:
 		var y = 170 + i*160
 		var nl = Label.new(); nl.text = it["name"]; nl.add_theme_font_size_override("font_size", 24); nl.add_theme_color_override("font_color", Color(0.88,0.82,0.72))
 		nl.position = Vector2(300,y); nl.size = Vector2(200,35); w.add_child(nl)
-		for s in it["s"]:
+		for s in range(it["s"]):
 			var sl = Label.new(); sl.text = "★"; sl.add_theme_font_size_override("font_size",32); sl.add_theme_color_override("font_color", Color(0.95,0.78,0.20))
 			sl.position = Vector2(500+s*50,y-5); sl.size = Vector2(40,40); w.add_child(sl)
 		for s in range(it["s"], 3):

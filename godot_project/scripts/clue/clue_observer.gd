@@ -21,6 +21,7 @@ var _required_recorded: int = 0     # 已记录的必点热点数
 var _recorded_clues: Array = []     # 已记录的线索数据
 var _recorded_ids: Array = []       # 已记录的热点 ID，用于正确隐藏
 var _active := false                # 是否处于观察模式
+var _all_recorded_done := false     # all_recorded 是否已发射（防越过阈值后重复发射）
 var _parent: Control
 var _text_lbl: Label
 var _speaker_lbl: Label
@@ -55,6 +56,7 @@ func _create_buttons() -> void:
 
 func show() -> void:
 	_active = true
+	_all_recorded_done = false
 	# 只显示尚未记录的热点：LOOK/放大镜会反复调用本方法，若把已记录热点也
 	# 重新显示，玩家可重复记录同一线索 → 计数虚增、all_recorded 提前/重复触发。
 	for i in _hotspots.size():
@@ -227,7 +229,9 @@ func _on_record(clue_id: String, desc: String) -> void:
 	_text_lbl.text = "线索已记录！%s条线索 (%d/%d)" % [parts.get(_recorded-1, ""), _required_recorded, _required_total]
 
 	# 完成判定基于「必点」线索：silent 未点也能推进场景
-	if _required_recorded >= _required_total:
+	# 守卫：all_recorded 只在「跨过阈值」时发射一次；越过后再记录新必点线索不重复发射
+	if not _all_recorded_done and _required_recorded >= _required_total:
+		_all_recorded_done = true
 		_active = false
 		all_recorded.emit(_recorded_clues)
 	else:
