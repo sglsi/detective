@@ -49,6 +49,11 @@ func scene_background() -> Texture2D: return null
 # 程序化氛围背景开关：返回 true 时底层用 ProceduralBackground 替代位图背景（默认关）
 func use_procedural_background() -> bool: return false
 
+# 氛围遮罩（迷雾/灯光）开关：返回 true 时场景区叠加 fog_atmosphere 着色器并提供切换按钮
+func wants_atmosphere() -> bool: return false
+# 氛围预设：Dusk / Night / Foggy / Day（对应 fog_atmosphere 着色器参数）
+func atmosphere_preset() -> String: return "Dusk"
+
 # ===== 构建 =====
 func _init_game_state() -> void:
 	if GameManager:
@@ -68,9 +73,14 @@ func _build_ui() -> void:
 		_ui.setup(scene_title(), scene_time_text(), scene_background())
 	# 工具栏（v2：真实图标 + 主动操作交互）
 	_setup_toolbar()
+	# 氛围遮罩（迷雾/灯光）：场景二/三选择性开启
+	_init_atmosphere()
 
 ## 实例化 ToolBar 并连接信号（按 §4.3.4 六步闭环 Step 2）
 var _toolbar: ToolBar = null
+## 氛围遮罩（迷雾/灯光）：场景二/三选择性开启
+var _fog_overlay: ColorRect = null
+var _atmo_btn: Button = null
 func _setup_toolbar() -> void:
 	if not ClassDB.class_exists("ToolBar"):
 		return  # tool_bar.gd 未加载时安全跳过
@@ -97,6 +107,73 @@ func _on_step_changed(step_name: String) -> void:
 			_toolbar.show_toolbar()
 		"STEP_1_OBSERVE", "STEP_3_RECORD", _:
 			_toolbar.hide_toolbar()
+
+# ===== 氛围遮罩（迷雾/灯光）：fog_atmosphere 着色器叠加 + 场景区右下角切换按钮 =====
+func _init_atmosphere() -> void:
+	if not wants_atmosphere(): return
+	if not _ui: return
+	var area: Control = _ui.get_scene_area()
+	if not area: return
+
+	var fog := ColorRect.new()
+	fog.name = "AtmosphereFog"
+	fog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fog.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://shaders/fog_atmosphere.gdshader")
+	_apply_fog_preset(mat, atmosphere_preset())
+	fog.material = mat
+	fog.z_index = 4
+	area.add_child(fog)
+	_fog_overlay = fog
+
+	var btn := Button.new()
+	btn.name = "AtmoToggle"
+	btn.text = "迷雾/灯光：开"
+	btn.size = Vector2(220, 56)
+	btn.position = Vector2(area.size.x - 244, area.size.y - 70)
+	btn.add_theme_font_size_override("font_size", 16)
+	btn.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))
+	var bs := StyleBoxFlat.new()
+	bs.bg_color = Color(0.10, 0.07, 0.04, 0.95); bs.border_color = Color(0.55, 0.42, 0.20)
+	bs.border_width_left = 2; bs.border_width_right = 2; bs.border_width_top = 2; bs.border_width_bottom = 2
+	bs.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("normal", bs)
+	var bsh := bs.duplicate(); bsh.border_color = Color(0.80, 0.68, 0.38)
+	btn.add_theme_stylebox_override("hover", bsh)
+	btn.z_index = 5
+	btn.pressed.connect(_on_atmo_toggled)
+	area.add_child(btn)
+	_atmo_btn = btn
+
+func _apply_fog_preset(mat: ShaderMaterial, preset: String) -> void:
+	match preset:
+		"Day":
+			mat.set_shader_parameter("fog_color", Color(0.65, 0.70, 0.78, 0.12))
+			mat.set_shader_parameter("fog_density", 0.15)
+			mat.set_shader_parameter("vignette_strength", 0.6)
+			mat.set_shader_parameter("lamp_glow_intensity", 0.0)
+		"Night":
+			mat.set_shader_parameter("fog_color", Color(0.08, 0.09, 0.14, 0.55))
+			mat.set_shader_parameter("fog_density", 0.55)
+			mat.set_shader_parameter("vignette_strength", 1.6)
+			mat.set_shader_parameter("lamp_glow_intensity", 1.4)
+		"Foggy":
+			mat.set_shader_parameter("fog_color", Color(0.30, 0.30, 0.33, 0.60))
+			mat.set_shader_parameter("fog_density", 0.65)
+			mat.set_shader_parameter("vignette_strength", 1.0)
+			mat.set_shader_parameter("lamp_glow_intensity", 1.1)
+		_:  # Dusk（默认）
+			mat.set_shader_parameter("fog_color", Color(0.25, 0.22, 0.30, 0.35))
+			mat.set_shader_parameter("fog_density", 0.35)
+			mat.set_shader_parameter("vignette_strength", 1.1)
+			mat.set_shader_parameter("lamp_glow_intensity", 0.9)
+
+func _on_atmo_toggled() -> void:
+	if not _fog_overlay: return
+	_fog_overlay.visible = not _fog_overlay.visible
+	if _atmo_btn:
+		_atmo_btn.text = "迷雾/灯光：" + ("开" if _fog_overlay.visible else "关")
 
 func _create_dummy_labels() -> void:
 	_obs_text_lbl = Label.new(); _obs_text_lbl.visible = false; add_child(_obs_text_lbl)
