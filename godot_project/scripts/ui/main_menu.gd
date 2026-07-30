@@ -292,7 +292,9 @@ func _scene_name(scene_id: String) -> String:
 func _fmt_time(t: int) -> String:
 	if t <= 0:
 		return ""
-	return Time.get_datetime_string_from_unix_time(t)
+	# 根因修复：t 是 UTC 秒，按 UTC 格式化会比本地时间差好几个小时；转为本地时间显示。
+	var bias_sec: int = int(Time.get_time_zone_from_system().get("bias", 0)) * 60
+	return Time.get_datetime_string_from_unix_time(t + bias_sec)
 
 ## 继续指定槽位的进度
 func _continue_slot(slot: int) -> void:

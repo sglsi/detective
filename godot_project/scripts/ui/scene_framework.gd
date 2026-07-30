@@ -92,6 +92,17 @@ static func speaker_position(speaker: String) -> String:
 	return POS_TR
 
 func set_dialogue(speaker: String, text: String, mood: String = "") -> void:
+	# 台词历史（回看用）：新台词到来即记录并退出回看态
+	if not text.strip_edges().is_empty():
+		_dlg_history.append({"speaker": speaker, "text": text, "mood": mood})
+		if _dlg_history.size() > REVIEW_MAX:
+			_dlg_history.pop_front()
+	_review_idx = -1
+	_update_review_ui()
+	_apply_dialogue(speaker, text, mood)
+
+## 实际渲染一条台词（set_dialogue 与回看共用；回看不写历史）
+func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 	if _speaker_label: _speaker_label.text = speaker
 	var pos := speaker_position(speaker)
 
@@ -126,6 +137,54 @@ func set_dialogue(speaker: String, text: String, mood: String = "") -> void:
 
 func set_dialogue_color(c: Color) -> void:
 	if _speaker_label: _speaker_label.add_theme_color_override("font_color", c)
+
+# === 台词回看（对话栏中间 ◀ ▶ 半透明按钮 / ←→键 / 鼠标滚轮） ===
+const REVIEW_MAX := 300
+var _dlg_history: Array[Dictionary] = []
+var _review_idx: int = -1               # -1 = 实时最新
+var _rv_prev: Button = null
+var _rv_next: Button = null
+var _rv_badge: Label = null
+
+func is_reviewing() -> bool:
+	return _review_idx >= 0
+
+## 回看步进：delta=-1 更早，delta=1 更新；走到最新自动退出回看态
+func review_step(delta: int) -> void:
+	if _dlg_history.is_empty():
+		return
+	var cur := _review_idx if is_reviewing() else _dlg_history.size() - 1
+	var target := cur + delta
+	if target >= _dlg_history.size() - 1:
+		exit_review()
+		return
+	target = clampi(target, 0, _dlg_history.size() - 2)
+	_review_idx = target
+	var e: Dictionary = _dlg_history[target]
+	_apply_dialogue(str(e.get("speaker", "")), str(e.get("text", "")), str(e.get("mood", "")))
+	_update_review_ui()
+
+## 退出回看态，恢复实时最新台词
+func exit_review() -> void:
+	if not is_reviewing():
+		return
+	_review_idx = -1
+	if not _dlg_history.is_empty():
+		var e: Dictionary = _dlg_history[_dlg_history.size() - 1]
+		_apply_dialogue(str(e.get("speaker", "")), str(e.get("text", "")), str(e.get("mood", "")))
+	_update_review_ui()
+
+func _update_review_ui() -> void:
+	if _rv_prev:
+		_rv_prev.visible = _dlg_history.size() > 1 and (not is_reviewing() or _review_idx > 0)
+	if _rv_next:
+		_rv_next.visible = is_reviewing()
+	if _rv_badge:
+		if is_reviewing():
+			_rv_badge.text = "回看 %d/%d" % [_review_idx + 1, _dlg_history.size()]
+			_rv_badge.show()
+		else:
+			_rv_badge.hide()
 
 func show_notification(msg: String) -> void:
 	# 顶部 toast 通知（金边背景条）
@@ -528,6 +587,26 @@ func _build_dialogue_bar() -> void:
 	_dialogue_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dialogue_bar.add_child(_dialogue_label)
 
+	# 台词回看按钮（对话栏顶部中央，半透明 ◀ ▶）
+	_rv_prev = _make_review_btn("◀")
+	_rv_prev.position = Vector2(1920 / 2.0 - 52, 10)
+	_rv_prev.pressed.connect(func() -> void: review_step(-1))
+	_dialogue_bar.add_child(_rv_prev)
+	_rv_next = _make_review_btn("▶")
+	_rv_next.position = Vector2(1920 / 2.0 + 12, 10)
+	_rv_next.pressed.connect(func() -> void: review_step(1))
+	_rv_next.visible = false
+	_dialogue_bar.add_child(_rv_next)
+	_rv_badge = Label.new()
+	_rv_badge.name = "review_badge"
+	_rv_badge.add_theme_font_size_override("font_size", 14)
+	_rv_badge.add_theme_color_override("font_color", Color(0.55, 0.42, 0.22))
+	_rv_badge.position = Vector2(1920 / 2.0 - 60, 44); _rv_badge.size = Vector2(120, 20)
+	_rv_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_rv_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rv_badge.hide()
+	_dialogue_bar.add_child(_rv_badge)
+
 	# 底部进度提示
 	var hint = Label.new()
 	hint.name = "dialogue_hint"
@@ -538,6 +617,26 @@ func _build_dialogue_bar() -> void:
 	hint.horizontal_alignment = 2
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dialogue_bar.add_child(hint)
+
+## 半透明回看箭头按钮（悬停时提高不透明度）
+func _make_review_btn(txt: String) -> Button:
+	var b := Button.new()
+	b.text = txt
+	b.custom_minimum_size = Vector2(40, 30)
+	b.focus_mode = Control.FOCUS_NONE
+	b.modulate = Color(1, 1, 1, 0.45)
+	b.mouse_entered.connect(func() -> void: b.modulate = Color(1, 1, 1, 0.95))
+	b.mouse_exited.connect(func() -> void: b.modulate = Color(1, 1, 1, 0.45))
+	b.tooltip_text = "回看台词（← → 键 / 鼠标滚轮）"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.10, 0.07, 0.04, 0.85)
+	sb.border_color = COL_GOLD
+	sb.border_width_left = 1; sb.border_width_right = 1
+	sb.border_width_top = 1; sb.border_width_bottom = 1
+	sb.set_corner_radius_all(4)
+	b.add_theme_stylebox_override("normal", sb)
+	b.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	return b
 
 # === 角色立绘（带金边框+名字烫金条） ===
 
