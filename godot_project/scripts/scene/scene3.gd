@@ -154,7 +154,7 @@ func options_lines() -> Array:
 
 # ===== 对话阶段 =====
 func _enter_arrival() -> void:
-	acquire_prop("ring", "结婚金戒指", "案发现场拾得的女式结婚戒指，尺码纤细，内侧刻字模糊——关键物证", "")
+	acquire_prop("ring", "结婚金戒指", "案发现场拾得的女式结婚戒指，尺码纤细，内侧刻字模糊——关键物证", "res://assets/props/ring.png")
 	# 对齐 08 稿 v3.16.0 场景三·入场（L1214-1229）
 	_start_dialogue(_make_nodes([
 		["i0","系统","（演出）福尔摩斯走向空屋的门，手按在门把手上。门缓缓推开——一股幽暗的气息扑面而来。","","guide"],

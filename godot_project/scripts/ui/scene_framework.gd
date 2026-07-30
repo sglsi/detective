@@ -318,7 +318,6 @@ func _build_top_bar() -> void:
 		{"id":"map", "en":"MAP", "zh":"地图", "icon":"🗺"},
 		{"id":"casebook", "en":"CASEBOOK", "zh":"案件簿", "icon":"📂"},
 		{"id":"evidence", "en":"EVIDENCE", "zh":"证物", "icon":"🔍"},
-		{"id":"inventory", "en":"INVENTORY", "zh":"物品栏", "icon":"🎒"},
 		{"id":"options", "en":"OPTIONS", "zh":"选项", "icon":"⚙"},
 	]
 	var nav_y := 4

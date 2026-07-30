@@ -112,7 +112,7 @@ func options_lines() -> Array:
 
 func _enter_arrival() -> void:
 	_phase = Phase.ARRIVAL
-	acquire_prop("coin", "半镑金币", "维多利亚时代半 Sovereign 金币，福尔摩斯用来「敲门砖」获取证词", "")
+	acquire_prop("coin", "半镑金币", "维多利亚时代半 Sovereign 金币，福尔摩斯用来「敲门砖」获取证词", "res://assets/props/coin.png")
 	# 逻辑修正（#127）：
 	#   1. 时间线：兰斯值夜班（22:00-6:00），下午两点在家补觉被叫起——不是"大半夜"。
 	#   2. 私语位置：福尔摩斯与华生"为什么先找兰斯"的私语放在敲门之前（马车上/门外路上），
