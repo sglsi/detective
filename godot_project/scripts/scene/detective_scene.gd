@@ -365,14 +365,20 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var clues: Array = ClueSystem.get_collected(src) if ClueSystem else _clues
 	var hypo := hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
 	var cb := on_verify if on_verify.is_valid() else _default_wall_verify
-	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"))
+	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty)
 
 ## 默认验证回调：展示判定结果；REASONING 阶段则自动推进过渡。
+## 三级反馈映射（06 §2.3 + 一致性报告 H-3）：已获证实+倾向成立→正确（绿）；
+## 证据不足→存疑（黄）；矛盾冲突→错误（红）。
 func _default_wall_verify(verdict: int) -> void:
-	var labels = {0: "CONTRADICTORY", 1: "INSUFFICIENT", 2: "SUPPORTED", 3: "VERIFIED"}
-	var v = labels.get(verdict, "WAITING")
-	var star_icons = {0: "⭐", 1: "★★", 2: "★★★", 3: "🌟🌟🌟"}
-	_ui.show_notification("推理验证结果：" + v + " " + star_icons.get(verdict, "⭐"))
+	var fb = {
+		0: ["错误 ❌", Color(0.95, 0.3, 0.3)],
+		1: ["存疑 ❓", Color(0.95, 0.8, 0.2)],
+		2: ["正确 ✅", Color(0.4, 0.85, 0.4)],
+		3: ["正确 🌟", Color(0.3, 0.95, 0.3)],
+	}
+	var entry = fb.get(verdict, ["等待", Color.WHITE])
+	_ui.show_notification("推理验证结果：" + entry[0])
 	if _wall_auto: _enter_transition()
 
 ## 推理墙关闭回调（玩家点击「返回探索 / X 关闭」后触发）。
