@@ -73,12 +73,18 @@ func reasoning_hypothesis() -> Dictionary:
 				{"id":"H4-02","text":"凶手回来找戒指","correct":true},
 				{"id":"H4-03","text":"凶手是马车夫（升级）","correct":true}
 			],
-			"contradictions": [
-				{"id":"C4-01","text":"凶手红脸 vs 死者死于服毒","correct":true},
-				{"id":"C4-02","text":"精心策划的复仇 vs 喝醉了被目击","correct":true},
-				{"id":"C4-03","text":"无马鞭 vs 马车夫","correct":true}
-			],
-		}
+		"contradictions": [
+			{"id":"C4-01","text":"凶手红脸 vs 死者死于服毒","correct":true},
+			{"id":"C4-02","text":"精心策划的复仇 vs 喝醉了被目击","correct":true},
+			{"id":"C4-03","text":"无马鞭 vs 马车夫","correct":true}
+		],
+		"milestones": [
+			{"id":"S4-1","text":"醉汉即凶手"},
+			{"id":"S4-2","text":"凶手折返取回戒指"},
+			{"id":"S4-3","text":"凶手是马车夫"},
+			{"id":"S4-4","text":"凶手红脸为动脉瘤（真实症状，非重病）"},
+		],
+	}
 	}
 
 func map_locations() -> Array:

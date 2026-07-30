@@ -1,6 +1,8 @@
 class_name PortraitLibrary
 extends RefCounted
 
+const SherlockRig = preload("res://scripts/rig/sherlock_rig.gd")
+
 ## PortraitLibrary — 立绘/表情统一查询库（单一数据源）
 ##
 ## 所有"说话人 → 立绘纹理"的映射集中在此，供以下消费方复用：
@@ -120,12 +122,10 @@ static func has_portrait(speaker: String) -> bool:
 ##   {"bones": [ {name,parent,pos(Vector2),rot(float),len,wid,dir,color(Color),tex(String)} ... ],
 ##    "palette": "sherlock"|"watson"|...}
 static func get_rig(speaker: String) -> Dictionary:
+	if speaker == "福尔摩斯":
+		return SherlockRig.rig_def()
 	return {}
-	# TODO: 当福尔摩斯/华生的可绑骨肢体部件图就位后，在此填入 rig 定义。
-	# 示例（Sherlock）：
-	# if speaker == "福尔摩斯":
-	#     return _load_rig("res://rigs/sherlock_rig.json")
-	# return {}
+	# TODO: 当华生等角色的可绑骨肢体部件图就位后，在此注册其 rig 定义。
 
 ## 路径解析（可单测：不依赖资源实际存在）
 static func _resolve_path(speaker: String, mood: String) -> String:

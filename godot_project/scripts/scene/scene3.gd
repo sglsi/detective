@@ -110,14 +110,22 @@ func reasoning_hypothesis() -> Dictionary:
 				{"id":"H3-03","text":"血字并非德国人所写（伪装）","correct":true},
 				{"id":"H3-04","text":"凶手右手指甲很长","correct":true}
 			],
-			"contradictions": [
-				{"id":"C3-01","text":"服毒死亡 vs 现场无药瓶","correct":true},
-				{"id":"C3-02","text":"复仇杀人 vs 带走凶器（药瓶）","correct":true},
-				{"id":"C3-03","text":"血字是德语 vs 书写者不像德国人","correct":true},
-				{"id":"C3-04","text":"情杀论（戒指）vs 服毒预谋杀人","correct":true},
-				{"id":"C-06","text":"死者指甲干净 vs 血字有指甲刮痕 → 血字是凶手写的，凶手指甲缝必沾墙粉","correct":true}
-			],
-		}
+		"contradictions": [
+			{"id":"C3-01","text":"服毒死亡 vs 现场无药瓶","correct":true},
+			{"id":"C3-02","text":"复仇杀人 vs 带走凶器（药瓶）","correct":true},
+			{"id":"C3-03","text":"血字是德语 vs 书写者不像德国人","correct":true},
+			{"id":"C3-04","text":"情杀论（戒指）vs 服毒预谋杀人","correct":true},
+			{"id":"C-06","text":"死者指甲干净 vs 血字有指甲刮痕 → 血字是凶手写的，凶手指甲缝必沾墙粉","correct":true}
+		],
+		"milestones": [
+			{"id":"S3-1","text":"死因为服毒（非外伤）"},
+			{"id":"S3-2","text":"血字 RACHE 意为「复仇」"},
+			{"id":"S3-3","text":"凶手右手指甲很长"},
+			{"id":"S3-4","text":"死者身份：美国克利夫兰人德雷伯"},
+			{"id":"S3-5","text":"凶手伪装德语书写（非德国人）"},
+			{"id":"S3-6","text":"凶手指甲缝必沾墙粉（决定性细节）"},
+		],
+	}
 	}
 
 # ===== 面板内容 =====

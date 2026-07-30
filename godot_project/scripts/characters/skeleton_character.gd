@@ -45,7 +45,7 @@ func apply_pose(name: String, t: float) -> void:
 		r[bn] = _base_rot[bn]
 	match name:
 		"idle":
-			r["spine"] = r["spine"] + deg_to_rad(2.0) * sin(TAU * 0.5 * t)
+			r["torso"] = r["torso"] + deg_to_rad(2.0) * sin(TAU * 0.5 * t)
 			r["head"]  = r["head"]  + deg_to_rad(3.0) * sin(TAU * 0.5 * t)
 			r["upperarm_L"] = r["upperarm_L"] + deg_to_rad(3.0) * sin(TAU * 0.5 * t)
 			r["upperarm_R"] = r["upperarm_R"] - deg_to_rad(3.0) * sin(TAU * 0.5 * t)
@@ -163,8 +163,15 @@ func _make_part(b: Dictionary) -> Node2D:
 		if tex_path != "" and ResourceLoader.exists(tex_path):
 			var sp := Sprite2D.new()
 			sp.texture = load(tex_path)
-			sp.centered = true
-			sp.position = Vector2(0, float(b["len"]) * 0.5)
+			sp.centered = false
+			var sc: float = b.get("scale", 1.0)
+			var flip: bool = b.get("flip", false)
+			var piv: Vector2 = b.get("pivot", Vector2(0, 0))
+			if flip:
+				sp.flip_v = true
+				piv.y = float(sp.texture.get_height()) - piv.y
+			sp.scale = Vector2(sc, sc)
+			sp.position = Vector2(-piv.x * sc, -piv.y * sc)
 			return sp
 	var poly := Polygon2D.new()
 	var w: float = b["wid"]

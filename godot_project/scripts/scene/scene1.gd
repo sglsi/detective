@@ -339,6 +339,11 @@ func _show_watson_reasoning_wall() -> void:
 			],
 			"contradictions": [],
 		},
+		"milestones": [
+			{"id":"MW-1","text":"华生刚从阿富汗战场归来"},
+			{"id":"MW-2","text":"华生是军医（左臂旧伤、军人站姿）"},
+			{"id":"MW-3","text":"身份可经观察痕迹推断（演绎法初探）"},
+		],
 	}
 	_open_wall("watson", hypo, func(v: int):
 		_watson_v = v
@@ -383,6 +388,11 @@ func _show_messenger_reasoning_wall() -> void:
 			],
 			"contradictions": [],
 		},
+		"milestones": [
+			{"id":"MM-1","text":"信使是海军陆战队军士"},
+			{"id":"MM-2","text":"锚形文身为海军标志（关键证据）"},
+			{"id":"MM-3","text":"袖口磨损/跛行为干扰项，非身份证据"},
+		],
 	}
 	_open_wall("messenger", hypo, func(v: int):
 		_messenger_v = v

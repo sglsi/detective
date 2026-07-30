@@ -93,13 +93,19 @@ func reasoning_hypothesis() -> Dictionary:
 				{"id":"H7-03","text":"两起案件为同一凶手","correct":true},
 				{"id":"H7-04","text":"凶手=杰弗森·霍普","correct":true}
 			],
-			"contradictions": [
-				{"id":"C7-01","text":"服毒 vs 刀杀（两种杀人方式）","correct":true},
-				{"id":"C7-02","text":"谨慎缜密 vs 留血字RACHE","correct":true},
-				{"id":"C7-03","text":"钱袋80镑未失 vs 谋财","correct":true},
-				{"id":"C7-04","text":"雷斯垂德找到 vs 找到的是尸体","correct":true}
-			],
-		}
+		"contradictions": [
+			{"id":"C7-01","text":"服毒 vs 刀杀（两种杀人方式）","correct":true},
+			{"id":"C7-02","text":"谨慎缜密 vs 留血字RACHE","correct":true},
+			{"id":"C7-03","text":"钱袋80镑未失 vs 谋财","correct":true},
+			{"id":"C7-04","text":"雷斯垂德找到 vs 找到的是尸体","correct":true}
+		],
+		"milestones": [
+			{"id":"S7-1","text":"斯特兰森死于刀伤非服毒"},
+			{"id":"S7-2","text":"药丸一毒一无毒（上帝裁决）"},
+			{"id":"S7-3","text":"两起命案为同一凶手"},
+			{"id":"S7-4","text":"凶手=杰弗森·霍普"},
+		],
+	}
 	}
 
 func map_locations() -> Array:

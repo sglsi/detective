@@ -12,6 +12,7 @@ var _milestones: Array = []        # [{id, text, lit}] 结论里程碑节点（0
 var _milestone_confirmed: int = 0
 var _milestone_total: int = 0
 var _milestone_lbl: Label = null
+var _milestone_list: VBoxContainer = null   # 事实节点列表（06 §2.4，可见化里程碑）
 var _last_report: String = ""
 var _hypothesis: Dictionary = {}
 var _battle: Dictionary = {}  # hypothesis["battlefield"]: {hypotheses:[{id,text,correct}], contradictions:[{id,text}]}
@@ -174,16 +175,20 @@ func _create_ui() -> void:
 	cl.pressed.connect(_on_back_pressed)
 	add_child(cl)
 
-	# 结论里程碑（06 §2.4）：底部进度条，验证达到「已获证实」时点亮事实节点
+	# 结论里程碑（06 §2.4）：底部进度条 + 事实节点列表，验证达到「已获证实」时点亮事实节点
 	_milestone_lbl = Label.new()
 	_milestone_lbl.add_theme_font_size_override("font_size", 16)
 	_milestone_lbl.add_theme_color_override("font_color", Color(0.80, 0.70, 0.40))
-	_milestone_lbl.position = Vector2(40, 762); _milestone_lbl.size = Vector2(1840, 30)
+	_milestone_lbl.position = Vector2(40, 710); _milestone_lbl.size = Vector2(1840, 28)
 	add_child(_milestone_lbl)
+	_milestone_list = VBoxContainer.new()
+	_milestone_list.position = Vector2(40, 742); _milestone_list.size = Vector2(1840, 300)
+	_milestone_list.add_theme_constant_override("separation", 4)
+	add_child(_milestone_list)
 	_update_milestone_ui()
 
 	_create_battlefield_ui()
-	_add_label("提示: 点击左栏线索卡=推入关联面板（再点退出）；点关联面板内线索=弹出详情。绿色=已关联。", 13, Color(0.40, 0.35, 0.28), Vector2(40, 700), Vector2(1840, 25))
+	_add_label("提示: 点击左栏线索卡=推入关联面板（再点退出）；点关联面板内线索=弹出详情。绿色=已关联。", 13, Color(0.40, 0.35, 0.28), Vector2(40, 685), Vector2(1840, 25))
 
 func _add_label(t: String, fs: int, fc: Color, pos: Vector2, sz: Vector2) -> void:
 	var l = Label.new(); l.text = t
@@ -590,7 +595,19 @@ func _update_milestone_ui() -> void:
 	var blocks := ""
 	for m in _milestones:
 		blocks += "■" if m["lit"] else "□"
-	_milestone_lbl.text = "结论里程碑：%s  已确认事实 %d/%d" % [blocks, _milestone_confirmed, _milestone_total]
+	_milestone_lbl.text = "结论里程碑（06 §2.4）：%s  已确认事实 %d/%d" % [blocks, _milestone_confirmed, _milestone_total]
+	if _milestone_list:
+		for c in _milestone_list.get_children(): c.queue_free()
+		for m in _milestones:
+			var l := Label.new()
+			l.text = ("■ " if m["lit"] else "□ ") + m["text"]
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			l.add_theme_font_size_override("font_size", 16)
+			if m["lit"]:
+				l.add_theme_color_override("font_color", Color(0.95, 0.80, 0.30))
+			else:
+				l.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
+			_milestone_list.add_child(l)
 
 ## 测试用访问器（headless 集成验证）
 func get_milestone_state() -> Dictionary:
