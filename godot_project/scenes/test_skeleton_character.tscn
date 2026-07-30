@@ -12,5 +12,5 @@ transparent_bg = true
 handle_input_locally = false
 
 [node name="Hero" type="Node2D" parent="View"]
-position = Vector2(180, 470)
+position = Vector2(180, 120)
 script = ExtResource("2")

@@ -64,12 +64,17 @@ func reasoning_hypothesis() -> Dictionary:
 				{"id":"H6-01","text":"卡彭蒂耶中尉不是凶手","correct":true},
 				{"id":"H6-02","text":"威廉·哈珀证词可信","correct":true}
 			],
-			"contradictions": [
-				{"id":"C6-01","text":"身高5.8英尺 vs 凶手6英尺+","correct":true},
-				{"id":"C6-02","text":"有动机 vs 有不在场证明","correct":true},
-				{"id":"C6-03","text":"木棍「凶器」 vs 死者服毒","correct":true}
-			],
-		}
+		"contradictions": [
+			{"id":"C6-01","text":"身高5.8英尺 vs 凶手6英尺+","correct":true},
+			{"id":"C6-02","text":"有动机 vs 有不在场证明","correct":true},
+			{"id":"C6-03","text":"木棍「凶器」 vs 死者服毒","correct":true}
+		],
+		"milestones": [
+			{"id":"S6-1","text":"卡彭蒂耶中尉不是凶手（已排除）"},
+			{"id":"S6-2","text":"威廉·哈珀证词可信"},
+			{"id":"S6-3","text":"木棍非凶器（死者服毒）"},
+		],
+	}
 	}
 
 func map_locations() -> Array:

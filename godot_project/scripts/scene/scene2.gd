@@ -91,12 +91,20 @@ func reasoning_hypothesis() -> Dictionary:
 				{"id":"H2-04","text":"凶手体格强壮","correct":true},
 				{"id":"H2-05","text":"凶手中年人","correct":true}
 			],
-			"contradictions": [
-				{"id":"C2-01","text":"现场出现两组不同脚印（方头靴 vs 小步皮靴）","correct":true},
-				{"id":"C2-02","text":"乘马车来 vs 泥地大步走进入花园","correct":true},
-				{"id":"C2-03","text":"一只马蹄铁是新的、其余三只是旧的","correct":true}
-			],
-		}
+		"contradictions": [
+			{"id":"C2-01","text":"现场出现两组不同脚印（方头靴 vs 小步皮靴）","correct":true},
+			{"id":"C2-02","text":"乘马车来 vs 泥地大步走进入花园","correct":true},
+			{"id":"C2-03","text":"一只马蹄铁是新的、其余三只是旧的","correct":true}
+		],
+		"milestones": [
+			{"id":"S2-1","text":"死亡地点：劳瑞斯顿花园街3号"},
+			{"id":"S2-2","text":"凶手乘出租马车抵达现场"},
+			{"id":"S2-3","text":"凶手身高六英尺以上、体格强壮、中年"},
+			{"id":"S2-4","text":"凶手穿方头靴（关键体貌）"},
+			{"id":"S2-5","text":"现场两组脚印暗示伪装或同伙"},
+			{"id":"S2-6","text":"初步死亡时间：案发当夜"},
+		],
+	}
 	}
 
 # ===== 面板内容 =====

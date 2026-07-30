@@ -78,13 +78,19 @@ func reasoning_hypothesis() -> Dictionary:
 				{"id":"H5-03","text":"凶手是马车夫（升级）","correct":true},
 				{"id":"H5-04","text":"复仇动机·私人恩怨非政治","correct":true}
 			],
-			"contradictions": [
-				{"id":"C5-01","text":"老太婆虚弱 vs 跳上马车敏捷","correct":true},
-				{"id":"C5-02","text":"凶手缜密 vs 亲自冒险取戒指","correct":true},
-				{"id":"C5-03","text":"葛莱森政治阴谋论 vs 私人恩怨背景","correct":true},
-				{"id":"C5-04","text":"雷斯垂德马车夫方向 vs 他查的都错","correct":true}
-			],
-		}
+		"contradictions": [
+			{"id":"C5-01","text":"老太婆虚弱 vs 跳上马车敏捷","correct":true},
+			{"id":"C5-02","text":"凶手缜密 vs 亲自冒险取戒指","correct":true},
+			{"id":"C5-03","text":"葛莱森政治阴谋论 vs 私人恩怨背景","correct":true},
+			{"id":"C5-04","text":"雷斯垂德马车夫方向 vs 他查的都错","correct":true}
+		],
+		"milestones": [
+			{"id":"S5-1","text":"老太婆为男扮女装"},
+			{"id":"S5-2","text":"凶手=杰弗森·霍普"},
+			{"id":"S5-3","text":"凶手=马车夫（升级）"},
+			{"id":"S5-4","text":"复仇动机（私人恩怨非政治）"},
+		],
+	}
 	}
 
 func map_locations() -> Array:

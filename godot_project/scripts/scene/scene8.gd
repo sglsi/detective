@@ -86,12 +86,18 @@ func reasoning_hypothesis() -> Dictionary:
 				{"id":"H8-02","text":"复仇动机（露茜·费里尔）","correct":true},
 				{"id":"H8-03","text":"凶手是马车夫","correct":true}
 			],
-			"contradictions": [
-				{"id":"C8-01","text":"老太婆伪装 vs 霍普本人","correct":true},
-				{"id":"C8-02","text":"血字RACHE=复仇 vs 误导","correct":true},
-				{"id":"C8-03","text":"卡彭蒂耶动机吻合 vs 排除","correct":true}
-			],
-		}
+		"contradictions": [
+			{"id":"C8-01","text":"老太婆伪装 vs 霍普本人","correct":true},
+			{"id":"C8-02","text":"血字RACHE=复仇 vs 误导","correct":true},
+			{"id":"C8-03","text":"卡彭蒂耶动机吻合 vs 排除","correct":true}
+		],
+		"milestones": [
+			{"id":"S8-1","text":"凶手=杰弗森·霍普"},
+			{"id":"S8-2","text":"复仇动机（露茜·费里尔）"},
+			{"id":"S8-3","text":"凶手是马车夫"},
+			{"id":"S8-4","text":"完整作案过程：毒杀德雷伯 + 刀杀斯特兰森"},
+		],
+	}
 	}
 
 func map_locations() -> Array:

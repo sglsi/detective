@@ -1,11 +1,12 @@
 extends SceneTree
 const SkeletonCharacter2D = preload("res://scripts/characters/skeleton_character.gd")
+const SherlockRig = preload("res://scripts/rig/sherlock_rig.gd")
 
 func _initialize() -> void:
 	var scene = load("res://scenes/test_skeleton_character.tscn").instantiate()
 	root.add_child(scene)
 	var hero: SkeletonCharacter2D = scene.get_node("View/Hero")
-	hero.build_demo("sherlock")
+	hero.build_from_def(SherlockRig.rig_def())
 	hero._playing = false
 	var origin: Vector2 = hero.position
 	var specs: Array = [
