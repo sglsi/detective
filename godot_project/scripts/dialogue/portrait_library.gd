@@ -110,6 +110,23 @@ static func get_portrait(speaker: String, mood: String = "") -> Texture2D:
 static func has_portrait(speaker: String) -> bool:
 	return speaker == "福尔摩斯" or speaker == "华生" or NPC_PORTRAITS.has(speaker)
 
+# ============ 骨架动画接入桩 ============
+
+## 查询说话人的骨架 rig 定义。
+## 返回非空 Dictionary 时，对话系统可用 SkeletonCharacter2D 替代扁平立绘显示角色。
+## 当前所有角色返回空 {}；当 rig 美术到位后在此注册即可激活。
+##
+## 返回格式（与 SkeletonCharacter2D.build_from_def 兼容）：
+##   {"bones": [ {name,parent,pos(Vector2),rot(float),len,wid,dir,color(Color),tex(String)} ... ],
+##    "palette": "sherlock"|"watson"|...}
+static func get_rig(speaker: String) -> Dictionary:
+	return {}
+	# TODO: 当福尔摩斯/华生的可绑骨肢体部件图就位后，在此填入 rig 定义。
+	# 示例（Sherlock）：
+	# if speaker == "福尔摩斯":
+	#     return _load_rig("res://rigs/sherlock_rig.json")
+	# return {}
+
 ## 路径解析（可单测：不依赖资源实际存在）
 static func _resolve_path(speaker: String, mood: String) -> String:
 	match speaker:
