@@ -117,7 +117,7 @@ func _init_game_state() -> void:
 func _build_ui() -> void:
 	_ui = SceneFramework.new(); _ui.name = "ui"; add_child(_ui)
 	_ui.setup("贝克街221B", "DAY 1 上午10:30")
-	var tex = load("res://assets/characters/watson/watson_teaching.png")
+	var tex = load("res://assets/characters/watson/watson_standing.png")
 	if tex:
 		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(160, 350), Vector2(280, 360))
 		# 默认隐藏：仅在 OBSERVE_WATSON 阶段显示
@@ -134,7 +134,7 @@ func _create_dummy_labels() -> void:
 
 ## 创建两组观察器（华生 / 信使），各自连线到本场景回调
 func _create_observers() -> void:
-	var tex = load("res://assets/characters/watson/watson_teaching.png")
+	var tex = load("res://assets/characters/watson/watson_standing.png")
 	var sa = _ui.get_scene_area()
 	_watson_obs = ClueObserver.new(); _watson_obs.name = "watson_observer"; add_child(_watson_obs)
 	_watson_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, [

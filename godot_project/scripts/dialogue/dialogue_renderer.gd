@@ -1,9 +1,6 @@
 extends Control
 class_name DialogueRenderer
 
-# 立绘微动组件（用 preload 引用，避免依赖全局 class_name 缓存，headless 下稳定）
-const PortraitMicroAnimator = preload("res://scripts/ui/portrait_micro_animator.gd")
-
 ## DialogueRenderer v2.0 — 对话渲染器
 ## 支持扩展角色、新 trigger 类型、六步闭环标记、四级验证展示
 
@@ -34,9 +31,6 @@ var _review_index: int = -1
 var _btn_prev: Button = null
 var _btn_next: Button = null
 var _hint_default_text: String = ""
-
-# 立绘微动组件（让对话立绘呼吸/浮动，呈现活人感）
-var _portrait_anim: PortraitMicroAnimator
 
 # 角色名称映射
 const SPEAKER_NAMES = {
@@ -105,11 +99,6 @@ func _ready() -> void:
 	
 	if step_indicator: step_indicator.hide()
 	if difficulty_badge: difficulty_badge.hide()
-
-	# 立绘微动：绑定 $Portrait（仅做属性动画，不影响布局）
-	_portrait_anim = PortraitMicroAnimator.new()
-	add_child(_portrait_anim)
-	_portrait_anim.setup(portrait)
 
 	if continue_hint:
 		_hint_default_text = continue_hint.text
@@ -302,9 +291,7 @@ func _start_typewriter(full_text: String) -> void:
 	var gen := _tw_generation
 	is_typing = true
 	text_label.text = ""
-	# 说话时立绘加大浮动
-	if _portrait_anim: _portrait_anim.set_talking(true)
-	
+
 	var speed = 1.0
 	if SettingsManager:
 		var s = SettingsManager.get_setting("dialogue_speed")
@@ -327,8 +314,6 @@ func _start_typewriter(full_text: String) -> void:
 	if gen != _tw_generation:
 		return
 	is_typing = false
-	# 打完字恢复 idle 呼吸
-	if _portrait_anim: _portrait_anim.set_talking(false)
 
 # ============ 台词回看 ============
 

@@ -37,7 +37,6 @@ const CLUES = {
 
 var _route: String = "A"                 # 场景四传来的路线（A/B/C），读档时恢复
 var _asked_directions: Dictionary = {}   # 已追问方向
-var _d2_seen: bool = false               # 沉默线索 D2（壁炉架旧照片）是否已发现
 var _tracked: bool = false               # Step6 是否选择跟踪
 
 func scene_id() -> String: return "scene5"
@@ -47,9 +46,8 @@ func scene_title() -> String: return "贝克街 221B 会客厅"
 func scene_time_text() -> String: return "DAY 1 晚 20:00-21:00"
 func scene_background() -> Texture2D: return load("res://assets/scenes/sc_05_parlor.jpg")
 
-## 夜间会客厅氛围：壁炉 + 煤气灯。开 Night 预设增强沉浸，背景位图由 Req3(#97) 统一选配。
-func wants_atmosphere() -> bool: return true
-func atmosphere_preset() -> String: return "Night"
+## 氛围遮罩已按需求移除（谜雾/灯光按钮及相关功能）。
+func wants_atmosphere() -> bool: return false
 
 func _phase_name(p: int) -> String:
 	match p:
@@ -121,6 +119,7 @@ func options_lines() -> Array:
 
 func _enter_arrival() -> void:
 	_phase = Phase.ARRIVAL
+	acquire_prop("ring", "结婚金戒指", "案发现场拾得的女性结婚戒指，内侧刻字「L.F.」，关键物证", "")
 	if GameManager and GameManager.scene_state.has("scene4_route"):
 		_route = GameManager.scene_state["scene4_route"]
 	match _route:
@@ -153,37 +152,22 @@ func _enter_step1() -> void:
 		_mk_node("s4","老太婆","宏兹迪池区，邓肯街十三号。离这儿远着呢。","click",["s5"]),
 		_mk_node("s5","老太婆","（千恩万谢）谢谢，找到戒指，我女儿赛莉一定开心死了……（颤巍巍转身，蹒跚走向门口）","clue",["s6"],[CLUES["C_SOTCB_507"]]),
 		_mk_node("s6","福尔摩斯","（低声）布瑞克斯顿路不在宏兹迪池区和马戏团之间……她怎么一口咬定是女儿的？疑点都是间接的。","click",["end"]),
-	], "s0", _offer_d2)
+	], "s0", _start_panel)
 
-func _offer_d2() -> void:
-	# 沉默线索 D2（壁炉架旧照片）：Step1→Step2 入口，自定义面板（对话已结束，安全）
-	_show_choice_panel("观察 · 会客厅一隅", [
-		{"text":"🔍 扫视壁炉架 —— 缝隙里夹着一张泛黄旧照片", "cb": Callable(self, "_see_d2_photo")},
-		{"text":"跳过，继续追问老太婆", "cb": Callable(self, "_start_panel")},
-	])
 
-func _see_d2_photo() -> void:
-	_d2_seen = true
-	if StarRatingSystem:
-		StarRatingSystem.add_insight(0.5)   # 洞察之星 +0.5（设计 08 D2）
-	_start_dialogue([
-		_mk_node("d0","系统","（特写）一张泛黄小照片，一对年轻夫妇，背面写着「1872年，布莱顿」，边缘被火烧过一角。","guide",["d1"]),
-		_mk_node("d1","福尔摩斯","（凑近）1872年，布莱顿……婚礼照。和案子无关，纯属这家主人的旧物。但一个细节都不该放过——记着。","click",["d2"]),
-		_mk_node("d2","华生","（感慨）你连壁炉缝里的一张旧照片都不放过。","click",["end"]),
-	], "d0", _start_panel)
 
 func _start_panel() -> void:
 	# Step2 工具操作 —— 追问面板（08 场景五·六方向追问；老太婆回答合理、不直接露破绽）
-	var opts := [
-		{"text":"🔍 追问戒指细节 —— 您能描述这枚戒指吗？", "cb": Callable(self, "_dir_ring")},
-		{"text":"🔍 追问丢戒指经过 —— 具体什么位置？", "cb": Callable(self, "_dir_lost")},
-		{"text":"🔍 追问家庭情况 —— 您女婿什么时候回来？", "cb": Callable(self, "_dir_family")},
-		{"text":"🔍 追问路线 —— 您从宏兹迪池怎么过来？", "cb": Callable(self, "_dir_route")},
-		{"text":"❓ 直接质疑 —— 布瑞克斯顿路不在宏兹迪池和马戏团之间啊", "cb": Callable(self, "_dir_doubt")},
-		{"text":"🚪 什么也不问，直接给戒指放她走", "cb": Callable(self, "_dir_letgo")},
+	# 统一基类 _render_investigate_panel：已追问方向自动从面板消失，与其它场景一致
+	var questions := [
+		{"id":"ring","text":"🔍 追问戒指细节 —— 您能描述这枚戒指吗？", "cb": Callable(self, "_dir_ring")},
+		{"id":"lost","text":"🔍 追问丢戒指经过 —— 具体什么位置？", "cb": Callable(self, "_dir_lost")},
+		{"id":"family","text":"🔍 追问家庭情况 —— 您女婿什么时候回来？", "cb": Callable(self, "_dir_family")},
+		{"id":"route","text":"🔍 追问路线 —— 您从宏兹迪池怎么过来？", "cb": Callable(self, "_dir_route")},
+		{"id":"doubt","text":"❓ 直接质疑 —— 布瑞克斯顿路不在宏兹迪池和马戏团之间啊", "cb": Callable(self, "_dir_doubt")},
+		{"id":"letgo","text":"🚪 什么也不问，直接给戒指放她走", "cb": Callable(self, "_dir_letgo")},
 	]
-	opts.append({"text":"✅ 结束追问，整理说辞", "cb": Callable(self, "_start_step3")})
-	_show_choice_panel("追问面板 · 选择方向（已问 " + str(_asked_directions.size()) + "/5）", opts)
+	_render_investigate_panel("追问面板 · 选择方向", questions, _asked_directions, Callable(self, "_start_step3"))
 
 func _dir_ring() -> void:
 	_asked_directions["ring"] = true
@@ -231,18 +215,24 @@ func _start_step3() -> void:
 	# Step3 数据记录 —— 侦探笔记（08 场景五·来访者记录 7 项，简化为确认式回顾）
 	if _asked_directions.size() >= 5 and StarRatingSystem:
 		StarRatingSystem.add_insight(0.5)   # 五方向全追问洞察加成
-	var items := [
-		{"name":"1. 来访者自称", "desc":"索叶太太（失主的母亲）"},
-		{"name":"2. 失主姓名", "desc":"赛莉（女儿）"},
-		{"name":"3. 失主丈夫职业", "desc":"联合公司船上的乘务员"},
-		{"name":"4. 来访者住址", "desc":"宏兹迪池区邓肯街十三号"},
-		{"name":"5. 丢戒指地点", "desc":"布瑞克斯顿路附近（广告所写）"},
-		{"name":"6. 可疑之处", "desc":"地址路线矛盾 / 她怎确定是女儿的 / 来的时间正好卡八点 / 说话太啰嗦像在表演"},
-		{"name":"7. 整体判断", "desc":"似乎和案子有关联 / 需进一步验证"},
-	]
-	_popup("侦探笔记 · 来访者记录（7 项）", items)
+	# 侦探笔记只记录玩家「实际追问过」的方向，未问的不写进本子
+	var testimony := {
+		"ring": {"name":"追问 · 戒指细节", "desc":"普通结婚金戒指，内侧刻字「好像是 L.F.」——她自己都记不清"},
+		"lost": {"name":"追问 · 丢失经过", "desc":"称掏手绢时带落，具体地段说不清，推给「夜里天黑」"},
+		"family": {"name":"追问 · 家庭情况", "desc":"女儿赛莉独居，女婿是联合公司船员，出海下月才回"},
+		"route": {"name":"追问 · 来时路线", "desc":"称坐马车来，「哪记得清路」——回避路线问题"},
+		"doubt": {"name":"质疑 · 地址矛盾", "desc":"布瑞克斯顿路不在宏兹迪池与马戏团之间；被点破后临时改口女儿住培克罕"},
+		"letgo": {"name":"放行 · 未作追问", "desc":"直接归还戒指放其离开，未取得任何口供"},
+	}
+	var items := []
+	for d in _asked_directions.keys():
+		if testimony.has(d):
+			items.append(testimony[d])
+	if items.is_empty():
+		items.append({"name":"（尚未追问任何方向）", "desc":"本子上还是空白的"})
+	_popup("侦探笔记 · 来访者记录（已追问 " + str(items.size()) + " 项）", items)
 	_start_dialogue([
-		_mk_node("n0","福尔摩斯","把说辞理一理：索叶太太、女儿赛莉、船员女婿、邓肯街十三号、布瑞克斯顿丢的——还有地址对不上的疑点。七项，记下了。","click",["n1"]),
+		_mk_node("n0","福尔摩斯","把问出来的话理一理——记下的只有我真正问过的那几条，剩下的都是她没说、我也没追的。","click",["n1"]),
 		_mk_node("n1","华生","（合上本子）全是间接疑点，没有实锤。下一步该进知识库、再上推理墙了。","click",["end"]),
 	], "n0", _start_step4)
 
@@ -289,9 +279,7 @@ func _arrival_C() -> void:
 func _enter_reasoning() -> void:
 	_phase = Phase.REASONING; _wall_auto = true
 	_sync_clues()
-	_ui.set_dialogue("福尔摩斯", "华生，'老太婆'的说辞全是间接疑点，真正的验证在后面——但我们先把假设摆上墙：她是不是伪装？凶手是不是马车夫霍普？私人恩怨还是政治阴谋？", "自信")
-	await get_tree().create_timer(2.0).timeout
-	_open_wall()
+	_prompt_think("福尔摩斯", "华生，'老太婆'的说辞全是间接疑点，真正的验证在后面——但我们先把假设摆上墙：她是不是伪装？凶手是不是马车夫霍普？私人恩怨还是政治阴谋？", "自信")
 
 # ===================== 过渡：Step6 跟踪脱逃（A路线）+ 阶段末汇合 =====================
 
@@ -373,32 +361,6 @@ func _go_to_next_scene() -> void:
 	SceneLoader.transition_to("res://scenes/scene6.tscn")
 
 # ===================== 自定义选项面板（安全分支，不依赖对话引擎 choice） =====================
-func _show_choice_panel(title_txt: String, options: Array) -> void:
-	if _modal_panel and is_instance_valid(_modal_panel):
-		_modal_panel.queue_free(); _modal_panel = null
-	var o := Panel.new()
-	o.position = Vector2(460, 180); o.size = Vector2(1000, 640); o.z_index = 100
-	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
-	var tt := Label.new(); tt.text = title_txt; tt.position = Vector2(30, 20); tt.add_theme_font_size_override("font_size", 26)
-	tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
-	var y := 84
-	for opt in options:
-		var b := Button.new()
-		b.text = opt["text"]
-		b.position = Vector2(40, y); b.size = Vector2(920, 70)
-		b.add_theme_font_size_override("font_size", 20)
-		b.add_theme_color_override("font_color", Color(0.92, 0.85, 0.65))
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		var bs := StyleBoxFlat.new(); bs.bg_color = Color(0.14, 0.10, 0.06, 0.95); bs.border_color = Color(0.55, 0.42, 0.20)
-		bs.border_width_left = 2; bs.border_width_right = 2; bs.border_width_top = 2; bs.border_width_bottom = 2; bs.set_corner_radius_all(4)
-		b.add_theme_stylebox_override("normal", bs)
-		var bsh := StyleBoxFlat.new(); bsh.bg_color = Color(0.25, 0.16, 0.08, 0.95); bsh.border_color = Color(0.80, 0.68, 0.38)
-		bsh.border_width_left = 2; bsh.border_width_right = 2; bsh.border_width_top = 2; bsh.border_width_bottom = 2; bsh.set_corner_radius_all(4)
-		b.add_theme_stylebox_override("hover", bsh)
-		var cb_callable: Callable = opt["cb"]
-		b.pressed.connect(func(): _close_modal(); cb_callable.call())
-		o.add_child(b); y += 80
-	add_child(o); _register_modal(o, "choice_" + title_txt)
 
 # ===================== 存 / 读档（消费场景四路线，存档带回 route 供恢复） =====================
 func _do_save(slot: int = -1) -> void:

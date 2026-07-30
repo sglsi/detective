@@ -33,7 +33,7 @@ func scene_time_text() -> String: return "DAY 1 上午11:15"
 @export var procedural_bg: bool = false
 
 func use_procedural_background() -> bool: return procedural_bg
-func wants_atmosphere() -> bool: return true
+func wants_atmosphere() -> bool: return false
 
 func scene_background() -> Texture2D: return load("res://assets/scenes/sc_02_garden.jpg")
 
@@ -165,8 +165,7 @@ func _on_detective_ended() -> void:
 
 func _enter_reasoning() -> void:
 	_phase = Phase.REASONING; _wall_auto = true
-	_ui.set_dialogue("福尔摩斯", "华生，证据齐全了。把这些线索摆上推理墙——什么车、什么人、几号人，在案发那晚进过这座花园。", "自信")
-	await get_tree().create_timer(2.5).timeout; _open_wall()
+	_prompt_think("福尔摩斯", "华生，证据齐全了。把这些线索摆上推理墙——什么车、什么人、几号人，在案发那晚进过这座花园。", "自信")
 
 func _enter_transition() -> void:
 	_phase = Phase.TRANSITION
