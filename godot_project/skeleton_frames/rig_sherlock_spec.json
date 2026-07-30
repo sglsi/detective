@@ -4,7 +4,7 @@
       "name": "head",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_head.png",
       "pivot": [
-        766.3962828112619,
+        766.2216801250585,
         0.0
       ],
       "flip": false,
@@ -14,101 +14,101 @@
       "name": "torso",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_torso.png",
       "pivot": [
-        932.4250884679434,
+        924.5832238642583,
         0.0
       ],
       "flip": false,
-      "scale": 0.07343124165554073
+      "scale": 0.0738255033557047
     },
     {
       "name": "upperarm_L",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_upperarm_L.png",
       "pivot": [
-        722.2077452149647,
+        718.1317801324345,
         0.0
       ],
       "flip": false,
-      "scale": 0.030045067601402103
+      "scale": 0.030105368790767688
     },
     {
       "name": "forearm_L",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_forearm_L.png",
       "pivot": [
-        344.344164745467,
+        486.1261720677743,
         0.0
       ],
       "flip": false,
-      "scale": 0.028147389969293755
+      "scale": 0.028205128205128206
     },
     {
       "name": "upperarm_R",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_upperarm_R.png",
       "pivot": [
-        836.795800751498,
+        833.3594527674262,
         0.0
       ],
       "flip": false,
-      "scale": 0.030303030303030304
+      "scale": 0.030410542321338063
     },
     {
       "name": "forearm_R",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_forearm_R.png",
       "pivot": [
-        198.62884260926674,
+        197.82955053072686,
         0.0
       ],
       "flip": false,
-      "scale": 0.027890466531440162
+      "scale": 0.027918781725888325
     },
     {
       "name": "thigh_L",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_thigh_L.png",
       "pivot": [
-        509.64690364408676,
+        510.61855972557606,
         0.0
       ],
       "flip": false,
-      "scale": 0.04319654427645788
+      "scale": 0.04338394793926247
     },
     {
       "name": "shin_L",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_shin_L.png",
       "pivot": [
-        292.88527502022936,
+        287.9332817060821,
         0.0
       ],
       "flip": false,
-      "scale": 0.04540295119182747
+      "scale": 0.04561003420752566
     },
     {
       "name": "thigh_R",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_thigh_R.png",
       "pivot": [
-        625.7823554010988,
+        633.9918564093352,
         0.0
       ],
       "flip": false,
-      "scale": 0.04287245444801715
+      "scale": 0.04303388918773534
     },
     {
       "name": "shin_R",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_shin_R.png",
       "pivot": [
-        742.9707552348835,
+        751.9808130133625,
         0.0
       ],
       "flip": false,
-      "scale": 0.04104669061056952
+      "scale": 0.04113110539845758
     },
     {
       "name": "hat",
       "tex": "D:\\AI\\detective\\godot_project\\assets\\characters\\sherlock\\rig\\sherlock_hat.png",
       "pivot": [
-        118.23717948717949,
-        1650
+        121.41463414634147,
+        1641
       ],
       "flip": true,
-      "scale": 0.020606060606060607
+      "scale": 0.020719073735527116
     }
   ]
 }
