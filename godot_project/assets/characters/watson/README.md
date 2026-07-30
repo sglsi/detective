@@ -40,7 +40,7 @@
 | watson_开心.jpg | 开心 | 正面情绪 |
 | watson_兴奋.jpg | 兴奋 | 正面情绪 |
 | watson_自信.jpg | 自信 | 正面情绪 |
-| watson_疑惑.jpg | 疑惑 | 负面/思考 |
+| watson_凝思.png | 疑惑（无独立无胡子图，复用凝思立绘） | 负面/思考 |
 | watson_沉默.jpg | 沉默 | 负面/思考 |
 | watson_思考.jpg | 思考 | 负面/思考 |
 | watson_凝思.jpg | 凝思 | 负面/思考 |
