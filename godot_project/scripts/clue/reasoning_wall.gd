@@ -4,8 +4,15 @@ extends Control
 ## 设计依据: 06_推理墙运行机制.md S2
 
 enum Verdict { INSUFFICIENT=1, SUPPORTED=2, VERIFIED=3, CONTRADICTORY=0 }
+enum Diff { EASY=0, NORMAL=1, HARD=2 }   # 与 DifficultyManager 对齐（06 §八 难度适配）
 
 var _clues: Array = []       # [{id, name, desc, correct, associated}]
+var _difficulty: int = Diff.NORMAL
+var _milestones: Array = []        # [{id, text, lit}] 结论里程碑节点（06 §2.4）
+var _milestone_confirmed: int = 0
+var _milestone_total: int = 0
+var _milestone_lbl: Label = null
+var _last_report: String = ""
 var _hypothesis: Dictionary = {}
 var _battle: Dictionary = {}  # hypothesis["battlefield"]: {hypotheses:[{id,text,correct}], contradictions:[{id,text}]}
 var _battle_hypo_states: Dictionary = {}  # 假设卡状态: id -> 0未定 / 1采纳 / 2排除
@@ -22,12 +29,14 @@ var _status_lbl: Label
 var _on_close: Callable = Callable()   # 关闭时回调（用于返回玩家进入前的状态）
 var _verifying := false                 # 验证结果展示中，锁定「返回」避免误关
 
-func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable()) -> void:
+func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL) -> void:
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
 	_on_close = on_close
+	_difficulty = difficulty
 	_battle = hypothesis.get("battlefield", {})
+	_init_milestones(hypothesis)
 	_create_ui()
 
 func get_verdict() -> int:
@@ -74,8 +83,8 @@ func _create_ui() -> void:
 		card.add_theme_color_override("font_color", Color(0.95, 0.90, 0.78))
 		_style_card(card, false)
 
-		# 正确/误导标记
-		if not c.get("correct", true):
+		# 正确/误导标记（困难模式不泄露可靠性，由玩家自行判断 — 06 §八）
+		if _difficulty != Diff.HARD and not c.get("correct", true):
 			var tag := Label.new()
 			tag.text = "⚠"
 			tag.add_theme_font_size_override("font_size", 12)
@@ -165,6 +174,14 @@ func _create_ui() -> void:
 	cl.pressed.connect(_on_back_pressed)
 	add_child(cl)
 
+	# 结论里程碑（06 §2.4）：底部进度条，验证达到「已获证实」时点亮事实节点
+	_milestone_lbl = Label.new()
+	_milestone_lbl.add_theme_font_size_override("font_size", 16)
+	_milestone_lbl.add_theme_color_override("font_color", Color(0.80, 0.70, 0.40))
+	_milestone_lbl.position = Vector2(40, 762); _milestone_lbl.size = Vector2(1840, 30)
+	add_child(_milestone_lbl)
+	_update_milestone_ui()
+
 	_create_battlefield_ui()
 	_add_label("提示: 点击左栏线索卡=推入关联面板（再点退出）；点关联面板内线索=弹出详情。绿色=已关联。", 13, Color(0.40, 0.35, 0.28), Vector2(40, 700), Vector2(1840, 25))
 
@@ -225,17 +242,18 @@ func _show_clue_detail(clue: Dictionary) -> void:
 	desc_lbl.add_theme_color_override("font_color", Color(0.85, 0.80, 0.70))
 	vb.add_child(desc_lbl)
 
-	# 属性标签
+		# 属性标签（困难模式不泄露可靠性 — 06 §八）
 	var tags := HBoxContainer.new()
-	var correct_tag: bool = clue.get("correct", true)
-	var ct := Button.new()
-	ct.text = "✓ 正确线索" if correct_tag else "⚠ 误导项"
-	ct.disabled = true
-	if correct_tag:
-		ct.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
-	else:
-		ct.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
-	tags.add_child(ct)
+	if _difficulty != Diff.HARD:
+		var correct_tag: bool = clue.get("correct", true)
+		var ct := Button.new()
+		ct.text = "✓ 正确线索" if correct_tag else "⚠ 误导项"
+		ct.disabled = true
+		if correct_tag:
+			ct.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4))
+		else:
+			ct.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
+		tags.add_child(ct)
 	var src_tag := Label.new()
 	src_tag.text = "  来源: " + str(clue.get("source", "?"))
 	src_tag.add_theme_color_override("font_color", Color(0.5, 0.48, 0.40))
@@ -495,16 +513,98 @@ func _on_verify_pressed() -> void:
 	rl.horizontal_alignment = 1
 	add_child(rl)
 
+	# 结构化验证报告（06 §2.3）：假设名 + 等级 + 支持依据 + 存疑点 + 行动建议
+	_last_report = _compute_report(v)
+	var rep = Label.new()
+	rep.text = _last_report
+	rep.add_theme_font_size_override("font_size", 18)
+	rep.add_theme_color_override("font_color", Color(0.8, 0.9, 0.8))
+	rep.position = Vector2(160, 430); rep.size = Vector2(1600, 220)
+	rep.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rep.horizontal_alignment = 1
+	add_child(rep)
+
+	# 结论里程碑（06 §2.4）：达到「已获证实」则点亮全部事实节点
+	if v == Verdict.VERIFIED:
+		for m in _milestones: m["lit"] = true
+		_milestone_confirmed = _milestone_total
+		_update_milestone_ui()
+
 	# 推理战场小结（M1）：若本场景结构化了假设/矛盾，验证时一并汇报命中
 	if not _battle.is_empty() and _battle_status:
 		var summ = Label.new()
 		summ.text = _battle_status.text
 		summ.add_theme_font_size_override("font_size", 18)
 		summ.add_theme_color_override("font_color", Color(0.7, 0.9, 0.7))
-		summ.position = Vector2(0, 440); summ.size = Vector2(1920, 40)
+		summ.position = Vector2(0, 660); summ.size = Vector2(1920, 40)
 		summ.horizontal_alignment = 1
 		add_child(summ)
 
 	await get_tree().create_timer(2.5).timeout
 	if _on_verify: _on_verify.call(v)
 	queue_free()
+
+## 结构化验证报告（06 §2.3 验证报告规范）
+func _compute_report(v: int) -> String:
+	var levels = {0: "矛盾冲突", 1: "证据不足", 2: "倾向成立", 3: "已获证实"}
+	var hypo_name: String = _hypothesis.get("title", "")
+	var support := 0; var misleading := 0
+	for c in _clues:
+		if c.get("associated", false):
+			if c.get("correct", true): support += 1
+			else: misleading += 1
+	# 困难模式仅给等级，不暴露支持/矛盾明细（06 §八）
+	if _difficulty == Diff.HARD:
+		return "假设：%s\n验证等级：%s" % [hypo_name, levels.get(v, "?")]
+	var report := "假设：%s\n验证等级：%s\n" % [hypo_name, levels.get(v, "?")]
+	var actions = {
+		Verdict.VERIFIED: "提交结论，推进结案",
+		Verdict.SUPPORTED: "深挖剩余疑点，寻找决定性证据完成闭环",
+		Verdict.INSUFFICIENT: "补充更多相关证据，或转向其他假设调查",
+		Verdict.CONTRADICTORY: "推翻该假设，或寻找证据解释矛盾",
+	}
+	match v:
+		Verdict.VERIFIED:
+			report += "支持依据：%d 条正确证据，证据链完整闭合\n行动建议：%s" % [support, actions[v]]
+		Verdict.SUPPORTED:
+			report += "支持依据：%d 条证据倾向支持\n存疑点：%d 条误导项待排除\n行动建议：%s" % [support, misleading, actions[v]]
+		Verdict.INSUFFICIENT:
+			report += "存疑点：证据不足（仅关联 %d 条）\n行动建议：%s" % [_associated, actions[v]]
+		Verdict.CONTRADICTORY:
+			report += "存疑点：存在 %d 条矛盾证据\n行动建议：%s" % [_contradicting, actions[v]]
+	return report
+
+## 结论里程碑初始化（06 §2.4）：优先用假设提供的 milestones，否则退化为本场景单节点
+func _init_milestones(hypo: Dictionary) -> void:
+	_milestones = []
+	var ms: Array = hypo.get("milestones", [])
+	for m in ms:
+		_milestones.append({"id": m.get("id", ""), "text": m.get("text", ""), "lit": false})
+	if _milestones.is_empty():
+		_milestones.append({"id": "core", "text": hypo.get("title", "核心结论"), "lit": false})
+	_milestone_total = _milestones.size()
+	_milestone_confirmed = 0
+
+func _update_milestone_ui() -> void:
+	if not _milestone_lbl: return
+	var blocks := ""
+	for m in _milestones:
+		blocks += "■" if m["lit"] else "□"
+	_milestone_lbl.text = "结论里程碑：%s  已确认事实 %d/%d" % [blocks, _milestone_confirmed, _milestone_total]
+
+## 测试用访问器（headless 集成验证）
+func get_milestone_state() -> Dictionary:
+	var lit_ids: Array = []
+	for m in _milestones:
+		if m["lit"]: lit_ids.append(m["id"])
+	return {"confirmed": _milestone_confirmed, "total": _milestone_total, "lit_ids": lit_ids}
+
+func get_last_report() -> String:
+	return _last_report
+
+func get_difficulty() -> int:
+	return _difficulty
+
+## 测试用：直接施加一条线索的关联/取消（绕过鼠标点击，headless 可调用）
+func test_associate(cid: String) -> void:
+	_toggle_association(cid)
