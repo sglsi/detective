@@ -194,8 +194,7 @@ func _pill_experiment() -> void:
 func _enter_reasoning() -> void:
 	_phase = Phase.REASONING; _wall_auto = true
 	_sync_clues()
-	_ui.set_dialogue("福尔摩斯", "华生，证据齐了：斯特兰森死于刀、窗户可入、木匣两粒药丸（一毒一无毒）、J.H.电报、送奶工的红脸棕外衣。把这若干条摆上推理墙——同一种罕见毒药出现在两个现场，便是铁证。", "自信")
-	await get_tree().create_timer(2.5).timeout; _open_wall()
+	_prompt_think("福尔摩斯", "华生，证据齐了：斯特兰森死于刀、窗户可入、木匣两粒药丸（一毒一无毒）、J.H.电报、送奶工的红脸棕外衣。把这若干条摆上推理墙——同一种罕见毒药出现在两个现场，便是铁证。", "自信")
 
 func _enter_transition() -> void:
 	_phase = Phase.TRANSITION
@@ -223,32 +222,6 @@ func _go_to_next_scene() -> void:
 	SceneLoader.transition_to("res://scenes/scene8.tscn")
 
 # ===================== 自定义选项面板（安全分支） =====================
-func _show_choice_panel(title_txt: String, options: Array) -> void:
-	if _modal_panel and is_instance_valid(_modal_panel):
-		_modal_panel.queue_free(); _modal_panel = null
-	var o := Panel.new()
-	o.position = Vector2(460, 180); o.size = Vector2(1000, 640); o.z_index = 100
-	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
-	var tt := Label.new(); tt.text = title_txt; tt.position = Vector2(30, 20); tt.add_theme_font_size_override("font_size", 26)
-	tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
-	var y := 84
-	for opt in options:
-		var b := Button.new()
-		b.text = opt["text"]
-		b.position = Vector2(40, y); b.size = Vector2(920, 70)
-		b.add_theme_font_size_override("font_size", 20)
-		b.add_theme_color_override("font_color", Color(0.92, 0.85, 0.65))
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		var bs := StyleBoxFlat.new(); bs.bg_color = Color(0.14, 0.10, 0.06, 0.95); bs.border_color = Color(0.55, 0.42, 0.20)
-		bs.border_width_left = 2; bs.border_width_right = 2; bs.border_width_top = 2; bs.border_width_bottom = 2; bs.set_corner_radius_all(4)
-		b.add_theme_stylebox_override("normal", bs)
-		var bsh := StyleBoxFlat.new(); bsh.bg_color = Color(0.25, 0.16, 0.08, 0.95); bsh.border_color = Color(0.80, 0.68, 0.38)
-		bsh.border_width_left = 2; bsh.border_width_right = 2; bsh.border_width_top = 2; bsh.border_width_bottom = 2; bsh.set_corner_radius_all(4)
-		b.add_theme_stylebox_override("hover", bsh)
-		var cb_callable: Callable = opt["cb"]
-		b.pressed.connect(func(): _close_modal(); cb_callable.call())
-		o.add_child(b); y += 80
-	add_child(o); _register_modal(o, "choice_" + title_txt)
 
 func _do_save(slot: int = -1) -> void:
 	var ids: Array = []

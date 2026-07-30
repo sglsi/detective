@@ -67,8 +67,16 @@ func _create_ui() -> void:
 	div.position = Vector2(40, 95); div.size = Vector2(1840, 2)
 	add_child(div)
 
-	# 左侧：线索列表
+	# 左侧：线索列表（置于可滚动容器内，避免线索较多时下部卡片被底部「结论里程碑」面板遮挡而点不到 —— #145）
 	_add_label("已收集线索", 22, Color(0.85, 0.78, 0.62), Vector2(40, 110), Vector2(300, 35))
+	var clue_scroll := ScrollContainer.new()
+	clue_scroll.position = Vector2(40, 150); clue_scroll.size = Vector2(300, 555)
+	clue_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(clue_scroll)
+	var clue_list := VBoxContainer.new()
+	clue_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	clue_list.add_theme_constant_override("separation", 8)
+	clue_scroll.add_child(clue_list)
 	for i in _clues.size():
 		var c = _clues[i]
 		var card = Button.new()
@@ -78,8 +86,7 @@ func _create_ui() -> void:
 		if display_desc.length() > 0:
 			# 副文本：截断描述作为提示（解决"无线索提示"）
 			card.tooltip_text = display_desc if display_desc.length() <= 120 else display_desc.left(117) + "..."
-		card.position = Vector2(40, 155 + i * 72)  # 加大间距容纳副标签
-		card.size = Vector2(280, 62)
+		card.custom_minimum_size = Vector2(280, 62)
 		card.add_theme_font_size_override("font_size", 16)
 		card.add_theme_color_override("font_color", Color(0.95, 0.90, 0.78))
 		_style_card(card, false)
@@ -94,7 +101,7 @@ func _create_ui() -> void:
 			card.add_child(tag)
 
 		card.pressed.connect(_on_card_clicked.bind(c["id"]))
-		add_child(card)
+		clue_list.add_child(card)
 		_card_btns[c["id"]] = card
 
 	# 中央：关联面板（点击左栏线索推入/退出；点面板内线索看详情）

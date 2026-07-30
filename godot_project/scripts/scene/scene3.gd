@@ -48,10 +48,7 @@ func scene_time_text() -> String: return "DAY 1 正午12:05"
 @export var procedural_bg: bool = false
 
 func use_procedural_background() -> bool: return procedural_bg
-func wants_atmosphere() -> bool: return true
-## 时间线一致性修正：本场景是正午12:05（scene_time_text），此前误设 Night。
-## 室内光线昏暗靠 Foggy 弱雾+暗角表达，不能用深夜预设。
-func atmosphere_preset() -> String: return "Foggy"
+func wants_atmosphere() -> bool: return false
 
 func scene_background() -> Texture2D: return load("res://assets/scenes/sc_03_indoor.jpg")
 
@@ -157,6 +154,7 @@ func options_lines() -> Array:
 
 # ===== 对话阶段 =====
 func _enter_arrival() -> void:
+	acquire_prop("ring", "结婚金戒指", "案发现场拾得的女式结婚戒指，尺码纤细，内侧刻字模糊——关键物证", "")
 	# 对齐 08 稿 v3.16.0 场景三·入场（L1214-1229）
 	_start_dialogue(_make_nodes([
 		["i0","系统","（演出）福尔摩斯走向空屋的门，手按在门把手上。门缓缓推开——一股幽暗的气息扑面而来。","","guide"],
@@ -184,8 +182,7 @@ func _on_detective_ended() -> void:
 
 func _enter_reasoning() -> void:
 	_phase = Phase.REASONING; _wall_auto = true
-	_ui.set_dialogue("福尔摩斯", "华生，证据齐了。把线索摆上推理墙——谁死了、怎么死的、那行血字是真还是假、那枚戒指又指向谁。", "自信")
-	await get_tree().create_timer(2.5).timeout; _open_wall()
+	_prompt_think("福尔摩斯", "华生，证据齐了。把线索摆上推理墙——谁死了、怎么死的、那行血字是真还是假、那枚戒指又指向谁。", "自信")
 
 func _enter_transition() -> void:
 	_phase = Phase.TRANSITION

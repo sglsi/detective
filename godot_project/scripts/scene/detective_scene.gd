@@ -24,6 +24,7 @@ var _wall_auto := false                # 推理墙验证后是否自动推进过
 var _wall_instance: Control = null      # 当前已打开的推理墙（单例，避免多重叠加）
 var _modal_panel: Control = null        # 当前已打开的弹窗/面板（单例，避免多重叠加）
 var _modal_title: String = ""           # 当前弹窗标题（用于同按钮开关切换）
+var _props: Dictionary = {}             # 已获取道具 {id: {name, desc, icon}} (#139 道具系统)
 var _obs_text_lbl: Label               # ClueObserver 文本标签（场景二/三用占位标签）
 var _obs_speaker_lbl: Label
 
@@ -49,11 +50,6 @@ func scene_background() -> Texture2D: return null
 # 程序化氛围背景开关：返回 true 时底层用 ProceduralBackground 替代位图背景（默认关）
 func use_procedural_background() -> bool: return false
 
-# 氛围遮罩（迷雾/灯光）开关：返回 true 时场景区叠加 fog_atmosphere 着色器并提供切换按钮
-func wants_atmosphere() -> bool: return false
-# 氛围预设：Dusk / Night / Foggy / Day（对应 fog_atmosphere 着色器参数）
-func atmosphere_preset() -> String: return "Dusk"
-
 # ===== 构建 =====
 func _init_game_state() -> void:
 	if GameManager:
@@ -73,14 +69,9 @@ func _build_ui() -> void:
 		_ui.setup(scene_title(), scene_time_text(), scene_background())
 	# 工具栏（v2：真实图标 + 主动操作交互）
 	_setup_toolbar()
-	# 氛围遮罩（迷雾/灯光）：场景二/三选择性开启
-	_init_atmosphere()
 
 ## 实例化 ToolBar 并连接信号（按 §4.3.4 六步闭环 Step 2）
 var _toolbar: ToolBar = null
-## 氛围遮罩（迷雾/灯光）：场景二/三选择性开启
-var _fog_overlay: ColorRect = null
-var _atmo_btn: Button = null
 func _setup_toolbar() -> void:
 	if not ClassDB.class_exists("ToolBar"):
 		return  # tool_bar.gd 未加载时安全跳过
@@ -108,73 +99,7 @@ func _on_step_changed(step_name: String) -> void:
 		"STEP_1_OBSERVE", "STEP_3_RECORD", _:
 			_toolbar.hide_toolbar()
 
-# ===== 氛围遮罩（迷雾/灯光）：fog_atmosphere 着色器叠加 + 场景区右下角切换按钮 =====
-func _init_atmosphere() -> void:
-	if not wants_atmosphere(): return
-	if not _ui: return
-	var area: Control = _ui.get_scene_area()
-	if not area: return
-
-	var fog := ColorRect.new()
-	fog.name = "AtmosphereFog"
-	fog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	fog.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var mat := ShaderMaterial.new()
-	mat.shader = preload("res://shaders/fog_atmosphere.gdshader")
-	_apply_fog_preset(mat, atmosphere_preset())
-	fog.material = mat
-	# 迷雾/灯光层应位于背景之上、人物立绘与推理墙之下，避免遮盖人物导致颜色失真。
-	fog.z_index = -5
-	area.add_child(fog)
-	_fog_overlay = fog
-
-	var btn := Button.new()
-	btn.name = "AtmoToggle"
-	btn.text = "迷雾/灯光：开"
-	btn.size = Vector2(220, 56)
-	btn.position = Vector2(area.size.x - 244, area.size.y - 70)
-	btn.add_theme_font_size_override("font_size", 16)
-	btn.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))
-	var bs := StyleBoxFlat.new()
-	bs.bg_color = Color(0.10, 0.07, 0.04, 0.95); bs.border_color = Color(0.55, 0.42, 0.20)
-	bs.border_width_left = 2; bs.border_width_right = 2; bs.border_width_top = 2; bs.border_width_bottom = 2
-	bs.set_corner_radius_all(4)
-	btn.add_theme_stylebox_override("normal", bs)
-	var bsh := bs.duplicate(); bsh.border_color = Color(0.80, 0.68, 0.38)
-	btn.add_theme_stylebox_override("hover", bsh)
-	btn.z_index = 5
-	btn.pressed.connect(_on_atmo_toggled)
-	area.add_child(btn)
-	_atmo_btn = btn
-
-func _apply_fog_preset(mat: ShaderMaterial, preset: String) -> void:
-	match preset:
-		"Day":
-			mat.set_shader_parameter("fog_color", Color(0.65, 0.70, 0.78, 0.12))
-			mat.set_shader_parameter("fog_density", 0.15)
-			mat.set_shader_parameter("vignette_strength", 0.6)
-			mat.set_shader_parameter("lamp_glow_intensity", 0.0)
-		"Night":
-			mat.set_shader_parameter("fog_color", Color(0.08, 0.09, 0.14, 0.55))
-			mat.set_shader_parameter("fog_density", 0.55)
-			mat.set_shader_parameter("vignette_strength", 1.6)
-			mat.set_shader_parameter("lamp_glow_intensity", 1.4)
-		"Foggy":
-			mat.set_shader_parameter("fog_color", Color(0.30, 0.30, 0.33, 0.60))
-			mat.set_shader_parameter("fog_density", 0.65)
-			mat.set_shader_parameter("vignette_strength", 1.0)
-			mat.set_shader_parameter("lamp_glow_intensity", 1.1)
-		_:  # Dusk（默认）
-			mat.set_shader_parameter("fog_color", Color(0.25, 0.22, 0.30, 0.35))
-			mat.set_shader_parameter("fog_density", 0.35)
-			mat.set_shader_parameter("vignette_strength", 1.1)
-			mat.set_shader_parameter("lamp_glow_intensity", 0.9)
-
-func _on_atmo_toggled() -> void:
-	if not _fog_overlay: return
-	_fog_overlay.visible = not _fog_overlay.visible
-	if _atmo_btn:
-		_atmo_btn.text = "迷雾/灯光：" + ("开" if _fog_overlay.visible else "关")
+# ===== 氛围遮罩（迷雾/灯光）已按需求移除：相关按钮/着色器叠加/切换功能全部删除 =====
 
 func _create_dummy_labels() -> void:
 	_obs_text_lbl = Label.new(); _obs_text_lbl.visible = false; add_child(_obs_text_lbl)
@@ -315,6 +240,7 @@ func _on_action(action_id: String) -> void:
 		"talk": _npc_talk()
 		"examine": _use_magnifier()
 		"think": _open_wall()
+		"prop": _show_props()
 		"journal": _show_journal()
 		"save": _do_save()
 		"load": _do_load()
@@ -336,6 +262,14 @@ func _use_magnifier() -> void:
 	_obs.show(); _ui.show_notification(_magnifier_msg())
 
 # ===================== 推理墙（统一机制，参数化来源/假设/回调） =====================
+## #146 根因修复：进入推理阶段的统一提示。
+## 原实现各场景用 `await create_timer(2.x).timeout; _open_wall()` 定时自动开墙，
+## 玩家没做任何操作剧情就被推着走（自动跳剧情）。此处只切台词 + 给出行动指引，
+## 推理墙必须由玩家主动点击【思考 / 推理】才打开。
+func _prompt_think(speaker: String, line: String, mood: String = "") -> void:
+	_ui.set_dialogue(speaker, line, mood)
+	_ui.show_notification("💡 准备好后，点击【思考】按钮打开推理墙")
+
 ## 全项目唯一的推理墙入口：始终使用 scripts/clue/reasoning_wall.gd。
 ## source    —— 线索源（默认 clue_source()）；多组场景（场景一）传 "watson"/"messenger"。
 ## hypothesis——假设字典（默认 reasoning_hypothesis()）。
@@ -398,6 +332,31 @@ func _show_journal() -> void:
 		for c in _clues:
 			items.append({"name": "📌 " + str(c.get("name", "")), "desc": str(c.get("desc", ""))})
 	_popup("侦探笔记", items)
+
+# ===================== 道具系统（#139） =====================
+## 获取道具（去重：已获取的不会重复添加）。
+## 子类在剧情节点调用：acquire_prop("coin", "半镑金币", "兰斯警士发现时死者手中的硬币", "")
+func acquire_prop(prop_id: String, prop_name: String, prop_desc: String, icon_path: String = "") -> void:
+	if _props.has(prop_id):
+		return
+	_props[prop_id] = {"name": prop_name, "desc": prop_desc, "icon": icon_path}
+	_ui.show_notification("🎒 获得道具：" + prop_name)
+
+## 显示道具栏弹窗（单例 + toggle，与 _popup 同机制）。
+func _show_props() -> void:
+	var title := "道具栏"
+	if _modal_title == title and is_instance_valid(_modal_panel):
+		_close_modal(); return
+	_close_modal()
+	var items: Array = []
+	if _props.is_empty():
+		items.append({"name": "（空）", "desc":"尚未获取任何道具"})
+	else:
+		for p in _props.values():
+			var tag := "🎯 " if str(p.get("icon", "")) != "" else "📦 "
+			items.append({"name": tag + str(p.get("name", "")), "desc": str(p.get("desc", ""))})
+	_popup("道具栏（" + str(_props.size()) + " 件）", items)
+	_modal_title = title  # 标记当前弹窗类型，支持 toggle
 
 # ===================== 存 / 读档（通用核心） =====================
 func _do_save(slot: int = -1) -> void:
@@ -660,6 +619,49 @@ func _popup(title_txt: String, items: Array) -> void:
 	cl.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); cl.add_theme_font_size_override("font_size", 20)
 	cl.pressed.connect(_close_modal); o.add_child(cl); add_child(o)
 	_register_modal(o, title_txt)
+
+# ===================== 自定义选项面板 / 自由调查（统一基类，所有场景共用） =====================
+## 通用选项面板（安全分支，不依赖对话引擎 choice 渲染）：title + options[{text,cb}]，
+## 点击选项先关闭面板再执行 cb。所有场景的「追问面板 / 自由调查 / 行动决策 / 自白」均走这里，
+## 修改只改这一处即可全局生效（满足「统一为基类」诉求）。
+func _show_choice_panel(title_txt: String, options: Array) -> void:
+	if _modal_panel and is_instance_valid(_modal_panel):
+		_modal_panel.queue_free(); _modal_panel = null
+	var o := Panel.new()
+	o.position = Vector2(460, 180); o.size = Vector2(1000, 640); o.z_index = 100
+	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
+	var tt := Label.new(); tt.text = title_txt; tt.position = Vector2(30, 20); tt.add_theme_font_size_override("font_size", 26)
+	tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
+	var y := 84
+	for opt in options:
+		var b := Button.new()
+		b.text = opt["text"]
+		b.position = Vector2(40, y); b.size = Vector2(920, 70)
+		b.add_theme_font_size_override("font_size", 20)
+		b.add_theme_color_override("font_color", Color(0.92, 0.85, 0.65))
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var bs := StyleBoxFlat.new(); bs.bg_color = Color(0.14, 0.10, 0.06, 0.95); bs.border_color = Color(0.55, 0.42, 0.20)
+		bs.border_width_left = 2; bs.border_width_right = 2; bs.border_width_top = 2; bs.border_width_bottom = 2; bs.set_corner_radius_all(4)
+		b.add_theme_stylebox_override("normal", bs)
+		var bsh := StyleBoxFlat.new(); bsh.bg_color = Color(0.25, 0.16, 0.08, 0.95); bsh.border_color = Color(0.80, 0.68, 0.38)
+		bsh.border_width_left = 2; bsh.border_width_right = 2; bsh.border_width_top = 2; bsh.border_width_bottom = 2; bsh.set_corner_radius_all(4)
+		b.add_theme_stylebox_override("hover", bsh)
+		var cb_callable: Callable = opt["cb"]
+		b.pressed.connect(func(): _close_modal(); cb_callable.call())
+		o.add_child(b); y += 80
+	add_child(o); _register_modal(o, "choice_" + title_txt)
+
+## 自由调查 / 追问面板（统一基类）：questions 为全部问题 [{"id","text","cb"}]，
+## asked 为已问 id 字典（引用，自动累积）；每回答一题后该题从面板消失，直至选完或点"结束"。
+## 这保证了 scene4 追问面板 / scene5/6/7 自由调查 / scene8 自白 行为完全一致（已问消失）。
+func _render_investigate_panel(title_prefix: String, questions: Array, asked: Dictionary, on_done: Callable, done_text: String = "结束，整理说辞") -> void:
+	var opts := []
+	for q in questions:
+		if asked.has(q["id"]):
+			continue
+		opts.append(q)
+	opts.append({"text": "✅ " + done_text, "cb": on_done})
+	_show_choice_panel(title_prefix + "（已问 " + str(asked.size()) + "/" + str(questions.size()) + "）", opts)
 
 # ===================== 子类需实现的「内容」钩子 =====================
 func _phase_name(_p: int) -> String: return "未知阶段"

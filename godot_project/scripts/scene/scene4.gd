@@ -42,10 +42,8 @@ func scene_title() -> String: return "奥德利大院 四十六号"
 func scene_time_text() -> String: return "DAY 1 下午"
 func scene_background() -> Texture2D: return load("res://assets/scenes/sc_04_police.jpg")
 
-## 氛围遮罩：场景四为下午两点走访奥德利大院（兰斯值夜班、白天在家补觉），
-## 时间线修正（原误设为"深夜"违背常识：兰斯下午被叫起不可能说"大半夜"）。
-func wants_atmosphere() -> bool: return true
-func atmosphere_preset() -> String: return "Day"
+## 氛围遮罩已按需求移除（谜雾/灯光按钮及相关功能）。场景四为下午两点走访奥德利大院。
+func wants_atmosphere() -> bool: return false
 
 func _phase_name(p: int) -> String:
 	match p:
@@ -114,6 +112,7 @@ func options_lines() -> Array:
 
 func _enter_arrival() -> void:
 	_phase = Phase.ARRIVAL
+	acquire_prop("coin", "半镑金币", "维多利亚时代半 Sovereign 金币，福尔摩斯用来「敲门砖」获取证词", "")
 	# 逻辑修正（#127）：
 	#   1. 时间线：兰斯值夜班（22:00-6:00），下午两点在家补觉被叫起——不是"大半夜"。
 	#   2. 私语位置：福尔摩斯与华生"为什么先找兰斯"的私语放在敲门之前（马车上/门外路上），
@@ -160,17 +159,17 @@ func _start_step1() -> void:
 	], "s0", _start_panel)
 
 func _start_panel() -> void:
-	# Step2 工具操作 —— 追问引导（08 L1938-1990）：六方向追问面板，金币机制已通过入场体现
-	var opts := [
-		{"text":"🕑 追问时间 —— 你具体几点发现的？待了多久？", "cb": Callable(self, "_dir_time")},
-		{"text":"🧑 追问醉汉外貌 —— 长什么样？看清了吗？", "cb": Callable(self, "_dir_look")},
-		{"text":"🧥 追问醉汉穿着 —— 穿什么？手里拿什么？", "cb": Callable(self, "_dir_cloth")},
-		{"text":"🐴 追问马车 —— 当时街上有马车吗？", "cb": Callable(self, "_dir_carriage")},
-		{"text":"🏚 追问现场细节 —— 屋里什么样？", "cb": Callable(self, "_dir_scene")},
-		{"text":"❓ 追问其他异常 —— 还有什么不寻常的？", "cb": Callable(self, "_dir_other")},
+	# Step2 工具操作 —— 追问引导（08 L1938-1990）：六方向追问面板（统一基类 _render_investigate_panel，
+	# 已问方向自动从面板消失，与场景五/六/七/八的"自由调查/自白"格式一致）
+	var questions := [
+		{"id":"time","text":"🕑 追问时间 —— 你具体几点发现的？待了多久？", "cb": Callable(self, "_dir_time")},
+		{"id":"look","text":"🧑 追问醉汉外貌 —— 长什么样？看清了吗？", "cb": Callable(self, "_dir_look")},
+		{"id":"cloth","text":"🧥 追问醉汉穿着 —— 穿什么？手里拿什么？", "cb": Callable(self, "_dir_cloth")},
+		{"id":"carriage","text":"🐴 追问马车 —— 当时街上有马车吗？", "cb": Callable(self, "_dir_carriage")},
+		{"id":"scene","text":"🏚 追问现场细节 —— 屋里什么样？", "cb": Callable(self, "_dir_scene")},
+		{"id":"other","text":"❓ 追问其他异常 —— 还有什么不寻常的？", "cb": Callable(self, "_dir_other")},
 	]
-	opts.append({"text":"✅ 结束追问，整理证词", "cb": Callable(self, "_start_step3")})
-	_show_choice_panel("追问面板 · 选择方向（已问 " + str(_asked_directions.size()) + "/6）", opts)
+	_render_investigate_panel("追问面板 · 选择方向", questions, _asked_directions, Callable(self, "_start_step3"))
 
 func _dir_time() -> void:
 	_asked_directions["time"] = true
@@ -223,22 +222,26 @@ func _dir_other() -> void:
 	], "o0", _start_panel)
 
 func _start_step3() -> void:
-	# Step3 数据记录 —— 证词提取（08 L1992-2021）：侦探笔记 8 项（弹窗呈现，交互表单简化为确认式回顾）
+	# Step3 数据记录 —— 证词提取（08 L1992-2021）：侦探笔记（仅列出玩家实际追问的方向 —— #147）
 	if _asked_directions.size() >= 6 and StarRatingSystem:
 		StarRatingSystem.add_insight(0.5)   # 六方向全追问洞察加成
-	var items := [
-		{"name":"1. 发现时间", "desc":"约凌晨两点十分（兰斯明确证词）"},
-		{"name":"2. 天气", "desc":"下雨（兰斯证词 + 花园街泥泞痕迹印证）"},
-		{"name":"3. 醉汉身高", "desc":"高个子，六英尺出头（与现场高大足迹吻合）"},
-		{"name":"4. 醉汉脸色", "desc":"赤红（真实特征；勿误判为'重病'）"},
-		{"name":"5. 醉汉穿着", "desc":"棕色外衣 + 戴帽子（马车夫常见装束）"},
-		{"name":"6. 醉汉手中有无马鞭", "desc":"不确定（兰斯先说有、后否认——他犹豫了）"},
-		{"name":"7. 案发时有无马车经过", "desc":"有（巡逻时有一两辆路过）"},
-		{"name":"8. 兰斯进入现场到叫人间隔", "desc":"约 2-5 分钟"},
-	]
-	_popup("侦探笔记 · 兰斯证词（8 项）", items)
+	var testimony := {
+		"time": "发现时间：约凌晨两点十分（兰斯明确证词）",
+		"look": "醉汉外貌：高个子六英尺出头、面色赤红（真实特征，勿误判为'重病'）",
+		"cloth": "醉汉穿着：棕色外衣 + 戴帽子（马车夫常见装束）",
+		"carriage": "案发时马车：巡逻时有一两辆路过（与花园街轮印交叉验证）",
+		"scene": "现场细节：兰斯进入仅看到尸体，信息很少",
+		"other": "其他异常：醉汉唱科隆比纳（歌剧《宠姬》咏叹调）",
+	}
+	var items := []
+	for d in _asked_directions.keys():
+		if testimony.has(d):
+			items.append({"name": "追问 · " + d, "desc": testimony[d]})
+	if items.is_empty():
+		items.append({"name":"（尚未追问任何方向）", "desc":"直接结束追问，无具体证词记录"})
+	_popup("侦探笔记 · 兰斯证词（已追问 " + str(_asked_directions.size()) + " 项）", items)
 	_start_dialogue([
-		_mk_node("n0","福尔摩斯","把证词理一理：两点十分、下雨、高个红脸醉汉、棕色外衣、手里拿没拿鞭子他含糊——还有马车。八项，齐了。","click",["n1"]),
+		_mk_node("n0","福尔摩斯","把证词理一理：两点十分、下雨、高个红脸醉汉、棕色外衣、手里拿没拿鞭子他含糊——还有马车。该问的都问了，齐了。","click",["n1"]),
 		_mk_node("n1","华生","（合上本子）可这些都还是'他说'。下一步该进知识库核对、再上推理墙了。","click",["end"]),
 	], "n0", _start_step4)
 
@@ -260,16 +263,14 @@ func _start_step4() -> void:
 func _enter_reasoning() -> void:
 	_phase = Phase.REASONING; _wall_auto = true
 	_sync_clues()
-	_ui.set_dialogue("福尔摩斯", "华生，兰斯看到的'醉汉'——六英尺出头、棕色外衣、红脸，正对上花园街那串高大足迹。把这六条，连同我们的假设，摆上推理墙。", "自信")
-	await get_tree().create_timer(2.0).timeout
-	_open_wall()
+	_prompt_think("福尔摩斯", "华生，兰斯看到的'醉汉'——六英尺出头、棕色外衣、红脸，正对上花园街那串高大足迹。把这六条，连同我们的假设，摆上推理墙。", "自信")
 
 func _enter_transition() -> void:
 	_phase = Phase.TRANSITION
 	_award()
 	# 阶段末小结 & 行动决策（08 L2101-2166）：动态总结 + 双钩子 + A/B/C 分支
 	_start_dialogue([
-		_mk_node("z0","福尔摩斯","（站起来，收好金币）谢谢你，兰斯警士。你提供的信息……很有价值。","click",["z1"]),
+		_mk_node("z0","福尔摩斯","（将那枚半镑金币轻轻塞进兰斯手里）拿着吧，兰斯警士——辛苦你值夜，这份谢意你受之无愧。你提供的信息……很有价值。","click",["z1"]),
 		_mk_node("z1","系统","（走出奥德利大院，午后的街道上）","guide",["z2"]),
 		_mk_node("z2","华生","福尔摩斯，你怎么看？","click",["z3"]),
 		_mk_node("z3","福尔摩斯","（转向玩家）你先说说——从兰斯的话里，我们拿到了什么？两点左右案发，下着雨；门口有个醉汉，高个、红脸、穿棕色外衣；案发时有马车经过；而那醉汉，很可能就是凶手——或者说，凶手伪装成醉汉逃走了。","click",["z4"]),
@@ -302,34 +303,7 @@ func _go_to_next_scene(route: String = "A") -> void:
 		await SaveSystem.request_save("scene4", Phase.TRANSITION, {"clue_ids": ids, "route": route})
 	SceneLoader.transition_to("res://scenes/scene5.tscn")
 
-# ===================== 自定义选项面板（安全分支，不依赖对话引擎 choice） =====================
-func _show_choice_panel(title_txt: String, options: Array) -> void:
-	# options: Array of {"text":String, "cb":Callable}
-	if _modal_panel and is_instance_valid(_modal_panel):
-		_modal_panel.queue_free(); _modal_panel = null
-	var o := Panel.new()
-	o.position = Vector2(460, 180); o.size = Vector2(1000, 640); o.z_index = 100
-	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
-	var tt := Label.new(); tt.text = title_txt; tt.position = Vector2(30, 20); tt.add_theme_font_size_override("font_size", 26)
-	tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
-	var y := 84
-	for opt in options:
-		var b := Button.new()
-		b.text = opt["text"]
-		b.position = Vector2(40, y); b.size = Vector2(920, 70)
-		b.add_theme_font_size_override("font_size", 20)
-		b.add_theme_color_override("font_color", Color(0.92, 0.85, 0.65))
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		var bs := StyleBoxFlat.new(); bs.bg_color = Color(0.14, 0.10, 0.06, 0.95); bs.border_color = Color(0.55, 0.42, 0.20)
-		bs.border_width_left = 2; bs.border_width_right = 2; bs.border_width_top = 2; bs.border_width_bottom = 2; bs.set_corner_radius_all(4)
-		b.add_theme_stylebox_override("normal", bs)
-		var bsh := StyleBoxFlat.new(); bsh.bg_color = Color(0.25, 0.16, 0.08, 0.95); bsh.border_color = Color(0.80, 0.68, 0.38)
-		bsh.border_width_left = 2; bsh.border_width_right = 2; bsh.border_width_top = 2; bsh.border_width_bottom = 2; bsh.set_corner_radius_all(4)
-		b.add_theme_stylebox_override("hover", bsh)
-		var cb_callable: Callable = opt["cb"]
-		b.pressed.connect(func(): _close_modal(); cb_callable.call())
-		o.add_child(b); y += 80
-	add_child(o); _register_modal(o, "choice_" + title_txt)
+# ===================== 自定义选项面板：已上提到基类 DetectiveScene._show_choice_panel（统一实现） =====================
 
 # ===================== 存 / 读档（对话授予线索，沿用基类 _restore_clues_from_ids） =====================
 func _do_save(slot: int = -1) -> void:
