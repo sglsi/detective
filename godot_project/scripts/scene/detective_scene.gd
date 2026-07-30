@@ -162,7 +162,6 @@ func _on_nav(nav_id: String) -> void:
 		"map": _show_map_panel()
 		"casebook": _show_casebook_panel()
 		"evidence": _open_evidence()
-		"inventory": _show_inventory_panel()
 		"options": _show_options_panel()
 
 func _show_map_panel() -> void:
@@ -339,24 +338,85 @@ func _show_journal() -> void:
 func acquire_prop(prop_id: String, prop_name: String, prop_desc: String, icon_path: String = "") -> void:
 	if _props.has(prop_id):
 		return
-	_props[prop_id] = {"name": prop_name, "desc": prop_desc, "icon": icon_path}
+	_props[prop_id] = {"id": prop_id, "name": prop_name, "desc": prop_desc, "icon": icon_path}
 	_ui.show_notification("🎒 获得道具：" + prop_name)
 
-## 显示道具栏弹窗（单例 + toggle，与 _popup 同机制）。
+## 显示道具栏弹窗（单例 + toggle）。每个道具渲染为「图标 + 名称 + 描述 + 查看」卡片。
 func _show_props() -> void:
 	var title := "道具栏"
 	if _modal_title == title and is_instance_valid(_modal_panel):
 		_close_modal(); return
 	_close_modal()
-	var items: Array = []
+	var o := Panel.new(); o.position = Vector2(460, 120); o.size = Vector2(1000, 700); o.z_index = 100
+	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
+	var tt := Label.new(); tt.text = title + "（" + str(_props.size()) + " 件）"; tt.position = Vector2(30, 18)
+	tt.add_theme_font_size_override("font_size", 28); tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
 	if _props.is_empty():
-		items.append({"name": "（空）", "desc":"尚未获取任何道具"})
+		var empty := Label.new(); empty.text = "（空）尚未获取任何道具"; empty.position = Vector2(30, 80)
+		empty.add_theme_font_size_override("font_size", 20); empty.add_theme_color_override("font_color", Color(0.6, 0.55, 0.45)); o.add_child(empty)
 	else:
+		var sc := ScrollContainer.new(); sc.position = Vector2(20, 70); sc.size = Vector2(960, 560)
+		var ct := VBoxContainer.new(); ct.size_flags_horizontal = Control.SIZE_EXPAND_FILL; ct.add_theme_constant_override("separation", 12)
+		sc.add_child(ct)
 		for p in _props.values():
-			var tag := "🎯 " if str(p.get("icon", "")) != "" else "📦 "
-			items.append({"name": tag + str(p.get("name", "")), "desc": str(p.get("desc", ""))})
-	_popup("道具栏（" + str(_props.size()) + " 件）", items)
-	_modal_title = title  # 标记当前弹窗类型，支持 toggle
+			ct.add_child(_make_prop_card(p))
+		o.add_child(sc)
+	var cl := Button.new(); cl.text = "关闭"; cl.position = Vector2(430, 620); cl.size = Vector2(140, 45)
+	cl.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); cl.add_theme_font_size_override("font_size", 20)
+	cl.pressed.connect(_close_modal); o.add_child(cl)
+	add_child(o); _register_modal(o, title)
+
+## 单个道具卡片：图标(110) + 名称/描述 + 查看按钮
+func _make_prop_card(p: Dictionary) -> Control:
+	var card := Panel.new(); card.custom_minimum_size = Vector2(940, 120)
+	card.add_theme_stylebox_override("panel", _sb(Color(0.14, 0.10, 0.06, 0.55), Color(0.55, 0.42, 0.20), 1, 6))
+	var hb := HBoxContainer.new(); hb.size_flags_horizontal = Control.SIZE_EXPAND_FILL; hb.add_theme_constant_override("separation", 14)
+	card.add_child(hb)
+	var icon := TextureRect.new(); icon.custom_minimum_size = Vector2(110, 110); icon.size = Vector2(110, 110)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var ip := str(p.get("icon", ""))
+	if not ip.is_empty():
+		var tex = load(ip)
+		if tex: icon.texture = tex
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE; hb.add_child(icon)
+	var vb := VBoxContainer.new(); vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL; vb.add_theme_constant_override("separation", 6)
+	var nm := Label.new(); nm.text = str(p.get("name", "")); nm.add_theme_font_size_override("font_size", 22)
+	nm.add_theme_color_override("font_color", Color(0.92, 0.85, 0.6)); vb.add_child(nm)
+	var ds := Label.new(); ds.text = str(p.get("desc", "")); ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ds.size_flags_horizontal = Control.SIZE_EXPAND_FILL; ds.add_theme_font_size_override("font_size", 16)
+	ds.add_theme_color_override("font_color", Color(0.62, 0.57, 0.47)); vb.add_child(ds)
+	hb.add_child(vb)
+	var look := Button.new(); look.text = "查看"; look.size = Vector2(120, 50); look.add_theme_font_size_override("font_size", 18)
+	look.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45))
+	look.pressed.connect(func(): _show_prop_detail(p)); hb.add_child(look)
+	return card
+
+## 道具详情：大图 + 名称 + 描述；并触发场景相关功能 on_use_prop（如查看戒指揭示刻字）。
+func _show_prop_detail(p: Dictionary) -> void:
+	_close_modal()
+	on_use_prop(str(p.get("id", "")))
+	var o := Panel.new(); o.position = Vector2(660, 220); o.size = Vector2(600, 470); o.z_index = 110
+	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.98), Color(0.78, 0.62, 0.28), 2, 6))
+	var tt := Label.new(); tt.text = str(p.get("name", "")); tt.position = Vector2(30, 18); tt.add_theme_font_size_override("font_size", 26)
+	tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
+	var icon := TextureRect.new(); icon.position = Vector2(220, 70); icon.size = Vector2(160, 160)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var ip := str(p.get("icon", ""))
+	if not ip.is_empty():
+		var tex = load(ip)
+		if tex: icon.texture = tex
+	o.add_child(icon)
+	var ds := Label.new(); ds.text = str(p.get("desc", "")); ds.position = Vector2(30, 260); ds.size = Vector2(540, 130)
+	ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; ds.add_theme_font_size_override("font_size", 18)
+	ds.add_theme_color_override("font_color", Color(0.7, 0.65, 0.55)); o.add_child(ds)
+	var cl := Button.new(); cl.text = "关闭"; cl.position = Vector2(230, 405); cl.size = Vector2(140, 45)
+	cl.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); cl.add_theme_font_size_override("font_size", 20)
+	cl.pressed.connect(_close_modal); o.add_child(cl)
+	add_child(o); _register_modal(o, "道具详情")
+
+## 道具使用钩子：子类可重写以触发剧情（如 scene5 查看戒指揭示刻字「L.F.」）。
+func on_use_prop(prop_id: String) -> void:
+	pass
 
 # ===================== 存 / 读档（通用核心） =====================
 func _do_save(slot: int = -1) -> void:

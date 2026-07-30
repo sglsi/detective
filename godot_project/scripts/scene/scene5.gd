@@ -119,7 +119,7 @@ func options_lines() -> Array:
 
 func _enter_arrival() -> void:
 	_phase = Phase.ARRIVAL
-	acquire_prop("ring", "结婚金戒指", "案发现场拾得的女性结婚戒指，内侧刻字「L.F.」，关键物证", "")
+	acquire_prop("ring", "结婚金戒指", "案发现场拾得的女性结婚戒指，内侧刻字「L.F.」，关键物证", "res://assets/props/ring.png")
 	if GameManager and GameManager.scene_state.has("scene4_route"):
 		_route = GameManager.scene_state["scene4_route"]
 	match _route:
