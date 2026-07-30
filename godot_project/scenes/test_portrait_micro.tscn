@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/test_portrait_micro.gd" id="1"]
+
+[node name="PortraitMicroTest" type="Control"]
+script = ExtResource("1")
