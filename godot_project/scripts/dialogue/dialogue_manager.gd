@@ -266,11 +266,14 @@ func _go_to_node(node_id: String, visited: Array = []) -> bool:
 	dialogue_node_entered.emit(node_id)
 	dialogue_advanced.emit(node_id)
 
-	# 自动推进：延迟 0.15s 异步触发，避免阻塞；保留原节奏
-	# 注：trigger=="note" 不再自动推进 —— 改为由 UI 弹「加入笔记/跳过」选择面板，
-	#     避免 0.15s 后自动跳过「侦探笔记」页（见 Issue 2 修复）。
+	# 推进策略（根因修复：取消"几秒后自动切换"）：
+	#   - 有台词内容的节点：一律等待玩家点击/按键推进（统一手动节奏，
+	#     修复"点一下连跳两幕"——点击推进到 clue/guide 节点后 0.15s 又被自动跳过）。
+	#   - 纯功能节点（无文本，如纯 sfx/milestone/knowledge 标记）：自动流转，
+	#     否则会出现空白对话框卡住流程。
 	if node.trigger in ["auto", "optional", "knowledge", "milestone", "sfx", "clue", "guide", "hint"]:
-		_schedule_auto_advance(node)
+		if node.text.strip_edges().is_empty():
+			_schedule_auto_advance(node)
 
 	return true
 

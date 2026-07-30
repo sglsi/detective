@@ -150,4 +150,7 @@ func _build() -> void:
 func _fmt_time(t: int) -> String:
 	if t <= 0:
 		return ""
-	return Time.get_datetime_string_from_unix_time(t)
+	# 根因修复：t 是 UTC 秒，而 get_datetime_string_from_unix_time 按 UTC 格式化，
+	# 直接显示会比本地时间差好几个小时（北京时间差 8h）。叠加系统时区偏移转为本地时间。
+	var bias_sec: int = int(Time.get_time_zone_from_system().get("bias", 0)) * 60
+	return Time.get_datetime_string_from_unix_time(t + bias_sec)

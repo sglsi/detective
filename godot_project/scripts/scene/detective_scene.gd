@@ -352,6 +352,9 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# REASONING 阶段打开的墙（自动弹出或手动重开）验证后必须推进过渡；
 	# 观察阶段手动开墙仅预览，不推进。不能无条件置 false（场景二/三同款 bug 已根治）。
 	_wall_auto = _in_reasoning_phase()
+	# #129 根因修复：推理墙是全屏 MOUSE_FILTER_STOP 浮层，会压住任何已开弹窗
+	# （如「知识检索」），使其关闭按钮点击无效。开墙前先关闭现有弹窗。
+	_close_modal()
 	var rw = load("res://scripts/clue/reasoning_wall.gd")
 	if not rw: _ui.show_notification("推理墙模块未找到"); return
 	var wall = rw.new(); wall.name = "ReasoningWall"; add_child(wall)
@@ -412,7 +415,9 @@ func _do_save(slot: int = -1) -> void:
 	print("[SAVE " + scene_id() + "] _phase=", _phase, " data=", data)
 	# 保存不需要选槽位：自动分配（空槽位优先，满则覆盖最旧），滚动保留最近 3 次存档
 	await SaveSystem.request_save(scene_id(), _phase, data, slot)
-	_ui.show_notification("✅ 进度已保存 " + Time.get_datetime_string_from_unix_time(int(Time.get_unix_time_from_system())).replace("T", " "))
+	# 保存成功提示用本地时间（get_datetime_string_from_system 默认即本地时区），
+	# 修复此前用 UTC 时间戳直接格式化导致「存档时间与现实差好几个小时」。
+	_ui.show_notification("✅ 进度已保存 " + Time.get_datetime_string_from_system().replace("T", " "))
 
 func _do_load() -> void:
 	# 存档为登录用户专属（游客不可读档）
@@ -555,17 +560,57 @@ func _restore_clues_from_ids(saved_ids: Array) -> void:
 			ClueSystem.collect_clue_from_catalog(cid, p.get("name", ""), p.get("desc", ""), p.get("correct", true), clue_source(), int(p.get("weight", -1)))
 			_clues.append({"id": cid, "name": p.get("name", ""), "desc": p.get("desc", "")})
 
+## 剧情推进闸门（#124 根因修复）：以下情形一律不推进剧情——
+##   1. 推理墙开着（点墙上的卡片/按钮不能把剧情偷跑到下一场景）
+##   2. 任一弹窗/面板开着（知识检索、案件簿、地图、选项等）
+##   3. 工具交互覆盖层激活（放大镜/卷尺/试剂弹窗）
+##   4. 观察模式激活（点击热点是在收集线索，不是在推剧情）
+##   5. 鼠标悬停在任意按钮等交互控件上（点按钮就只是点按钮）
+func _advance_blocked(is_mouse: bool) -> bool:
+	if _wall_instance and is_instance_valid(_wall_instance): return true
+	if _modal_panel and is_instance_valid(_modal_panel): return true
+	if _toolbar and _toolbar.has_method("_is_overlay_active") and _toolbar._is_overlay_active(): return true
+	if _obs and _obs.has_method("is_active") and _obs.is_active(): return true
+	if is_mouse:
+		var hovered := get_viewport().gui_get_hovered_control()
+		if hovered is BaseButton: return true
+	return false
+
 func _input(event: InputEvent) -> void:
-	# 关键修复（对话场景卡住根因）：对话推进只取决于「对话是否在进行中」，
-	# 不再依赖 _in_dialogue_phase() 的相位白名单。旧逻辑下，只要某段对话在 OBSERVE/REASONING
-	# 阶段（或读档恢复、新接的对话钩子、NPC 中途对话）被启动，所有输入会被静默拦截，
-	# 导致对话框永远卡住、点哪都没反应。改为与场景一一致的 _dm.is_active() 判定，
-	# 彻底消除该类卡死；场景一原本就走这套机制，从不出此问题。
+	# 对话推进只取决于「对话是否在进行中」（_dm.is_active()，与场景一机制一致），
+	# 但受 _advance_blocked 闸门约束：收集线索/点按钮/开墙/开弹窗期间剧情绝不推进。
 	if not _dm or not _dm.is_active(): return
-	if event is InputEventMouseButton and event.pressed:
+	var mb := event as InputEventMouseButton
+	if mb and mb.pressed:
+		if _advance_blocked(true): return
+		# 鼠标滚轮：回看台词（上滚更早，下滚更新）
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			if _ui: _ui.review_step(-1)
+			return
+		if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			if _ui and _ui.is_reviewing(): _ui.review_step(1)
+			return
+		if mb.button_index != MOUSE_BUTTON_LEFT and mb.button_index != MOUSE_BUTTON_RIGHT:
+			return
+		# 回看态下点击：先返回实时台词，不推进（防误跳过剧情）
+		if _ui and _ui.is_reviewing():
+			_ui.exit_review()
+			return
 		if _dm.get_current_trigger() != "choice": _dm.advance()
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode in [KEY_ENTER, KEY_SPACE, KEY_E]:
+	var key := event as InputEventKey
+	if key and key.pressed and not key.echo:
+		if _advance_blocked(false): return
+		# 键盘左右键：回看台词
+		if key.keycode == KEY_LEFT:
+			if _ui: _ui.review_step(-1)
+			return
+		if key.keycode == KEY_RIGHT:
+			if _ui and _ui.is_reviewing(): _ui.review_step(1)
+			return
+		if key.keycode in [KEY_ENTER, KEY_SPACE, KEY_E]:
+			if _ui and _ui.is_reviewing():
+				_ui.exit_review()
+				return
 			if _dm.get_current_trigger() != "choice": _dm.advance()
 
 # ===================== 通用弹窗 / 样式（所有场景共用） =====================
