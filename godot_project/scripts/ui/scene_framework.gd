@@ -1,6 +1,9 @@
 extends Control
 class_name SceneFramework
 
+# 立绘微动组件（用 preload 引用，避免依赖全局 class_name 缓存，headless 下稳定）
+const PortraitMicroAnimator = preload("res://scripts/ui/portrait_micro_animator.gd")
+
 ## 统一场景 UI 框架 — 优化版（按游戏内容界面.jpg 调整）
 ## 字体规范：
 ##   - 英文标题/按钮：GOLD 大写、加间距、深色描边
@@ -34,6 +37,7 @@ var _dialogue_bar: Control
 var _speaker_label: Label
 var _dialogue_label: Label
 var _speaker_portrait: TextureRect
+var _speaker_portrait_anim: PortraitMicroAnimator
 var _portraits: Array = []
 var _action_btns: Dictionary = {}
 var _nav_btns: Dictionary = {}
@@ -111,8 +115,14 @@ func set_dialogue(speaker: String, text: String, mood: String = "") -> void:
 					# 右上角：立绘浮于对话栏上方偏右
 					_speaker_portrait.position = Vector2(1600, -560)
 					_speaker_portrait.size = Vector2(260, 300)
+			# 位置/尺寸变化后刷新微动基准，并标记为正在说话（加大浮动）
+			if _speaker_portrait_anim:
+				_speaker_portrait_anim.set_home(_speaker_portrait.position)
+				_speaker_portrait_anim.set_talking(true)
 		else:
 			_speaker_portrait.hide()
+			if _speaker_portrait_anim:
+				_speaker_portrait_anim.set_talking(false)
 
 func set_dialogue_color(c: Color) -> void:
 	if _speaker_label: _speaker_label.add_theme_color_override("font_color", c)
@@ -476,6 +486,11 @@ func _build_dialogue_bar() -> void:
 	_speaker_portrait.visible = false
 	_dialogue_bar.add_child(_speaker_portrait)
 
+	# 立绘微动：对话栏说话人立绘（呼吸+浮动，呈现活人感）
+	_speaker_portrait_anim = PortraitMicroAnimator.new()
+	add_child(_speaker_portrait_anim)
+	_speaker_portrait_anim.setup(_speaker_portrait)
+
 	# 角色名 (左侧烫金深褐框)
 	var name_panel = Panel.new()
 	name_panel.size = Vector2(280, 42)
@@ -554,6 +569,13 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	port.add_child(img)
+
+	# 立绘微动：站立角色在金框内呼吸+微摆（关浮动避免裁边）
+	var pa := PortraitMicroAnimator.new()
+	img.add_child(pa)
+	pa.setup(img)
+	pa.float_enabled = false
+	pa.sway_enabled = true
 
 	# 名字标签
 	if name_text != "":
