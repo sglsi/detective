@@ -411,6 +411,7 @@ func _build_left_bar() -> void:
 		{"id":"think", "en":"THINK", "zh":"思考", "icon":"💡"},
 		{"id":"prop", "en":"PROP", "zh":"道具", "icon":"🎒"},
 		{"id":"journal", "en":"JOURNAL", "zh":"日志", "icon":"📓"},
+		{"id":"kb", "en":"ENCYCLOPEDIA", "zh":"百科", "icon":"📚"},
 		{"id":"save", "en":"SAVE", "zh":"保存", "icon":"💾"},
 		{"id":"load", "en":"LOAD", "zh":"读取", "icon":"📂"},
 	]

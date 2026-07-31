@@ -22,6 +22,7 @@ var _obs: ClueObserver                 # 单组观察器（场景二/三使用�
 var _clues: Array = []                 # 本场景已收集线索（本地权威，不读全局 ClueSystem）
 var _wall_auto := false                # 推理墙验证后是否自动推进过渡
 var _wall_instance: Control = null      # 当前已打开的推理墙（单例，避免多重叠加）
+var _kb_panel: Control = null            # 当前已打开的知识库面板（单例，避免多重叠加）
 var _modal_panel: Control = null        # 当前已打开的弹窗/面板（单例，避免多重叠加）
 var _modal_title: String = ""           # 当前弹窗标题（用于同按钮开关切换）
 var _props: Dictionary = {}             # 已获取道具 {id: {name, desc, icon}} (#139 道具系统)
@@ -241,6 +242,7 @@ func _on_action(action_id: String) -> void:
 		"think": _open_wall()
 		"prop": _show_props()
 		"journal": _show_journal()
+		"kb": _open_knowledge_base()
 		"save": _do_save()
 		"load": _do_load()
 
@@ -322,6 +324,27 @@ func _default_wall_verify(verdict: int) -> void:
 ## 子类可重写以返回到具体来源（如场景一在 watson / messenger 两种推理墙间切换）。
 func _on_wall_closed() -> void:
 	pass
+
+# ===================== 知识库面板（#接入：《04_推理知识库.md》） =====================
+## 单例 + toggle：已开则关闭（点一次出现，再点一次关闭），杜绝多重叠加。
+## 遵循项目铁律：开面板须 hide_toolbar() 置顶，并用 _register_modal 记录单例引用。
+func _open_knowledge_base() -> void:
+	if _kb_panel and is_instance_valid(_kb_panel):
+		_close_modal()
+		return
+	var kbs = load("res://scripts/knowledge/knowledge_base_panel.gd")
+	if not kbs:
+		_ui.show_notification("知识库模块未找到")
+		return
+	var panel = kbs.new(); panel.name = "KnowledgeBasePanel"; add_child(panel)
+	# 销毁时自动清空单例引用，保证下次「百科」能正确开关
+	panel.tree_exiting.connect(func():
+		if _kb_panel == panel: _kb_panel = null
+	)
+	panel.close_requested.connect(_close_modal)
+	_kb_panel = panel
+	# 复用弹窗单例机制：记录引用 + 隐藏工具栏，避免被 CanvasLayer(layer 128) 遮挡
+	_register_modal(panel, "知识库")
 
 func _show_journal() -> void:
 	if ClueSystem: _sync_clues()   # 进入推理前（对话阶段）也实时反映已收集线索，避免笔记显示为空
