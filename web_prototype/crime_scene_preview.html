@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>犯罪现场场景预览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1920px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #e0e0e0;
+        }
+        .image-container {
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        .image-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .info {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .info h2 {
+            margin-bottom: 15px;
+            color: #4CAF50;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .info-item {
+            background: #333;
+            padding: 12px;
+            border-radius: 6px;
+        }
+        .info-item label {
+            display: block;
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        .info-item value {
+            display: block;
+            font-size: 16px;
+            color: #fff;
+            font-weight: bold;
+        }
+        .description {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .description h2 {
+            margin-bottom: 15px;
+            color: #4CAF50;
+        }
+        .description ul {
+            list-style: none;
+            padding: 0;
+        }
+        .description li {
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+        }
+        .description li:last-child {
+            border-bottom: none;
+        }
+        .description li::before {
+            content: "• ";
+            color: #4CAF50;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>犯罪现场场景预览</h1>
+        
+        <div class="image-container">
+            <img src="crime_scene.jpg" alt="犯罪现场场景">
+        </div>
+        
+        <div class="info">
+            <h2> 文件规格</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>路径</label>
+                    <value>godot_project/assets/scenes/crime_scene.jpg</value>
+                </div>
+                <div class="info-item">
+                    <label>尺寸</label>
+                    <value>1920×1080</value>
+                </div>
+                <div class="info-item">
+                    <label>格式</label>
+                    <value>JPG</value>
+                </div>
+                <div class="info-item">
+                    <label>质量</label>
+                    <value>85</value>
+                </div>
+                <div class="info-item">
+                    <label>文件大小</label>
+                    <value>200 KB ✅</value>
+                </div>
+            </div>
+        </div>
+        
+        <div class="description">
+            <h2> 场景内容</h2>
+            <ul>
+                <li>维多利亚时代犯罪现场</li>
+                <li>死者躺在木地板上，双臂张开</li>
+                <li>深色维多利亚西装，白色衬衫</li>
+                <li>黑色高顶礼帽掉落在一旁</li>
+                <li>左侧窗户透入光线</li>
+                <li>木桌（上有瓶子和烛台）</li>
+                <li>右侧书架</li>
+                <li>地板上有脚印痕迹</li>
+                <li>戏剧性明暗对比光照</li>
+                <li>19 世纪伦敦谋杀案现场氛围</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
