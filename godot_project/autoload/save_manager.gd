@@ -204,6 +204,7 @@ func _build_save_data() -> void:
 		"progress": ProgressSystem.get_all_progress() if ProgressSystem else {},
 		"timeline": TimelineSystem.get_all_entries() if TimelineSystem else {},
 		"kb_notes": KnowledgeBaseSystem.get_notes() if KnowledgeBaseSystem else [],
+		"kb_favorites": KnowledgeBaseSystem.get_favorites() if KnowledgeBaseSystem else [],
 		"tools": ToolSystem.get_persistent_state() if ToolSystem else {},
 		"metadata": {
 			"version": "0.1.0",
@@ -361,6 +362,8 @@ func _restore_from_dict(data: Dictionary) -> void:
 		TimelineSystem.restore_timeline(data["timeline"])
 	if data.has("kb_notes") and KnowledgeBaseSystem:
 		KnowledgeBaseSystem.restore_notes(data["kb_notes"])
+	if data.has("kb_favorites") and KnowledgeBaseSystem:
+		KnowledgeBaseSystem.restore_favorites(data["kb_favorites"])
 	if data.has("tools") and ToolSystem:
 		ToolSystem.restore_state(data["tools"])
 
