@@ -36,6 +36,7 @@ signal ending_determined(case_id: String, tier: int, info: Dictionary)
 signal progress_updated(case_id: String, current: int, total: int, ratio: float)
 signal timeline_updated(case_id: String, entries: Array)
 signal knowledge_updated(entry_id: String, count: int)
+signal knowledge_favorite_changed(entry_id: String, is_fav: bool)
 signal game_state_changed(new_state: int)
 signal difficulty_changed(new_difficulty: int)
 signal boot_complete
