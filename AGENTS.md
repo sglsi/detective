@@ -127,6 +127,42 @@
 | `icon_bow_tie.jpg` | 领结 |
 | `icon_deerstalker.jpg` | 猎鹿帽 |
 
+### 可绑骨素材（Rig Assets）
+
+**位置**：`godot_project/assets/characters/watson/rig/`
+
+**用途**：2D 骨骼绑定动画（SkeletonCharacter2D）
+
+**素材清单**（11 个部件，全部符合规格书要求）：
+
+| 文件 | 尺寸 | 比例 | 描述 |
+|------|------|------|------|
+| `watson_head.png` | 1024x1344 | 256:336 | 头部（正面肖像，八字胡，军人发型） |
+| `watson_torso.png` | 1024x2284 | 208:464 | 躯干（深褐外套，棕格马甲，白衬衫，黑领带） |
+| `watson_upperarm_L.png` | 1024x2340 | 112:256 | 左上臂（深褐外套袖子） |
+| `watson_upperarm_R.png` | 1024x2340 | 112:256 | 右上臂（深褐外套袖子） |
+| `watson_forearm_L.png` | 1024x2474 | 96:232 | 左前臂（带手部） |
+| `watson_forearm_R.png` | 1024x2474 | 96:232 | 右前臂（带手部） |
+| `watson_thigh_L.png` | 1024x2389 | 144:336 | 左大腿（深蓝长裤） |
+| `watson_thigh_R.png` | 1024x2389 | 144:336 | 右大腿（深蓝长裤） |
+| `watson_shin_L.png` | 1024x2867 | 120:336 | 左小腿（黑色皮靴） |
+| `watson_shin_R.png` | 1024x2867 | 120:336 | 右小腿（黑色皮靴） |
+| `watson_hat.png` | 2560x1024 | 480:192 | 圆顶礼帽（棕色） |
+
+**规格特点**：
+- 统一正面视角（禁止侧脸、俯视）
+- 竖直绘制，近端关节在顶边水平正中央
+- 内容顶满画布（上下留白≤5%）
+- 硬边缘透明背景（PNG-24，无柔光/投影）
+- 维多利亚写实/插画风格，深棕描边
+
+**后续步骤**：
+1. 运行 `gen_character_rig.py` 生成骨架定义
+2. 注册到 `PortraitLibrary.get_rig("华生")`
+3. 测试骨架动画效果
+
+**详细报告**：`WATSON_RIG_GENERATION_REPORT.md`
+
 ## 运行与预览
 
 - **后端**：`cd backend && pnpm install && node src/server.js`（端口 3000）
