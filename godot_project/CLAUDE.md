@@ -66,3 +66,16 @@
 ## 4. 环境约束（本机）
 - Godot 固定 `D:\AI\godot\Godot_v4.7-stable_win64\Godot_v4.7-stable_win64.exe`（4.7.stable）。
 - 沙箱无 GitHub 写凭据：本 agent 只负责提交，push 由思傅在本机 `git push origin main`。
+
+---
+
+## 5. 暂缓项（Deferred · MVP 不做）
+
+> 见设计文档 `docs/设计文档/架构比对与修正建议.md` §6。以下项在 E-25 中曾标「已接受」，
+> 经架构比对确认当前阶段不做；**禁止在 MVP 阶段引入对应模块/SDK**，避免范围蔓延。
+
+- **C#**：保持纯 GDScript。当前 2D 体量无性能瓶颈，不引入 .NET 运行时与编译链。
+- **i18n（国际化）**：未建 LocalizationManager / CSV / PO 体系。MVP 面向单一语种，出海前再做（记为技术债）。
+- **广告 SDK**（AdMob / AppLovin / Pangle）：MVP 不接入。
+- **分析 SDK**（Firebase 等）：MVP 不接入。
+

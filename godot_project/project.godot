@@ -20,6 +20,14 @@ config/api_base_url="http://127.0.0.1:3001"
 
 [autoload]
 
+; ===== Autoload 架构分组（架构卫生 · 见 docs/设计文档/架构比对与修正建议.md §4）=====
+; 事件总线(7): System/Scene/Dialogue/Clue/UI/Case/Map EventBus —— 跨模块通信唯一通道
+; core 核心  : SettingsManager, APIConfig, DifficultyManager, GameManager, GameStateMachine, SceneLoader, AudioManager, NotificationSystem
+; auth 账号  : APIManager, AuthManager
+; save 存档  : SaveManager(底层多槽位存储) + SaveSystem(场景通用门面) —— 分工明确，勿合并
+; content 内容: CaseManager, ClueSystem, StarRatingSystem, DialogueProgress, KnowledgeBaseSystem, TimelineSystem, EndingSystem, ProgressSystem, BadgeSystem, ToolSystem, PackManager, MapManager
+; ui 界面   : UIManager
+; 依赖纪律  : 跨模块只走 7 事件总线；autoload 间禁止硬调用（infra 层除外）
 SettingsManager="*res://autoload/settings_manager.gd"
 APIConfig="*res://config/api_config.gd"
 SystemEventBus="*res://autoload/system_event_bus.gd"
