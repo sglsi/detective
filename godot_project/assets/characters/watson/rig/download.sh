@@ -1,17 +1,17 @@
 #!/bin/bash
 
 declare -A FILES=(
-  ["watson_head.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_579ab660-d18c-40ad-8de7-962114bc972e.jpeg?sign=1816944704-b849c911b5-0-2160f769735b71d05297c2765f039022f6e49f62ed20244963aa44e4574e7826"
-  ["watson_torso.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_2875f71c-ead3-4d17-94c6-fb2c8b8cc94e.jpeg?sign=1816944703-cf78c4fb15-0-96c86de106a364b0618dcee5a0b38b88b4d201e9f6d514a05569a54e34ec4f9d"
-  ["watson_upperarm_L.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_92c79af8-82c7-4666-b0a7-5ecc719fea5a.jpeg?sign=1816944703-77c7b0f84c-0-dcc7d91fe09ca63e7691977c136b32d45deac048e254c6b8ba83640f2f476bb2"
-  ["watson_upperarm_R.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_c7ec2c64-1a12-4ede-b795-720cb09dd8f8.jpeg?sign=1816944723-6a2adbd52a-0-d5dbcb44c3f5bc953ea09525eb51f0f562779de53dc3e2672c2c3cd70a03bdca"
-  ["watson_forearm_L.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_fbe7e3f3-228f-432a-8112-9586dd1e2e3f.jpeg?sign=1816944723-53dabe4856-0-06841d5f07dddc6c8cf7015c947cfcdd2a3ede59ee36552f515bea7b642c51ef"
-  ["watson_forearm_R.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_74ac22e7-6690-4c0c-a7d1-a9ceca8414c4.jpeg?sign=1816944724-e12012bb0f-0-4dc0ed565b7df987248d968d1c5e0071e725410e3c3bff45135fa3f7ba80ff52"
-  ["watson_thigh_L.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_2d2c5958-5693-4a07-add4-805ac99b6ee6.jpeg?sign=1816944743-1d196fd72f-0-bec6d41c092edf27ab44dd140e64b5b43908faa17e4b7af555845bd1dfc8432c"
-  ["watson_thigh_R.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_685c9a2b-1444-4998-8cc0-c0f87ccd1fd2.jpeg?sign=1816944742-1d25441a9c-0-12e001e53c34673ade28d139607f31948ded018f75fcb196ebb15a3d6c6968e6"
-  ["watson_shin_L.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_e1fc040a-3b6e-4892-9e62-de577ddfaffe.jpeg?sign=1816944742-a21e8336bb-0-33ccc4bbb6190f97357212ed8fb9e9a0e502748abde0211657b940262f98338f"
-  ["watson_shin_R.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_4d378673-3ed1-4f40-b956-7d5f90e76286.jpeg?sign=1816944764-4cfda4261a-0-6650c8de54580b207585002edfa4a149b97d49c83210ea13499d3108cfa78395"
-  ["watson_hat.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_c192cc86-1901-415e-9923-b52bd5414322.jpeg?sign=1816944762-ade17659f6-0-c7e74c66663b1474e686a56eb46642c73108d7d779625380f1f4fd6a8ccff060"
+  ["watson_head.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_88a21b01-ad6e-46ec-984e-3b8dfc5de577.jpeg?sign=1817044963-5426d76f82-0-1cac8682948866de4315a55d8fd0ce9fc418bfc07b8b47677e1978df4a60c365"
+  ["watson_torso.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_f7d446eb-0be1-4cd8-bf5e-619fb6a53a33.jpeg?sign=1817044962-beef98f933-0-2f960e603fbfb1c955f0e1694ee486a39a84555612f5a201b70bcdbc1a06d1f7"
+  ["watson_upperarm_L.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_def72f13-12ea-4469-a1db-704730f5d77d.jpeg?sign=1817044962-fec2fe413b-0-3da3cd0356e16a9bee6c4ef296143e700f7b76e05662f7287e178139d093e751"
+  ["watson_upperarm_R.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_10ffb7aa-7848-409c-bb4e-33969166cb73.jpeg?sign=1817044984-491ed6036e-0-3602737667123eb5eba7baa2a0c9fe852987f2706aaedc73fcbf3163f6bbbd38"
+  ["watson_forearm_L.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_1a8996f1-0ba0-4fb6-80c0-1a50870b33b3.jpeg?sign=1817044986-99e0f087b5-0-c1e3cf126a2aeaaaa1db9d100fbb8ed620066eeacf528a8f4ce9c2ca163b197f"
+  ["watson_forearm_R.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_4938b747-7fa4-4551-9bef-eee920c37281.jpeg?sign=1817044985-78eaad3cc7-0-df414d02b488119a599b755836e1c56f6d06617f06ed2bfd31bf2f649db15b62"
+  ["watson_thigh_L.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_ec1e5b8d-83a5-4970-8a02-a892dd73ea40.jpeg?sign=1817045016-5fb4855aec-0-d6365202b1ccdcde620f12bb265dba0c8aedb577c3a16d6321ba94eb224a4e7f"
+  ["watson_thigh_R.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_a0fd4cf8-eefc-4329-ad8f-c9a6c1dd0764.jpeg?sign=1817045013-6622984d77-0-88c4e3d986d78e22c1fb975fa34cdc4f6f605d1a7ab02e104e1ae1f727d8864c"
+  ["watson_shin_L.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_425fa1b5-007e-4f8a-882d-4f8d9c2d42c6.jpeg?sign=1817045015-59e9c1be78-0-4c34827ce95baee9d50382bb33335cf0534b4ef0dca095d83bd50624f2f053e4"
+  ["watson_shin_R.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_059e683b-2960-4f9d-8335-1c167970338b.jpeg?sign=1817045038-e61fda73df-0-7398beb511039e58d7255c84982e37c182e0975f0782a96c2d9db61ef28de3e0"
+  ["watson_hat.jpg"]="https://coze-coding-project.tos.coze.site/coze_storage_7664902873347784744/image/generate_image_e4b75fe3-a67e-4c11-bb32-a97f19b4f60d.jpeg?sign=1817045036-d982fc7629-0-357ac393aa92d3089dfbca2781288768458ddd8d6870a769f0eb5a492383c441"
 )
 
 echo "开始下载..."
