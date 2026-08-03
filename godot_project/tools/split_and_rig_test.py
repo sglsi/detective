@@ -172,6 +172,22 @@ def build_rig_spec(parts: dict) -> dict:
     # 让躯干在世界坐标中长约 110（与 Sherlock 一致）
     world_scale = 110.0 / max(torso_h, 1.0)
 
+    # 缩短小臂：裁掉 forearm 纹理顶端(肘端) 5 世界单位，手(底端)保留。
+    # bone 的 pos/len/pivot 在下方按新尺寸(返回 sz)自动回算 => 肘连接点(与上臂距离)保持不变。
+    FA_SHORTEN = 5.0   # 世界单位
+    fa_crop_px = int(round(FA_SHORTEN / world_scale))
+    for fk in ("forearm_L", "forearm_R"):
+        if fk in parts:
+            fp = OUT_DIR / parts[fk]["filename"]
+            fim = Image.open(fp).convert("RGBA")
+            fw, fh = fim.size
+            crop = max(0, min(fa_crop_px, fh - 20))   # 安全：至少留 20px 纹理
+            if crop > 0:
+                fim2 = fim.crop((0, crop, fw, fh))    # 裁掉顶部 crop 像素（肘端）
+                fim2.save(fp)
+                parts[fk]["size"] = [fim2.width, fim2.height]
+                print(f"  -> shorten {fk}: crop top {crop}px (~5 world units), new {fim2.width}x{fim2.height}")
+
     spec = {
         "character": "test_rig_character",
         "parts_dir": "res://assets/characters/test_rig_character/rig/",
@@ -203,11 +219,17 @@ def build_rig_spec(parts: dict) -> dict:
     GAP = 3.0
     neck_gap = GAP                       # 头-躯干：3px 干净间距
     hip_gap = -15.0                      # 躯干-腿：骨盆正中间收窄约14px，须重叠约15px正中才看连上（腿画在躯干下层，叠入部分被躯干盖住）
+    LEG_INNER_GAP_SCALE = 0.5            # 两腿内侧可见间距缩放（1.0=外沿对齐臀部外沿最开；0.5=内侧间距减半）
+    # 肘/膝关节间距缩小量 = 小腿长度 × 此比例（用户要求缩小 1/10 小腿长度）
+    JOINT_GAP_REDUCE_FRAC = 0.1
+    joint_reduce = sz("shin_L")[1] * world_scale * JOINT_GAP_REDUCE_FRAC
 
-    add("head", "", [0, 0], 0, head_len, head_w * world_scale,
+    HEAD_DROP = 8.0    # 头部整体下移 8 世界单位（较上次 +10 上移 2）
+    ARM_DROP = 12.0    # 两臂整体下移 12 世界单位（较上次 +10 再下移 2）
+    add("head", "", [0, HEAD_DROP], 0, head_len, head_w * world_scale,
         "head.png", [head_w / 2, head_h * head_pivot_y_ratio], skin)
-    # neck 位于 head 底端，torso 从 neck 底端开始 => 颈部长度 = neck_gap
-    add("neck", "head", [0, head_bottom_offset], 0, neck_gap, 14, "", [0, 0], skin)
+    # neck 位于 head 底端；为保持 torso 及以下不动，neck.pos.y 反向补偿 -HEAD_DROP
+    add("neck", "head", [0, head_bottom_offset - HEAD_DROP], 0, neck_gap, 14, "", [0, 0], skin)
     add("torso", "neck", [0, neck_gap], 0, torso_len, torso_w * 0.6 * world_scale,
         "torso.png", [torso_w / 2, 0], skin)
     # hip 位于 torso 底端
@@ -227,9 +249,9 @@ def build_rig_spec(parts: dict) -> dict:
         ua_len = ua_h * world_scale
         fa_len = fa_h * world_scale
 
-        # 肩膀贴在躯干顶部两侧
+        # 肩膀贴在躯干顶部两侧（ARM_DROP 让整条手臂下移 10 世界单位）
         add(f"shoulder_{side}", "torso",
-            [sign * shoulder_x, 0], 0,
+            [sign * shoulder_x, ARM_DROP], 0,
             6, 14, "", [0, 0], pants)
         if ua_h > 50:
             # 上臂 pivot 在 0.1 高度（近顶部）=> 上臂顶端与肩平齐
@@ -239,7 +261,7 @@ def build_rig_spec(parts: dict) -> dict:
             # 前臂 pivot 在 0.05 高度；让前臂顶端接上臂底端
             forearm_top_offset = fa_h * 0.05 * world_scale
             add(f"forearm_{side}", f"upperarm_{side}",
-                [0, ua_len + forearm_top_offset + GAP], sign * 8,
+                [0, ua_len + forearm_top_offset + GAP - joint_reduce], sign * 8,
                 fa_len, fa_w * 0.6 * world_scale, f"{fa_key}.png",
                 [fa_w / 2, fa_h * 0.05], skin)
         else:
@@ -254,9 +276,11 @@ def build_rig_spec(parts: dict) -> dict:
         sh_len = sh_h * world_scale
         # 大腿 pivot 在 0.08 高度；让大腿顶端接髋部/躯干底端
         thigh_top_offset = th_h * 0.08 * world_scale
-        # 腿外沿对齐臀部外沿（躯干两侧边缘）
-        thigh_outer = th_w * 0.55 * world_scale / 2
-        thigh_x = sign * (hip_outer - thigh_outer)
+        # 腿定位：以「纹理外沿对齐臀部外沿」为基准偏移 X0，两腿内侧可见间距 = 2*(thigh_half - X0)。
+        # 用 LEG_INNER_GAP_SCALE 缩放该间距（0.5 = 内侧间距减半，腿更并拢）。
+        thigh_half = th_w * 0.5 * world_scale          # 纹理半宽（可见腿宽的一半）
+        X0 = hip_outer - thigh_half                    # 基准偏移：外沿对齐臀部外沿
+        thigh_x = sign * (thigh_half - (thigh_half - X0) * LEG_INNER_GAP_SCALE)
         add(f"thigh_{side}", "hip",
             [thigh_x, hip_gap + thigh_top_offset], 0,
             th_len, th_w * 0.55 * world_scale, f"thigh_{side}.png",
@@ -264,7 +288,7 @@ def build_rig_spec(parts: dict) -> dict:
         # 小腿 pivot 在 0.05 高度；让小腿顶端接大腿底端
         shin_top_offset = sh_h * 0.05 * world_scale
         add(f"shin_{side}", f"thigh_{side}",
-            [0, th_len + shin_top_offset + GAP], 0,
+            [0, th_len + shin_top_offset + GAP - joint_reduce], 0,
             sh_len, sh_w * 0.5 * world_scale, f"shin_{side}.png",
             [sh_w / 2, sh_h * 0.05], skin)
 
