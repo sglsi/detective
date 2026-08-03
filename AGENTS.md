@@ -278,6 +278,7 @@ NO other objects, isolated, game asset
 - 后端 API 端口固定 3000
 - Web 预览端口固定 5000
 - Godot 项目需要 Compatibility 渲染器以支持 Web 导出
+- **Git 提交策略**：不用每次都向 GitHub 提交，在进行一个阶段的工作后再集中进行提交
 
 ## 本地开发环境
 
