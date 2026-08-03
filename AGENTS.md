@@ -170,6 +170,14 @@
 - **Godot Web 构建**：`python3 serve_web.py --directory godot_project/web_build`（端口 8081）
 - **预览**：通过预览服务访问 Web 原型页面
 
+### 本地开发环境
+
+当前项目运行两个工程：
+- **http://localhost:8081/** — Godot Web 构建版本（**主要开发环境**，后续开发设计主要在此进行）
+- **http://localhost:8080/** — Web 原型版本（纯 HTML/CSS/JS）
+
+**开发重点**：后续的开发设计主要在 **8081 端口**（Godot Web 构建）中进行。
+
 ## 预览链路
 
 - **判定依据**：项目核心可交互界面是 `web_prototype/index.html`（纯静态 HTML 游戏页面），需通过 Web 浏览器访问，属于 Web 预览型项目
