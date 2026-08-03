@@ -64,7 +64,7 @@ void fragment() {
 	vec2 sample_uv = center + off;
 	vec3 col = texture(viewport_tex, sample_uv).rgb;
 	float d = distance(UV, vec2(0.5));
-	float alpha = smoothstep(0.5, 0.47, d);   // 圆形裁切，镜片外透明
+	float alpha = smoothstep(0.5, 0.485, d);   // 圆形裁切，镜片外透明（半径约74，与圆框79对齐）
 	COLOR = vec4(col, alpha);
 }
 """            # 当前操作的目标热点 ID
@@ -171,28 +171,14 @@ func _build_lens_overlay() -> void:
 	_lens_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_lens_overlay.z_index = 200
 	_lens_overlay.visible = false
+	_lens_overlay.draw.connect(_on_lens_draw)
 	add_child(_lens_overlay)
-
-	# 镜片圆环
-	var ring := ColorRect.new()
-	ring.name = "Ring"
-	ring.size = Vector2(160, 160)
-	var rs = StyleBoxFlat.new()
-	rs.bg_color = Color(0, 0, 0, 0)
-	rs.border_color = Color(0.78, 0.63, 0.29, 0.95)
-	rs.border_width_left = 4; rs.border_width_right = 4
-	rs.border_width_top = 4; rs.border_width_bottom = 4
-	rs.set_corner_radius_all(80)
-	ring.add_theme_stylebox_override("panel", rs)
-	ring.position = Vector2(-80, -80)
-	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_lens_overlay.add_child(ring)
 
 	# 玻璃区域（着色器采样主视口纹理实现真实放大）
 	var glass := TextureRect.new()
 	glass.name = "Glass"
-	glass.size = Vector2(148, 148)
-	glass.position = Vector2(-74, -74)
+	glass.size = Vector2(150, 150)
+	glass.position = Vector2(-75, -75)
 	glass.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	glass.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -209,9 +195,15 @@ func _build_lens_overlay() -> void:
 	hint.text = "移动镜片寻找细节..."
 	hint.add_theme_font_size_override("font_size", 14)
 	hint.add_theme_color_override("font_color", Color(1, 0.9, 0.5))
-	hint.position = Vector2(-70, 90)
+	hint.position = Vector2(-70, 92)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_lens_overlay.add_child(hint)
+
+## 圆形镜片外框：用 _draw 画真正的圆（取代原来的圆角矩形 Ring，使放大镜显示为圆形）。
+## 圆形镜片暗底盖住玻璃方边外的缝隙；黄铜圆框半径略大于玻璃内容圆，保证成环。
+func _on_lens_draw() -> void:
+	_lens_overlay.draw_circle(Vector2.ZERO, 77, Color(0.04, 0.04, 0.06, 0.92))
+	_lens_overlay.draw_arc(Vector2.ZERO, 80, 0, TAU, 96, Color(0.82, 0.66, 0.30, 0.98), 5)
 
 func _build_tape_overlay() -> void:
 	_tape_overlay = Control.new()
@@ -362,17 +354,28 @@ func _highlight_tool(tool_id: String) -> void:
 		else:
 			btn.modulate = Color(1, 1, 1)
 
-## 微亮提示：当前线索可用哪些道具（有线索↔道具关联的工具按钮调亮）
+## 微亮提示：当前线索可用哪些道具（有真实发现路径的工具按钮调亮）
 func _highlight_applicable_tools(clue_id: String) -> void:
-	if not ToolSystem:
+	var hs := _hotspot_dict(clue_id)
+	if hs.is_empty():
 		return
 	for tid in _buttons:
 		var btn: TextureButton = _buttons[tid]
-		var rev: Dictionary = ToolSystem.get_clue_tool_reveal(clue_id, tid)
-		if not rev.is_empty():
-			btn.modulate = Color(1.0, 1.15, 0.9)
-		else:
-			btn.modulate = Color(1, 1, 1)
+		var applicable := false
+		# 手工逐工具 reveal
+		var reveals: Dictionary = hs.get("reveals", {})
+		if reveals.has(tid) and str(reveals[tid]) != "":
+			applicable = true
+		# hotspot.tool 中文标签匹配
+		var cn := ""
+		if ToolSystem:
+			cn = ToolSystem.tool_cn_name(tid)
+		if not applicable and cn != "" and str(hs.get("tool", "")) == cn:
+			applicable = true
+		# 组合表（用 has_combination 避免误触发发现信号）
+		if not applicable and ToolSystem and ToolSystem.has_combination(tid, clue_id):
+			applicable = true
+		btn.modulate = Color(1.0, 1.15, 0.9) if applicable else Color(1, 1, 1)
 
 ## 当前是否有交互覆盖层处于显示中（放大镜/卷尺/弹窗）。
 func _is_overlay_active() -> bool:
@@ -394,6 +397,7 @@ func _start_magnifier() -> void:
 	if hint: hint.text = "移动镜片寻找细节..."
 	# 镜片跟随与发现改由 ToolBar._input 驱动（镜头层 mouse_filter=IGNORE 收不到 gui_input）。
 	_magnifier_active = true
+	_lens_overlay.queue_redraw()   # 重新绘制圆形镜片外框
 
 ## 放大镜交互由 _input 驱动：镜头层为 mouse_filter=IGNORE（不挡热点点击），
 ## 故不能靠自身 gui_input，改为在 ToolBar 节点上接收全局输入并跟随光标。
@@ -461,14 +465,10 @@ func _discover_with_magnifier() -> void:
 	var target: String = _current_target_id
 	if target == "":
 		target = _hotspot_id_at(_lens_overlay.position)
-	var result := ""
-	if ToolSystem and target != "":
-		result = ToolSystem.use_tool_on("magnifier", target)
+	var result := _hotspot_reveal("magnifier", target)
 	if result == "":
 		# 回退：直接展示该热点线索自身描述作为放大观察结果
-		var detail := _hotspot_desc(target)
-		if detail != "":
-			result = detail
+		result = _hotspot_desc(target)
 	if result == "":
 		result = "通过放大镜仔细观察了该区域，未发现异常特征。"
 	tool_completed.emit("magnifier", target, result)
@@ -495,6 +495,53 @@ func _hotspot_desc(id: String) -> String:
 		for h in sc.hotspots():
 			if h.get("id", "") == id:
 				return h.get("desc", "")
+	return ""
+
+## 取某 hotspot id 的完整字典（含 tool / reveals / desc 等字段）。
+func _hotspot_dict(id: String) -> Dictionary:
+	if id == "":
+		return {}
+	var sc = get_tree().current_scene
+	if sc and sc.has_method("hotspots"):
+		for h in sc.hotspots():
+			if str(h.get("id", "")) == id:
+				return h
+	return {}
+
+## 取某 hotspot 的显示名（label），用于工具结果的线索感知文案。
+func _hotspot_label(id: String) -> String:
+	var hs := _hotspot_dict(id)
+	if not hs.is_empty():
+		return str(hs.get("label", id))
+	return id
+
+## 取某线索对某工具的「具体发现」，三级优先级：
+##  1) hotspot.reveals[tool_id]（手工逐工具文本，最精准）
+##  2) hotspot.tool（中文道具名）匹配当前工具 → 返回该线索 desc（含道具专属叙述）
+##  3) ToolSystem 组合表 tool+clue
+##  4) 空串（调用方走线索感知兜底，避免“无特殊发现”）
+func _hotspot_reveal(tool_id: String, target_override: String = "") -> String:
+	var target := target_override if target_override != "" else _current_target_id
+	if target == "":
+		return ""
+	var hs := _hotspot_dict(target)
+	if hs.is_empty():
+		return ""
+	# 1) 手工逐工具 reveal
+	var reveals: Dictionary = hs.get("reveals", {})
+	if reveals.has(tool_id) and str(reveals[tool_id]) != "":
+		return str(reveals[tool_id])
+	# 2) hotspot.tool 中文名匹配 → 返回线索 desc（道具专属叙述）
+	var cn := ""
+	if ToolSystem:
+		cn = ToolSystem.tool_cn_name(tool_id)
+	if cn != "" and str(hs.get("tool", "")) == cn:
+		return str(hs.get("desc", ""))
+	# 3) 组合表
+	if ToolSystem:
+		var r := ToolSystem.use_tool_on(tool_id, target)
+		if r != "":
+			return r
 	return ""
 
 # ---- 放大镜：线索图片查看器（kind=="image" 关联时启用）----
@@ -696,26 +743,21 @@ func _confirm_tape_measurement() -> void:
 	_tape_overlay.visible = false
 	if _tape_overlay.gui_input.is_connected(_on_tape_gui_input):
 		_tape_overlay.gui_input.disconnect(_on_tape_gui_input)
-	# 关联线索的「卷尺测量」：直接显示测量读数，无需拖拽
-	var rev: Dictionary = _clue_reveal_for("tape")
-	if not rev.is_empty() and rev.get("kind", "") == "measure":
-		var val: String = rev.get("value", "")
-		var txt := "测量读数 %s：%s" % [val, rev.get("detail", "")]
-		tool_completed.emit("tape", _current_target_id, txt)
-		_show_observation_result("📏 卷尺测量：" + rev.get("title", ""), txt)
+	# 关联线索的「卷尺测量」：直接显示该线索的卷尺专属发现（如轴距/步幅/身高推断）
+	var rev := _hotspot_reveal("tape", _current_target_id)
+	if rev != "":
+		tool_completed.emit("tape", _current_target_id, rev)
+		_show_observation_result("📏 卷尺测量", rev)
 		selected_tool_id = ""
 		return
 	var result := ""
-	if ToolSystem:
-		result = ToolSystem.use_tool_on("tape", _current_target_id)
-	if result == "":
-		# 自由测量：报告当前读数
-		var line: Line2D = _tape_overlay.get_node_or_null("MeasureLine")
-		var reading := ""
-		if line and line.get_point_count() >= 2:
-			var d := line.get_point_position(0).distance_to(line.get_point_position(1))
-			reading = "%.1f ft (%.0f in)" % [d / 100.0, (d / 100.0 - int(d / 100.0)) * 12.0]
-		result = ("测量完成：" + reading) if reading != "" else "测量完成，已记录距离数据。"
+	# 自由测量：报告当前读数
+	var line: Line2D = _tape_overlay.get_node_or_null("MeasureLine")
+	var reading := ""
+	if line and line.get_point_count() >= 2:
+		var d := line.get_point_position(0).distance_to(line.get_point_position(1))
+		reading = "%.1f ft (%.0f in)" % [d / 100.0, (d / 100.0 - int(d / 100.0)) * 12.0]
+	result = ("测量完成：" + reading) if reading != "" else "测量完成，已记录距离数据。"
 	tool_completed.emit("tape", _current_target_id, result)
 	_show_observation_result("📏 测量记录", result)
 	selected_tool_id = ""
@@ -750,11 +792,12 @@ func _show_chemistry_panel() -> void:
 
 func _on_reagent_selected(reagent: String) -> void:
 	_interaction_popup.hide()
-	var result := ""
-	if ToolSystem:
-		result = ToolSystem.use_tool_on("chemistry", _current_target_id)
+	var result := _hotspot_reveal("chemistry", _current_target_id)
 	if result == "":
-		result = "对 %s 进行 %s 分析中... 未检出异常反应。" % [_current_target_id, reagent]
+		if ToolSystem:
+			result = ToolSystem.use_tool_on("chemistry", _current_target_id)
+	if result == "":
+		result = "对 %s 进行 %s 分析中... 未检出异常反应。" % [_hotspot_label(_current_target_id), reagent]
 	tool_completed.emit("chemistry", _current_target_id, result)
 	_show_observation_result("🧪 化学分析", result)
 	selected_tool_id = ""
@@ -784,8 +827,8 @@ func _show_directory_panel() -> void:
 		var kw := le.text.strip_edges()
 		if kw.length() < 1: return
 		_interaction_popup.hide()
-		var result := ""
-		if ToolSystem:
+		var result := _hotspot_reveal("directory", _current_target_id)
+		if result == "" and ToolSystem:
 			result = ToolSystem.use_tool_on("directory", kw)
 		if result == "":
 			result = "在黄页中检索「%s」——未找到匹配条目。" % kw
@@ -839,12 +882,15 @@ func _tool_def(tool_id: String) -> Dictionary:
 	return {}
 
 func _complete_immediate(tool_id: String) -> void:
-	var result := ""
-	if ToolSystem:
-		result = ToolSystem.use_tool_on(tool_id, _current_target_id)
 	var def = _tool_def(tool_id)
+	var result := _hotspot_reveal(tool_id, _current_target_id)
 	if result == "":
-		result = "使用了 %s，无特殊发现。" % def.get("name", tool_id)
+		var label := _hotspot_label(_current_target_id)
+		if _current_target_id != "" and label != "":
+			# 线索感知兜底：引用具体线索名，而非笼统“无特殊发现”
+			result = "用 %s 检查了「%s」，未发现额外的异常特征。" % [def.get("name", tool_id), label]
+		else:
+			result = "使用了 %s，无特殊发现。" % def.get("name", tool_id)
 	tool_completed.emit(tool_id, _current_target_id, result)
 	_show_observation_result("%s %s" % [def.get("icon", ""), def.get("name", tool_id)], result)
 	selected_tool_id = ""

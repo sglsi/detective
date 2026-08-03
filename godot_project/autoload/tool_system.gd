@@ -28,15 +28,57 @@ func _ready() -> void:
 
 func _seed_combinations() -> void:
 	combinations = {
-		"magnifier+blood":   "发现血型信息：AB型，Rh阴性",
-		"magnifier+fiber":   "发现衣物纤维：与嫌疑人外套吻合",
-		"tape+footprint":    "推断身高范围：约1.75–1.80米",
-		"chemistry+pill":    "检出生物碱：疑似番木鳖碱（士的宁）",
-		"plaster+footprint": "石膏翻模完成，可比对鞋底花纹",
+		# —— 场景二 花园（garden）——
+		"tape+c202": "卷尺测量：轴距约3.8英尺、轮宽约2英寸——典型伦敦出租马车（为钻小巷做得窄）",
+		"tape+c205": "卷尺测量：大步子步幅4.5英尺、小步子3.5英尺——两人身高约6英尺与5英尺4英寸",
+		"tape+c206": "卷尺测量：步幅约4.5英尺→身高约6英尺（183cm）的大个子",
+		"magnifier+c203": "放大镜下：右前蹄铁崭新锐利、其余三蹄磨损——右前蹄最近刚换过",
+		"magnifier+c204": "放大镜下：蹄印走向散乱有迂回——马曾无人看管，车夫很可能进了屋",
+		# —— 场景三 室内（indoor）——
+		"magnifier+c301": "放大镜下：面部肌肉扭曲、瞳孔收缩——那种表情不是一般的死亡",
+		"magnifier+c304": "放大镜下：名片「伊诺克·J·德雷伯」与金表刻字、衬衣缩写三重印证",
+		"magnifier+c306": "放大镜下：共济会金戒指内侧磨损——佩戴者多为中产及以上",
+		"magnifier+c307": "放大镜下：《十日谈》扉页手写「约瑟夫·斯特兰森」——与信件收件人对上",
+		"magnifier+c309": "放大镜下：RACHE 笔画边缘有墙粉刮痕——写字人指甲未修剪",
+		"magnifier+c310": "放大镜下：烟灰深黑薄片状——印度雪茄特征，非普通纸烟",
+		"magnifier+d1_top": "放大镜下：墙角旧木陀螺刻花、漆皮剥落——空屋曾住过一家人",
+		"tape+c309": "卷尺测量：RACHE 离地约6英尺——书写者身高约6英尺",
+		"tape+c311": "卷尺测量：步幅约4.5英尺——与花园发现一致：六英尺高个子、方头靴",
+		"chemistry+c302": "化学检验：无外伤+嘴唇暗紫+痛苦死亡→生物碱中毒可能性很大",
+		"plaster+c311": "石膏翻模完成：尘土中漆皮靴+方头靴两枚脚印，可比对鞋底花纹",
+		"directory+c304": "黄页查址：名片「克利夫兰」→ 德雷伯旅英下落可追溯",
+		"directory+c308": "黄页溯源：礼帽内衬商标指向伦敦帽店，锁定死者落脚点",
+		"newspaper+c307": "据《十日谈》题字登报协查：斯特兰森身份可经报社确认",
+		# —— 场景七 旅馆（scene7）——
+		"chemistry+C_SOTCB_704": "化学检验：木匣灰色半透明药丸味苦，含生物碱剧毒",
+		"chemistry+C_SOTCB_705": "化学实验：两粒药丸一毒一无毒——凶手的「上帝裁决」式选择",
+		"plaster+C_SOTCB_703": "石膏翻模：窗台湿脚印，确认凶手翻窗进出、不走正门",
+		"magnifier+C_SOTCB_702": "放大镜下：脸上 RACHE 字迹与第一案墙上相似——两案共同铁证",
+		"directory+C_SOTCB_706": "黄页/电报核查：J.H.现欧洲——J.H.=杰弗森·霍普？",
+		"rope+C_SOTCB_703": "绳索痕迹：窗沿摩擦痕显示凶手以绳类固定身体翻窗而下",
+		# —— 通用兜底（命中即给通用发现）——
 		"handcuffs+suspect": "嫌疑人已被制服",
-		"directory+name":    "查得住址与职业信息",
+		"plaster+footprint": "石膏翻模完成，可比对鞋底花纹",
+		"directory+name": "查得住址与职业信息",
 		"newspaper+article": "发现同期悬赏启事，暗合案情",
 	}
+
+## 工具 id → 中文名（用于匹配热点数据里的 "tool" 中文标签，如 "放大镜"/"卷尺"）
+func tool_cn_name(tool_id: String) -> String:
+	match tool_id:
+		"magnifier": return "放大镜"
+		"tape": return "卷尺"
+		"chemistry": return "化学试剂盒"
+		"directory": return "黄页"
+		"handcuffs": return "手铐"
+		"rope": return "绳索"
+		"newspaper": return "报纸"
+		"plaster": return "石膏粉"
+	return ""
+
+## 仅查询是否存在 tool+clue 组合（不触发信号，供工具栏高亮判定用）
+func has_combination(tool_id: String, clue_id: String) -> bool:
+	return combinations.has("%s+%s" % [tool_id, clue_id])
 
 ## 案件级组合规则合并（未来由案件 .tres 提供）
 func register_case_combinations(rules: Dictionary) -> void:
