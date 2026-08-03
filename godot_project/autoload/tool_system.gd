@@ -66,6 +66,14 @@ func use_tool_on(tool_id: String, target_id: String) -> String:
 		UIEventBus.emit_signal("tool_discovery_triggered", tool_id, target_id, result)
 	return result
 
+## 返回某线索对某道具的「关联 reveal」（图片/测量/黄页登记等富数据）。
+## 当前没有结构化的 reveal 数据，统一返回空字典，由调用方（ToolBar）
+## 回退到 use_tool_on 组合表或通用兜底，避免 Invalid call 运行时崩溃。
+## 后续若案件数据提供 reveal（如 {"kind":"image","image":...,"anchor":...}），
+## 在此按 clue_id+tool_id 查表返回即可，ToolBar 的 image/measure 分支会自动生效。
+func get_clue_tool_reveal(clue_id: String, tool_id: String) -> Dictionary:
+	return {}
+
 func _on_tool_used(tool_name: String, target_id: String = "") -> void:
 	# 来自 UI（tool_bar）的触发，用当前选中工具或传入工具名驱动发现
 	var tid := selected_tool if selected_tool != "" else tool_name

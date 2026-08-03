@@ -46,7 +46,28 @@ var _panel: PanelContainer
 var _lens_overlay: Control                     # 放大镜镜头覆盖层
 var _tape_overlay: Control                     # 卷尺拖拽层
 var _interaction_popup: AcceptDialog           # 化学试剂/黄页弹窗
-var _current_target_id: String = ""            # 当前操作的目标热点 ID
+var _current_target_id: String = ""
+
+## 放大镜着色器：采样主视口纹理，在镜片圆形区域内按 zoom 倍率放大显示光标背后的画面。
+## viewport_tex 在 _process 中每帧更新为 get_viewport().get_texture()（上一帧渲染结果）。
+const MAGNIFIER_SHADER := """shader_type canvas_item;
+uniform sampler2D viewport_tex;
+uniform vec2 lens_screen_pos;
+uniform vec2 viewport_size;
+uniform vec2 glass_size;
+uniform float zoom;
+void fragment() {
+	vec2 uv = UV - 0.5;
+	vec2 center = lens_screen_pos / viewport_size;
+	center.y = 1.0 - center.y;            // 视口纹理原点在左上，UV 原点在左下，需翻转 Y
+	vec2 off = uv * (glass_size / zoom) / viewport_size;
+	vec2 sample_uv = center + off;
+	vec3 col = texture(viewport_tex, sample_uv).rgb;
+	float d = distance(UV, vec2(0.5));
+	float alpha = smoothstep(0.5, 0.47, d);   // 圆形裁切，镜片外透明
+	COLOR = vec4(col, alpha);
+}
+"""            # 当前操作的目标热点 ID
 
 func _ready() -> void:
 	# 根节点为标准 Control，铺满全屏但 mouse_filter=IGNORE：
@@ -167,7 +188,7 @@ func _build_lens_overlay() -> void:
 	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_lens_overlay.add_child(ring)
 
-	# 玻璃区域（用于显示放大内容）
+	# 玻璃区域（着色器采样主视口纹理实现真实放大）
 	var glass := TextureRect.new()
 	glass.name = "Glass"
 	glass.size = Vector2(148, 148)
@@ -175,6 +196,11 @@ func _build_lens_overlay() -> void:
 	glass.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	glass.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mag_shader := Shader.new()
+	mag_shader.code = MAGNIFIER_SHADER
+	var mag_mat := ShaderMaterial.new()
+	mag_mat.shader = mag_shader
+	glass.material = mag_mat
 	_lens_overlay.add_child(glass)
 
 	# 观察提示标签
@@ -190,8 +216,10 @@ func _build_lens_overlay() -> void:
 func _build_tape_overlay() -> void:
 	_tape_overlay = Control.new()
 	_tape_overlay.name = "TapeOverlay"
-	_tape_overlay.mouse_filter = Control.MOUSE_FILTER_PASS
-	_tape_overlay.z_index = 200
+	# 全屏 + STOP：真正接收点击（之前尺寸 0×0 且 PASS → gui_input 永远收不到）
+	_tape_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_tape_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_tape_overlay.z_index = 100   # 低于工具栏面板(150)，保证面板按钮仍可点
 	_tape_overlay.visible = false
 	add_child(_tape_overlay)
 
@@ -201,6 +229,16 @@ func _build_tape_overlay() -> void:
 	line.width = 3
 	line.default_color = Color(0.78, 0.63, 0.29)
 	_tape_overlay.add_child(line)
+
+	# 端点标记
+	var ma := ColorRect.new()
+	ma.name = "MarkerA"; ma.size = Vector2(12, 12)
+	ma.color = Color(0.95, 0.80, 0.35); ma.visible = false
+	_tape_overlay.add_child(ma)
+	var mb := ColorRect.new()
+	mb.name = "MarkerB"; mb.size = Vector2(12, 12)
+	mb.color = Color(0.95, 0.80, 0.35); mb.visible = false
+	_tape_overlay.add_child(mb)
 
 	# 读数标签
 	var lbl := Label.new()
@@ -378,12 +416,28 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion:
 		_lens_overlay.position = event.position
-		_magnifier_timer += get_process_delta_time()
-		if _magnifier_timer >= MAG_DISCOVER_TIME:
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		# 点击快捷发现（需已停留片刻，避免误触）
+		if _magnifier_timer > 0.4:
 			_discover_with_magnifier()
-	elif event is InputEventMouseButton and event.pressed:
-		if _magnifier_timer > 0.5:
-			_discover_with_magnifier()
+
+## 每帧：更新放大镜着色器参数（采样主视口纹理实现真实放大）+ 累计停留计时触发发现。
+func _process(delta: float) -> void:
+	if not _magnifier_active:
+		return
+	var vp := get_viewport()
+	var glass: TextureRect = _lens_overlay.get_node_or_null("Glass")
+	if glass and glass.material is ShaderMaterial:
+		if glass.texture == null:
+			glass.texture = vp.get_texture()
+		glass.material.set_shader_parameter("viewport_tex", vp.get_texture())
+		glass.material.set_shader_parameter("lens_screen_pos", _lens_overlay.position)
+		glass.material.set_shader_parameter("viewport_size", vp.size)
+		glass.material.set_shader_parameter("glass_size", glass.size)
+		glass.material.set_shader_parameter("zoom", 2.2)
+	_magnifier_timer += delta
+	if _magnifier_timer >= MAG_DISCOVER_TIME:
+		_discover_with_magnifier()
 
 ## 取当前观察线索对某道具的关联 reveal（来自 ToolSystem.get_clue_tool_reveal）。
 ## 无关联（或当前无目标线索）返回空字典，调用方走通用兜底。
@@ -403,14 +457,45 @@ func _discover_with_magnifier() -> void:
 		selected_tool_id = ""
 		_show_clue_image_viewer(rev)
 		return
+	# 目标：优先用当前选定线索；否则取镜片下命中的热点（悬停即观察）
+	var target: String = _current_target_id
+	if target == "":
+		target = _hotspot_id_at(_lens_overlay.position)
 	var result := ""
-	if ToolSystem:
-		result = ToolSystem.use_tool_on("magnifier", _current_target_id)
+	if ToolSystem and target != "":
+		result = ToolSystem.use_tool_on("magnifier", target)
+	if result == "":
+		# 回退：直接展示该热点线索自身描述作为放大观察结果
+		var detail := _hotspot_desc(target)
+		if detail != "":
+			result = detail
 	if result == "":
 		result = "通过放大镜仔细观察了该区域，未发现异常特征。"
-	tool_completed.emit("magnifier", _current_target_id, result)
+	tool_completed.emit("magnifier", target, result)
 	_show_observation_result("🔍 放大镜观察", result)
 	selected_tool_id = ""
+
+## 取镜片屏幕坐标命中的热点 id（按当前场景 hotspots() 的 x/y/w/h 判定）。
+func _hotspot_id_at(pos: Vector2) -> String:
+	var sc = get_tree().current_scene
+	if sc and sc.has_method("hotspots"):
+		for h in sc.hotspots():
+			var hx := float(h.get("x", 0)); var hy := float(h.get("y", 0))
+			var hw := float(h.get("w", 0)); var hh := float(h.get("h", 0))
+			if pos.x >= hx and pos.x <= hx + hw and pos.y >= hy and pos.y <= hy + hh:
+				return h.get("id", "")
+	return ""
+
+## 取某热点 id 的描述文本（用于放大镜回退展示）。
+func _hotspot_desc(id: String) -> String:
+	if id == "":
+		return ""
+	var sc = get_tree().current_scene
+	if sc and sc.has_method("hotspots"):
+		for h in sc.hotspots():
+			if h.get("id", "") == id:
+				return h.get("desc", "")
+	return ""
 
 # ---- 放大镜：线索图片查看器（kind=="image" 关联时启用）----
 
@@ -565,27 +650,38 @@ func _start_tape() -> void:
 	if lbl: lbl.visible = false
 	var ok: Button = _tape_overlay.get_node_or_null("ConfirmBtn")
 	if ok: ok.visible = false
+	var ma: ColorRect = _tape_overlay.get_node_or_null("MarkerA")
+	if ma: ma.visible = false
+	var mb: ColorRect = _tape_overlay.get_node_or_null("MarkerB")
+	if mb: mb.visible = false
 	if not _tape_overlay.gui_input.is_connected(_on_tape_gui_input):
 		_tape_overlay.gui_input.connect(_on_tape_gui_input)
 	UIManager.show_notification("点击起点开始测量")
 
 func _on_tape_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var line: Line2D = _tape_overlay.get_node_or_null("MeasureLine")
 		var lbl: Label = _tape_overlay.get_node_or_null("MeasureLabel")
 		var ok: Button = _tape_overlay.get_node_or_null("ConfirmBtn")
+		var ma: ColorRect = _tape_overlay.get_node_or_null("MarkerA")
+		var mb: ColorRect = _tape_overlay.get_node_or_null("MarkerB")
 
 		if not _tape_measuring:
 			# 设起点
 			_tape_start = event.position
 			_tape_measuring = true
-			if line: line.add_point(_tape_start)
+			if line:
+				line.clear_points()
+				line.add_point(_tape_start)
+				line.add_point(_tape_start)
+			if ma: ma.position = _tape_start - Vector2(6, 6); ma.visible = true
 			UIManager.show_notification("点击终点完成测量")
 		else:
 			# 设终点
-			if line: line.add_point(event.position)
+			if line: line.set_point_position(1, event.position)
+			if mb: mb.position = event.position - Vector2(6, 6); mb.visible = true
 			var dist_px := _tape_start.distance_to(event.position)
-			# 换算为英尺（假设 100px ≈ 1 英尺，游戏内合理比例）
+			# 换算为英尺（100px ≈ 1 英尺，游戏内合理比例）
 			var dist_ft := dist_px / 100.0
 			var dist_in := (dist_ft - int(dist_ft)) * 12.0
 			if lbl:
@@ -598,7 +694,8 @@ func _on_tape_gui_input(event: InputEvent) -> void:
 
 func _confirm_tape_measurement() -> void:
 	_tape_overlay.visible = false
-	_tape_overlay.gui_input.disconnect(_on_tape_gui_input)
+	if _tape_overlay.gui_input.is_connected(_on_tape_gui_input):
+		_tape_overlay.gui_input.disconnect(_on_tape_gui_input)
 	# 关联线索的「卷尺测量」：直接显示测量读数，无需拖拽
 	var rev: Dictionary = _clue_reveal_for("tape")
 	if not rev.is_empty() and rev.get("kind", "") == "measure":
@@ -612,7 +709,13 @@ func _confirm_tape_measurement() -> void:
 	if ToolSystem:
 		result = ToolSystem.use_tool_on("tape", _current_target_id)
 	if result == "":
-		result = "测量完成，已记录距离数据。"
+		# 自由测量：报告当前读数
+		var line: Line2D = _tape_overlay.get_node_or_null("MeasureLine")
+		var reading := ""
+		if line and line.get_point_count() >= 2:
+			var d := line.get_point_position(0).distance_to(line.get_point_position(1))
+			reading = "%.1f ft (%.0f in)" % [d / 100.0, (d / 100.0 - int(d / 100.0)) * 12.0]
+		result = ("测量完成：" + reading) if reading != "" else "测量完成，已记录距离数据。"
 	tool_completed.emit("tape", _current_target_id, result)
 	_show_observation_result("📏 测量记录", result)
 	selected_tool_id = ""
