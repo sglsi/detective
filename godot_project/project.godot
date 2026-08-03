@@ -45,6 +45,7 @@ StarRatingSystem="*res://autoload/star_rating_system.gd"
 APIManager="*res://autoload/api_manager.gd"
 AuthManager="*res://autoload/auth_manager.gd"
 SaveManager="*res://autoload/save_manager.gd"
+DataPortability="*res://autoload/data_portability.gd"
 UIManager="*res://autoload/ui_manager.gd"
 NotificationSystem="*res://scripts/ui/notification.gd"
 MapManager="*res://autoload/map_manager.gd"
@@ -67,7 +68,7 @@ window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/size/mode=2
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
+window/stretch/aspect="keep_height"
 
 [gui]
 

@@ -29,6 +29,8 @@ var _props: Dictionary = {}             # 已获取道具 {id: {name, desc, icon
 var _obs_text_lbl: Label               # ClueObserver 文本标签（场景二/三用占位标签）
 var _obs_speaker_lbl: Label
 
+const WindowDrag = preload("res://scripts/ui/window_drag.gd")
+
 # ===================== 生命周期骨架（子类通过 virtual 钩子定制） =====================
 func _ready() -> void:
 	if DifficultyManager: _difficulty = DifficultyManager.current_difficulty
@@ -74,14 +76,22 @@ func _build_ui() -> void:
 ## 实例化 ToolBar 并连接信号（按 §4.3.4 六步闭环 Step 2）
 var _toolbar: ToolBar = null
 func _setup_toolbar() -> void:
-	if not ClassDB.class_exists("ToolBar"):
-		return  # tool_bar.gd 未加载时安全跳过
+	# ToolBar 是核心工程脚本，始终存在；不判空（ClassDB.class_exists 对脚本类恒 false，
+	# ResourceLoader.exists 在导出包里对 .gd 路径不可靠，两种判空都已在生产环境翻车）
 	_toolbar = ToolBar.new(); _toolbar.name = "ToolBar"; add_child(_toolbar)
 	_toolbar.tool_activated.connect(_on_tool_activated)
 	_toolbar.tool_completed.connect(_on_tool_completed)
 	# 场景控制器进入 STEP_2_TOOL 时显示工具栏
 	if SceneEventBus:
 		SceneEventBus.step_changed.connect(_on_step_changed)
+		# 热点被点击即视为「当前正在观察的线索」→ 工具栏据此查 线索↔道具 关联
+		SceneEventBus.hotspot_clicked.connect(_on_hotspot_clicked_for_tool)
+
+## 玩家点击线索热点时，把该线索设为工具栏的当前目标，
+## 使放大镜/卷尺/黄页等道具能查到对应的线索关联（看图片/测量/查地址）。
+func _on_hotspot_clicked_for_tool(clue_id: String) -> void:
+	if _toolbar:
+		_toolbar.set_target(clue_id)
 
 func _on_tool_activated(tool_id: String) -> void:
 	print("[DetectiveScene] 工具激活:", tool_id)
@@ -251,9 +261,12 @@ func _toggle_observe() -> void:
 	if _obs.is_active():
 		_obs.hide()
 		_ui.show_notification("观察模式关闭")
+		if _toolbar: _toolbar.hide_toolbar()
 	else:
 		_obs.show()
 		_ui.show_notification(_observe_open_msg())
+		# 进入观察即弹出道具工具栏（放大镜/卷尺/黄页等），不再依赖单独按钮时机
+		if _toolbar: _toolbar.show_toolbar()
 
 func _npc_talk() -> void:
 	_ui.set_dialogue("", _npc_talk_text(_clues.size()))
@@ -261,6 +274,8 @@ func _npc_talk() -> void:
 func _use_magnifier() -> void:
 	if not _in_observe_phase(): _ui.show_notification("当前无法使用放大镜"); return
 	_obs.show(); _ui.show_notification(_magnifier_msg())
+	# 调查动作同样确保道具工具栏可见（基类场景二/三的唯一弹出入口）
+	if _toolbar: _toolbar.show_toolbar()
 
 # ===================== 推理墙（统一机制，参数化来源/假设/回调） =====================
 ## #146 根因修复：进入推理阶段的统一提示。
@@ -687,6 +702,11 @@ func _popup(title_txt: String, items: Array) -> void:
 	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
 	var tt = Label.new(); tt.text = title_txt; tt.position = Vector2(30, 20); tt.add_theme_font_size_override("font_size", 28)
 	tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
+	# 顶部拖拽手柄：按住标题区即可移动弹窗（透明覆盖，不挡视觉）
+	var drag_bar := Control.new(); drag_bar.name = "DragBar"
+	drag_bar.position = Vector2(0, 0); drag_bar.size = Vector2(1000, 64)
+	drag_bar.mouse_filter = Control.MOUSE_FILTER_STOP; o.add_child(drag_bar)
+	WindowDrag.make_draggable(o, drag_bar)
 	var sc = ScrollContainer.new(); sc.position = Vector2(30, 70); sc.size = Vector2(940, 570)
 	var ct = Control.new(); ct.size = Vector2(920, len(items) * 60)
 	var yy = 0
@@ -715,6 +735,11 @@ func _show_choice_panel(title_txt: String, options: Array) -> void:
 	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
 	var tt := Label.new(); tt.text = title_txt; tt.position = Vector2(30, 20); tt.add_theme_font_size_override("font_size", 26)
 	tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
+	# 顶部拖拽手柄：按住标题区即可移动面板（透明覆盖，不挡视觉；选项按钮从 y=84 起，不冲突）
+	var drag_bar := Control.new(); drag_bar.name = "DragBar"
+	drag_bar.position = Vector2(0, 0); drag_bar.size = Vector2(1000, 80)
+	drag_bar.mouse_filter = Control.MOUSE_FILTER_STOP; o.add_child(drag_bar)
+	WindowDrag.make_draggable(o, drag_bar)
 	var y := 84
 	for opt in options:
 		var b := Button.new()

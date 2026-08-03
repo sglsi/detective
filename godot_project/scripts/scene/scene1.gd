@@ -23,7 +23,11 @@ var _stars_insight := 1
 var _look_active := false
 var _talk_active := false
 
-func scene_background() -> Texture2D: return load("res://assets/scenes/sc_01_lab.jpg")
+## 场景一是贝克街221B室内（华生登场），必须用维多利亚起居室。
+## ⚠️ 曾误挂 crime_scene_1920x1080.jpg（命案现场），与场景三「劳瑞斯顿花园街3号·室内」
+## 内容撞车，玩家在场景一会看到场景三的现场图。换图时注意与各场景所在地对应：
+##   scene1 贝克街221B室内 / scene2 花园外景 / scene3 命案现场室内。
+func scene_background() -> Texture2D: return load("res://assets/backgrounds/baker_street_parlor.jpg")
 
 func _ready() -> void:
 	super._ready()
@@ -36,13 +40,17 @@ func _restore_saved_state() -> bool:
 	if ss.is_empty(): return false
 	var saved_phase := int(ss.get("phase", 0))
 	var saved_ids: Array = ss.get("clue_ids", [])
+	# 兼容旧存档：华生左肩线索早期 id 为 "arm"，现统一为 "shoulder"（与观察器/锚点表一致）。
+	# 只做读取时的就地映射，绝不改写或删除玩家存档文件。
+	for i in range(saved_ids.size()):
+		if str(saved_ids[i]) == "arm": saved_ids[i] = "shoulder"
 	if ClueSystem:
 		ClueSystem.clear_source("watson")
 		ClueSystem.clear_source("messenger")
 		for cid in saved_ids:
 			var h = _find_hotspot(cid)
 			if not h.is_empty():
-				var src := "watson" if cid in ["wrist","arm","face","pose"] else "messenger"
+				var src := "watson" if cid in ["wrist","shoulder","face","pose"] else "messenger"
 				ClueSystem.collect_clue_from_catalog(cid, h.get("name", cid), h.get("desc",""), h.get("correct", true), src)
 	_phase = saved_phase
 	_create_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
@@ -56,14 +64,14 @@ func _restore_saved_state() -> bool:
 			return true
 		Phase.OBSERVE_WATSON:
 			if _portrait_ctrl: _portrait_ctrl.visible = true
-			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","arm","face","pose"])
+			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","shoulder","face","pose"])
 			if _watson_obs.get_recorded() >= 4:
 				_on_watson_all_recorded(_watson_obs.get_recorded_clues()); return true
 			_ui.set_dialogue("提示", "已恢复进度 — 华生观察阶段（已收集 "+str(_watson_obs.get_recorded())+"/4 条）\n点击 LOOK 查看剩余标记点")
 			return true
 		Phase.WATSON_REASONING:
 			_phase = Phase.WATSON_REASONING; _wall_auto = false
-			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","arm","face","pose"])
+			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","shoulder","face","pose"])
 			_show_watson_reasoning_wall()
 			return true
 		Phase.MESSENGER_OBSERVE:
@@ -89,6 +97,12 @@ func _find_hotspot(id: String) -> Dictionary:
 		if h.get("id","") == id: return h
 	return {}
 
+## 观察器内部的热点信号转发到全局 SceneEventBus.hotspot_clicked，
+## 让工具栏（放大镜/卷尺/黄页）知道「当前正在看哪条细节」。
+func _on_obs_hotspot_to_tool(clue_id: String) -> void:
+	if SceneEventBus:
+		SceneEventBus.hotspot_clicked.emit(clue_id)
+
 func _phase_name(p: int) -> String:
 	match p:
 		Phase.MRS_HUDSON: return "赫德森太太开场"
@@ -102,7 +116,7 @@ func _phase_name(p: int) -> String:
 		_: return "未知阶段"
 
 func _all_hotspots() -> Array:
-	var w = [{"id":"wrist","name":"手腕肤色分界","desc":"华生手腕肤色分界明显——长期暴露于热带阳光"},{"id":"arm","name":"左臂僵硬","desc":"华生左臂动作僵硬，似有旧伤"},{"id":"face","name":"面色黝黑憔悴","desc":"华生面色黝黑且憔悴——久病初愈的迹象"},{"id":"pose","name":"军人站姿","desc":"华生站姿挺拔，带有明显军人气质"}]
+	var w = [{"id":"wrist","name":"手腕肤色分界","desc":"华生手腕肤色分界明显——长期暴露于热带阳光"},{"id":"shoulder","name":"左肩旧伤","desc":"华生左肩动作略显僵硬——战场负伤留下的旧疾"},{"id":"face","name":"面色黝黑憔悴","desc":"华生面色黝黑且憔悴——久病初愈的迹象"},{"id":"pose","name":"军人站姿","desc":"华生站姿挺拔，带有明显军人气质"}]
 	var m = [{"id":"tattoo","name":"锚形文身","desc":"信使手背上有蓝色锚形文身——皇家海军标志"},{"id":"beard","name":"络腮胡","desc":"信使留着军人式络腮胡"},{"id":"posture","name":"挺拔站姿","desc":"信使站姿挺拔有力"},{"id":"manner","name":"神态平静","desc":"信使神态从容淡定"},{"id":"sleeve","name":"袖口细节","desc":"信使袖口有磨损痕迹"},{"id":"limp","name":"轻微跛行","desc":"信使走路有轻微跛行"}]
 	var r: Array = []
 	r.append_array(w); r.append_array(m)
@@ -116,16 +130,19 @@ func _init_game_state() -> void:
 
 func _build_ui() -> void:
 	_ui = SceneFramework.new(); _ui.name = "ui"; add_child(_ui)
-	_ui.setup("贝克街221B", "DAY 1 上午10:30")
-	var tex = load("res://assets/characters/watson/watson_standing.png")
+	_ui.setup("贝克街221B", "DAY 1 上午10:30", scene_background())
+	# 实例化道具工具栏（基类 _setup_toolbar 在 super._build_ui 中，但本场景覆盖了 _build_ui，
+	# 故在此显式调用，否则 _toolbar 为 null → 调查按钮无法显示/选择工具）
+	_setup_toolbar()
+	var tex = load("res://assets/characters/watson/watson_teaching.png")
 	if tex:
-		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(160, 350), Vector2(280, 360))
+		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(160, 350), Vector2(280, 360), false)
 		# 默认隐藏：仅在 OBSERVE_WATSON 阶段显示
 		if _portrait_ctrl: _portrait_ctrl.visible = false
 	# 信使立绘（默认隐藏，MESSENGER_OBSERVE 阶段显示）
 	var mtex = load("res://assets/characters/messenger/messenger_portrait.png")
 	if mtex:
-		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(580, 300), Vector2(280, 420))
+		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(580, 300), Vector2(280, 420), false)
 		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false
 
 ## 场景一用 UI 内部对话标签渲染观察层，不需要占位标签
@@ -134,40 +151,45 @@ func _create_dummy_labels() -> void:
 
 ## 创建两组观察器（华生 / 信使），各自连线到本场景回调
 func _create_observers() -> void:
-	var tex = load("res://assets/characters/watson/watson_standing.png")
+	var tex = load("res://assets/characters/watson/watson_teaching.png")
 	var sa = _ui.get_scene_area()
 	_watson_obs = ClueObserver.new(); _watson_obs.name = "watson_observer"; add_child(_watson_obs)
 	_watson_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, [
+		# crop 为「锚点表缺失时」的回退取景，数值已与 clue_image_anchors.gd
+		# 中 watson_teaching.png 的定稿锚点对齐（x=cx-w/2, y=cy-h/2, cx=cx+w/2, cy=cy+h/2）
 		{"id":"wrist","label":"手腕肤色分界","x":580,"y":400,"w":100,"h":60,"desc":"手部微晒黑，手腕偏白 -> 刚从热带回来",
-		 "crop":{"x":0.10,"y":0.55,"cx":0.42,"cy":0.85}},
-		{"id":"arm","label":"左臂僵硬","x":450,"y":450,"w":100,"h":70,"desc":"左臂动作略显僵硬 -> 战场负伤",
-		 "crop":{"x":0.62,"y":0.40,"cx":0.88,"cy":0.72}},
+		 "crop":{"x":0.2215,"y":0.5605,"cx":0.4985,"cy":0.7695}},
+		{"id":"shoulder","label":"左肩旧伤","x":450,"y":450,"w":100,"h":70,"desc":"左肩动作略显僵硬 -> 战场负伤",
+		 "crop":{"x":0.5845,"y":0.3225,"cx":0.7575,"cy":0.4575}},
 		{"id":"face","label":"面色憔悴","x":520,"y":240,"w":110,"h":70,"desc":"面色微晒黑且憔悴 -> 久病初愈",
-		 "crop":{"x":0.34,"y":0.06,"cx":0.64,"cy":0.38}},
+		 "crop":{"x":0.392,"y":0.040,"cx":0.632,"cy":0.326}},
 		{"id":"pose","label":"军人站姿","x":500,"y":600,"w":130,"h":80,"desc":"站姿挺拔 -> 阿富汗军医",
-		 "crop":{"x":0.22,"y":0.60,"cx":0.82,"cy":1.00}},
+		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0}},
 	], tex)
 	_watson_obs.all_recorded.connect(_on_watson_all_recorded)
 	_watson_obs.clue_recorded.connect(_on_collect_clue.bind("watson"))
+	# 把观察热点转发到全局 SceneEventBus，使工具栏能用「放大镜/卷尺/黄页」定位当前细节
+	_watson_obs.hotspot_clicked.connect(_on_obs_hotspot_to_tool)
 
 	_messenger_obs = ClueObserver.new(); _messenger_obs.name = "messenger_observer"; add_child(_messenger_obs)
 	var mess_tex = load("res://assets/characters/messenger/messenger_portrait.png")
 	_messenger_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, [
 		{"id":"tattoo","label":"手背锚文身","x":580,"y":260,"w":130,"h":50,"desc":"蓝色锚形文身 -> 海军标志","correct":true,
-		 "crop":{"x":0.02,"y":0.22,"cx":0.22,"cy":0.42}},
+		 "crop":{"x":0.16,"y":0.39,"cx":0.46,"cy":0.59}},
 		{"id":"beard","label":"络腮胡须","x":680,"y":200,"w":120,"h":55,"desc":"军人式络腮胡 -> 军队常见","correct":true,
-		 "crop":{"x":0.38,"y":0.12,"cx":0.62,"cy":0.35}},
+		 "crop":{"x":0.36884,"y":0.1568,"cx":0.59970,"cy":0.3408}},
 		{"id":"posture","label":"笔挺站姿","x":620,"y":520,"w":130,"h":60,"desc":"昂首挺胸 -> 军事训练","correct":true,
-		 "crop":{"x":0.25,"y":0.52,"cx":0.78,"cy":1.00}},
+		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0}},
 		{"id":"manner","label":"发号施令","x":520,"y":230,"w":110,"h":50,"desc":"发号施令 -> 军士/士官","correct":true,
-		 "crop":{"x":0.00,"y":0.10,"cx":0.30,"cy":0.45}},
+		 "crop":{"x":0.35698,"y":0.0855,"cx":0.60997,"cy":0.3500}},
 		{"id":"sleeve","label":"袖口磨损","x":780,"y":420,"w":115,"h":50,"desc":"袖口磨损 -> 干扰:衣服旧了","correct":false,
-		 "crop":{"x":0.72,"y":0.48,"cx":0.90,"cy":0.68}},
+		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72}},
 		{"id":"limp","label":"走路略跛","x":580,"y":600,"w":120,"h":55,"desc":"右腿略跛 -> 干扰:扭伤","correct":false,
-		 "crop":{"x":0.62,"y":0.78,"cx":0.82,"cy":1.00}},
+		 "crop":{"x":0.4905,"y":0.7800,"cx":0.7005,"cy":0.98768}},
 	], mess_tex)
 	_messenger_obs.all_recorded.connect(_on_messenger_all_recorded)
 	_messenger_obs.clue_recorded.connect(_on_collect_clue.bind("messenger"))
+	_messenger_obs.hotspot_clicked.connect(_on_obs_hotspot_to_tool)
 
 func _on_watson_all_recorded(clues: Array) -> void:
 	_watson_clues = clues; _wall_auto = true; _show_watson_reasoning_wall()
@@ -232,8 +254,15 @@ func _do_talk() -> void:
 func _do_examine() -> void:
 	if _phase == Phase.OBSERVE_WATSON or _phase == Phase.MESSENGER_OBSERVE:
 		_create_notification("🔍 放大镜工具 — 点击场景中的人物细节进行观察")
-		if not _look_active: _look_active = true; _ui.set_action_active("look", true)
-	else: _create_notification("请在观察阶段使用放大镜工具")
+		if not _look_active:
+			_look_active = true; _ui.set_action_active("look", true)
+		# 调查 = 弹出道具工具栏（放大镜/卷尺/黄页等）；进入观察阶段已自动弹出，此处确保可见
+		if _toolbar:
+			_toolbar.show_toolbar()
+	else:
+		_create_notification("请在观察阶段使用放大镜工具")
+		if _toolbar:
+			_toolbar.hide_toolbar()
 
 func _do_think() -> void:
 	if _phase == Phase.OBSERVE_WATSON and _watson_obs.get_recorded() > 0:
@@ -259,7 +288,7 @@ func _do_save(slot: int = -1) -> void:
 	for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
 	data["clue_ids"] = ids
 	for cid in ids:
-		if cid in ["wrist","arm","face","pose"]: data["watson_recorded"] += 1
+		if cid in ["wrist","shoulder","face","pose"]: data["watson_recorded"] += 1
 		else: data["messenger_recorded"] += 1
 	print("[SAVE scene1] phase=", _phase, " data=", data)
 	# 保存不需要选槽位：自动分配（空槽位优先，满则覆盖最旧）
@@ -315,6 +344,8 @@ func _on_opening_end() -> void:
 	_watson_obs.show()
 	_ui.set_dialogue("提示", "点击华生身上的按钮，观察 4 处线索。")
 	_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
+	# 进入观察阶段即自动弹出道具工具栏
+	if _toolbar: _toolbar.show_toolbar()
 
 func _on_line(_id: String) -> void:
 	var n = _dm.current_node; if not n: return
@@ -327,6 +358,7 @@ func _on_line(_id: String) -> void:
 # ===== 推理墙辅助（场景一为双组：watson / messenger，均走基类统一 _open_wall） =====
 func _show_watson_reasoning_wall() -> void:
 	_watson_obs.hide()
+	if _toolbar: _toolbar.hide_toolbar()
 	if _portrait_ctrl: _portrait_ctrl.visible = false
 	_phase = Phase.WATSON_REASONING
 	var hypo := {"title": "华生刚从阿富汗回来？", "description": "从华生身上的痕迹（手腕肤色分界、左臂旧伤、面色憔悴、军人站姿）推断其身份与经历。",
@@ -354,6 +386,8 @@ func _start_messenger_phase() -> void:
 	# 对齐 08 稿 v3.16.0 §阶段2信使到访（L395-416）
 	_phase = Phase.MESSENGER_OBSERVE; _messenger_obs.show()
 	if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
+	# 进入信使观察阶段即自动弹出道具工具栏
+	if _toolbar: _toolbar.show_toolbar()
 	_dm = DialogueManager.new(); add_child(_dm)
 	_dm.dialogue_advanced.connect(_on_line)
 	_dm.dialogue_ended.connect(_on_messenger_dialogue_end)
@@ -375,6 +409,7 @@ func _on_messenger_dialogue_end() -> void:
 
 func _show_messenger_reasoning_wall() -> void:
 	_messenger_obs.hide(); _phase = Phase.MESSENGER_REASONING
+	if _toolbar: _toolbar.hide_toolbar()
 	if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false
 	var hypo := {"title": "信使是海军陆战队军士？", "description": "从信使身上（锚形文身、络腮胡、挺拔站姿、发号施令神态）推断其军旅身份；注意分辨干扰项（袖口磨损、轻微跛行）。",
 		"battlefield": {

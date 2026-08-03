@@ -1,0 +1,76 @@
+## 线索 ↔ 图片锚点表（单一来源，数据驱动）
+##
+## 让任意线索都能稳定地"挂"在角色 / 物证图的指定解剖位置上，
+## 与显示缩放无关（坐标归一化 0~1，原点左上，相对该图自身像素尺寸）。
+##
+## 结构： image_path -> { anchor_name -> {cx, cy, w, h} }
+##   cx, cy : 锚点中心（0~1，左上原点）
+##   w,  h  : 锚点框尺寸（占该图宽 / 高的比例）
+##
+## 两类查看器都基于本表（全局唯一来源）：
+##   - ClueObserver（点身体部位观察）：以"立绘路径 + 线索 id"自动查锚点。
+##   - ToolBar 放大镜：reveal 里写 "anchor" 名称，配合 "image" 路径查锚点。
+## 查不到锚点 → 回退显示整图，绝不报错。
+##
+## 坐标约定（务必理解，否则标记会偏）：
+##   cx,cy 是"锚点中心"在图上的比例位置；w,h 是框的宽高比例。
+##   例如华生手腕在站立像下半部偏左：cx≈0.34, cy≈0.66。
+##
+## 校准（肉眼核对坐标是否落在正确解剖位置）：
+##   tools/gen_anchor_calibration.py 把当前锚点画到图上输出 anchor_calib_*.png，
+##   核对后只改本表即可，无需改代码。
+##
+## ⚠️ 本文件坐标是基于人形比例的最佳初值，需用校准图肉眼复核微调
+##    （agent 当前无法读图，故初始值可能需 1~2 轮校准）。
+
+const ANCHORS := {
+    # —— 华生「教学」姿全身像 512×512（正面；右手伸出、左肩可见）——
+    # 2026-08-02 用户要求：线索图改用 watson_teaching.png；
+    #   面部=整个头部、手腕=伸出的右手、肩部=左肩、站姿=全身。
+    "res://assets/characters/watson/watson_teaching.png": {
+        "face":    {"cx": 0.512, "cy": 0.183, "w": 0.24, "h": 0.286},  # 整个头部（向下扩展 30% 含下巴/颈，右移 2%+3%）
+        "wrist":   {"cx": 0.360, "cy": 0.665, "w": 0.277, "h": 0.209},  # 伸出的右手（再向下+2%，左上角固定）
+        "shoulder":{"cx": 0.671, "cy": 0.390, "w": 0.173, "h": 0.135},  # 左肩（向右/向下各平移20%框宽框高）
+        "pose":    {"cx": 0.50, "cy": 0.50, "w": 1.00, "h": 1.00},  # 全身站姿（整图）
+    },
+    # —— 信使 3/4 像 350×512（messenger_spritesheet.png，全不透明单张人物）——
+    # 2026-08-02 校准：beard 右扩2%+下移20%；manner 独立自身框右扩3%；
+    #   limp 右移25%；tattoo/sleeve/posture 维持上轮。
+    "res://assets/characters/messenger/messenger_spritesheet.png": {
+        "tattoo":  {"cx": 0.26, "cy": 0.49, "w": 0.20, "h": 0.20},  # 手背锚形文身（左移15%）
+        "beard":   {"cx": 0.48427, "cy": 0.2488, "w": 0.23086, "h": 0.184},  # 络腮胡（右扩2%+下移20%）
+        "posture": {"cx": 0.50, "cy": 0.50, "w": 1.00, "h": 1.00},  # 笔挺站姿（全图）
+        "manner":  {"cx": 0.48347, "cy": 0.21775, "w": 0.25299, "h": 0.2645},  # 发号施令神态（独立自身框右扩3%）
+        "sleeve":  {"cx": 0.7506, "cy": 0.62, "w": 0.18, "h": 0.20},  # 袖口磨损（右移10%）
+        "limp":    {"cx": 0.5955, "cy": 0.88384, "w": 0.21, "h": 0.20768},  # 轻微跛行（左移43%+下扩18%+左扩5%→本轮右移25%）
+    },
+    # —— 放大镜物证（scene3）：与 tool_clue_assoc 的 image 路径对应，便于将来迁移到锚点 ——
+    "res://assets/props/ring.png": {
+        "ring_inner": {"cx": 0.50, "cy": 0.50, "w": 0.42, "h": 0.42},  # 戒圈内刻字
+    },
+    "res://assets/clues/photo_watch.png": {
+        "watch_portrait": {"cx": 0.50, "cy": 0.50, "w": 0.50, "h": 0.50},  # 表壳内小像
+    },
+    "res://assets/clues/photo_drebber_body.png": {
+        "face": {"cx": 0.50, "cy": 0.30, "w": 0.50, "h": 0.40},  # 尸体面容
+    },
+}
+
+## 取锚点：返回 {"cx","cy","w","h"} 或空字典
+static func get_anchor(image_path: String, anchor_name: String) -> Dictionary:
+    if ANCHORS.has(image_path) and ANCHORS[image_path].has(anchor_name):
+        return ANCHORS[image_path][anchor_name]
+    return {}
+
+## 把热点自带 crop（{x,y,cx,cy} 归一化矩形）转成锚点 {cx,cy,w,h}
+static func crop_to_anchor(crop: Dictionary) -> Dictionary:
+    var x0: float = float(crop.get("x", 0.0))
+    var y0: float = float(crop.get("y", 0.0))
+    var x1: float = float(crop.get("cx", 1.0))
+    var y1: float = float(crop.get("cy", 1.0))
+    return {
+        "cx": (x0 + x1) / 2.0,
+        "cy": (y0 + y1) / 2.0,
+        "w": abs(x1 - x0),
+        "h": abs(y1 - y0),
+    }

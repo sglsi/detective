@@ -37,7 +37,8 @@
 ---
 
 ## 2. 改动后验证 SOP（改完必跑，顺序重要）
-1. **全量编译**：`godot --headless --check-only` → 零 SCRIPT/Compile/Parse Error。
+1. **全量编译**：`godot --headless --check-only --quit` → 零 SCRIPT/Compile/Parse Error。
+   ⚠️ 必须加 `--quit`，否则引擎挂起不退出（进程像被杀，shell 直接断）。
    ⚠️ 盲区：`--check-only` 不扫描仅被 `load()` 动态引用的脚本，需靠下一步兜底。
 2. **逐场景加载**：`godot --headless "res://scenes/<s>.tscn" --quit`
    （main_menu + scene1-8 + prototype_procedural_bg，共 10 个）→ 全 EXIT=0 且零 "SCRIPT ERROR"。
@@ -52,14 +53,39 @@
   判 Parse Error。须显式标注类型（`String`/`bool`/`int`）。
 - **弹窗/面板单例 + toggle**：每次 `add_child` 无互斥会"点几次叠几个"；
   用 `_modal_panel`/`_wall_instance` 引用 + 同名再点关闭。
-- **CanvasLayer 层级**：ToolBar=CanvasLayer(layer=128) 常驻主视口之上；推理墙是主视口子节点，
-  开墙须 `hide_toolbar()` 才置顶。
+- **CanvasLayer 层级**：ToolBar 是场景子 `Control`（非 CanvasLayer），`_panel.z_index=150` 抬到对话栏之上；
+  推理墙是主视口子节点，开墙须 `hide_toolbar()` 才置顶。
+- **`ClassDB.class_exists` 对脚本类恒为 false**：脚本 `class_name X` 只登记进全局脚本类表，
+  **不进 `ClassDB`**（ClassDB 只含引擎类）。用它判"脚本是否存在 / 能否实例化"会**静默跳过创建**
+  （工具栏曾因 `if not ClassDB.class_exists("ToolBar"): return` 整条不出现）。判脚本存在用
+  `ResourceLoader.exists("res://...x.gd")`，或直接用 `class_name` 全局名 `X.new()`。
 - **立绘映射**：`scripts/dialogue/portrait_library.gd` 的 `NPC_PORTRAITS` 按对话 `speaker`
   字段映射半身像路径；新增说话人必须同步补映射键，否则对话框半身像缺失。
 - **背景图**：场景背景为 `assets/scenes/sc_0N_*.jpg`（已压缩），脚本经 `sceneN.gd` 的
   `scene_background()` 动态 `load()`；删除/替换须同步改 `scene_controller.gd` 的映射表。
 - **提交风格**：中文 `feat:`/`fix:`/`chore:` 前缀，message 写清根因 + 验证结果；
   改完必跑 §2 SOP 再提交。
+- **⚠️ 场景底部对话栏 `_dialogue_bar` 会盖住任何同样贴底的 UI**：`scripts/ui/scene_framework.gd`
+  `const DIALOGUE_H := 230`，对话栏全宽贴在屏幕最底 **y=850~1080**。贴底 UI（工具栏/动作栏）若
+  用 `PRESET_BOTTOM_WIDE` 直接贴底会整条埋在对话栏下面（节点 `visible=true`、定位正确却画不出）。
+  **修法**：贴底 UI 必须抬到 `y<850`（对话栏之上）并提高 `z_index`（如 100，高于 SceneFramework 默认 0）。
+  （工具栏曾因此"看不到"，最终靠"临时挪屏幕中央 + 提 z_index"诊断锁定是被对话栏遮挡。）
+- **Godot `TextureButton` 默认 `ignore_texture_size=false`**：256×256 图标会把按钮撑到贴图原始尺寸，
+  撑高容器致面板越界。固定尺寸图标按钮务必 `ignore_texture_size = true` + `custom_minimum_size`。
+- **Web/桌面导出底部 UI 不可见，先查 `project.godot` 的 `window/stretch/aspect`**：`expand` 在窗口非
+  16:9 时裁掉底部/侧边，贴底 UI 用 `keep_height` 才能保证完整高度一直在屏内。
+- **调试"画不出"类 UI 问题**：临时把节点挪到屏幕中央 + 提 `z_index=4096` + 加唯一 `[DBG BUILD xxx]`
+  打印，可一锤定音区分"被遮挡 / 被裁切 / 根本没渲染"（三者处理方式完全不同）。
+- **⚠️ 工具栏"图标点不动"的真实根因（2026-08-03 定，已 headless 命中栈实测）**：
+  拖拽手柄 `TbDragHandle` 被直接加进 `PanelContainer` 当**第二子节点** → Godot 把多子节点都撑满面板
+  → 手柄矩形变成 `476×62` 几乎铺满整个工具栏、且 `mouse_filter=STOP`、作为后添加子节点位于最上层 →
+  **拦截了所有按钮按下事件**，表现为"能拖动（按手柄就拖）、但 8 个图标全点不了"。
+  ✅ **正确做法**：`PanelContainer` 只放一个 `VBoxContainer`，内分「标题条 `TbDragHandle`（仅 24px 顶部、作
+  拖拽区）+ 按钮行 `HBox`」，二者纵向不重叠。⚠️ 切勿再把拖拽手柄当 `PanelContainer` 第二子节点加进去。
+- **全屏 IGNORE 根"吞子按钮"是旧传言（已证伪，勿信）**：根节点用标准 `Control` + 铺满全屏
+  `mouse_filter=IGNORE` **不会**跳过子 `Control(STOP)` 的点击——headless 命中栈证明子 STOP 按钮位于最顶层、
+  图标正常可点。⚠️ 不要因此把根节点改回 `extends Node`：`Node` 根无 `show()/hide()`（须用子 `_panel.visible`），
+  而且它**并不能修复**图标点不动（真因是上面拖拽手柄铺满面板），改回 Node 反而会丢失根节点的全屏定位容器作用。
 
 ---
 
