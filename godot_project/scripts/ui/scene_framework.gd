@@ -37,6 +37,9 @@ var _speaker_portrait: TextureRect
 var _portraits: Array = []
 var _action_btns: Dictionary = {}
 var _nav_btns: Dictionary = {}
+# 放大镜可观察节点：背景 + 各立绘图片纹理（供 ToolBar 直接放大其真实纹理，不依赖屏幕捕获）
+var _mag_bg: TextureRect = null
+var _mag_portraits: Array[TextureRect] = []
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -66,6 +69,7 @@ func set_scene_background(tex: Texture2D) -> void:
 	bg.z_index = -10
 	_scene_area.add_child(bg)
 	_scene_area.move_child(bg, 0)
+	_mag_bg = bg   # 供放大镜直接放大背景纹理
 
 func add_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vector2, flip: bool = false) -> Control:
 	var port = _make_portrait(tex, name_text, pos, size, flip)
@@ -644,9 +648,21 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	port.add_child(img)
+	_mag_portraits.append(img)   # 供放大镜放大立绘纹理（立绘在上层，命中立绘优先于背景）
 
 	# 注：立绘名字条已按需求移除（scene_framework.gd 不再在场景中显示角色名）。
 	return port
+
+## 返回鼠标全局位置命中的最上层可放大节点（立绘优先于背景），供放大镜直接采样其纹理。
+## 不依赖屏幕捕获机制，Web 导出可靠。
+func get_magnifiable_at(global_pos: Vector2) -> TextureRect:
+	for i in range(_mag_portraits.size() - 1, -1, -1):
+		var n := _mag_portraits[i] as TextureRect
+		if n and is_instance_valid(n) and n.visible and n.get_global_rect().has_point(global_pos):
+			return n
+	if _mag_bg and is_instance_valid(_mag_bg) and _mag_bg.visible and _mag_bg.get_global_rect().has_point(global_pos):
+		return _mag_bg
+	return null
 
 # === 通用存/读档辅助（场景复用） ===
 
