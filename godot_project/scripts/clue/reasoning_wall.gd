@@ -28,13 +28,15 @@ var _card_btns: Dictionary = {}  # clue_id -> Button
 var _hypo_list: VBoxContainer = null   # 关联面板：已关联线索列表（点击条目弹详情）
 var _status_lbl: Label
 var _on_close: Callable = Callable()   # 关闭时回调（用于返回玩家进入前的状态）
+var _on_continue: Callable = Callable() # 继续收集回调（线索未收集完时，关墙后回到收集页面）
 var _verifying := false                 # 验证结果展示中，锁定「返回」避免误关
 
-func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL) -> void:
+func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable()) -> void:
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
 	_on_close = on_close
+	_on_continue = on_continue
 	_difficulty = difficulty
 	_battle = hypothesis.get("battlefield", {})
 	_init_milestones(hypothesis)
@@ -155,27 +157,27 @@ func _create_ui() -> void:
 	vb.pressed.connect(_on_verify_pressed)
 	add_child(vb)
 
-	# 返回（回到玩家进入推理墙前的场景状态）
+	# 继续收集（线索未收满时，关墙后回到未完成的线索收集页面）
 	var back = Button.new()
-	back.text = "← 返回探索"
-	back.position = Vector2(340, 620)
-	back.size = Vector2(250, 60)
+	back.text = "📋 继续收集线索"
+	back.position = Vector2(320, 620)
+	back.size = Vector2(280, 60)
 	back.add_theme_font_size_override("font_size", 24)
-	back.add_theme_color_override("font_color", Color(0.85, 0.80, 0.66))
+	back.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))
 	var bs = StyleBoxFlat.new()
-	bs.bg_color = Color(0.16, 0.14, 0.10, 0.95); bs.border_color = Color(0.55, 0.45, 0.25)
+	bs.bg_color = Color(0.18, 0.22, 0.12, 0.95); bs.border_color = Color(0.55, 0.70, 0.30)
 	bs.border_width_left = 2; bs.border_width_right = 2
 	bs.border_width_top = 2; bs.border_width_bottom = 2
 	bs.set_corner_radius_all(4)
 	back.add_theme_stylebox_override("normal", bs)
-	var bsh = bs.duplicate(); bsh.border_color = Color(0.80, 0.68, 0.38)
+	var bsh = bs.duplicate(); bsh.border_color = Color(0.80, 0.92, 0.40)
 	back.add_theme_stylebox_override("hover", bsh)
 	back.pressed.connect(_on_back_pressed)
 	add_child(back)
 
 	# 关闭
 	var cl = Button.new()
-	cl.text = "X 关闭"
+	cl.text = "✕ 关闭"
 	cl.position = Vector2(1800, 15); cl.size = Vector2(80, 35)
 	cl.add_theme_font_size_override("font_size", 14)
 	cl.add_theme_color_override("font_color", Color(0.6, 0.55, 0.45))
@@ -491,11 +493,13 @@ func _input(event: InputEvent) -> void:
 func close_wall() -> void:
 	_on_back_pressed()
 
-## 返回/关闭：先通知场景（用于恢复玩家进入前的状态），再销毁浮层。
-## 验证结果展示期间锁定，避免误关丢失判定。
+## 返回/关闭：验证结果展示期间锁定，避免误关丢失判定。
+## 若有「继续收集」回调（线索未收满就开墙），优先恢复线索收集页面；
+## 否则走普通关闭回调（回到玩家进入推理墙前的状态）。
 func _on_back_pressed() -> void:
 	if _verifying: return
-	if _on_close.is_valid(): _on_close.call()
+	if _on_continue.is_valid(): _on_continue.call()
+	elif _on_close.is_valid(): _on_close.call()
 	queue_free()
 
 func _on_verify_pressed() -> void:

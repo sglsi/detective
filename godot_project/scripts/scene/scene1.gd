@@ -394,7 +394,7 @@ func _show_watson_reasoning_wall() -> void:
 	_open_wall("watson", hypo, func(v: int):
 		_watson_v = v
 		_start_messenger_phase()
-	)
+	, Callable(self, "_resume_observe"))
 
 func _start_messenger_phase() -> void:
 	# 对齐 08 稿 v3.16.0 §阶段2信使到访（L395-416）
@@ -446,7 +446,26 @@ func _show_messenger_reasoning_wall() -> void:
 	_open_wall("messenger", hypo, func(v: int):
 		_messenger_v = v
 		_calc_stars(); _show_commission_letter_dialogue()
-	)
+	, Callable(self, "_resume_observe"))
+
+## 推理墙「继续收集线索」回调：把玩家从推理墙状态带回未完成的线索收集页面。
+## 开墙时 _show_*_reasoning_wall 已把 phase 改为 *_REASONING 并隐藏立绘/观察器，
+## 这里据此还原回对应的 *_OBSERVE 阶段，重新显示人物与可点击热点。
+func _resume_observe() -> void:
+	_wall_auto = false
+	if _phase == Phase.WATSON_REASONING:
+		_phase = Phase.OBSERVE_WATSON
+		if _portrait_ctrl: _portrait_ctrl.visible = true
+		_watson_obs.show()
+		_ui.set_dialogue("提示", "已回到华生观察 — 继续点击身上按钮收集剩余线索（" + str(_watson_obs.get_recorded()) + "/4）")
+		_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
+	elif _phase == Phase.MESSENGER_REASONING:
+		_phase = Phase.MESSENGER_OBSERVE
+		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
+		_messenger_obs.show()
+		_ui.set_dialogue("提示", "已回到信使观察 — 继续点击身上按钮收集剩余线索（" + str(_messenger_obs.get_recorded()) + "/6）")
+		_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
+	if _toolbar: _toolbar.show_toolbar()
 
 func _calc_stars() -> void:
 	_stars_observe = 2 if _watson_obs.get_recorded() >= 4 and _messenger_obs.get_recorded() >= 6 else 1

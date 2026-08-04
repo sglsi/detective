@@ -310,7 +310,7 @@ func _prompt_think(speaker: String, line: String, mood: String = "") -> void:
 ## hypothesis——假设字典（默认 reasoning_hypothesis()）。
 ## on_verify —— 验证后回调（默认 _default_wall_verify，按 _wall_auto 推进过渡）。
 ## 这样场景一与场景二/三共用同一套墙，杜绝「手搓墙 + 基类墙」两套机制并存。
-func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Callable = Callable()) -> void:
+func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Callable = Callable(), on_continue: Callable = Callable()) -> void:
 	# 单例 + 开关：已开则关闭（点一次出现，再点一次关闭），杜绝多重墙叠加导致显示异常
 	if _wall_instance and is_instance_valid(_wall_instance):
 		_wall_instance.close_wall()
@@ -337,7 +337,7 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var clues: Array = ClueSystem.get_collected(src) if ClueSystem else _clues
 	var hypo := hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
 	var cb := on_verify if on_verify.is_valid() else _default_wall_verify
-	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty)
+	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue)
 
 ## 默认验证回调：展示判定结果；REASONING 阶段则自动推进过渡。
 ## 三级反馈映射（06 §2.3 + 一致性报告 H-3）：已获证实+倾向成立→正确（绿）；
