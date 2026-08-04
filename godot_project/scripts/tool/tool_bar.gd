@@ -460,8 +460,9 @@ func _process(delta: float) -> void:
 	var glass: ColorRect = _lens_overlay.get_node_or_null("Glass")
 	if glass and glass.material is ShaderMaterial:
 		glass.material.set_shader_parameter("zoom", 2.6)
-		# lens_center 与着色器 SCREEN_UV 同处屏幕 UV 空间（原点左下，故 y 翻转）
-		var c := Vector2(mp.x / vp.size.x, 1.0 - mp.y / vp.size.y)
+		# Godot 4 的 SCREEN_UV 原点在左上，与 get_mouse_position() 一致，无需 y 翻转
+		# （之前多翻转一次导致上下颠倒：鼠标在头却放大屏幕底部内容、且越界变黑）
+		var c := Vector2(mp.x / vp.size.x, mp.y / vp.size.y)
 		glass.material.set_shader_parameter("lens_center", c)
 	_lens_overlay.global_position = mp   # 以视口绝对坐标定位镜片，确保视觉中心与采样中心一致
 	_magnifier_timer += delta   # 仅供点击发现的去抖阈值，不再自动触发发现
