@@ -49,16 +49,17 @@ var _interaction_popup: AcceptDialog           # 化学试剂/黄页弹窗
 var _current_target_id: String = ""
 var _cancel_btn: Button
 
-## 放大镜着色器：用 hint_screen_texture 声明屏幕纹理 uniform，在镜片圆形区域内按 zoom 倍率放大显示光标背后的画面。
-## Godot 4.x 已移除内置 SCREEN_TEXTURE，必须用 uniform sampler2D xxx : hint_screen_texture。
+## 放大镜着色器：直接用 get_viewport().get_texture() 主视口纹理（每帧更新 uniform），
+## 在镜片圆形区域内按 zoom 倍率放大显示光标背后的画面；不依赖 BackBufferCopy / screen_texture
+## （WebGL 下 screen_texture 易取到未初始化清屏灰、且需精确控制 z 层级才能让 BBC 抓到场景）。
 const MAGNIFIER_SHADER := """shader_type canvas_item;
-uniform sampler2D screen_texture : hint_screen_texture, repeat_disable, filter_nearest;
+uniform sampler2D screen_tex;
 uniform float zoom;
 uniform vec2 lens_center;
 void fragment() {
-	vec2 dir = SCREEN_UV - lens_center;
-	vec2 sample_uv = lens_center + dir / zoom;
-	vec3 col = texture(screen_texture, sample_uv).rgb;
+	vec2 c = UV - vec2(0.5);
+	vec2 sample_uv = lens_center + vec2(c.x, -c.y) / zoom;
+	vec3 col = texture(screen_tex, sample_uv).rgb;
 	float d = distance(UV, vec2(0.5));
 	float alpha = smoothstep(0.5, 0.485, d);
 	COLOR = vec4(col, alpha);
@@ -71,14 +72,7 @@ func _ready() -> void:
 	#   - 子面板(mouse_filter=STOP) 在工具栏区域正常接收点击，按钮优先于面板。
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# 全屏 BackBufferCopy：在放大镜着色器采样 screen_texture 前先把当前场景抓到可读纹理。
-	# 否则 WebGL 下 screen_texture 取到的是未初始化的清屏灰，镜片整体变灰。
-	# 必须绘制在镜片之前（z 最低），保证 glass 采样时场景已在 backbuffer 中。
-	var bbc := BackBufferCopy.new()
-	bbc.name = "ScreenCopy"
-	bbc.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
-	bbc.z_index = -100
-	add_child(bbc)
+	# 放大镜改用 get_viewport().get_texture() 直接采样主视口纹理（每帧更新 uniform），无需 BackBufferCopy。
 	_build_panel()
 	_build_lens_overlay()
 	_build_tape_overlay()
@@ -173,7 +167,7 @@ func _build_lens_overlay() -> void:
 	_lens_overlay = Control.new()
 	_lens_overlay.name = "LensOverlay"
 	_lens_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_lens_overlay.z_index = 200
+	_lens_overlay.z_index = 450   # 高于工具栏面板(400)，确保放大镜镜片始终在最上层
 	_lens_overlay.visible = false
 	_lens_overlay.draw.connect(_on_lens_draw)
 	add_child(_lens_overlay)
@@ -468,10 +462,10 @@ func _process(delta: float) -> void:
 	var glass: ColorRect = _lens_overlay.get_node_or_null("Glass")
 	if glass and glass.material is ShaderMaterial:
 		glass.material.set_shader_parameter("zoom", 2.6)
-		# Godot 4 的 SCREEN_UV 原点在左上，与 get_mouse_position() 一致，无需 y 翻转
-		# （之前多翻转一次导致上下颠倒：鼠标在头却放大屏幕底部内容、且越界变黑）
-		var c := Vector2(mp.x / vp.size.x, mp.y / vp.size.y)
+		# 主视口纹理 UV 原点在左下（GL 约定），鼠标原点在左上 → y 翻转，使镜片与光标背后画面精确对齐。
+		var c := Vector2(mp.x / vp.size.x, 1.0 - mp.y / vp.size.y)
 		glass.material.set_shader_parameter("lens_center", c)
+		glass.material.set_shader_parameter("screen_tex", vp.get_texture())
 	_lens_overlay.global_position = mp   # 以视口绝对坐标定位镜片，确保视觉中心与采样中心一致
 	_magnifier_timer += delta   # 仅供点击发现的去抖阈值，不再自动触发发现
 
