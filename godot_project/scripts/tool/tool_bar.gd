@@ -47,27 +47,21 @@ var _lens_overlay: Control                     # 放大镜镜头覆盖层
 var _tape_overlay: Control                     # 卷尺拖拽层
 var _interaction_popup: AcceptDialog           # 化学试剂/黄页弹窗
 var _current_target_id: String = ""
+var _cancel_btn: Button
 
-## 放大镜着色器：采样主视口纹理，在镜片圆形区域内按 zoom 倍率放大显示光标背后的画面。
-## viewport_tex 在 _process 中每帧更新为 get_viewport().get_texture()（上一帧渲染结果）。
+## 放大镜着色器：直接用 Godot 内置 SCREEN_TEXTURE 采样镜片背后的屏幕画面，按 zoom 倍率放大。
+## 旧方案手动传 get_viewport().get_texture() 在 Web 导出里取到黑纹理（主视口渲染到屏而非纹理），导致镜片漆黑；改 SCREEN_TEXTURE 后各平台可靠。
 const MAGNIFIER_SHADER := """shader_type canvas_item;
-uniform sampler2D viewport_tex;
-uniform vec2 lens_screen_pos;
-uniform vec2 viewport_size;
-uniform vec2 glass_size;
 uniform float zoom;
+uniform vec2 lens_center;
 void fragment() {
-	vec2 uv = UV - 0.5;
-	vec2 center = lens_screen_pos / viewport_size;
-	center.y = 1.0 - center.y;            // 视口纹理原点在左上，UV 原点在左下，需翻转 Y
-	vec2 off = uv * (glass_size / zoom) / viewport_size;
-	vec2 sample_uv = center + off;
-	vec3 col = texture(viewport_tex, sample_uv).rgb;
+	vec2 dir = SCREEN_UV - lens_center;
+	vec2 sample_uv = lens_center + dir / zoom;
+	vec3 col = texture(SCREEN_TEXTURE, sample_uv).rgb;
 	float d = distance(UV, vec2(0.5));
-	float alpha = smoothstep(0.5, 0.485, d);   // 圆形裁切，镜片外透明（半径约74，与圆框79对齐）
+	float alpha = smoothstep(0.5, 0.485, d);
 	COLOR = vec4(col, alpha);
-}
-"""            # 当前操作的目标热点 ID
+}"""            # 当前操作的目标热点 ID
 
 func _ready() -> void:
 	# 根节点为标准 Control，铺满全屏但 mouse_filter=IGNORE：
@@ -80,6 +74,7 @@ func _ready() -> void:
 	_build_lens_overlay()
 	_build_tape_overlay()
 	_build_interaction_popup()
+	_build_global_cancel()
 	_set_toolbar_visible(false)
 
 # ==================== UI 构建（纯代码，无 .tscn 依赖）====================
@@ -155,7 +150,7 @@ func _build_panel() -> void:
 
 	# 面板定位：底部居中。加高以容纳标题条(24) + 按钮行(48) + 内边距。
 	# 抬到对话栏（_dialogue_bar，占 y=850~1080，DIALOGUE_H=230）之上（y≈742~838）避免被盖住。
-	_panel.z_index = 150  # 高于 SceneFramework 对话栏，保证画在最上层且可点击
+	_panel.z_index = 400  # 高于 SceneFramework 对话栏，保证画在最上层且可点击
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_panel.offset_left = 0
@@ -258,6 +253,27 @@ func _build_interaction_popup() -> void:
 	_interaction_popup.canceled.connect(_on_popup_cancelled)
 	add_child(_interaction_popup)
 
+## 全局工具取消按钮：固定在右上角、z 最高，放大镜/卷尺激活时常驻。
+## 不依赖工具栏面板点击（避免卷尺全屏 STOP 覆盖层在某些情况下吞掉工具栏点击），保证随时可取消。
+func _build_global_cancel() -> void:
+	_cancel_btn = Button.new()
+	_cancel_btn.name = "GlobalCancel"
+	_cancel_btn.text = "✕ 关闭工具"
+	_cancel_btn.z_index = 500
+	_cancel_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	_cancel_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_cancel_btn.offset_left = -160
+	_cancel_btn.offset_right = -16
+	_cancel_btn.offset_top = 16
+	_cancel_btn.offset_bottom = 60
+	_cancel_btn.visible = false
+	_cancel_btn.pressed.connect(_cancel_tool)
+	add_child(_cancel_btn)
+
+## 刷新全局取消按钮可见性（放大镜/卷尺激活时显示）。
+func _update_cancel_btn() -> void:
+	if _cancel_btn:
+		_cancel_btn.visible = _magnifier_active or (_tape_overlay and _tape_overlay.visible)
 ## 给 AcceptDialog 弹窗加拖拽（标题栏区域作手柄）
 func _make_popup_draggable(popup: AcceptDialog) -> void:
 	# 等待一帧让弹窗布局完成
@@ -391,13 +407,12 @@ const MAG_DISCOVER_TIME := 2.5  # 停留秒数触发发现
 func _start_magnifier() -> void:
 	_lens_overlay.visible = true
 	_magnifier_timer = 0.0
-	var glass: TextureRect = _lens_overlay.get_node_or_null("Glass")
-	if glass: glass.texture = null  # 清空旧纹理
 	var hint: Label = _lens_overlay.get_node_or_null("HintLabel")
-	if hint: hint.text = "移动镜片寻找细节..."
+	if hint: hint.text = "移动镜片寻找细节，点击发现，ESC/✕ 关闭"
 	# 镜片跟随与发现改由 ToolBar._input 驱动（镜头层 mouse_filter=IGNORE 收不到 gui_input）。
 	_magnifier_active = true
 	_lens_overlay.queue_redraw()   # 重新绘制圆形镜片外框
+	_update_cancel_btn()
 
 ## 放大镜交互由 _input 驱动：镜头层为 mouse_filter=IGNORE（不挡热点点击），
 ## 故不能靠自身 gui_input，改为在 ToolBar 节点上接收全局输入并跟随光标。
@@ -416,6 +431,11 @@ func _on_lens_gui_input(event: InputEvent) -> void:
 ## 放大镜的全局输入入口：镜头层 mouse_filter=IGNORE 无法接收 gui_input，
 ## 故在此跟随光标并判定发现。不 consume 事件，热点点击仍会下发到观察器。
 func _input(event: InputEvent) -> void:
+	# ESC 随时取消当前工具交互（放大镜/卷尺），不依赖工具栏点击
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		if _magnifier_active or (_tape_overlay and _tape_overlay.visible):
+			_cancel_tool()
+			return
 	if not _magnifier_active:
 		return
 	if event is InputEventMouseMotion:
@@ -432,16 +452,11 @@ func _process(delta: float) -> void:
 	var vp := get_viewport()
 	var glass: TextureRect = _lens_overlay.get_node_or_null("Glass")
 	if glass and glass.material is ShaderMaterial:
-		if glass.texture == null:
-			glass.texture = vp.get_texture()
-		glass.material.set_shader_parameter("viewport_tex", vp.get_texture())
-		glass.material.set_shader_parameter("lens_screen_pos", _lens_overlay.position)
-		glass.material.set_shader_parameter("viewport_size", vp.size)
-		glass.material.set_shader_parameter("glass_size", glass.size)
-		glass.material.set_shader_parameter("zoom", 2.2)
-	_magnifier_timer += delta
-	if _magnifier_timer >= MAG_DISCOVER_TIME:
-		_discover_with_magnifier()
+		glass.material.set_shader_parameter("zoom", 2.6)
+		# 镜片中心在 SCREEN_UV 空间（屏幕像素 -> 0..1，y 翻转：SCREEN_UV 原点在左下）
+		var c := Vector2(_lens_overlay.position.x / vp.size.x, 1.0 - _lens_overlay.position.y / vp.size.y)
+		glass.material.set_shader_parameter("lens_center", c)
+	_magnifier_timer += delta   # 仅供点击发现的去抖阈值，不再自动触发发现
 
 ## 取当前观察线索对某道具的关联 reveal（来自 ToolSystem.get_clue_tool_reveal）。
 ## 无关联（或当前无目标线索）返回空字典，调用方走通用兜底。
@@ -453,6 +468,7 @@ func _clue_reveal_for(tool_id: String) -> Dictionary:
 func _discover_with_magnifier() -> void:
 	_lens_overlay.visible = false
 	_magnifier_active = false
+	_update_cancel_btn()
 	if _lens_overlay.gui_input.is_connected(_on_lens_gui_input):
 		_lens_overlay.gui_input.disconnect(_on_lens_gui_input)
 	# 关联线索的「放大镜看图片」：打开图片查看器而非通用无发现
@@ -689,6 +705,7 @@ var _tape_measuring: bool = false
 
 func _start_tape() -> void:
 	_tape_overlay.visible = true
+	_update_cancel_btn()
 	_tape_measuring = false
 	_tape_start = Vector2.ZERO
 	var line: Line2D = _tape_overlay.get_node_or_null("MeasureLine")
@@ -741,6 +758,7 @@ func _on_tape_gui_input(event: InputEvent) -> void:
 
 func _confirm_tape_measurement() -> void:
 	_tape_overlay.visible = false
+	_update_cancel_btn()
 	if _tape_overlay.gui_input.is_connected(_on_tape_gui_input):
 		_tape_overlay.gui_input.disconnect(_on_tape_gui_input)
 	# 关联线索的「卷尺测量」：直接显示该线索的卷尺专属发现（如轴距/步幅/身高推断）
@@ -946,3 +964,4 @@ func _cancel_any_overlay() -> void:
 	_magnifier_timer = 0.0
 	_magnifier_active = false
 	_tape_measuring = false
+	_update_cancel_btn()
