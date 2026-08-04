@@ -51,6 +51,9 @@ var _status_lbl: Label = null
 var _verdict_lbl: Label = null
 var _detail_popup: AcceptDialog = null
 var _history_panel: Control = null
+var _hist_win: PanelContainer = null          # 可拖动的窗口本体
+var _hist_drag := false
+var _hist_drag_offset := Vector2.ZERO
 
 var _card_btns: Dictionary = {}              # clue_id -> Button
 
@@ -162,17 +165,6 @@ func _create_top_bar() -> Control:
 	diff_lbl.offset_left = 320
 	diff_lbl.offset_right = 480
 	bar.add_child(diff_lbl)
-
-	# 返回调查：查看历史信息并回到调查阶段
-	var investigate_btn := Button.new()
-	investigate_btn.text = "🔍 返回调查"
-	investigate_btn.add_theme_font_size_override("font_size", 16)
-	investigate_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	investigate_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
-	investigate_btn.offset_right = -260
-	investigate_btn.offset_left = -420
-	investigate_btn.pressed.connect(_on_investigate_pressed)
-	bar.add_child(investigate_btn)
 
 	var help_btn := Button.new()
 	help_btn.text = "❓ 求助"
@@ -308,6 +300,16 @@ func _create_left_panel() -> Control:
 	_clue_list.add_theme_constant_override("separation", 8)
 	scroll.add_child(_clue_list)
 
+	# 右下角：调查记录按钮（查看历史信息，方案 A）
+	var rec_row := HBoxContainer.new()
+	rec_row.alignment = BoxContainer.ALIGNMENT_END
+	rec_row.add_theme_constant_override("separation", 8)
+	rec_row.custom_minimum_size = Vector2(200, 44)
+	vb.add_child(rec_row)
+	var rec_btn := _make_action_btn("调查记录")
+	rec_btn.pressed.connect(_on_investigate_pressed)
+	rec_row.add_child(rec_btn)
+
 	return panel
 
 
@@ -327,6 +329,23 @@ func _make_filter_btn(text: String, active: bool) -> Button:
 	s.set_corner_radius_all(4)
 	btn.add_theme_stylebox_override("normal", s)
 	btn.pressed.connect(_on_filter_pressed.bind(btn))
+	return btn
+
+
+# 统一风格的动作按钮（提交验证 / 返回 / 调查记录 共用）
+func _make_action_btn(text: String) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.add_theme_font_size_override("font_size", 18)
+	btn.add_theme_color_override("font_color", COL_GOLD)
+	btn.custom_minimum_size = Vector2(140, 44)
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(0.50, 0.10, 0.10, 0.95)
+	s.border_color = Color(0.85, 0.65, 0.25)
+	s.border_width_left = 2; s.border_width_right = 2
+	s.border_width_top = 2; s.border_width_bottom = 2
+	s.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("normal", s)
 	return btn
 
 
@@ -437,18 +456,7 @@ func _create_center_panel() -> Control:
 	_status_lbl.custom_minimum_size = Vector2(200, 40)
 	bottom_row.add_child(_status_lbl)
 
-	var verify_btn := Button.new()
-	verify_btn.text = "提交验证"
-	verify_btn.add_theme_font_size_override("font_size", 18)
-	verify_btn.add_theme_color_override("font_color", COL_GOLD)
-	verify_btn.custom_minimum_size = Vector2(140, 44)
-	var vs := StyleBoxFlat.new()
-	vs.bg_color = Color(0.50, 0.10, 0.10, 0.95)
-	vs.border_color = Color(0.85, 0.65, 0.25)
-	vs.border_width_left = 2; vs.border_width_right = 2
-	vs.border_width_top = 2; vs.border_width_bottom = 2
-	vs.set_corner_radius_all(4)
-	verify_btn.add_theme_stylebox_override("normal", vs)
+	var verify_btn := _make_action_btn("提交验证")
 	verify_btn.pressed.connect(_on_verify_pressed)
 	bottom_row.add_child(verify_btn)
 
@@ -494,6 +502,16 @@ func _create_right_panel() -> Control:
 	_battlefield_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_battlefield_box.add_theme_constant_override("separation", 8)
 	scroll.add_child(_battlefield_box)
+
+	# 右下角：返回按钮（立即关闭推理墙，回到观察阶段，方案 A）
+	var back_row := HBoxContainer.new()
+	back_row.alignment = BoxContainer.ALIGNMENT_END
+	back_row.add_theme_constant_override("separation", 8)
+	back_row.custom_minimum_size = Vector2(200, 44)
+	vb.add_child(back_row)
+	var back_btn := _make_action_btn("返回")
+	back_btn.pressed.connect(_on_back_pressed)
+	back_row.add_child(back_btn)
 
 	return panel
 
@@ -1177,41 +1195,70 @@ func _show_history_panel() -> void:
 	add_child(_history_panel)
 
 	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.82)
+	overlay.color = Color(0, 0, 0, 0.55)
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	_history_panel.add_child(overlay)
 
-	var panel := PanelContainer.new()
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(720, 560)
-	overlay.add_child(panel)
-
-	var pstyle := StyleBoxFlat.new()
-	pstyle.bg_color = Color(0.10, 0.08, 0.06, 0.98)
-	pstyle.border_color = Color(0.65, 0.55, 0.30)
-	pstyle.border_width_left = 2; pstyle.border_width_right = 2
-	pstyle.border_width_top = 2; pstyle.border_width_bottom = 2
-	pstyle.set_corner_radius_all(8)
-	panel.add_theme_stylebox_override("panel", pstyle)
+	# 可自由拖动的窗口本体
+	var win := PanelContainer.new()
+	win.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	win.custom_minimum_size = Vector2(720, 560)
+	win.size = Vector2(720, 560)
+	var wstyle := StyleBoxFlat.new()
+	wstyle.bg_color = Color(0.10, 0.08, 0.06, 0.98)
+	wstyle.border_color = Color(0.65, 0.55, 0.30)
+	wstyle.border_width_left = 2; wstyle.border_width_right = 2
+	wstyle.border_width_top = 2; wstyle.border_width_bottom = 2
+	wstyle.set_corner_radius_all(8)
+	win.add_theme_stylebox_override("panel", wstyle)
+	overlay.add_child(win)
+	_hist_win = win
+	win.position = (get_viewport_rect().size - win.size) / 2
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 20)
-	margin.add_theme_constant_override("margin_top", 20)
-	margin.add_theme_constant_override("margin_right", 20)
-	margin.add_theme_constant_override("margin_bottom", 20)
-	panel.add_child(margin)
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	win.add_child(margin)
 
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 12)
+	vb.add_theme_constant_override("separation", 10)
 	margin.add_child(vb)
+
+	# 标题栏（拖拽手柄）
+	var title_bar := HBoxContainer.new()
+	title_bar.custom_minimum_size = Vector2(0, 42)
+	title_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	title_bar.add_theme_constant_override("separation", 10)
+	var tstyle := StyleBoxFlat.new()
+	tstyle.bg_color = Color(0.18, 0.14, 0.08, 1.0)
+	tstyle.set_corner_radius_all(6)
+	title_bar.add_theme_stylebox_override("panel", tstyle)
+	title_bar.gui_input.connect(_on_hist_title_gui)
+	vb.add_child(title_bar)
 
 	var title := Label.new()
 	title.text = "📋 调查历史记录"
-	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", COL_GOLD)
-	title.custom_minimum_size = Vector2(200, 36)
-	vb.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_bar.add_child(title)
+
+	var hclose := Button.new()
+	hclose.text = "✕"
+	hclose.add_theme_font_size_override("font_size", 18)
+	hclose.add_theme_color_override("font_color", Color(0.85, 0.55, 0.55))
+	hclose.custom_minimum_size = Vector2(40, 32)
+	var hcstyle := StyleBoxFlat.new()
+	hcstyle.bg_color = Color(0.30, 0.18, 0.18, 0.95)
+	hcstyle.border_color = Color(0.7, 0.4, 0.4)
+	hcstyle.set_corner_radius_all(4)
+	hclose.add_theme_stylebox_override("normal", hcstyle)
+	hclose.pressed.connect(_close_history_panel)
+	title_bar.add_child(hclose)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1308,21 +1355,6 @@ func _show_history_panel() -> void:
 	btn_row.custom_minimum_size = Vector2(200, 48)
 	vb.add_child(btn_row)
 
-	var back_btn := Button.new()
-	back_btn.text = "返回调查"
-	back_btn.add_theme_font_size_override("font_size", 18)
-	back_btn.add_theme_color_override("font_color", COL_GOLD)
-	back_btn.custom_minimum_size = Vector2(160, 44)
-	var bs := StyleBoxFlat.new()
-	bs.bg_color = Color(0.18, 0.22, 0.12, 0.95)
-	bs.border_color = Color(0.55, 0.70, 0.30)
-	bs.border_width_left = 2; bs.border_width_right = 2
-	bs.border_width_top = 2; bs.border_width_bottom = 2
-	bs.set_corner_radius_all(4)
-	back_btn.add_theme_stylebox_override("normal", bs)
-	back_btn.pressed.connect(_on_history_back_pressed)
-	btn_row.add_child(back_btn)
-
 	var close_btn := Button.new()
 	close_btn.text = "关闭"
 	close_btn.add_theme_font_size_override("font_size", 18)
@@ -1361,22 +1393,31 @@ func _history_section(parent: VBoxContainer, title: String) -> VBoxContainer:
 
 
 func _close_history_panel() -> void:
+	_hist_drag = false
+	_hist_win = null
 	if _history_panel and is_instance_valid(_history_panel):
 		_history_panel.queue_free()
 	_history_panel = null
 
 
-func _on_history_back_pressed() -> void:
-	_close_history_panel()
-	if _on_continue.is_valid():
-		_on_continue.call()
-	elif _on_close.is_valid():
-		_on_close.call()
-	queue_free()
+# 标题栏拖拽
+func _on_hist_title_gui(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_hist_drag = true
+		if _hist_win and is_instance_valid(_hist_win):
+			_hist_drag_offset = get_viewport().get_mouse_position() - _hist_win.global_position
 
 
 # === 输入/关闭 ===
 func _input(event: InputEvent) -> void:
+	# 历史窗口拖动中：处理移动与松开（即使光标移出标题栏也能停止拖动）
+	if _hist_drag:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+			_hist_drag = false
+			return
+		if event is InputEventMouseMotion and _hist_win and is_instance_valid(_hist_win):
+			_hist_win.global_position = get_viewport().get_mouse_position() - _hist_drag_offset
+			return
 	if _verifying: return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
