@@ -655,14 +655,27 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 
 ## 返回鼠标全局位置命中的最上层可放大节点（立绘优先于背景），供放大镜直接采样其纹理。
 ## 不依赖屏幕捕获机制，Web 导出可靠。
+## 返回鼠标全局位置命中的最上层可放大节点（立绘优先于背景），供放大镜直接采样其纹理。
+## 要求节点必须仍在场景树中且实际可见（避免 queue_free 后残留引用返回旧 global_rect 误命中）。
 func get_magnifiable_at(global_pos: Vector2) -> TextureRect:
+	var candidates: Array[TextureRect] = []
 	for i in range(_mag_portraits.size() - 1, -1, -1):
 		var n := _mag_portraits[i] as TextureRect
-		if n and is_instance_valid(n) and n.visible and n.get_global_rect().has_point(global_pos):
-			return n
-	if _mag_bg and is_instance_valid(_mag_bg) and _mag_bg.visible and _mag_bg.get_global_rect().has_point(global_pos):
-		return _mag_bg
-	return null
+		if n and is_instance_valid(n) and n.is_inside_tree() and n.is_visible_in_tree() \
+				and n.get_global_rect().has_point(global_pos):
+			candidates.append(n)
+	if _mag_bg and is_instance_valid(_mag_bg) and _mag_bg.is_inside_tree() and _mag_bg.is_visible_in_tree() \
+			and _mag_bg.get_global_rect().has_point(global_pos):
+		candidates.append(_mag_bg)
+	if candidates.is_empty():
+		return null
+	# 同 z_index 时取后添加者（数组末尾即上层），不同 z_index 取大者
+	candidates.sort_custom(func(a: TextureRect, b: TextureRect) -> bool:
+		if a.z_index == b.z_index:
+			return _mag_portraits.find(a) > _mag_portraits.find(b)
+		return a.z_index > b.z_index
+	)
+	return candidates[0]
 
 # === 通用存/读档辅助（场景复用） ===
 
