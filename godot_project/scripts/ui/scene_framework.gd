@@ -488,12 +488,13 @@ func _build_scene_area() -> void:
 	_scene_area.mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(_scene_area)
 
-	# 默认深色背景
+	# 默认深色背景（z 必须低于 scene_bg 的 -10，否则会盖住背景图）
 	var bg = ColorRect.new()
 	bg.name = "default_bg"
 	bg.color = Color(0.10, 0.07, 0.04)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.z_index = -20
 	_scene_area.add_child(bg)
 
 # === 底部对话栏 ===
