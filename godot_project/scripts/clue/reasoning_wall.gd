@@ -50,6 +50,7 @@ var _star_lbl: Label = null
 var _status_lbl: Label = null
 var _verdict_lbl: Label = null
 var _detail_popup: AcceptDialog = null
+var _history_panel: Control = null
 
 var _card_btns: Dictionary = {}              # clue_id -> Button
 
@@ -71,6 +72,7 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_on_continue = on_continue
 	_difficulty = difficulty
 	_battle = hypothesis.get("battlefield", {})
+	_case_name = hypothesis.get("case_name", _case_name)
 	_init_milestones(hypothesis)
 	_create_ui()
 	_update_all()
@@ -149,6 +151,7 @@ func _create_top_bar() -> Control:
 	title.add_theme_color_override("font_color", COL_GOLD)
 	title.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
 	title.offset_left = 20
+	title.offset_right = 320
 	bar.add_child(title)
 
 	var diff_lbl := Label.new()
@@ -157,14 +160,27 @@ func _create_top_bar() -> Control:
 	diff_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
 	diff_lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
 	diff_lbl.offset_left = 320
+	diff_lbl.offset_right = 480
 	bar.add_child(diff_lbl)
+
+	# 返回调查：查看历史信息并回到调查阶段
+	var investigate_btn := Button.new()
+	investigate_btn.text = "🔍 返回调查"
+	investigate_btn.add_theme_font_size_override("font_size", 16)
+	investigate_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	investigate_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	investigate_btn.offset_right = -260
+	investigate_btn.offset_left = -420
+	investigate_btn.pressed.connect(_on_investigate_pressed)
+	bar.add_child(investigate_btn)
 
 	var help_btn := Button.new()
 	help_btn.text = "❓ 求助"
 	help_btn.add_theme_font_size_override("font_size", 16)
 	help_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	help_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
-	help_btn.offset_right = -110
+	help_btn.offset_right = -130
+	help_btn.offset_left = -250
 	help_btn.pressed.connect(_on_help_pressed)
 	bar.add_child(help_btn)
 
@@ -174,6 +190,7 @@ func _create_top_bar() -> Control:
 	close_btn.add_theme_color_override("font_color", Color(0.8, 0.5, 0.5))
 	close_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
 	close_btn.offset_right = -20
+	close_btn.offset_left = -110
 	close_btn.pressed.connect(_on_back_pressed)
 	bar.add_child(close_btn)
 
@@ -201,6 +218,7 @@ func _create_bottom_bar() -> Control:
 	_milestone_lbl.add_theme_color_override("font_color", Color(0.80, 0.70, 0.40))
 	_milestone_lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
 	_milestone_lbl.offset_left = 20
+	_milestone_lbl.offset_right = 900
 	bar.add_child(_milestone_lbl)
 
 	_star_lbl = Label.new()
@@ -209,6 +227,7 @@ func _create_bottom_bar() -> Control:
 	_star_lbl.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_RIGHT
 	_star_lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
 	_star_lbl.offset_right = -20
+	_star_lbl.offset_left = -400
 	bar.add_child(_star_lbl)
 
 	var line := ColorRect.new()
@@ -229,37 +248,43 @@ func _create_left_panel() -> Control:
 	bg.offset_right = -8
 	panel.add_child(bg)
 
+	# 使用 MarginContainer + VBoxContainer 管理内部，避免锚点导致子控件被压窄
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.offset_left = 14
+	margin.offset_top = 10
+	margin.offset_right = -22
+	margin.offset_bottom = -14
+	margin.add_theme_constant_override("margin_left", 0)
+	margin.add_theme_constant_override("margin_top", 0)
+	margin.add_theme_constant_override("margin_right", 0)
+	margin.add_theme_constant_override("margin_bottom", 0)
+	panel.add_child(margin)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	margin.add_child(vb)
+
 	var title := Label.new()
 	title.text = "已收集线索"
 	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", COL_GOLD)
-	title.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	title.offset_left = 14
-	title.offset_top = 10
-	title.offset_bottom = 40
-	panel.add_child(title)
+	title.custom_minimum_size = Vector2(200, 30)
+	vb.add_child(title)
 
 	# 搜索框
 	_search_edit = LineEdit.new()
 	_search_edit.placeholder_text = "搜索线索..."
 	_search_edit.add_theme_font_size_override("font_size", 14)
-	_search_edit.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	_search_edit.offset_left = 14
-	_search_edit.offset_top = 44
-	_search_edit.offset_right = -22
-	_search_edit.offset_bottom = 74
+	_search_edit.custom_minimum_size = Vector2(200, 34)
 	_search_edit.text_changed.connect(_on_search_changed)
-	panel.add_child(_search_edit)
+	vb.add_child(_search_edit)
 
 	# 筛选按钮行
 	var filter_row := HBoxContainer.new()
-	filter_row.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	filter_row.offset_left = 14
-	filter_row.offset_top = 80
-	filter_row.offset_right = -22
-	filter_row.offset_bottom = 110
 	filter_row.add_theme_constant_override("separation", 6)
-	panel.add_child(filter_row)
+	filter_row.custom_minimum_size = Vector2(200, 32)
+	vb.add_child(filter_row)
 
 	_filter_all = _make_filter_btn("全部", true)
 	_filter_assoc = _make_filter_btn("已关联", false)
@@ -272,15 +297,14 @@ func _create_left_panel() -> Control:
 
 	# 线索滚动列表
 	var scroll := ScrollContainer.new()
-	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_left = 14
-	scroll.offset_top = 118
-	scroll.offset_right = -22
-	scroll.offset_bottom = -14
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	panel.add_child(scroll)
+	vb.add_child(scroll)
 
 	_clue_list = VBoxContainer.new()
+	_clue_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_clue_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_clue_list.add_theme_constant_override("separation", 8)
 	scroll.add_child(_clue_list)
 
@@ -294,6 +318,7 @@ func _make_filter_btn(text: String, active: bool) -> Button:
 	btn.button_pressed = active
 	btn.add_theme_font_size_override("font_size", 13)
 	btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color(0.25, 0.20, 0.12, 0.95) if active else Color(0.14, 0.12, 0.08, 0.95)
 	s.border_color = Color(0.65, 0.55, 0.30)
@@ -315,92 +340,108 @@ func _create_center_panel() -> Control:
 	bg.offset_right = -8
 	panel.add_child(bg)
 
-	# 核心问题
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.offset_left = 14
+	margin.offset_top = 12
+	margin.offset_right = -14
+	margin.offset_bottom = -12
+	panel.add_child(margin)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	margin.add_child(vb)
+
+	# 顶部行：核心问题 + 验证等级
+	var top_row := HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 12)
+	vb.add_child(top_row)
+
 	var core_title := Label.new()
 	core_title.text = "核心问题：" + _hypothesis.get("title", "")
 	core_title.add_theme_font_size_override("font_size", 22)
 	core_title.add_theme_color_override("font_color", COL_GOLD)
 	core_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	core_title.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	core_title.offset_left = 20
-	core_title.offset_top = 14
-	core_title.offset_right = -20
-	core_title.offset_bottom = 48
-	panel.add_child(core_title)
+	core_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	core_title.custom_minimum_size = Vector2(300, 32)
+	top_row.add_child(core_title)
+
+	_verdict_lbl = Label.new()
+	_verdict_lbl.text = "当前判定：证据不足"
+	_verdict_lbl.add_theme_font_size_override("font_size", 16)
+	_verdict_lbl.add_theme_color_override("font_color", COL_YELLOW)
+	_verdict_lbl.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_RIGHT
+	_verdict_lbl.custom_minimum_size = Vector2(160, 28)
+	top_row.add_child(_verdict_lbl)
 
 	var core_desc := Label.new()
 	core_desc.text = _hypothesis.get("description", "")
 	core_desc.add_theme_font_size_override("font_size", 14)
 	core_desc.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
 	core_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	core_desc.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	core_desc.offset_left = 20
-	core_desc.offset_top = 50
-	core_desc.offset_right = -20
-	core_desc.offset_bottom = 86
-	panel.add_child(core_desc)
-
-	# 验证等级标签
-	_verdict_lbl = Label.new()
-	_verdict_lbl.text = "当前判定：证据不足"
-	_verdict_lbl.add_theme_font_size_override("font_size", 16)
-	_verdict_lbl.add_theme_color_override("font_color", COL_YELLOW)
-	_verdict_lbl.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_verdict_lbl.offset_top = 14
-	_verdict_lbl.offset_right = -20
-	panel.add_child(_verdict_lbl)
+	core_desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	core_desc.custom_minimum_size = Vector2(200, 40)
+	vb.add_child(core_desc)
 
 	# 假设树滚动区
 	var tree_scroll := ScrollContainer.new()
-	tree_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	tree_scroll.offset_left = 14
-	tree_scroll.offset_top = 96
-	tree_scroll.offset_right = -14
-	tree_scroll.offset_bottom = -110
+	tree_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tree_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tree_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	panel.add_child(tree_scroll)
+	vb.add_child(tree_scroll)
 
 	_tree_root = VBoxContainer.new()
+	_tree_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tree_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_tree_root.add_theme_constant_override("separation", 10)
 	tree_scroll.add_child(_tree_root)
 
-	# 关联面板（底部）
-	var assoc_bg := ColorRect.new()
-	assoc_bg.color = Color(0.12, 0.10, 0.08, 0.95)
-	assoc_bg.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	assoc_bg.offset_left = 14
-	assoc_bg.offset_right = -14
-	assoc_bg.offset_top = -100
-	panel.add_child(assoc_bg)
+	# 关联面板（底部固定高度）
+	var assoc_box := VBoxContainer.new()
+	assoc_box.add_theme_constant_override("separation", 6)
+	assoc_box.custom_minimum_size = Vector2(200, 110)
+	vb.add_child(assoc_box)
 
 	var assoc_title := Label.new()
-	assoc_title.text = "关联面板（已推入的线索）"
+	assoc_title.text = "关联面板（已推入的线索，点击查看详情）"
 	assoc_title.add_theme_font_size_override("font_size", 15)
 	assoc_title.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	assoc_title.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	assoc_title.offset_left = 24
-	assoc_title.offset_right = -24
-	assoc_title.offset_bottom = -78
-	panel.add_child(assoc_title)
+	assoc_title.custom_minimum_size = Vector2(200, 22)
+	assoc_box.add_child(assoc_title)
 
 	var assoc_scroll := ScrollContainer.new()
-	assoc_scroll.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	assoc_scroll.offset_left = 24
-	assoc_scroll.offset_right = -24
-	assoc_scroll.offset_top = -74
-	assoc_scroll.offset_bottom = -10
+	assoc_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	assoc_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	assoc_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	panel.add_child(assoc_scroll)
+	assoc_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	assoc_box.add_child(assoc_scroll)
 
 	_assoc_list = HBoxContainer.new()
+	_assoc_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_assoc_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_assoc_list.add_theme_constant_override("separation", 8)
 	assoc_scroll.add_child(_assoc_list)
 
-	# 验证按钮
+	# 底部操作行
+	var bottom_row := HBoxContainer.new()
+	bottom_row.add_theme_constant_override("separation", 12)
+	bottom_row.custom_minimum_size = Vector2(200, 48)
+	vb.add_child(bottom_row)
+
+	_status_lbl = Label.new()
+	_status_lbl.text = "点击左侧线索推入关联面板，再次点击可移除"
+	_status_lbl.add_theme_font_size_override("font_size", 13)
+	_status_lbl.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
+	_status_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status_lbl.custom_minimum_size = Vector2(200, 40)
+	bottom_row.add_child(_status_lbl)
+
 	var verify_btn := Button.new()
 	verify_btn.text = "提交验证"
 	verify_btn.add_theme_font_size_override("font_size", 18)
 	verify_btn.add_theme_color_override("font_color", COL_GOLD)
+	verify_btn.custom_minimum_size = Vector2(140, 44)
 	var vs := StyleBoxFlat.new()
 	vs.bg_color = Color(0.50, 0.10, 0.10, 0.95)
 	vs.border_color = Color(0.85, 0.65, 0.25)
@@ -408,23 +449,8 @@ func _create_center_panel() -> Control:
 	vs.border_width_top = 2; vs.border_width_bottom = 2
 	vs.set_corner_radius_all(4)
 	verify_btn.add_theme_stylebox_override("normal", vs)
-	verify_btn.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	verify_btn.offset_right = -14
-	verify_btn.offset_bottom = -108
-	verify_btn.offset_top = -148
-	verify_btn.offset_left = -160
 	verify_btn.pressed.connect(_on_verify_pressed)
-	panel.add_child(verify_btn)
-
-	_status_lbl = Label.new()
-	_status_lbl.text = "点击左侧线索推入关联面板，再次点击可移除"
-	_status_lbl.add_theme_font_size_override("font_size", 13)
-	_status_lbl.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
-	_status_lbl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	_status_lbl.offset_left = 24
-	_status_lbl.offset_right = 300
-	_status_lbl.offset_bottom = -116
-	panel.add_child(_status_lbl)
+	bottom_row.add_child(verify_btn)
 
 	return panel
 
@@ -438,26 +464,34 @@ func _create_right_panel() -> Control:
 	bg.offset_left = 8
 	panel.add_child(bg)
 
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.offset_left = 14
+	margin.offset_top = 10
+	margin.offset_right = -14
+	margin.offset_bottom = -14
+	panel.add_child(margin)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	margin.add_child(vb)
+
 	var title := Label.new()
 	title.text = "推理战场"
 	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", COL_GOLD)
-	title.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	title.offset_left = 14
-	title.offset_top = 10
-	title.offset_bottom = 40
-	panel.add_child(title)
+	title.custom_minimum_size = Vector2(200, 30)
+	vb.add_child(title)
 
 	var scroll := ScrollContainer.new()
-	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_left = 14
-	scroll.offset_top = 44
-	scroll.offset_right = -14
-	scroll.offset_bottom = -14
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	panel.add_child(scroll)
+	vb.add_child(scroll)
 
 	_battlefield_box = VBoxContainer.new()
+	_battlefield_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_battlefield_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_battlefield_box.add_theme_constant_override("separation", 8)
 	scroll.add_child(_battlefield_box)
 
@@ -507,7 +541,8 @@ func _make_clue_card(clue: Dictionary) -> Button:
 	if _difficulty != Diff.HARD:
 		card.text += "  [%s]" % state_text
 	card.tooltip_text = clue.get("desc", "")
-	card.custom_minimum_size = Vector2(0, 56)
+	card.custom_minimum_size = Vector2(200, 56)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.add_theme_font_size_override("font_size", 15)
 
 	var sn := StyleBoxFlat.new()
@@ -558,6 +593,9 @@ func _refresh_hypothesis_tree() -> void:
 		empty.text = "（本推理链暂无结构化假设节点，请直接关联线索）"
 		empty.add_theme_font_size_override("font_size", 15)
 		empty.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		empty.custom_minimum_size = Vector2(200, 40)
 		_tree_root.add_child(empty)
 		return
 
@@ -567,43 +605,45 @@ func _refresh_hypothesis_tree() -> void:
 
 
 func _make_hypothesis_node(h: Dictionary) -> Control:
-	var card := Control.new()
-	card.custom_minimum_size = Vector2(0, 90)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(200, 90)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	var bg := ColorRect.new()
-	bg.color = Color(0.12, 0.10, 0.08, 0.95)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	card.add_child(bg)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.10, 0.08, 0.95)
+	style.border_color = Color(0.45, 0.35, 0.15, 0.5)
+	style.border_width_left = 1; style.border_width_right = 1
+	style.border_width_top = 1; style.border_width_bottom = 1
+	style.set_corner_radius_all(6)
+	card.add_theme_stylebox_override("panel", style)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	card.add_child(margin)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	margin.add_child(vb)
 
 	var id: String = h.get("id", "?")
 	var text: String = h.get("text", "")
 	var correct: bool = h.get("correct", false)
+
+	var top_row := HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 8)
+	vb.add_child(top_row)
 
 	var lbl := Label.new()
 	lbl.text = id + "  " + text
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_font_size_override("font_size", 15)
 	lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	lbl.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	lbl.offset_left = 12
-	lbl.offset_top = 8
-	lbl.offset_right = -12
-	lbl.offset_bottom = 44
-	card.add_child(lbl)
-
-	# 子假设/证据行
-	var evi := _evidence_for_hypothesis(id)
-	var evi_lbl := Label.new()
-	evi_lbl.text = "证据：" + (", ".join(evi) if not evi.is_empty() else "（暂无）")
-	evi_lbl.add_theme_font_size_override("font_size", 13)
-	evi_lbl.add_theme_color_override("font_color", Color(0.55, 0.70, 0.55) if not evi.is_empty() else Color(0.50, 0.45, 0.38))
-	evi_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	evi_lbl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	evi_lbl.offset_left = 12
-	evi_lbl.offset_right = -12
-	evi_lbl.offset_bottom = -8
-	card.add_child(evi_lbl)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.custom_minimum_size = Vector2(160, 24)
+	top_row.add_child(lbl)
 
 	# 状态标记
 	if _difficulty != Diff.HARD:
@@ -612,10 +652,19 @@ func _make_hypothesis_node(h: Dictionary) -> Control:
 		tag.add_theme_font_size_override("font_size", 12)
 		tag.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4) if correct else Color(0.7, 0.7, 0.7))
 		tag.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_RIGHT
-		tag.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-		tag.offset_top = 8
-		tag.offset_right = -12
-		card.add_child(tag)
+		tag.custom_minimum_size = Vector2(48, 20)
+		top_row.add_child(tag)
+
+	# 子假设/证据行
+	var evi := _evidence_for_hypothesis(id)
+	var evi_lbl := Label.new()
+	evi_lbl.text = "证据：" + (", ".join(evi) if not evi.is_empty() else "（暂无）")
+	evi_lbl.add_theme_font_size_override("font_size", 13)
+	evi_lbl.add_theme_color_override("font_color", Color(0.55, 0.70, 0.55) if not evi.is_empty() else Color(0.50, 0.45, 0.38))
+	evi_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	evi_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	evi_lbl.custom_minimum_size = Vector2(160, 20)
+	vb.add_child(evi_lbl)
 
 	return card
 
@@ -644,12 +693,14 @@ func _refresh_assoc_panel() -> void:
 		ph.text = "（暂无关联线索）"
 		ph.add_theme_font_size_override("font_size", 14)
 		ph.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
+		ph.custom_minimum_size = Vector2(160, 40)
 		_assoc_list.add_child(ph)
 		return
 	for c in assoc:
 		var b := Button.new()
 		b.text = c.get("name", c.get("id", ""))
-		b.custom_minimum_size = Vector2(120, 40)
+		b.custom_minimum_size = Vector2(120, 44)
+		b.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		b.add_theme_font_size_override("font_size", 13)
 		b.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 		var s := StyleBoxFlat.new()
@@ -679,6 +730,8 @@ func _refresh_battlefield() -> void:
 		empty.add_theme_font_size_override("font_size", 14)
 		empty.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		empty.custom_minimum_size = Vector2(160, 40)
 		_battlefield_box.add_child(empty)
 		return
 
@@ -687,6 +740,7 @@ func _refresh_battlefield() -> void:
 		hl.text = "活跃假设（点击标记：未定→采纳→排除）"
 		hl.add_theme_font_size_override("font_size", 14)
 		hl.add_theme_color_override("font_color", Color(0.70, 0.85, 0.95))
+		hl.custom_minimum_size = Vector2(160, 22)
 		_battlefield_box.add_child(hl)
 		for h in hypos:
 			_battlefield_box.add_child(_make_battle_hypo_card(h))
@@ -696,6 +750,7 @@ func _refresh_battlefield() -> void:
 		cl.text = "矛盾标记（点击标记是否已识别）"
 		cl.add_theme_font_size_override("font_size", 14)
 		cl.add_theme_color_override("font_color", Color(0.95, 0.80, 0.70))
+		cl.custom_minimum_size = Vector2(160, 22)
 		_battlefield_box.add_child(cl)
 		for c in contras:
 			_battlefield_box.add_child(_make_battle_contra_card(c))
@@ -705,13 +760,34 @@ func _refresh_battlefield() -> void:
 	status.add_theme_font_size_override("font_size", 14)
 	status.add_theme_color_override("font_color", COL_GREEN)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status.custom_minimum_size = Vector2(160, 40)
 	_battlefield_box.add_child(status)
 
 
 func _make_battle_hypo_card(h: Dictionary) -> Control:
-	var card := Control.new()
-	card.custom_minimum_size = Vector2(0, 64)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(160, 64)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.10, 0.08, 0.95)
+	style.border_color = Color(0.45, 0.35, 0.15, 0.5)
+	style.border_width_left = 1; style.border_width_right = 1
+	style.border_width_top = 1; style.border_width_bottom = 1
+	style.set_corner_radius_all(6)
+	card.add_theme_stylebox_override("panel", style)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	card.add_child(margin)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	margin.add_child(hb)
 
 	var id: String = h.get("id", "?")
 	var text: String = h.get("text", "")
@@ -720,26 +796,44 @@ func _make_battle_hypo_card(h: Dictionary) -> Control:
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	lbl.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
-	lbl.offset_right = -180
-	card.add_child(lbl)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.custom_minimum_size = Vector2(100, 24)
+	hb.add_child(lbl)
 
 	var btn := Button.new()
 	btn.text = "未定"
 	btn.add_theme_font_size_override("font_size", 13)
-	btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
-	btn.offset_right = -8
+	btn.custom_minimum_size = Vector2(72, 32)
 	btn.pressed.connect(_on_battle_hypo_pressed.bind(id))
-	card.add_child(btn)
+	hb.add_child(btn)
 	_battle_hypo_btns[id] = btn
 
 	return card
 
 
 func _make_battle_contra_card(c: Dictionary) -> Control:
-	var card := Control.new()
-	card.custom_minimum_size = Vector2(0, 52)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(160, 52)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.10, 0.08, 0.95)
+	style.border_color = Color(0.45, 0.35, 0.15, 0.5)
+	style.border_width_left = 1; style.border_width_right = 1
+	style.border_width_top = 1; style.border_width_bottom = 1
+	style.set_corner_radius_all(6)
+	card.add_theme_stylebox_override("panel", style)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 6)
+	card.add_child(margin)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	margin.add_child(hb)
 
 	var id: String = c.get("id", "?")
 	var text: String = c.get("text", "")
@@ -748,17 +842,16 @@ func _make_battle_contra_card(c: Dictionary) -> Control:
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	lbl.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
-	lbl.offset_right = -180
-	card.add_child(lbl)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.custom_minimum_size = Vector2(100, 24)
+	hb.add_child(lbl)
 
 	var btn := Button.new()
 	btn.text = "未识别"
 	btn.add_theme_font_size_override("font_size", 13)
-	btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
-	btn.offset_right = -8
+	btn.custom_minimum_size = Vector2(72, 32)
 	btn.pressed.connect(_on_battle_contra_pressed.bind(id))
-	card.add_child(btn)
+	hb.add_child(btn)
 	_battle_contra_btns[id] = btn
 
 	return card
@@ -954,6 +1047,8 @@ func _on_verify_pressed() -> void:
 	title.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	title.offset_top = 120
 	title.offset_bottom = 180
+	title.offset_left = -400
+	title.offset_right = 400
 	overlay.add_child(title)
 
 	var rep := Label.new()
@@ -1063,17 +1158,240 @@ func _update_star_rating() -> void:
 	_star_lbl.text = "观察%d⭐ 推理%d⭐ 洞察%d⭐" % [observe_stars, reasoning_stars, insight_stars]
 
 
+# === 返回调查 + 历史信息面板 ===
+func _on_investigate_pressed() -> void:
+	if _verifying: return
+	_show_history_panel()
+
+
+func _show_history_panel() -> void:
+	if _history_panel and is_instance_valid(_history_panel):
+		_history_panel.queue_free()
+		_history_panel = null
+		return
+
+	_history_panel = Control.new()
+	_history_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_history_panel.z_index = 10
+	_history_panel.name = "HistoryPanel"
+	add_child(_history_panel)
+
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.82)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_history_panel.add_child(overlay)
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(720, 560)
+	overlay.add_child(panel)
+
+	var pstyle := StyleBoxFlat.new()
+	pstyle.bg_color = Color(0.10, 0.08, 0.06, 0.98)
+	pstyle.border_color = Color(0.65, 0.55, 0.30)
+	pstyle.border_width_left = 2; pstyle.border_width_right = 2
+	pstyle.border_width_top = 2; pstyle.border_width_bottom = 2
+	pstyle.set_corner_radius_all(8)
+	panel.add_theme_stylebox_override("panel", pstyle)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 20)
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_right", 20)
+	margin.add_theme_constant_override("margin_bottom", 20)
+	panel.add_child(margin)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 12)
+	margin.add_child(vb)
+
+	var title := Label.new()
+	title.text = "📋 调查历史记录"
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", COL_GOLD)
+	title.custom_minimum_size = Vector2(200, 36)
+	vb.add_child(title)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(scroll)
+
+	var content := VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 14)
+	scroll.add_child(content)
+
+	# 1. 当前推理状态
+	var state_sec := _history_section(content, "当前推理状态")
+	var v := get_verdict()
+	var verdict_text: String = ["矛盾冲突", "证据不足", "倾向成立", "已获证实"][v]
+	var state_lbl := Label.new()
+	state_lbl.text = "核心问题：%s\n当前判定：%s\n已关联线索：%d 条" % [_hypothesis.get("title", ""), verdict_text, _associated]
+	state_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	state_lbl.add_theme_font_size_override("font_size", 15)
+	state_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	state_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	state_lbl.custom_minimum_size = Vector2(200, 60)
+	state_sec.add_child(state_lbl)
+
+	# 2. 已收集线索
+	var clue_sec := _history_section(content, "已收集线索 (%d)" % _clues.size())
+	if _clues.is_empty():
+		var empty := Label.new()
+		empty.text = "（暂无已收集线索）"
+		empty.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
+		clue_sec.add_child(empty)
+	else:
+		for c in _clues:
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+			clue_sec.add_child(row)
+
+			var mark := Label.new()
+			var is_assoc: bool = c.get("associated", false)
+			var correct: bool = c.get("correct", true)
+			mark.text = "✓" if is_assoc else "○"
+			mark.add_theme_color_override("font_color", COL_GREEN if is_assoc else Color(0.55, 0.50, 0.40))
+			mark.custom_minimum_size = Vector2(24, 24)
+			row.add_child(mark)
+
+			var info := VBoxContainer.new()
+			info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(info)
+
+			var name_lbl := Label.new()
+			name_lbl.text = c.get("name", c.get("id", ""))
+			name_lbl.add_theme_font_size_override("font_size", 15)
+			name_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+			name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			info.add_child(name_lbl)
+
+			var desc_lbl := Label.new()
+			desc_lbl.text = c.get("desc", "")
+			desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			desc_lbl.add_theme_font_size_override("font_size", 13)
+			desc_lbl.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
+			desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			desc_lbl.custom_minimum_size = Vector2(160, 20)
+			info.add_child(desc_lbl)
+
+			if _difficulty != Diff.HARD:
+				var tag := Label.new()
+				tag.text = "已关联" if is_assoc else ("正确" if correct else "干扰")
+				tag.add_theme_color_override("font_color", COL_GREEN if is_assoc else (COL_GREEN if correct else COL_RED))
+				tag.custom_minimum_size = Vector2(60, 24)
+				row.add_child(tag)
+
+	# 3. 结论里程碑
+	var ms_sec := _history_section(content, "结论里程碑")
+	var ms_lbl := Label.new()
+	var ms_text := ""
+	for m in _milestones:
+		ms_text += "■ " if m["lit"] else "□ "
+		ms_text += m["text"] + "\n"
+	ms_lbl.text = ms_text.strip_edges() if ms_text != "" else "（暂无里程碑）"
+	ms_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ms_lbl.add_theme_font_size_override("font_size", 14)
+	ms_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	ms_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ms_lbl.custom_minimum_size = Vector2(200, 40)
+	ms_sec.add_child(ms_lbl)
+
+	# 底部按钮
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 12)
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.custom_minimum_size = Vector2(200, 48)
+	vb.add_child(btn_row)
+
+	var back_btn := Button.new()
+	back_btn.text = "返回调查"
+	back_btn.add_theme_font_size_override("font_size", 18)
+	back_btn.add_theme_color_override("font_color", COL_GOLD)
+	back_btn.custom_minimum_size = Vector2(160, 44)
+	var bs := StyleBoxFlat.new()
+	bs.bg_color = Color(0.18, 0.22, 0.12, 0.95)
+	bs.border_color = Color(0.55, 0.70, 0.30)
+	bs.border_width_left = 2; bs.border_width_right = 2
+	bs.border_width_top = 2; bs.border_width_bottom = 2
+	bs.set_corner_radius_all(4)
+	back_btn.add_theme_stylebox_override("normal", bs)
+	back_btn.pressed.connect(_on_history_back_pressed)
+	btn_row.add_child(back_btn)
+
+	var close_btn := Button.new()
+	close_btn.text = "关闭"
+	close_btn.add_theme_font_size_override("font_size", 18)
+	close_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	close_btn.custom_minimum_size = Vector2(120, 44)
+	var cs := StyleBoxFlat.new()
+	cs.bg_color = Color(0.22, 0.18, 0.12, 0.95)
+	cs.border_color = Color(0.55, 0.45, 0.25)
+	cs.border_width_left = 2; cs.border_width_right = 2
+	cs.border_width_top = 2; cs.border_width_bottom = 2
+	cs.set_corner_radius_all(4)
+	close_btn.add_theme_stylebox_override("normal", cs)
+	close_btn.pressed.connect(_close_history_panel)
+	btn_row.add_child(close_btn)
+
+
+func _history_section(parent: VBoxContainer, title: String) -> VBoxContainer:
+	var sec := VBoxContainer.new()
+	sec.add_theme_constant_override("separation", 6)
+	sec.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(sec)
+
+	var lbl := Label.new()
+	lbl.text = title
+	lbl.add_theme_font_size_override("font_size", 17)
+	lbl.add_theme_color_override("font_color", COL_GOLD)
+	lbl.custom_minimum_size = Vector2(200, 26)
+	sec.add_child(lbl)
+
+	var line := ColorRect.new()
+	line.color = Color(0.45, 0.35, 0.15, 0.5)
+	line.custom_minimum_size = Vector2(200, 2)
+	sec.add_child(line)
+
+	return sec
+
+
+func _close_history_panel() -> void:
+	if _history_panel and is_instance_valid(_history_panel):
+		_history_panel.queue_free()
+	_history_panel = null
+
+
+func _on_history_back_pressed() -> void:
+	_close_history_panel()
+	if _on_continue.is_valid():
+		_on_continue.call()
+	elif _on_close.is_valid():
+		_on_close.call()
+	queue_free()
+
+
 # === 输入/关闭 ===
 func _input(event: InputEvent) -> void:
 	if _verifying: return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			get_viewport().set_input_as_handled()
-			_on_back_pressed()
+			if _history_panel and is_instance_valid(_history_panel):
+				_close_history_panel()
+			else:
+				_on_back_pressed()
 
 
 func _on_back_pressed() -> void:
 	if _verifying: return
+	if _history_panel and is_instance_valid(_history_panel):
+		_close_history_panel()
+		return
 	if _on_continue.is_valid(): _on_continue.call()
 	elif _on_close.is_valid(): _on_close.call()
 	queue_free()
@@ -1117,3 +1435,12 @@ func get_difficulty() -> int:
 
 func test_associate(cid: String) -> void:
 	_toggle_association(cid)
+
+
+func _debug_ui_counts() -> Dictionary:
+	return {
+		"clue_list": _clue_list.get_child_count() if _clue_list else -1,
+		"tree_root": _tree_root.get_child_count() if _tree_root else -1,
+		"battlefield": _battlefield_box.get_child_count() if _battlefield_box else -1,
+		"assoc_list": _assoc_list.get_child_count() if _assoc_list else -1,
+	}

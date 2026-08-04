@@ -42,6 +42,28 @@ func _initialize() -> void:
 	var ms: Dictionary = wall.get_milestone_state()
 	var diff: int = wall.get_difficulty()
 	print("REASONING_WALL_TEST: verdict=%d milestones=%s/%s diff=%d" % [verdict, ms.get("confirmed"), ms.get("total"), diff])
+
+	# UI 结构检查：确保关键容器已创建且有子节点
+	var clue_count: int = 0
+	var tree_count: int = 0
+	var battle_count: int = 0
+	var assoc_count: int = 0
+	if wall.has_method("_debug_ui_counts"):
+		var ui_counts: Dictionary = wall._debug_ui_counts()
+		clue_count = ui_counts.get("clue_list", 0)
+		tree_count = ui_counts.get("tree_root", 0)
+		battle_count = ui_counts.get("battlefield", 0)
+		assoc_count = ui_counts.get("assoc_list", 0)
+		print("REASONING_WALL_TEST: ui_counts=%s" % str(ui_counts))
+
+	# 历史面板反射调用测试
+	wall._show_history_panel()
+	await create_timer(0.05).timeout
+	var hist: Variant = wall.get("_history_panel")
+	var has_history: bool = hist != null and is_instance_valid(hist as Object)
+	print("REASONING_WALL_TEST: history_panel=%s" % has_history)
+	wall._close_history_panel()
+
 	wall.queue_free()
 	await create_timer(0.1).timeout
 	print("REASONING_WALL_TEST: PASS")
