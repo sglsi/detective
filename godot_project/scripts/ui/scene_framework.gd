@@ -633,19 +633,6 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 	port.position = pos; port.size = size
 	port.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# 烫金边框
-	var frame = Panel.new()
-	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var fsb = StyleBoxFlat.new()
-	fsb.bg_color = Color(0.10, 0.07, 0.04, 0.00)   # 透明底（立绘已抠底透明）
-	fsb.border_color = COL_GOLD
-	fsb.border_width_left = 3; fsb.border_width_right = 3
-	fsb.border_width_top = 3; fsb.border_width_bottom = 3
-	fsb.set_corner_radius_all(4)
-	frame.add_theme_stylebox_override("panel", fsb)
-	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	port.add_child(frame)
-
 	# 图片
 	var img = TextureRect.new()
 	img.name = "img"
@@ -663,16 +650,13 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 		name_lbl.name = "name_label"
 		name_lbl.text = name_text
 		name_lbl.add_theme_font_size_override("font_size", 16)
-		name_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+		name_lbl.add_theme_color_override("font_color", Color.WHITE)
 		name_lbl.add_theme_color_override("font_outline_color", COL_SHADOW)
 		name_lbl.add_theme_constant_override("outline_size", 2)
 		var name_panel = Panel.new()
 		name_panel.position = Vector2(15, size.y - 36); name_panel.size = Vector2(size.x - 30, 30)
 		var npsb = StyleBoxFlat.new()
-		npsb.bg_color = Color(0.10, 0.07, 0.04, 0.00)   # 透明底
-		npsb.border_color = COL_GOLD
-		npsb.border_width_left = 1; npsb.border_width_right = 1
-		npsb.border_width_top = 1; npsb.border_width_bottom = 1
+		npsb.bg_color = Color(0.10, 0.07, 0.04, 0.35)   # 半透明深色底，保证名字可读
 		npsb.set_corner_radius_all(3)
 		name_panel.add_theme_stylebox_override("panel", npsb)
 		name_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
