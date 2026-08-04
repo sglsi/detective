@@ -49,17 +49,18 @@ var _interaction_popup: AcceptDialog           # 化学试剂/黄页弹窗
 var _current_target_id: String = ""
 var _cancel_btn: Button
 
-## 放大镜着色器：直接用 get_viewport().get_texture() 主视口纹理（每帧更新 uniform），
-## 在镜片圆形区域内按 zoom 倍率放大显示光标背后的画面；不依赖 BackBufferCopy / screen_texture
-## （WebGL 下 screen_texture 易取到未初始化清屏灰、且需精确控制 z 层级才能让 BBC 抓到场景）。
+## 放大镜着色器：Godot 4 官方屏幕采样写法。
+## 用 uniform sampler2D screen_texture : hint_screen_texture 自动绑定当前 backbuffer；
+## 以 SCREEN_UV（屏幕 UV，原点左上）为基准，按 zoom 倍率在镜片圆形区域内放大采样。
+## 不要手动传 get_viewport().get_texture()，Web 导出下主视口纹理不可靠。
 const MAGNIFIER_SHADER := """shader_type canvas_item;
-uniform sampler2D screen_tex;
+uniform sampler2D screen_texture : hint_screen_texture, repeat_disable, filter_nearest;
 uniform float zoom;
 uniform vec2 lens_center;
 void fragment() {
-	vec2 c = UV - vec2(0.5);
-	vec2 sample_uv = lens_center + vec2(c.x, -c.y) / zoom;
-	vec3 col = texture(screen_tex, sample_uv).rgb;
+	vec2 dir = SCREEN_UV - lens_center;
+	vec2 sample_uv = lens_center + dir / zoom;
+	vec3 col = texture(screen_texture, sample_uv).rgb;
 	float d = distance(UV, vec2(0.5));
 	float alpha = smoothstep(0.5, 0.485, d);
 	COLOR = vec4(col, alpha);
@@ -172,9 +173,8 @@ func _build_lens_overlay() -> void:
 	_lens_overlay.draw.connect(_on_lens_draw)
 	add_child(_lens_overlay)
 
-	# 玻璃区域（着色器采样主视口纹理实现真实放大）
-	# 用 ColorRect 而非 TextureRect：WebGL 下空 TextureRect 可能不执行 fragment shader，
-	# 导致 SCREEN_TEXTURE 采样不到画面而漆黑；ColorRect 保证有像素绘制，material 必然执行。
+	# 玻璃区域：ColorRect 保证 WebGL 下 fragment 一定执行；
+	# 用 hint_screen_texture 让 Godot 自动绑定当前 backbuffer，不手动传主视口纹理。
 	var glass := ColorRect.new()
 	glass.name = "Glass"
 	glass.size = Vector2(150, 150)
@@ -186,6 +186,11 @@ func _build_lens_overlay() -> void:
 	mag_mat.shader = mag_shader
 	glass.material = mag_mat
 	_lens_overlay.add_child(glass)
+
+	# 关键：镜片必须绘制在场景内容之后，才能从 backbuffer 读到画面。
+	# top_level=true 使其脱离父节点 z 层级参与全局排序；z_index 提到 1000 确保在场景、UI 之上。
+	_lens_overlay.top_level = true
+	_lens_overlay.z_index = 1000
 
 	# 观察提示标签
 	var hint := Label.new()
@@ -262,7 +267,7 @@ func _build_global_cancel() -> void:
 	_cancel_btn = Button.new()
 	_cancel_btn.name = "GlobalCancel"
 	_cancel_btn.text = "✕ 关闭工具"
-	_cancel_btn.z_index = 500
+	_cancel_btn.z_index = 1100
 	_cancel_btn.mouse_filter = Control.MOUSE_FILTER_STOP
 	_cancel_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	_cancel_btn.offset_left = -160
@@ -453,7 +458,7 @@ func _input(event: InputEvent) -> void:
 		if _magnifier_timer > 0.4:
 			_discover_with_magnifier()
 
-## 每帧：更新放大镜着色器参数（采样主视口纹理实现真实放大）+ 累计停留计时触发发现。
+## 每帧：更新放大镜着色器参数 + 累计停留计时触发发现。
 func _process(delta: float) -> void:
 	if not _magnifier_active:
 		return
@@ -462,10 +467,9 @@ func _process(delta: float) -> void:
 	var glass: ColorRect = _lens_overlay.get_node_or_null("Glass")
 	if glass and glass.material is ShaderMaterial:
 		glass.material.set_shader_parameter("zoom", 2.6)
-		# 主视口纹理 UV 原点在左下（GL 约定），鼠标原点在左上 → y 翻转，使镜片与光标背后画面精确对齐。
-		var c := Vector2(mp.x / vp.size.x, 1.0 - mp.y / vp.size.y)
+		# SCREEN_UV 与鼠标坐标系一致（原点左上），无需 y 翻转。
+		var c := Vector2(mp.x / vp.size.x, mp.y / vp.size.y)
 		glass.material.set_shader_parameter("lens_center", c)
-		glass.material.set_shader_parameter("screen_tex", vp.get_texture())
 	_lens_overlay.global_position = mp   # 以视口绝对坐标定位镜片，确保视觉中心与采样中心一致
 	_magnifier_timer += delta   # 仅供点击发现的去抖阈值，不再自动触发发现
 
