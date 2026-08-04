@@ -44,6 +44,7 @@ var _magnifier_active: bool = false            # 放大镜交互进行中（由 
 var _buttons: Dictionary = {}                   # tool_id -> TextureButton
 var _panel: PanelContainer
 var _lens_overlay: Control                     # 放大镜镜头覆盖层
+var _lens_backbuffer: BackBufferCopy           # 在镜头绘制前强制拷贝后缓冲（WebGL 必需）
 var _tape_overlay: Control                     # 卷尺拖拽层
 var _interaction_popup: AcceptDialog           # 化学试剂/黄页弹窗
 var _current_target_id: String = ""
@@ -52,8 +53,9 @@ var scene_ui: SceneFramework = null   # 放大镜直接放大场景背景/立绘
 const MAG_ZOOM := 2.6                # 放大倍率
 
 ## 放大镜着色器：用 hint_screen_texture 声明屏幕纹理 uniform，在镜片圆形区域内按 zoom 倍率放大显示光标背后的画面。
-## 经 a9f86fa 实机确认：本机 Web 导出下 hint_screen_texture 能正常显示放大画面（仅轻微区域错位），
-## 故以此版本为基准还原，不再走 get_viewport().get_texture()/BackBufferCopy/真实元素纹理等失败路线。
+## 关键：WebGL（本机 Web 导出）不会自动把已绘制的 2D 内容放进 screen_texture；必须在镜头材质绘制前
+## 放置 BackBufferCopy(COPY_MODE_VIEWPORT) 强制拷贝后缓冲，否则镜片采样到的是空/黑屏。
+## 之前 a9f86fa 能显示，是因为当时场景里存在隐式后缓冲拷贝；后来去掉后全黑，验证见 magtest 测试工程。
 const MAGNIFIER_SHADER := """shader_type canvas_item;
 uniform sampler2D screen_texture : hint_screen_texture, repeat_disable, filter_nearest;
 uniform float zoom;
@@ -74,8 +76,8 @@ func _ready() -> void:
 	#   - 子面板(mouse_filter=STOP) 在工具栏区域正常接收点击，按钮优先于面板。
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# 放大镜改用 get_viewport().get_texture() 直接采样主视口纹理（每帧更新 uniform），无需 BackBufferCopy。
 	_build_panel()
+	_build_lens_backbuffer()   # 必须先于镜头创建，确保在镜头绘制前拷贝后缓冲
 	_build_lens_overlay()
 	_build_tape_overlay()
 	_build_interaction_popup()
@@ -164,6 +166,17 @@ func _build_panel() -> void:
 	_panel.offset_bottom = -242
 
 	_WindowDrag.make_draggable(_panel, tb_drag)
+
+## 放大镜后缓冲拷贝：必须在镜头材质绘制前执行，WebGL 才能采样到 2D 场景内容。
+## 若缺少它，hint_screen_texture 读到的是空缓冲，镜片漆黑。
+func _build_lens_backbuffer() -> void:
+	_lens_backbuffer = BackBufferCopy.new()
+	_lens_backbuffer.name = "LensBackBuffer"
+	_lens_backbuffer.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	# 位于场景内容（z<=0/400）与镜头（z=450）之间，拷贝时不包含镜头自身。
+	_lens_backbuffer.z_index = 440
+	_lens_backbuffer.visible = false
+	add_child(_lens_backbuffer)
 
 func _build_lens_overlay() -> void:
 	_lens_overlay = Control.new()
@@ -411,6 +424,8 @@ var _magnifier_timer: float = 0.0
 const MAG_DISCOVER_TIME := 2.5  # 停留秒数触发发现
 
 func _start_magnifier() -> void:
+	if _lens_backbuffer:
+		_lens_backbuffer.visible = true
 	_lens_overlay.visible = true
 	_magnifier_timer = 0.0
 	var hint: Label = _lens_overlay.get_node_or_null("HintLabel")
@@ -968,6 +983,8 @@ func _cancel_tool() -> void:
 	_highlight_tool("")
 
 func _cancel_any_overlay() -> void:
+	if _lens_backbuffer:
+		_lens_backbuffer.visible = false
 	if _lens_overlay:
 		_lens_overlay.visible = false
 	if _tape_overlay:
