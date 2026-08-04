@@ -45,3 +45,6 @@ magtest/
 
 # Backup files
 *.bak
+
+# ===== 超分临时产物（从 git 恢复的原始图 / 对比图，非源码）=====
+godot_project/tools/models/_*.png
