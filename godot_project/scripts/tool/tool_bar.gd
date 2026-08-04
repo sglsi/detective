@@ -445,7 +445,7 @@ func _input(event: InputEvent) -> void:
 	if not _magnifier_active:
 		return
 	if event is InputEventMouseMotion:
-		_lens_overlay.position = event.position
+		pass  # 镜片位置由 _process 用 get_viewport().get_mouse_position() 驱动，避免 ToolBar 根偏移
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		# 点击快捷发现（需已停留片刻，避免误触）
 		if _magnifier_timer > 0.4:
@@ -456,12 +456,14 @@ func _process(delta: float) -> void:
 	if not _magnifier_active:
 		return
 	var vp := get_viewport()
+	var mp := vp.get_mouse_position()   # 视口像素坐标（原点左上），不受 ToolBar 根偏移影响
 	var glass: ColorRect = _lens_overlay.get_node_or_null("Glass")
 	if glass and glass.material is ShaderMaterial:
 		glass.material.set_shader_parameter("zoom", 2.6)
-		# 镜片中心在 SCREEN_UV 空间（屏幕像素 -> 0..1，y 翻转：SCREEN_UV 原点在左下）
-		var c := Vector2(_lens_overlay.position.x / vp.size.x, 1.0 - _lens_overlay.position.y / vp.size.y)
+		# lens_center 与着色器 SCREEN_UV 同处屏幕 UV 空间（原点左下，故 y 翻转）
+		var c := Vector2(mp.x / vp.size.x, 1.0 - mp.y / vp.size.y)
 		glass.material.set_shader_parameter("lens_center", c)
+	_lens_overlay.global_position = mp   # 以视口绝对坐标定位镜片，确保视觉中心与采样中心一致
 	_magnifier_timer += delta   # 仅供点击发现的去抖阈值，不再自动触发发现
 
 ## 取当前观察线索对某道具的关联 reveal（来自 ToolSystem.get_clue_tool_reveal）。
