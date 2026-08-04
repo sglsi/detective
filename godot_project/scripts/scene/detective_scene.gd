@@ -248,7 +248,7 @@ func _on_action(action_id: String) -> void:
 	match action_id:
 		"look": _toggle_observe()
 		"talk": _npc_talk()
-		"examine": _use_magnifier()
+		"examine": _toggle_toolbar()
 		"think": _open_wall()
 		"prop": _show_props()
 		"journal": _show_journal()
@@ -271,11 +271,21 @@ func _toggle_observe() -> void:
 func _npc_talk() -> void:
 	_ui.set_dialogue("", _npc_talk_text(_clues.size()))
 
-func _use_magnifier() -> void:
-	if not _in_observe_phase(): _ui.show_notification("当前无法使用放大镜"); return
-	_obs.show(); _ui.show_notification(_magnifier_msg())
-	# 调查动作同样确保道具工具栏可见（基类场景二/三的唯一弹出入口）
-	if _toolbar: _toolbar.show_toolbar()
+## 调查按钮：调出/隐藏道具工具栏（toggle）。
+## 未进入观察阶段时先进入观察（道具需可点击热点），再展开工具栏；
+## 已在观察阶段则根据当前工具栏可见性切换显隐。
+func _toggle_toolbar() -> void:
+	if not _in_observe_phase():
+		_obs.show()
+		_ui.show_notification(_observe_open_msg())
+		if _toolbar: _toolbar.show_toolbar()
+		return
+	if _toolbar and _toolbar.is_active:
+		_toolbar.hide_toolbar()
+		_ui.show_notification("道具栏已收起")
+	else:
+		if _toolbar: _toolbar.show_toolbar()
+		_ui.show_notification("道具栏已展开")
 
 # ===================== 推理墙（统一机制，参数化来源/假设/回调） =====================
 ## #146 根因修复：进入推理阶段的统一提示。
