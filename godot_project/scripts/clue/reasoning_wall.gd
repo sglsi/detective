@@ -56,6 +56,8 @@ var _hist_drag := false
 var _hist_drag_offset := Vector2.ZERO
 var _verify_win: Control = null               # 「提交验证」结果窗口
 var _verify_v: int = 0                        # 当前判定等级（供 ESC 确认）
+var _verify_drag := false
+var _verify_drag_offset := Vector2.ZERO
 
 var _card_btns: Dictionary = {}              # clue_id -> Button
 
@@ -824,8 +826,8 @@ func _make_battle_hypo_card(h: Dictionary) -> Control:
 	var btn := Button.new()
 	btn.text = "未定"
 	btn.add_theme_font_size_override("font_size", 15)
-	btn.custom_minimum_size = Vector2(0, 44)
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.custom_minimum_size = Vector2(93, 40)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.pressed.connect(_on_battle_hypo_pressed.bind(id))
 	vb.add_child(btn)
 	_battle_hypo_btns[id] = btn
@@ -871,8 +873,8 @@ func _make_battle_contra_card(c: Dictionary) -> Control:
 	var btn := Button.new()
 	btn.text = "未识别"
 	btn.add_theme_font_size_override("font_size", 15)
-	btn.custom_minimum_size = Vector2(0, 44)
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.custom_minimum_size = Vector2(93, 40)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.pressed.connect(_on_battle_contra_pressed.bind(id))
 	vb.add_child(btn)
 	_battle_contra_btns[id] = btn
@@ -1065,13 +1067,14 @@ func _on_verify_pressed() -> void:
 	backdrop.name = "VerifyBackdrop"
 	add_child(backdrop)
 
-	# 居中结果窗口（修复旧版报告标签左右偏移反置导致文字不可见的显示异常）
+	# 居中结果窗口（手动计算 position 确保真正居中；PRESET_CENTER 在 add_child 前因 size=0 失效）
 	var win := PanelContainer.new()
-	win.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	win.custom_minimum_size = Vector2(720, 440)
+	win.size = Vector2(720, 440)
 	win.z_index = 20
 	win.name = "VerifyResult"
 	add_child(win)
+	win.position = (get_viewport_rect().size - win.size) / 2
 
 	var pstyle := StyleBoxFlat.new()
 	pstyle.bg_color = Color(0.10, 0.08, 0.06, 0.98)
@@ -1091,6 +1094,39 @@ func _on_verify_pressed() -> void:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 16)
 	margin.add_child(vb)
+
+	# 标题栏（拖拽手柄）
+	var title_bar := HBoxContainer.new()
+	title_bar.custom_minimum_size = Vector2(0, 42)
+	title_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	title_bar.add_theme_constant_override("separation", 10)
+	var tstyle := StyleBoxFlat.new()
+	tstyle.bg_color = Color(0.18, 0.14, 0.08, 1.0)
+	tstyle.set_corner_radius_all(6)
+	title_bar.add_theme_stylebox_override("panel", tstyle)
+	title_bar.gui_input.connect(_on_verify_title_gui)
+	vb.add_child(title_bar)
+
+	var title_cap := Label.new()
+	title_cap.text = "🔍 验证结果"
+	title_cap.add_theme_font_size_override("font_size", 20)
+	title_cap.add_theme_color_override("font_color", COL_GOLD)
+	title_cap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_bar.add_child(title_cap)
+
+	var vclose := Button.new()
+	vclose.text = "✕"
+	vclose.add_theme_font_size_override("font_size", 18)
+	vclose.add_theme_color_override("font_color", Color(0.85, 0.55, 0.55))
+	vclose.custom_minimum_size = Vector2(40, 32)
+	var vcstyle := StyleBoxFlat.new()
+	vcstyle.bg_color = Color(0.30, 0.18, 0.18, 0.95)
+	vcstyle.border_color = Color(0.7, 0.4, 0.4)
+	vcstyle.set_corner_radius_all(4)
+	vclose.add_theme_stylebox_override("normal", vcstyle)
+	vclose.pressed.connect(_close_verify_win)
+	title_bar.add_child(vclose)
 
 	var title := Label.new()
 	title.text = ["矛盾冲突", "证据不足", "倾向成立", "已获证实"][v] as String
@@ -1139,6 +1175,23 @@ func _on_verify_confirm(v: int) -> void:
 	_verify_win = null
 	if _on_verify.is_valid(): _on_verify.call(v)
 	queue_free()
+
+
+# 仅关闭验证结果窗口（不确认验证、不关闭推理墙），保留推理墙继续操作
+func _close_verify_win() -> void:
+	_verify_drag = false
+	_verifying = false
+	if _verify_win and is_instance_valid(_verify_win):
+		_verify_win.queue_free()
+		_verify_win = null
+
+
+# 验证结果窗口标题栏拖拽
+func _on_verify_title_gui(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_verify_drag = true
+		if _verify_win and is_instance_valid(_verify_win):
+			_verify_drag_offset = get_viewport().get_mouse_position() - _verify_win.global_position
 
 
 func _compute_report(v: int) -> String:
@@ -1466,6 +1519,14 @@ func _input(event: InputEvent) -> void:
 			return
 		if event is InputEventMouseMotion and _hist_win and is_instance_valid(_hist_win):
 			_hist_win.global_position = get_viewport().get_mouse_position() - _hist_drag_offset
+			return
+	# 验证结果窗口拖动中
+	if _verify_drag:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+			_verify_drag = false
+			return
+		if event is InputEventMouseMotion and _verify_win and is_instance_valid(_verify_win):
+			_verify_win.global_position = get_viewport().get_mouse_position() - _verify_drag_offset
 			return
 	# 验证结果窗口：ESC 直接确认
 	if _verify_win and is_instance_valid(_verify_win):
