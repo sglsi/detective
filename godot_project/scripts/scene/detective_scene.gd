@@ -125,6 +125,11 @@ func _create_observers() -> void:
 	_obs.clue_recorded.connect(_on_clue_recorded)
 	_obs.all_recorded.connect(_on_all_done)
 
+## 当前生效的观察器（场景二/三即 _obs；场景一根据 phase 返回 watson/messenger）。
+## 工具栏开关、观察模式切换都通过它操作，避免 scene1 的 _obs 为空导致空引用。
+func _current_observer() -> ClueObserver:
+	return _obs
+
 func _connect_ui_signals() -> void:
 	_ui.nav_clicked.connect(_on_nav)
 	_ui.action_clicked.connect(_on_action)
@@ -258,12 +263,14 @@ func _on_action(action_id: String) -> void:
 
 func _toggle_observe() -> void:
 	if not _in_observe_phase(): _ui.show_notification(_observe_locked_msg()); return
-	if _obs.is_active():
-		_obs.hide()
+	var obs := _current_observer()
+	if obs == null: _ui.show_notification("观察器未初始化"); return
+	if obs.is_active():
+		obs.hide()
 		_ui.show_notification("观察模式关闭")
 		if _toolbar: _toolbar.hide_toolbar()
 	else:
-		_obs.show()
+		obs.show()
 		_ui.show_notification(_observe_open_msg())
 		# 进入观察即弹出道具工具栏（放大镜/卷尺/黄页等），不再依赖单独按钮时机
 		if _toolbar: _toolbar.show_toolbar()
@@ -275,8 +282,10 @@ func _npc_talk() -> void:
 ## 未进入观察阶段时先进入观察（道具需可点击热点），再展开工具栏；
 ## 已在观察阶段则根据当前工具栏可见性切换显隐。
 func _toggle_toolbar() -> void:
+	var obs := _current_observer()
 	if not _in_observe_phase():
-		_obs.show()
+		if obs == null: _ui.show_notification("当前阶段无法观察"); return
+		obs.show()
 		_ui.show_notification(_observe_open_msg())
 		if _toolbar: _toolbar.show_toolbar()
 		return

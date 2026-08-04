@@ -253,16 +253,30 @@ func _do_talk() -> void:
 
 func _do_examine() -> void:
 	if _phase == Phase.OBSERVE_WATSON or _phase == Phase.MESSENGER_OBSERVE:
-		_create_notification("🔍 放大镜工具 — 点击场景中的人物细节进行观察")
+		# 调查按钮：toggle 道具工具栏（显示/隐藏）
+		if _toolbar:
+			if _toolbar.is_active:
+				_toolbar.hide_toolbar()
+				_create_notification("道具栏已收起")
+			else:
+				_toolbar.show_toolbar()
+				_create_notification("🔍 放大镜工具 — 点击场景中的人物细节进行观察")
 		if not _look_active:
 			_look_active = true; _ui.set_action_active("look", true)
-		# 调查 = 弹出道具工具栏（放大镜/卷尺/黄页等）；进入观察阶段已自动弹出，此处确保可见
-		if _toolbar:
-			_toolbar.show_toolbar()
 	else:
 		_create_notification("请在观察阶段使用放大镜工具")
 		if _toolbar:
 			_toolbar.hide_toolbar()
+
+## scene1 覆盖：当前是否在观察阶段（华生/信使观察）。
+func _in_observe_phase() -> bool:
+	return _phase == Phase.OBSERVE_WATSON or _phase == Phase.MESSENGER_OBSERVE
+
+## scene1 覆盖：返回当前阶段对应的观察器（华生或信使）。
+func _current_observer() -> ClueObserver:
+	if _phase == Phase.OBSERVE_WATSON: return _watson_obs
+	if _phase == Phase.MESSENGER_OBSERVE: return _messenger_obs
+	return null
 
 func _do_think() -> void:
 	if _phase == Phase.OBSERVE_WATSON and _watson_obs.get_recorded() > 0:

@@ -49,15 +49,16 @@ var _interaction_popup: AcceptDialog           # 化学试剂/黄页弹窗
 var _current_target_id: String = ""
 var _cancel_btn: Button
 
-## 放大镜着色器：直接用 Godot 内置 SCREEN_TEXTURE 采样镜片背后的屏幕画面，按 zoom 倍率放大。
-## 旧方案手动传 get_viewport().get_texture() 在 Web 导出里取到黑纹理（主视口渲染到屏而非纹理），导致镜片漆黑；改 SCREEN_TEXTURE 后各平台可靠。
+## 放大镜着色器：用 hint_screen_texture 声明屏幕纹理 uniform，在镜片圆形区域内按 zoom 倍率放大显示光标背后的画面。
+## Godot 4.x 已移除内置 SCREEN_TEXTURE，必须用 uniform sampler2D xxx : hint_screen_texture。
 const MAGNIFIER_SHADER := """shader_type canvas_item;
+uniform sampler2D screen_texture : hint_screen_texture, repeat_disable, filter_nearest;
 uniform float zoom;
 uniform vec2 lens_center;
 void fragment() {
 	vec2 dir = SCREEN_UV - lens_center;
 	vec2 sample_uv = lens_center + dir / zoom;
-	vec3 col = texture(SCREEN_TEXTURE, sample_uv).rgb;
+	vec3 col = texture(screen_texture, sample_uv).rgb;
 	float d = distance(UV, vec2(0.5));
 	float alpha = smoothstep(0.5, 0.485, d);
 	COLOR = vec4(col, alpha);
@@ -170,12 +171,12 @@ func _build_lens_overlay() -> void:
 	add_child(_lens_overlay)
 
 	# 玻璃区域（着色器采样主视口纹理实现真实放大）
-	var glass := TextureRect.new()
+	# 用 ColorRect 而非 TextureRect：WebGL 下空 TextureRect 可能不执行 fragment shader，
+	# 导致 SCREEN_TEXTURE 采样不到画面而漆黑；ColorRect 保证有像素绘制，material 必然执行。
+	var glass := ColorRect.new()
 	glass.name = "Glass"
 	glass.size = Vector2(150, 150)
 	glass.position = Vector2(-75, -75)
-	glass.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	glass.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mag_shader := Shader.new()
 	mag_shader.code = MAGNIFIER_SHADER
@@ -431,8 +432,13 @@ func _on_lens_gui_input(event: InputEvent) -> void:
 ## 放大镜的全局输入入口：镜头层 mouse_filter=IGNORE 无法接收 gui_input，
 ## 故在此跟随光标并判定发现。不 consume 事件，热点点击仍会下发到观察器。
 func _input(event: InputEvent) -> void:
-	# ESC 随时取消当前工具交互（放大镜/卷尺），不依赖工具栏点击
+	# ESC / 鼠标右键 随时取消当前工具交互（放大镜/卷尺），不依赖工具栏点击
+	var should_cancel := false
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		should_cancel = true
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		should_cancel = true
+	if should_cancel:
 		if _magnifier_active or (_tape_overlay and _tape_overlay.visible):
 			_cancel_tool()
 			return
@@ -450,7 +456,7 @@ func _process(delta: float) -> void:
 	if not _magnifier_active:
 		return
 	var vp := get_viewport()
-	var glass: TextureRect = _lens_overlay.get_node_or_null("Glass")
+	var glass: ColorRect = _lens_overlay.get_node_or_null("Glass")
 	if glass and glass.material is ShaderMaterial:
 		glass.material.set_shader_parameter("zoom", 2.6)
 		# 镜片中心在 SCREEN_UV 空间（屏幕像素 -> 0..1，y 翻转：SCREEN_UV 原点在左下）
