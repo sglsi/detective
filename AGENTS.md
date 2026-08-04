@@ -287,6 +287,7 @@ NO other objects, isolated, game asset
 - Web 预览端口固定 5000
 - Godot 项目需要 Compatibility 渲染器以支持 Web 导出
 - **Git 提交策略**：不用每次都向 GitHub 提交，在进行一个阶段的工作后再集中进行提交
+- **图片预览规则**：禁止让用户通过 GitHub 链接查看图片。生成的图片必须直接在对话中展示给用户（使用 generate_image 工具或提供可直接访问的 URL），不要让用户去 GitHub、本地拉取或启动预览服务查看
 
 ## 本地开发环境
 
