@@ -475,8 +475,9 @@ func _process(delta: float) -> void:
 			region.position = region.position.clamp(Vector2.ZERO, tex_size - region.size)
 			glass.texture = tex
 			glass.region_rect = region
+			# 必须让 region_rect 的小区域拉伸填满 150x150 镜片，才能实现真正放大效果
 			glass.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			glass.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			glass.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
 		else:
 			glass.texture = null
 			glass.visible = false
