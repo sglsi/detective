@@ -54,6 +54,8 @@ var _history_panel: Control = null
 var _hist_win: PanelContainer = null          # 可拖动的窗口本体
 var _hist_drag := false
 var _hist_drag_offset := Vector2.ZERO
+var _verify_win: Control = null               # 「提交验证」结果窗口
+var _verify_v: int = 0                        # 当前判定等级（供 ESC 确认）
 
 var _card_btns: Dictionary = {}              # clue_id -> Button
 
@@ -785,7 +787,7 @@ func _refresh_battlefield() -> void:
 
 func _make_battle_hypo_card(h: Dictionary) -> Control:
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(160, 64)
+	card.custom_minimum_size = Vector2(180, 96)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var style := StyleBoxFlat.new()
@@ -803,9 +805,10 @@ func _make_battle_hypo_card(h: Dictionary) -> Control:
 	margin.add_theme_constant_override("margin_bottom", 8)
 	card.add_child(margin)
 
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 8)
-	margin.add_child(hb)
+	# 纵向布局：上方为假设文字，下方为整行铺满卡片宽度的状态按钮（点击区=整个按钮区域）
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	margin.add_child(vb)
 
 	var id: String = h.get("id", "?")
 	var text: String = h.get("text", "")
@@ -815,15 +818,16 @@ func _make_battle_hypo_card(h: Dictionary) -> Control:
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.custom_minimum_size = Vector2(100, 24)
-	hb.add_child(lbl)
+	lbl.custom_minimum_size = Vector2(0, 32)
+	vb.add_child(lbl)
 
 	var btn := Button.new()
 	btn.text = "未定"
-	btn.add_theme_font_size_override("font_size", 13)
-	btn.custom_minimum_size = Vector2(72, 32)
+	btn.add_theme_font_size_override("font_size", 15)
+	btn.custom_minimum_size = Vector2(0, 44)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.pressed.connect(_on_battle_hypo_pressed.bind(id))
-	hb.add_child(btn)
+	vb.add_child(btn)
 	_battle_hypo_btns[id] = btn
 
 	return card
@@ -831,7 +835,7 @@ func _make_battle_hypo_card(h: Dictionary) -> Control:
 
 func _make_battle_contra_card(c: Dictionary) -> Control:
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(160, 52)
+	card.custom_minimum_size = Vector2(180, 84)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var style := StyleBoxFlat.new()
@@ -844,14 +848,14 @@ func _make_battle_contra_card(c: Dictionary) -> Control:
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_top", 8)
 	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 6)
+	margin.add_theme_constant_override("margin_bottom", 8)
 	card.add_child(margin)
 
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 8)
-	margin.add_child(hb)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	margin.add_child(vb)
 
 	var id: String = c.get("id", "?")
 	var text: String = c.get("text", "")
@@ -861,15 +865,16 @@ func _make_battle_contra_card(c: Dictionary) -> Control:
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.custom_minimum_size = Vector2(100, 24)
-	hb.add_child(lbl)
+	lbl.custom_minimum_size = Vector2(0, 32)
+	vb.add_child(lbl)
 
 	var btn := Button.new()
 	btn.text = "未识别"
-	btn.add_theme_font_size_override("font_size", 13)
-	btn.custom_minimum_size = Vector2(72, 32)
+	btn.add_theme_font_size_override("font_size", 15)
+	btn.custom_minimum_size = Vector2(0, 44)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.pressed.connect(_on_battle_contra_pressed.bind(id))
-	hb.add_child(btn)
+	vb.add_child(btn)
 	_battle_contra_btns[id] = btn
 
 	return card
@@ -1051,23 +1056,49 @@ func _on_verify_pressed() -> void:
 	var v := get_verdict()
 	_last_report = _compute_report(v)
 
-	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.85)
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.name = "VerifyOverlay"
-	add_child(overlay)
+	# 半透明遮罩，吸收窗口外的点击，并压暗底层推理墙
+	var backdrop := ColorRect.new()
+	backdrop.color = Color(0, 0, 0, 0.7)
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	backdrop.z_index = 19
+	backdrop.name = "VerifyBackdrop"
+	add_child(backdrop)
+
+	# 居中结果窗口（修复旧版报告标签左右偏移反置导致文字不可见的显示异常）
+	var win := PanelContainer.new()
+	win.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	win.custom_minimum_size = Vector2(720, 440)
+	win.z_index = 20
+	win.name = "VerifyResult"
+	add_child(win)
+
+	var pstyle := StyleBoxFlat.new()
+	pstyle.bg_color = Color(0.10, 0.08, 0.06, 0.98)
+	pstyle.border_color = [COL_RED, COL_YELLOW, Color(0.4, 0.85, 0.4), COL_GREEN][v] as Color
+	pstyle.border_width_left = 3; pstyle.border_width_right = 3
+	pstyle.border_width_top = 3; pstyle.border_width_bottom = 3
+	pstyle.set_corner_radius_all(10)
+	win.add_theme_stylebox_override("panel", pstyle)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 28)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_right", 28)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	win.add_child(margin)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 16)
+	margin.add_child(vb)
 
 	var title := Label.new()
 	title.text = ["矛盾冲突", "证据不足", "倾向成立", "已获证实"][v] as String
-	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_font_size_override("font_size", 38)
 	title.add_theme_color_override("font_color", [COL_RED, COL_YELLOW, Color(0.4, 0.85, 0.4), COL_GREEN][v] as Color)
 	title.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
-	title.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	title.offset_top = 120
-	title.offset_bottom = 180
-	title.offset_left = -400
-	title.offset_right = 400
-	overlay.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_child(title)
 
 	var rep := Label.new()
 	rep.text = _last_report
@@ -1075,19 +1106,37 @@ func _on_verify_pressed() -> void:
 	rep.add_theme_color_override("font_color", Color(0.85, 0.95, 0.85))
 	rep.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rep.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
-	rep.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	rep.offset_top = 220
-	rep.offset_bottom = 420
-	rep.offset_left = 160
-	rep.offset_right = -160
-	overlay.add_child(rep)
+	rep.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rep.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vb.add_child(rep)
 
 	if v == Verdict.VERIFIED:
 		for m in _milestones: m["lit"] = true
 		_milestone_confirmed = _milestone_total
 		_update_milestone_ui()
 
-	await get_tree().create_timer(2.5).timeout
+	var ok := Button.new()
+	ok.text = "确定"
+	ok.add_theme_font_size_override("font_size", 18)
+	ok.add_theme_color_override("font_color", COL_GOLD)
+	ok.custom_minimum_size = Vector2(160, 46)
+	ok.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var ks := StyleBoxFlat.new()
+	ks.bg_color = Color(0.50, 0.10, 0.10, 0.95)
+	ks.border_color = Color(0.85, 0.65, 0.25)
+	ks.border_width_left = 2; ks.border_width_right = 2
+	ks.border_width_top = 2; ks.border_width_bottom = 2
+	ks.set_corner_radius_all(4)
+	ok.add_theme_stylebox_override("normal", ks)
+	ok.pressed.connect(_on_verify_confirm.bind(v))
+	vb.add_child(ok)
+
+	_verify_win = win
+	_verify_v = v
+
+
+func _on_verify_confirm(v: int) -> void:
+	_verify_win = null
 	if _on_verify.is_valid(): _on_verify.call(v)
 	queue_free()
 
@@ -1418,6 +1467,12 @@ func _input(event: InputEvent) -> void:
 		if event is InputEventMouseMotion and _hist_win and is_instance_valid(_hist_win):
 			_hist_win.global_position = get_viewport().get_mouse_position() - _hist_drag_offset
 			return
+	# 验证结果窗口：ESC 直接确认
+	if _verify_win and is_instance_valid(_verify_win):
+		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+			get_viewport().set_input_as_handled()
+			_on_verify_confirm(_verify_v)
+		return
 	if _verifying: return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
