@@ -48,22 +48,18 @@ var _tape_overlay: Control                     # 卷尺拖拽层
 var _interaction_popup: AcceptDialog           # 化学试剂/黄页弹窗
 var _current_target_id: String = ""
 var _cancel_btn: Button
+var scene_ui: SceneFramework = null   # 放大镜直接放大场景背景/立绘的真实纹理，不依赖屏幕捕获
+const MAG_ZOOM := 2.6                # 放大倍率
 
-## 放大镜着色器：Godot 4 官方屏幕采样写法。
-## 用 uniform sampler2D screen_texture : hint_screen_texture 自动绑定当前 backbuffer；
-## 以 SCREEN_UV（屏幕 UV，原点左上）为基准，按 zoom 倍率在镜片圆形区域内放大采样。
-## 不要手动传 get_viewport().get_texture()，Web 导出下主视口纹理不可靠。
+## 放大镜着色器：仅做圆形裁剪 + 显示 TextureRect 自身纹理（TEXTURE 由 Godot 自动传入）。
+## 完全不采样屏幕（hint_screen_texture / get_viewport().get_texture 在 Web 导出下均不可靠、取到黑屏），
+## 改用 ToolBar._process 每帧把命中的背景/立绘纹理与 region_rect 赋给 Glass，由着色器只裁成圆形。
 const MAGNIFIER_SHADER := """shader_type canvas_item;
-uniform sampler2D screen_texture : hint_screen_texture, repeat_disable, filter_nearest;
-uniform float zoom;
-uniform vec2 lens_center;
 void fragment() {
-	vec2 dir = SCREEN_UV - lens_center;
-	vec2 sample_uv = lens_center + dir / zoom;
-	vec3 col = texture(screen_texture, sample_uv).rgb;
+	vec4 t = texture(TEXTURE, UV);
 	float d = distance(UV, vec2(0.5));
-	float alpha = smoothstep(0.5, 0.485, d);
-	COLOR = vec4(col, alpha);
+	float a = smoothstep(0.5, 0.485, d);
+	COLOR = vec4(t.rgb, t.a * a);
 }"""            # 当前操作的目标热点 ID
 
 func _ready() -> void:
@@ -173,9 +169,9 @@ func _build_lens_overlay() -> void:
 	_lens_overlay.draw.connect(_on_lens_draw)
 	add_child(_lens_overlay)
 
-	# 玻璃区域：ColorRect 保证 WebGL 下 fragment 一定执行；
-	# 用 hint_screen_texture 让 Godot 自动绑定当前 backbuffer，不手动传主视口纹理。
-	var glass := ColorRect.new()
+	# 玻璃区域：TextureRect + 纯 TEXTURE 圆形裁剪着色器（不采样屏幕，Web 导出可靠）。
+	# 每帧由 _process 把命中元素的纹理与 region_rect 赋给 Glass，显示放大的真实场景内容。
+	var glass := TextureRect.new()
 	glass.name = "Glass"
 	glass.size = Vector2(150, 150)
 	glass.position = Vector2(-75, -75)
@@ -187,11 +183,6 @@ func _build_lens_overlay() -> void:
 	glass.material = mag_mat
 	_lens_overlay.add_child(glass)
 
-	# 关键：镜片必须绘制在场景内容之后，才能从 backbuffer 读到画面。
-	# top_level=true 使其脱离父节点 z 层级参与全局排序；z_index 提到 1000 确保在场景、UI 之上。
-	_lens_overlay.top_level = true
-	_lens_overlay.z_index = 1000
-
 	# 观察提示标签
 	var hint := Label.new()
 	hint.name = "HintLabel"
@@ -202,10 +193,8 @@ func _build_lens_overlay() -> void:
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_lens_overlay.add_child(hint)
 
-## 圆形镜片外框：用 _draw 画真正的圆（取代原来的圆角矩形 Ring，使放大镜显示为圆形）。
-## 圆形镜片暗底盖住玻璃方边外的缝隙；黄铜圆框半径略大于玻璃内容圆，保证成环。
+## 圆形镜片外框：黄铜圆框。镜片内容由 Glass(TextureRect+圆形裁剪着色器) 显示，圆外透明透出下层场景。
 func _on_lens_draw() -> void:
-	_lens_overlay.draw_circle(Vector2.ZERO, 77, Color(0.04, 0.04, 0.06, 0.92))
 	_lens_overlay.draw_arc(Vector2.ZERO, 80, 0, TAU, 96, Color(0.82, 0.66, 0.30, 0.98), 5)
 
 func _build_tape_overlay() -> void:
@@ -458,19 +447,40 @@ func _input(event: InputEvent) -> void:
 		if _magnifier_timer > 0.4:
 			_discover_with_magnifier()
 
-## 每帧：更新放大镜着色器参数 + 累计停留计时触发发现。
+## 每帧：把鼠标命中的背景/立绘纹理与放大区域赋给 Glass（真实放大，不依赖屏幕捕获）+ 累计停留计时。
 func _process(delta: float) -> void:
 	if not _magnifier_active:
 		return
 	var vp := get_viewport()
 	var mp := vp.get_mouse_position()   # 视口像素坐标（原点左上），不受 ToolBar 根偏移影响
-	var glass: ColorRect = _lens_overlay.get_node_or_null("Glass")
-	if glass and glass.material is ShaderMaterial:
-		glass.material.set_shader_parameter("zoom", 2.6)
-		# SCREEN_UV 与鼠标坐标系一致（原点左上），无需 y 翻转。
-		var c := Vector2(mp.x / vp.size.x, mp.y / vp.size.y)
-		glass.material.set_shader_parameter("lens_center", c)
-	_lens_overlay.global_position = mp   # 以视口绝对坐标定位镜片，确保视觉中心与采样中心一致
+	var glass: TextureRect = _lens_overlay.get_node_or_null("Glass")
+	if glass:
+		var node: TextureRect = null
+		if scene_ui and scene_ui.has_method("get_magnifiable_at"):
+			node = scene_ui.get_magnifiable_at(mp)
+		if node and node.texture:
+			glass.visible = true
+			var tex: Texture2D = node.texture
+			var rect := node.get_global_rect()
+			# 鼠标在节点矩形内的归一化位置 → 纹理像素坐标
+			var uv := (mp - rect.position) / rect.size
+			uv = uv.clamp(Vector2.ZERO, Vector2.ONE)
+			var tex_size := tex.get_size()
+			var px := uv * tex_size
+			# 以命中点为中心、MAG_ZOOM 倍率放大对应的纹理区域
+			var region_full := tex_size / MAG_ZOOM
+			region_full.x = min(region_full.x, tex_size.x)
+			region_full.y = min(region_full.y, tex_size.y)
+			var region := Rect2(px - region_full * 0.5, region_full)
+			region.position = region.position.clamp(Vector2.ZERO, tex_size - region.size)
+			glass.texture = tex
+			glass.region_rect = region
+			glass.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			glass.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		else:
+			glass.texture = null
+			glass.visible = false
+	_lens_overlay.global_position = mp   # 以视口绝对坐标定位镜片，确保镜片中心即放大中心
 	_magnifier_timer += delta   # 仅供点击发现的去抖阈值，不再自动触发发现
 
 ## 取当前观察线索对某道具的关联 reveal（来自 ToolSystem.get_clue_tool_reveal）。

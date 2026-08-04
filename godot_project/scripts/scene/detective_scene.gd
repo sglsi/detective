@@ -79,6 +79,7 @@ func _setup_toolbar() -> void:
 	# ToolBar 是核心工程脚本，始终存在；不判空（ClassDB.class_exists 对脚本类恒 false，
 	# ResourceLoader.exists 在导出包里对 .gd 路径不可靠，两种判空都已在生产环境翻车）
 	_toolbar = ToolBar.new(); _toolbar.name = "ToolBar"; add_child(_toolbar)
+	_toolbar.scene_ui = _ui   # 供放大镜直接放大场景背景/立绘的真实纹理（不依赖屏幕捕获）
 	_toolbar.tool_activated.connect(_on_tool_activated)
 	_toolbar.tool_completed.connect(_on_tool_completed)
 	# 场景控制器进入 STEP_2_TOOL 时显示工具栏
