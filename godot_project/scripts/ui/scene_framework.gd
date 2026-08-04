@@ -67,8 +67,8 @@ func set_scene_background(tex: Texture2D) -> void:
 	_scene_area.add_child(bg)
 	_scene_area.move_child(bg, 0)
 
-func add_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vector2) -> Control:
-	var port = _make_portrait(tex, name_text, pos, size)
+func add_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vector2, flip: bool = false) -> Control:
+	var port = _make_portrait(tex, name_text, pos, size, flip)
 	_scene_area.add_child(port)
 	_portraits.append(port)
 	return port
@@ -627,7 +627,7 @@ func _make_review_btn(txt: String) -> Button:
 
 # === 角色立绘（带金边框+名字烫金条） ===
 
-func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vector2) -> Control:
+func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vector2, flip: bool = false) -> Control:
 	var port = Control.new()
 	port.name = "portrait_" + name_text.replace(" ", "_")
 	port.position = pos; port.size = size
@@ -650,6 +650,7 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 	var img = TextureRect.new()
 	img.name = "img"
 	img.texture = tex
+	img.flip_h = flip
 	img.position = Vector2(6, 6); img.size = size - Vector2(12, 12)
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
