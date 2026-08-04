@@ -36,3 +36,12 @@ godot_project/web_build/index.pck
 godot_project/tools/p16_lance_wall_repro.gd
 tools/web_diag.cjs
 tools/web_diag.mjs
+
+# Web build generated binaries
+godot_project/web_build/index.wasm
+
+# Local validation screenshots
+magtest/
+
+# Backup files
+*.bak
