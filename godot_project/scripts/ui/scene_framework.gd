@@ -645,28 +645,7 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	port.add_child(img)
 
-	# 名字标签
-	if name_text != "":
-		var name_lbl = Label.new()
-		name_lbl.name = "name_label"
-		name_lbl.text = name_text
-		name_lbl.add_theme_font_size_override("font_size", 16)
-		name_lbl.add_theme_color_override("font_color", Color.WHITE)
-		name_lbl.add_theme_color_override("font_outline_color", COL_SHADOW)
-		name_lbl.add_theme_constant_override("outline_size", 2)
-		var name_panel = Panel.new()
-		name_panel.position = Vector2(15, size.y - 36); name_panel.size = Vector2(size.x - 30, 30)
-		var npsb = StyleBoxFlat.new()
-		npsb.bg_color = Color(0.10, 0.07, 0.04, 0.35)   # 半透明深色底，保证名字可读
-		npsb.set_corner_radius_all(3)
-		name_panel.add_theme_stylebox_override("panel", npsb)
-		name_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		port.add_child(name_panel)
-		name_lbl.position = Vector2(0, 0); name_lbl.size = Vector2(size.x - 30, 30)
-		name_lbl.horizontal_alignment = 1; name_lbl.vertical_alignment = 1
-		name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		name_panel.add_child(name_lbl)
-
+	# 注：立绘名字条已按需求移除（scene_framework.gd 不再在场景中显示角色名）。
 	return port
 
 # === 通用存/读档辅助（场景复用） ===

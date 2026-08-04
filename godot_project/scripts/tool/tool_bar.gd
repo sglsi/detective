@@ -71,6 +71,14 @@ func _ready() -> void:
 	#   - 子面板(mouse_filter=STOP) 在工具栏区域正常接收点击，按钮优先于面板。
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# 全屏 BackBufferCopy：在放大镜着色器采样 screen_texture 前先把当前场景抓到可读纹理。
+	# 否则 WebGL 下 screen_texture 取到的是未初始化的清屏灰，镜片整体变灰。
+	# 必须绘制在镜片之前（z 最低），保证 glass 采样时场景已在 backbuffer 中。
+	var bbc := BackBufferCopy.new()
+	bbc.name = "ScreenCopy"
+	bbc.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	bbc.z_index = -100
+	add_child(bbc)
 	_build_panel()
 	_build_lens_overlay()
 	_build_tape_overlay()
