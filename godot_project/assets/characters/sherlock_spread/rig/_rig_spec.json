@@ -1,0 +1,393 @@
+{
+  "character": "sherlock_spread",
+  "parts_dir": "res://assets/characters/sherlock_spread/rig/",
+  "scale": 0.2380857569730688,
+  "bones": [
+    {
+      "name": "head",
+      "parent": "",
+      "pos": [
+        0.0,
+        0.0
+      ],
+      "rot": 0.0,
+      "len": 47.13,
+      "wid": 31.665,
+      "dir": 1,
+      "color": [
+        0.86,
+        0.7,
+        0.55
+      ],
+      "tex": "head.png",
+      "pivot": [
+        66.5,
+        157.25
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": [
+        447,
+        16,
+        579,
+        200
+      ]
+    },
+    {
+      "name": "neck",
+      "parent": "head",
+      "pos": [
+        0.238,
+        1.19
+      ],
+      "rot": 0.0,
+      "len": 1.19,
+      "wid": 14.0,
+      "dir": 1,
+      "color": [
+        0.86,
+        0.7,
+        0.55
+      ],
+      "tex": "",
+      "pivot": [
+        0,
+        0
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": null
+    },
+    {
+      "name": "torso",
+      "parent": "neck",
+      "pos": [
+        0.0,
+        1.19
+      ],
+      "rot": 0.0,
+      "len": 110.0,
+      "wid": 34.427,
+      "dir": 1,
+      "color": [
+        0.16,
+        0.18,
+        0.26
+      ],
+      "tex": "torso.png",
+      "pivot": [
+        120.5,
+        0
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": [
+        392,
+        195,
+        632,
+        625
+      ]
+    },
+    {
+      "name": "hip",
+      "parent": "torso",
+      "pos": [
+        0.0,
+        110.0
+      ],
+      "rot": 0.0,
+      "len": -15.0,
+      "wid": 32.0,
+      "dir": 1,
+      "color": [
+        0.12,
+        0.12,
+        0.16
+      ],
+      "tex": "",
+      "pivot": [
+        0,
+        0
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": null
+    },
+    {
+      "name": "shoulder_L",
+      "parent": "torso",
+      "pos": [
+        -24.761,
+        7.143
+      ],
+      "rot": 0.0,
+      "len": 6.0,
+      "wid": 14.0,
+      "dir": 1,
+      "color": [
+        0.16,
+        0.18,
+        0.26
+      ],
+      "tex": "",
+      "pivot": [
+        0,
+        0
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": null
+    },
+    {
+      "name": "shoulder_R",
+      "parent": "torso",
+      "pos": [
+        24.761,
+        6.428
+      ],
+      "rot": 0.0,
+      "len": 6.0,
+      "wid": 14.0,
+      "dir": 1,
+      "color": [
+        0.16,
+        0.18,
+        0.26
+      ],
+      "tex": "",
+      "pivot": [
+        0,
+        0
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": null
+    },
+    {
+      "name": "upperarm_L",
+      "parent": "shoulder_L",
+      "pos": [
+        0,
+        0
+      ],
+      "rot": -32.685,
+      "len": 48.938,
+      "wid": 15.999,
+      "dir": 1,
+      "color": [
+        0.24,
+        0.26,
+        0.36
+      ],
+      "tex": "upperarm_L.png",
+      "pivot": [
+        56.0,
+        17.4
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": [
+        297,
+        225,
+        408,
+        398
+      ]
+    },
+    {
+      "name": "forearm_L",
+      "parent": "upperarm_L",
+      "pos": [
+        0,
+        48.938
+      ],
+      "rot": -4.422,
+      "len": 57.617,
+      "wid": 22.999,
+      "dir": 1,
+      "color": [
+        0.86,
+        0.7,
+        0.55
+      ],
+      "tex": "forearm_L.png",
+      "pivot": [
+        80.5,
+        19.4
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": [
+        202,
+        372,
+        362,
+        565
+      ]
+    },
+    {
+      "name": "upperarm_R",
+      "parent": "shoulder_R",
+      "pos": [
+        0,
+        0
+      ],
+      "rot": 32.239,
+      "len": 49.541,
+      "wid": 15.999,
+      "dir": 1,
+      "color": [
+        0.24,
+        0.26,
+        0.36
+      ],
+      "tex": "upperarm_R.png",
+      "pivot": [
+        56.0,
+        17.7
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": [
+        616,
+        222,
+        727,
+        398
+      ]
+    },
+    {
+      "name": "forearm_R",
+      "parent": "upperarm_R",
+      "pos": [
+        0,
+        49.541
+      ],
+      "rot": 4.868,
+      "len": 57.617,
+      "wid": 22.999,
+      "dir": 1,
+      "color": [
+        0.86,
+        0.7,
+        0.55
+      ],
+      "tex": "forearm_R.png",
+      "pivot": [
+        80.5,
+        19.4
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": [
+        662,
+        372,
+        822,
+        565
+      ]
+    },
+    {
+      "name": "thigh_L",
+      "parent": "hip",
+      "pos": [
+        -6.428,
+        11.905
+      ],
+      "rot": -28.207,
+      "len": 59.438,
+      "wid": 15.583,
+      "dir": 1,
+      "color": [
+        0.12,
+        0.12,
+        0.16
+      ],
+      "tex": "thigh_L.png",
+      "pivot": [
+        59.5,
+        17.68
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": [
+        367,
+        612,
+        485,
+        832
+      ]
+    },
+    {
+      "name": "shin_L",
+      "parent": "thigh_L",
+      "pos": [
+        0,
+        59.438
+      ],
+      "rot": -7.662,
+      "len": 57.292,
+      "wid": 17.261,
+      "dir": 1,
+      "color": [
+        0.86,
+        0.7,
+        0.55
+      ],
+      "tex": "shin_L.png",
+      "pivot": [
+        72.5,
+        10.0
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": [
+        296,
+        808,
+        440,
+        1007
+      ]
+    },
+    {
+      "name": "thigh_R",
+      "parent": "hip",
+      "pos": [
+        5.238,
+        11.905
+      ],
+      "rot": 28.61,
+      "len": 59.664,
+      "wid": 15.845,
+      "dir": 1,
+      "color": [
+        0.12,
+        0.12,
+        0.16
+      ],
+      "tex": "thigh_R.png",
+      "pivot": [
+        60.5,
+        17.68
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": [
+        534,
+        612,
+        654,
+        832
+      ]
+    },
+    {
+      "name": "shin_R",
+      "parent": "thigh_R",
+      "pos": [
+        0,
+        59.664
+      ],
+      "rot": 4.066,
+      "len": 56.005,
+      "wid": 16.547,
+      "dir": 1,
+      "color": [
+        0.86,
+        0.7,
+        0.55
+      ],
+      "tex": "shin_R.png",
+      "pivot": [
+        69.5,
+        10.0
+      ],
+      "scale": 0.2380857569730688,
+      "src_bbox": [
+        583,
+        808,
+        721,
+        1007
+      ]
+    }
+  ]
+}
