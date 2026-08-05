@@ -36,8 +36,9 @@ def main() -> int:
         sc = b["scale"]
         tex = b["tex"]
         tex_path = f'"{parts_dir}{tex}"' if tex else '""'
-        world_len = b["len"] * sc
-        world_wid = b["wid"] * sc
+        # build_sherlock_spread_rig.py 已经把 len/wid/pos 换算为世界单位，直接使用
+        world_len = b["len"]
+        world_wid = b["wid"]
         world_pos = [b["pos"][0], b["pos"][1]]
 
         entry = (
