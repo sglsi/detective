@@ -53,7 +53,7 @@
 
   <div class="controls">
     <div class="keys">
-      <div class="key"><kbd>← →</kbd> / <kbd>A D</kbd>移动</div>
+      <div class="key"><kbd>← →</kbd> / <kbd>S F</kbd>移动</div>
       <div class="key"><kbd>Shift</kbd> + 方向 奔跑<br><span style="font-size:11px;color:var(--muted)">（需同时按住）</span></div>
       <div class="key"><kbd>空格</kbd>跳跃</div>
       <div class="key"><kbd>R</kbd>重置位置</div>
@@ -177,7 +177,7 @@ const state = {
 const input = { left:false, right:false, run:false };
 
 // ---- 输入 ----
-const keymap = { ArrowLeft:"left", KeyA:"left", ArrowRight:"right", KeyD:"right" };
+const keymap = { ArrowLeft:"left", KeyS:"left", ArrowRight:"right", KeyF:"right" };
 addEventListener("keydown", e=>{
   if (keymap[e.code]) { input[keymap[e.code]] = true; e.preventDefault(); }
   else if (e.code==="ShiftLeft"||e.code==="ShiftRight") input.run = true;
