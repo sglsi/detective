@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>人体关节活动 · 走跑跳动态预览</title>
+<style>
+  :root { --bg:#0e1116; --panel:#171c24; --line:#222a35; --txt:#e6ebf2; --muted:#8b97a8; --accent:#4aa3ff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--txt);
+    font-family: "PingFang SC","Microsoft YaHei",system-ui,sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 18px 16px 40px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 4px 0 2px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .stage { position: relative; border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden; background: linear-gradient(180deg,#11161e 0%, #0c1016 100%); }
+  canvas { display:block; width:100%; height:auto; }
+  .hud { position:absolute; left:12px; top:12px; display:flex; gap:8px; align-items:center; }
+  .badge { background: rgba(20,26,34,.8); border:1px solid var(--line); border-radius: 999px;
+    padding:5px 12px; font-size:13px; backdrop-filter: blur(4px); }
+  .badge b { color: var(--accent); }
+  .controls { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; align-items:center; }
+  .keys { display:flex; gap:8px; flex-wrap:wrap; }
+  .key { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px; font-size:12px; color:var(--muted); min-width:64px; text-align:center; }
+  .key kbd { display:block; color:var(--txt); font-weight:600; font-size:13px; margin-bottom:3px;
+    background:#0c0f15; border:1px solid #2a3340; border-bottom-width:2px; border-radius:5px; padding:2px 0; }
+  .opts { margin-left:auto; display:flex; gap:16px; align-items:center; font-size:13px; color:var(--muted); }
+  .opts label { display:flex; gap:6px; align-items:center; cursor:pointer; }
+  .opts input[type=range]{ width:110px; }
+  .touch { display:flex; gap:10px; margin-top:14px; }
+  .btn { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
+    border-radius:10px; padding:12px 0; font-size:15px; font-weight:600; user-select:none;
+    touch-action:manipulation; }
+  .btn:active { background:#1e2632; border-color:var(--accent); }
+  .btn.run { color:#ffd27a; }
+  .btn.jump { color:#7affb0; }
+  @media (max-width:560px){ .opts{ margin-left:0; width:100%; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>人体关节活动 · 走跑跳动态预览</h1>
+  <div class="sub">基于关节锚点 + 活动范围(ROM)约束的正向运动学骨架（与 Godot 框架同源规范）。键盘实时驱动。</div>
+
+  <div class="stage">
+    <canvas id="cv" width="920" height="620"></canvas>
+    <div class="hud">
+      <div class="badge">状态：<b id="state">站立</b></div>
+      <div class="badge" id="facing">朝向：右</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="keys">
+      <div class="key"><kbd>← →</kbd> / <kbd>A D</kbd>移动</div>
+      <div class="key"><kbd>Shift</kbd>奔跑</div>
+      <div class="key"><kbd>空格</kbd>跳跃</div>
+      <div class="key"><kbd>R</kbd>重置位置</div>
+    </div>
+    <div class="opts">
+      <label><input type="checkbox" id="showJoints" checked /> 显示关节锚点</label>
+      <label>速度 <input type="range" id="speed" min="0.3" max="2" step="0.1" value="1" /></label>
+    </div>
+  </div>
+
+  <div class="touch">
+    <div class="btn" id="bLeft">◀ 左</div>
+    <div class="btn run" id="bRun">奔跑 (Shift)</div>
+    <div class="btn jump" id="bJump">跳跃 (空格)</div>
+    <div class="btn" id="bRight">右 ▶</div>
+  </div>
+</div>
+
+<script>
+// =============================================================================
+// 人体关节规范（与 res://framework/human_skeleton/human_body_spec.gd 同源）
+// 约定：+Y 向下、+X 向右；局部角 0 = 沿父段 +Y（自然向下）；正角 = 顺时针。
+// =============================================================================
+const PX = 52;                 // 1 头高 = 52px（仅显示缩放，不影响比例）
+const L = { head:1.0, torso:2.5, upper_arm:1.3, fore_arm:1.1, hand:0.8, thigh:1.9, shin:1.7, foot:0.45 };
+const W = { head:0.72, torso:0.95, upper_arm:0.30, fore_arm:0.24, hand:0.22, thigh:0.38, shin:0.28, foot:0.34 };
+// 子段近端关节在【父段局部坐标】中的锚点(单位 u)
+const ANCHORS = {
+  head:[0,0],
+  upper_arm_L:[-0.52,0.18], upper_arm_R:[0.52,0.18],
+  fore_arm_L:[0,L.upper_arm], fore_arm_R:[0,L.upper_arm],
+  hand_L:[0,L.fore_arm],      hand_R:[0,L.fore_arm],
+  thigh_L:[-0.20,L.torso],    thigh_R:[0.20,L.torso],
+  shin_L:[0,L.thigh],         shin_R:[0,L.thigh],
+  foot_L:[0,L.shin],          foot_R:[0,L.shin],
+};
+const PARENT = {
+  torso:null, head:"torso",
+  upper_arm_L:"torso", upper_arm_R:"torso",
+  fore_arm_L:"upper_arm_L", fore_arm_R:"upper_arm_R",
+  hand_L:"fore_arm_L", hand_R:"fore_arm_R",
+  thigh_L:"torso", thigh_R:"torso",
+  shin_L:"thigh_L", shin_R:"thigh_R",
+  foot_L:"shin_L", foot_R:"shin_R",
+};
+const REST = { torso:0, head:180, upper_arm_L:-10, upper_arm_R:10, fore_arm_L:0, fore_arm_R:0,
+  hand_L:0, hand_R:0, thigh_L:4, thigh_R:-4, shin_L:0, shin_R:0, foot_L:90, foot_R:90 };
+const ROM = {
+  head:[130,230], upper_arm_L:[-180,30], upper_arm_R:[-30,180],
+  fore_arm_L:[0,150], fore_arm_R:[0,150], hand_L:[-70,70], hand_R:[-70,70],
+  thigh_L:[-100,100], thigh_R:[-100,100], shin_L:[0,150], shin_R:[0,150],
+  foot_L:[40,140], foot_R:[40,140], torso:[-30,30],
+};
+const COLOR = {
+  torso:[0.20,0.35,0.60], head:[0.95,0.80,0.70], upper_arm:[0.20,0.35,0.60],
+  fore_arm:[0.95,0.80,0.70], hand:[0.95,0.80,0.70], thigh:[0.28,0.28,0.34],
+  shin:[0.95,0.80,0.70], foot:[0.15,0.15,0.18],
+};
+const SHAPE = { head:"circle", torso:"capsule", upper_arm:"capsule", fore_arm:"capsule",
+  hand:"capsule", thigh:"capsule", shin:"capsule", foot:"capsule" };
+const ORDER = ["torso","head","upper_arm_L","upper_arm_R","fore_arm_L","fore_arm_R",
+  "hand_L","hand_R","thigh_L","thigh_R","shin_L","shin_R","foot_L","foot_R"];
+
+const BONES = {};
+for (const id of ORDER) {
+  const t = id.replace("_L","").replace("_R","");
+  BONES[id] = {
+    parent: PARENT[id],
+    anchor: [ANCHORS[id][0]*PX, ANCHORS[id][1]*PX],
+    length: L[t]*PX,
+    width:  W[t]*PX,
+    rest: REST[id],
+    rom: ROM[id],
+    color: COLOR[t],
+    shape: SHAPE[t],
+  };
+}
+
+// ---- 状态 ----
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let CW = cv.width, CH = cv.height;
+const dpr = Math.max(1, Math.min(2, window.devicePixelRatio||1));
+function fitCanvas(){
+  const cssW = cv.clientWidth || CW;
+  const scale = cssW / CW;
+  cv.width = Math.round(CW*dpr);
+  cv.height = Math.round(CH*dpr);
+  // 用逻辑坐标绘制，故把变换缩放回逻辑尺寸
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cv.style.height = (CH*scale) + "px";
+}
+fitCanvas();
+window.addEventListener("resize", fitCanvas);
+
+const NECK_BASE_Y = 205;
+const LEG_PX = (L.torso + L.thigh + L.shin) * PX; // 颈->踝
+const GROUND_Y = NECK_BASE_Y + LEG_PX;            // 站立时踝所在世界Y
+
+const state = {
+  x: 0, y: NECK_BASE_Y,   // 颈根(世界坐标)
+  vy: 0, onGround: true,
+  facing: 1,
+  phase: 0, t: 0,
+  mode: "idle",           // idle | walk | run | jump
+  showJoints: true,
+  speedMul: 1,
+};
+const input = { left:false, right:false, run:false };
+
+// ---- 输入 ----
+const keymap = { ArrowLeft:"left", KeyA:"left", ArrowRight:"right", KeyD:"right" };
+addEventListener("keydown", e=>{
+  if (keymap[e.code]) { input[keymap[e.code]] = true; e.preventDefault(); }
+  else if (e.code==="ShiftLeft"||e.code==="ShiftRight") input.run = true;
+  else if (e.code==="Space") { doJump(); e.preventDefault(); }
+  else if (e.code==="KeyR") { state.x = 0; }
+});
+addEventListener("keyup", e=>{
+  if (keymap[e.code]) input[keymap[e.code]] = false;
+  else if (e.code==="ShiftLeft"||e.code==="ShiftRight") input.run = false;
+});
+function doJump(){ if (state.onGround){ state.vy = -430; state.onGround=false; } }
+// 触屏按钮
+function bindHold(id, on, off){ const el=document.getElementById(id);
+  const s=e=>{e.preventDefault();on();}; const e2=e=>{e.preventDefault();off();};
+  el.addEventListener("touchstart",s,{passive:false}); el.addEventListener("touchend",e2);
+  el.addEventListener("mousedown",s); el.addEventListener("mouseup",e2); el.addEventListener("mouseleave",e2);
+}
+bindHold("bLeft", ()=>input.left=true, ()=>input.left=false);
+bindHold("bRight",()=>input.right=true,()=>input.right=false);
+bindHold("bRun",  ()=>input.run=true,  ()=>input.run=false);
+document.getElementById("bJump").addEventListener("click", e=>{e.preventDefault();doJump();});
+document.getElementById("showJoints").addEventListener("change", e=>state.showJoints=e.target.checked);
+document.getElementById("speed").addEventListener("input", e=>state.speedMul=parseFloat(e.target.value));
+
+// ---- 计算各关节局部角度(度) ----
+function computePose(){
+  const off = {};
+  for (const id of ORDER) off[id] = 0;
+  const moving = input.left || input.right;
+  const running = input.run && moving;
+
+  if (!state.onGround) {
+    // 腾空：收腿、抬臂
+    off.thigh_L = -70; off.thigh_R = -70;
+    off.shin_L = 72;   off.shin_R = 72;
+    off.upper_arm_L = -55; off.upper_arm_R = 55;
+    off.fore_arm_L = 40; off.fore_arm_R = 40;
+    off.foot_L = 105; off.foot_R = 105;
+    off.torso = 6 * state.facing;
+    return { off, mode:"jump" };
+  }
+  if (moving) {
+    const amp = running ? 40 : 26;       // 大腿摆幅
+    const armAmp = running ? 32 : 18;
+    const kneeBend = running ? 58 : 38;
+    const freq = running ? 2.2 : 1.6;
+    const th = state.phase * Math.PI * 2;
+    off.thigh_L = amp * Math.sin(th);
+    off.thigh_R = amp * Math.sin(th + Math.PI);
+    off.shin_L = kneeBend * Math.max(0, Math.sin(th + Math.PI));
+    off.shin_R = kneeBend * Math.max(0, Math.sin(th));
+    off.upper_arm_L = armAmp * Math.sin(th + Math.PI);
+    off.upper_arm_R = armAmp * Math.sin(th);
+    off.fore_arm_L = running ? 60 : 26;
+    off.fore_arm_R = running ? 60 : 26;
+    off.torso = (running ? 13 : 3) * state.facing;
+    return { off, mode: running ? "run" : "walk" };
+  }
+  // idle：轻微呼吸
+  const t = state.t;
+  off.torso = 2 * Math.sin(t*1.4);
+  off.head = 1.5 * Math.sin(t*1.1);
+  off.upper_arm_L = 3 * Math.sin(t*1.4);
+  off.upper_arm_R = 3 * Math.sin(t*1.4 + 0.6);
+  return { off, mode:"idle" };
+}
+
+// ---- 正向运动学：计算每个骨段的近端/远端世界坐标 ----
+function rotate(vx, vy, a){ const c=Math.cos(a), s=Math.sin(a); return [vx*c - vy*s, vx*s + vy*c]; }
+function fk(off){
+  const ang = {}; const world = {};
+  for (const id of ORDER){
+    let a = (BONES[id].rest + (off[id]||0)) * Math.PI/180;
+    a = Math.max(BONES[id].rom[0], Math.min(BONES[id].rom[1], a)); // clamp 到 ROM
+    ang[id] = a;
+  }
+  for (const id of ORDER){
+    const b = BONES[id];
+    let px, py, pa;
+    if (b.parent === null){ px = state.x; py = state.y; pa = ang[id]; }
+    else {
+      const p = world[b.parent];
+      pa = p.a + ang[id];
+      const r = rotate(b.anchor[0], b.anchor[1], p.a);
+      px = p.x + r[0]; py = p.y + r[1];
+    }
+    const tip = rotate(0, b.length, pa);
+    world[id] = { x:px, y:py, a:pa, tx:px+tip[0], ty:py+tip[1] };
+  }
+  return world;
+}
+
+// ---- 渲染 ----
+function col(c, alpha){ return `rgba(${Math.round(c[0]*255)},${Math.round(c[1]*255)},${Math.round(c[2]*255)},${alpha==null?1:alpha})`; }
+function sx(wx){ return CW/2 + state.facing * (wx - state.x); }
+function sy(wy){ return wy; }
+
+function draw(){
+  ctx.clearRect(0,0,CW,CH);
+  // 背景地面
+  const gy = sy(GROUND_Y);
+  ctx.fillStyle = "#0a0e14";
+  ctx.fillRect(0, gy, CW, CH-gy);
+  ctx.strokeStyle = "#2b3645"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(CW, gy); ctx.stroke();
+  // 滚动地面刻度（体现移动）
+  ctx.strokeStyle = "#1b2330"; ctx.lineWidth = 2;
+  const step = 80;
+  const start = Math.floor((state.x - CW/2)/step)*step;
+  for (let wx = start; wx < state.x + CW/2 + step; wx += step){
+    const X = sx(wx);
+    ctx.beginPath(); ctx.moveTo(X, gy); ctx.lineTo(X - 14, gy + 22); ctx.stroke();
+  }
+
+  const { off } = computePose();
+  const world = fk(off);
+
+  // 先画后侧肢体（按深度：先画远离镜头的？2D 简化为固定顺序，远端手臂/腿先画）
+  const drawOrder = ["thigh_R","shin_R","foot_R","upper_arm_R","fore_arm_R","hand_R",
+                     "torso","head",
+                     "thigh_L","shin_L","foot_L","upper_arm_L","fore_arm_L","hand_L"];
+  for (const id of drawOrder){
+    const b = BONES[id], w = world[id];
+    const X1 = sx(w.x), Y1 = sy(w.y), X2 = sx(w.tx), Y2 = sy(w.ty);
+    const lw = Math.max(3, b.width);
+    if (b.shape === "circle"){
+      // 头部：以骨段中点为圆心
+      const cx = (X1+X2)/2, cy = (Y1+Y2)/2, r = b.width*0.62;
+      ctx.fillStyle = col(b.color);
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1.5; ctx.stroke();
+    } else {
+      ctx.strokeStyle = col(b.color);
+      ctx.lineWidth = lw; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(X1,Y1); ctx.lineTo(X2,Y2); ctx.stroke();
+    }
+  }
+  // 关节锚点
+  if (state.showJoints){
+    for (const id of ORDER){
+      const w = world[id];
+      ctx.fillStyle = id==="torso" ? "#ffd24a" : "#7fd4ff";
+      ctx.beginPath(); ctx.arc(sx(w.x), sy(w.y), 3.2, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.lineWidth=1; ctx.stroke();
+    }
+  }
+}
+
+// ---- 主循环 ----
+let last = performance.now();
+function loop(now){
+  let dt = (now - last)/1000; last = now;
+  dt = Math.min(dt, 0.05);
+  state.t += dt;
+
+  const { off, mode } = computePose();
+  state.mode = mode;
+
+  // 水平移动
+  const dir = (input.right?1:0) - (input.left?1:0);
+  if (dir !== 0){ state.facing = dir; }
+  const baseSpeed = (mode==="run") ? 230 : (mode==="walk") ? 150 : 0;
+  state.x += dir * baseSpeed * state.speedMul * dt;
+
+  // 跳跃物理
+  if (!state.onGround){
+    state.vy += 1500 * dt;          // 重力
+    state.y += state.vy * dt;
+    if (state.y >= NECK_BASE_Y){ state.y = NECK_BASE_Y; state.vy = 0; state.onGround = true; }
+  }
+  // 步相推进（仅在行走/奔跑时）
+  if (mode==="walk") state.phase += 1.6 * state.speedMul * dt;
+  else if (mode==="run") state.phase += 2.2 * state.speedMul * dt;
+
+  draw();
+
+  document.getElementById("state").textContent =
+    ({idle:"站立", walk:"行走", run:"奔跑", jump:"跳跃"})[mode];
+  document.getElementById("facing").textContent = "朝向：" + (state.facing>0 ? "右" : "左");
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
