@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://framework/human_skeleton/human_skeleton.gd" id="1_human"]
+
+[node name="HumanSkeletonDemo" type="Node2D"]
+
+[node name="Skeleton" type="Node2D" parent="."]
+position = Vector2(400, 80)
+script = ExtResource("1_human")
