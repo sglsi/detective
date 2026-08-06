@@ -1,8 +1,7 @@
 import json, math, os
 from PIL import Image
 
-W, H = 360, 620
-COLS, ROWS = 4, 4
+COLS = 4
 root = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(root)
 
@@ -26,18 +25,51 @@ if parts_dir.startswith("res://"):
 
 # 预加载纹理
 tex_cache = {}
+max_tex_radius = 0.0
 for b in spec["bones"]:
     tex = b["tex"]
     if tex:
         path = os.path.join(parts_dir, tex)
-        tex_cache[b["name"]] = Image.open(path).convert("RGBA")
+        img = Image.open(path).convert("RGBA")
+        tex_cache[b["name"]] = img
+        r = max(img.width, img.height) * b["scale"] * 0.5
+        max_tex_radius = max(max_tex_radius, r)
     else:
         tex_cache[b["name"]] = None
+
+print(f"max texture radius: {max_tex_radius:.1f}")
 
 # 绘制顺序（后→前）
 DRAW_ORDER = ["thigh_L", "shin_L", "thigh_R", "shin_R", "hip", "torso",
               "neck", "shoulder_L", "upperarm_L", "forearm_L",
               "shoulder_R", "upperarm_R", "forearm_R", "head"]
+
+
+def frame_position_bounds(fr):
+    """仅用骨骼世界位置（不含纹理尺寸）计算 AABB。"""
+    min_x = min(b["x"] for b in fr["bones"])
+    min_y = min(b["y"] for b in fr["bones"])
+    max_x = max(b["x"] for b in fr["bones"])
+    max_y = max(b["y"] for b in fr["bones"])
+    return min_x, min_y, max_x, max_y
+
+
+# 用骨骼位置 AABB + 纹理半径边距决定单元格大小
+MARGIN = int(math.ceil(max_tex_radius * 2.5)) + 8
+global_min_x, global_min_y, global_max_x, global_max_y = 1e9, 1e9, -1e9, -1e9
+for fr in frames:
+    mn_x, mn_y, mx_x, mx_y = frame_position_bounds(fr)
+    global_min_x = min(global_min_x, mn_x)
+    global_min_y = min(global_min_y, mn_y)
+    global_max_x = max(global_max_x, mx_x)
+    global_max_y = max(global_max_y, mx_y)
+
+W = int(math.ceil(global_max_x - global_min_x)) + MARGIN * 2
+H = int(math.ceil(global_max_y - global_min_y)) + MARGIN * 2
+print(f"auto cell size: {W}x{H}  margin: {MARGIN}")
+
+ROWS = (len(frames) + COLS - 1) // COLS
+
 
 def composite_bone(cell, bone_pose, name):
     if name not in spec_by_name:
@@ -50,14 +82,13 @@ def composite_bone(cell, bone_pose, name):
     sc = sp["scale"]
     ox, oy, th = bone_pose["x"], bone_pose["y"], bone_pose["rot"]
     iw, ih = img.size
-    c = math.cos(th); s = math.sin(th)
+    c = math.cos(th)
+    s = math.sin(th)
 
-    # 让纹理 pivot 对齐 bone 位置，并按 sc 缩放、按 th 旋转。
-    # 输出 (x,y) -> 输入 (x',y')：先逆旋转再逆缩放，再平移。
-    a =  c / sc
-    b =  s / sc
+    a = c / sc
+    b = s / sc
     d = -s / sc
-    e =  c / sc
+    e = c / sc
     cc = piv[0] - (c * ox + s * oy) / sc
     ff = piv[1] - (-s * ox + c * oy) / sc
 
@@ -65,16 +96,28 @@ def composite_bone(cell, bone_pose, name):
                            resample=Image.BICUBIC)
     cell.paste(warped, (0, 0), warped)
 
+
 grid = Image.new("RGB", (W * COLS, H * ROWS), (235, 237, 241))
 for i, fr in enumerate(frames):
     if i >= COLS * ROWS:
         break
     ci, ri = i % COLS, i // COLS
     cell = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+
+    # 居中：用本帧骨骼位置 AABB 的中心
+    mn_x, mn_y, mx_x, mx_y = frame_position_bounds(fr)
+    cx = (mn_x + mx_x) / 2.0
+    cy = (mn_y + mx_y) / 2.0
+    offset_x = W / 2.0 - cx
+    offset_y = H / 2.0 - cy
+
     bones = {b["name"]: b for b in fr["bones"]}
     for nm in DRAW_ORDER:
         if nm in bones:
-            composite_bone(cell, bones[nm], nm)
+            bpose = bones[nm].copy()
+            bpose["x"] += offset_x
+            bpose["y"] += offset_y
+            composite_bone(cell, bpose, nm)
     cell_rgb = Image.new("RGB", (W, H), (235, 237, 241))
     cell_rgb.paste(cell, (0, 0), cell)
     from PIL import ImageDraw

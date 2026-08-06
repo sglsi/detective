@@ -198,7 +198,25 @@ def main() -> int:
         "ankle_R": to_world(*ankle["R"]),
     }
 
-    # 各骨世界角度（静止 A-pose）
+    # 调整四肢末端关节，让默认 A-pose 与原图张开姿态一致（手臂更水平、腿更直）。
+    # 以肩/胯为锚点，按 PCA 测得的真实肢长向侧下方伸展，而不是让 PCA 端点决定角度。
+    def place(dst: str, src: str, length: float, deg: float):
+        th = math.radians(deg)
+        P[dst] = [P[src][0] + length * math.sin(th), P[src][1] + length * math.cos(th)]
+
+    place("elbow_L", "shoulder_L", parts["upperarm_L"]["axis"]["len_px"] * scale, -60.0)
+    place("wrist_L", "elbow_L", parts["forearm_L"]["axis"]["len_px"] * scale, -50.0)
+    place("elbow_R", "shoulder_R", parts["upperarm_R"]["axis"]["len_px"] * scale, 60.0)
+    place("wrist_R", "elbow_R", parts["forearm_R"]["axis"]["len_px"] * scale, 50.0)
+    place("knee_L", "hip_L", parts["thigh_L"]["axis"]["len_px"] * scale, -15.0)
+    place("ankle_L", "knee_L", parts["shin_L"]["axis"]["len_px"] * scale, -10.0)
+    place("knee_R", "hip_R", parts["thigh_R"]["axis"]["len_px"] * scale, 15.0)
+    place("ankle_R", "knee_R", parts["shin_R"]["axis"]["len_px"] * scale, 10.0)
+
+    # 各骨世界角度（静止 A-pose）：用调整后的关节位置方向。
+    def dir_deg(a, b):
+        return math.degrees(math.atan2(b[0] - a[0], b[1] - a[1]))
+
     Theta = {
         "head": 0.0,
         "neck": 0.0,
@@ -206,14 +224,14 @@ def main() -> int:
         "hip": 0.0,
         "shoulder_L": 0.0,
         "shoulder_R": 0.0,
-        "upperarm_L": parts["upperarm_L"]["axis"]["rot_deg"],
-        "upperarm_R": parts["upperarm_R"]["axis"]["rot_deg"],
-        "forearm_L": parts["forearm_L"]["axis"]["rot_deg"],
-        "forearm_R": parts["forearm_R"]["axis"]["rot_deg"],
-        "thigh_L": parts["thigh_L"]["axis"]["rot_deg"],
-        "thigh_R": parts["thigh_R"]["axis"]["rot_deg"],
-        "shin_L": parts["shin_L"]["axis"]["rot_deg"],
-        "shin_R": parts["shin_R"]["axis"]["rot_deg"],
+        "upperarm_L": dir_deg(P["shoulder_L"], P["elbow_L"]),
+        "upperarm_R": dir_deg(P["shoulder_R"], P["elbow_R"]),
+        "forearm_L": dir_deg(P["elbow_L"], P["wrist_L"]),
+        "forearm_R": dir_deg(P["elbow_R"], P["wrist_R"]),
+        "thigh_L": dir_deg(P["hip_L"], P["knee_L"]),
+        "thigh_R": dir_deg(P["hip_R"], P["knee_R"]),
+        "shin_L": dir_deg(P["knee_L"], P["ankle_L"]),
+        "shin_R": dir_deg(P["knee_R"], P["ankle_R"]),
     }
 
     def bone(name, parent, world_joint, theta, length, width, tex, pivot, color):
