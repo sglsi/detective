@@ -69,6 +69,14 @@ def sub(a, b):
     return [a[0] - b[0], a[1] - b[1]]
 
 
+def limb_pivot(parts: dict, name: str):
+    """把四肢 pivot 的 y Clamp 到核心区域上边界，避免落在透明重叠区。"""
+    axis = parts[name]["axis"]
+    _, oy = parts[name]["core_offset"]
+    px, py = axis["top"]
+    return [float(px), max(float(py), float(oy))]
+
+
 def main() -> int:
     if not RIG_JSON.exists():
         print(f"[ERR] {RIG_JSON} not found; run split_sherlock_spread.py first", file=sys.stderr)
@@ -110,11 +118,17 @@ def main() -> int:
             fg = a[:, :, 3] > 128
             ys, xs = np.where(fg)
             src_bbox = [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())]
+        # 读取 split 脚本记录的 core_offset（扩展框 -> 核心区域偏移）
+        core_offset = [0, 0]
+        for b in tmp_spec.get("parts_meta", []):
+            if b.get("name") == name and "core_offset" in b:
+                core_offset = b["core_offset"]
         # head/torso 用 bbox 中心关节，四肢用 PCA
         axis = bbox_axis(path) if name in ("head", "torso") else limb_axis_from_path(path)
         parts[name] = {
             "axis": axis,
             "src_bbox": src_bbox,
+            "core_offset": core_offset,
         }
         ax = parts[name]["axis"]
         print(f"  {name}: len={ax['len_px']:.1f}px rot={ax['rot_deg']:.1f} top=({ax['top'][0]:.0f},{ax['top'][1]:.0f}) bottom=({ax['bottom'][0]:.0f},{ax['bottom'][1]:.0f})")
@@ -131,24 +145,24 @@ def main() -> int:
     hip_root = [(torso_top[0] + torso_bottom[0]) / 2.0, torso_bottom[1]]
 
     shoulder = {
-        "L": src_point("upperarm_L", parts["upperarm_L"]["axis"]["top"]),
-        "R": src_point("upperarm_R", parts["upperarm_R"]["axis"]["top"]),
+        "L": src_point("upperarm_L", limb_pivot(parts, "upperarm_L")),
+        "R": src_point("upperarm_R", limb_pivot(parts, "upperarm_R")),
     }
     elbow = {
-        "L": src_point("forearm_L", parts["forearm_L"]["axis"]["top"]),
-        "R": src_point("forearm_R", parts["forearm_R"]["axis"]["top"]),
+        "L": src_point("forearm_L", limb_pivot(parts, "forearm_L")),
+        "R": src_point("forearm_R", limb_pivot(parts, "forearm_R")),
     }
     wrist = {
         "L": src_point("forearm_L", parts["forearm_L"]["axis"]["bottom"]),
         "R": src_point("forearm_R", parts["forearm_R"]["axis"]["bottom"]),
     }
     hip_joint = {
-        "L": src_point("thigh_L", parts["thigh_L"]["axis"]["top"]),
-        "R": src_point("thigh_R", parts["thigh_R"]["axis"]["top"]),
+        "L": src_point("thigh_L", limb_pivot(parts, "thigh_L")),
+        "R": src_point("thigh_R", limb_pivot(parts, "thigh_R")),
     }
     knee = {
-        "L": src_point("shin_L", parts["shin_L"]["axis"]["top"]),
-        "R": src_point("shin_R", parts["shin_R"]["axis"]["top"]),
+        "L": src_point("shin_L", limb_pivot(parts, "shin_L")),
+        "R": src_point("shin_R", limb_pivot(parts, "shin_R")),
     }
     ankle = {
         "L": src_point("shin_L", parts["shin_L"]["axis"]["bottom"]),
@@ -217,12 +231,13 @@ def main() -> int:
                 "shoulder_R": "torso_top",
                 "upperarm_L": "shoulder_L",
                 "upperarm_R": "shoulder_R",
-                "forearm_L": "elbow_L",
-                "forearm_R": "elbow_R",
+                # 前臂/小腿严格挂在父骨末端：attach 用父骨起点，local_pos 自然为 [0, parent_len]
+                "forearm_L": "shoulder_L",
+                "forearm_R": "shoulder_R",
                 "thigh_L": "hip_L",
                 "thigh_R": "hip_R",
-                "shin_L": "knee_L",
-                "shin_R": "knee_R",
+                "shin_L": "hip_L",
+                "shin_R": "hip_R",
             }[name]
             local_pos = rotate(sub(P[world_joint], P[attach]), -Theta[parent])
             local_rot = theta - Theta[parent]
@@ -270,31 +285,37 @@ def main() -> int:
                            P[f"elbow_{side}"][1] - P[f"shoulder_{side}"][1])
         bones.append(bone(f"upperarm_{side}", f"shoulder_{side}", f"shoulder_{side}", Theta[f"upperarm_{side}"],
                           ua_len, parts[f"upperarm_{side}"]["axis"]["size"][0] * scale * 0.6,
-                          f"upperarm_{side}.png", parts[f"upperarm_{side}"]["axis"]["top"], coat_l))
+                          f"upperarm_{side}.png", limb_pivot(parts, f"upperarm_{side}"), coat_l))
         fa_len = math.hypot(P[f"wrist_{side}"][0] - P[f"elbow_{side}"][0],
                            P[f"wrist_{side}"][1] - P[f"elbow_{side}"][1])
-        # forearm 严格挂在 upperarm 末端：用 attach=elbow，本地 pos 自然为 [0, ua_len]
         bones.append(bone(f"forearm_{side}", f"upperarm_{side}", f"elbow_{side}", Theta[f"forearm_{side}"],
                           fa_len, parts[f"forearm_{side}"]["axis"]["size"][0] * scale * 0.6,
-                          f"forearm_{side}.png", parts[f"forearm_{side}"]["axis"]["top"], skin))
+                          f"forearm_{side}.png", limb_pivot(parts, f"forearm_{side}"), skin))
 
     for side in ("L", "R"):
         th_len = math.hypot(P[f"knee_{side}"][0] - P[f"hip_{side}"][0],
                           P[f"knee_{side}"][1] - P[f"hip_{side}"][1])
         bones.append(bone(f"thigh_{side}", "hip", f"hip_{side}", Theta[f"thigh_{side}"],
                           th_len, parts[f"thigh_{side}"]["axis"]["size"][0] * scale * 0.55,
-                          f"thigh_{side}.png", parts[f"thigh_{side}"]["axis"]["top"], pants))
+                          f"thigh_{side}.png", limb_pivot(parts, f"thigh_{side}"), pants))
         sh_len = math.hypot(P[f"ankle_{side}"][0] - P[f"knee_{side}"][0],
                           P[f"ankle_{side}"][1] - P[f"knee_{side}"][1])
         bones.append(bone(f"shin_{side}", f"thigh_{side}", f"knee_{side}", Theta[f"shin_{side}"],
                           sh_len, parts[f"shin_{side}"]["axis"]["size"][0] * scale * 0.5,
-                          f"shin_{side}.png", parts[f"shin_{side}"]["axis"]["top"], skin))
+                          f"shin_{side}.png", limb_pivot(parts, f"shin_{side}"), skin))
+
+    # 前臂/小腿严格挂在父骨末端，避免 wave/idle 时关节脱节
+    for side in ("L", "R"):
+        for child, parent in [(f"forearm_{side}", f"upperarm_{side}"), (f"shin_{side}", f"thigh_{side}")]:
+            cb = next(b for b in bones if b["name"] == child)
+            pb = next(b for b in bones if b["name"] == parent)
+            cb["pos"] = [0.0, pb["len"]]
 
     new_spec = {
         "character": "sherlock_spread",
         "parts_dir": "res://assets/characters/sherlock_spread/rig/",
         "scale": scale,
-        "parts_meta": [{"name": k, "src_bbox": v["src_bbox"]} for k, v in parts.items()],
+        "parts_meta": [{"name": k, "src_bbox": v["src_bbox"], "core_offset": v["core_offset"]} for k, v in parts.items()],
         "bones": bones,
     }
     RIG_JSON.write_text(json.dumps(new_spec, indent=2, ensure_ascii=False), encoding="utf-8")

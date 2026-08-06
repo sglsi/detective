@@ -87,6 +87,8 @@ def main() -> int:
             "size": [crop.width, crop.height],
             # 记录该部件框左上角在原图中的坐标（用于拼回验证 / 关节计算）
             "src_bbox": [x0, y0, x0 + crop.width - 1, y0 + crop.height - 1],
+            # 核心区域在扩展框内的偏移（用于把 pivot 定在真实关节而非透明重叠区）
+            "core_offset": [ext["left"], ext["top"]],
         }
         print(f"  -> {name}: box {crop.width}x{crop.height}  src_bbox={parts[name]['src_bbox']}")
 
@@ -105,7 +107,7 @@ def build_rig_spec(parts: dict) -> dict:
         "character": "sherlock_spread",
         "parts_dir": "res://assets/characters/sherlock_spread/rig/",
         "scale": 0.2558,
-        "parts_meta": [{"name": k, "src_bbox": v["src_bbox"], "size": v["size"]} for k, v in parts.items()],
+        "parts_meta": [{"name": k, "src_bbox": v["src_bbox"], "size": v["size"], "core_offset": v["core_offset"]} for k, v in parts.items()],
         "bones": [],
     }
 
