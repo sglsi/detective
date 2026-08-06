@@ -243,20 +243,21 @@ function computePose(){
   if (moving) {
     const amp = running ? 50 : 26;        // 跑步步幅更大
     const armAmp = running ? 40 : 18;     // 摆臂幅度更大
-    const kneeBend = running ? 72 : 38;   // 跑步屈膝更深
+    const kneeBend = running ? 54 : 30;   // 跑步屈膝峰值（22°→11° 前倾后相应收窄摆动）
+    const kneeBase = running ? 18 : 8;    // 膝始终保留基础弯曲：避免某条腿在半周期完全伸直
     const freq = running ? 2.2 : 1.6;
     const th = state.phase * Math.PI * 2;
     off.thigh_L = amp * Math.sin(th);
     off.thigh_R = amp * Math.sin(th + Math.PI);
-    off.shin_L = kneeBend * Math.max(0, Math.sin(th + Math.PI));
-    off.shin_R = kneeBend * Math.max(0, Math.sin(th));
+    off.shin_L = kneeBase + kneeBend * Math.max(0, Math.sin(th + Math.PI));
+    off.shin_R = kneeBase + kneeBend * Math.max(0, Math.sin(th));
     off.upper_arm_L = armAmp * Math.sin(th + Math.PI);
     off.upper_arm_R = armAmp * Math.sin(th);
     // 前臂向前(角色前方)折：负向偏移，双肘对称前弯，像正常人走路
     off.fore_arm_L = running ? -78 : -26; // 跑步时肘部更锐利，呈 90° 泵臂
     off.fore_arm_R = running ? -78 : -26;
     // 躯干前倾：在世界坐标中固定方向，由 sx() 统一镜像，保证左右跑姿态一致
-    off.torso = running ? 22 : 3;
+    off.torso = running ? 11 : 3;   // 奔跑前倾减半（22° → 11°）
     off.head = -off.torso;   // 头部竖直抬头，抵消躯干倾斜
     // 走动时头部在躯干中轴线左右小幅度晃动
     const swayAmp = running ? 0.12 * PX : 0.06 * PX;
