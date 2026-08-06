@@ -209,20 +209,23 @@ function computePose(){
   const running = input.run && moving;
 
   if (!state.onGround) {
-    // 腾空跳跃：收腿上提(膝向胸)+双臂上举过头顶
-    off.thigh_L = -82; off.thigh_R = -82;
-    off.shin_L = 112;  off.shin_R = 112;
-    off.upper_arm_L = -118; off.upper_arm_R = 118;
-    off.fore_arm_L = -12;  off.fore_arm_R = -12;
-    off.foot_L = 46;   off.foot_R = 46;
-    off.torso = -8 * state.facing;
-    off.head = -off.torso;
+    // 跳跃（参考 joyful-jump）：双臂展成 V 形高举，双腿向后踢成 V 形，
+    // 躯干轻微后仰，头部保持竖直抬头。
+    off.thigh_L = 40;  off.thigh_R = 40;        // 大腿向后下方
+    off.shin_L = 50;   off.shin_R = 50;         // 小腿相对大腿折回，使腿成 V 向后
+    off.foot_L = -45;  off.foot_R = -45;        // 脚尖向后
+    off.upper_arm_L = -140; off.upper_arm_R = 140; // 双臂向斜上方展成 V
+    off.fore_arm_L = 0;  off.fore_arm_R = 0;    // 手臂基本伸直
+    off.hand_L = 0;    off.hand_R = 0;
+    off.torso = 12 * state.facing;              // 轻微后仰，带出伸展感
+    off.head = -off.torso;                      // 头部竖直抬头
+    state.headSway = 0;
     return { off, mode:"jump" };
   }
   if (moving) {
-    const amp = running ? 40 : 26;       // 大腿摆幅
-    const armAmp = running ? 32 : 18;
-    const kneeBend = running ? 58 : 38;
+    const amp = running ? 50 : 26;        // 跑步步幅更大
+    const armAmp = running ? 40 : 18;     // 摆臂幅度更大
+    const kneeBend = running ? 72 : 38;   // 跑步屈膝更深
     const freq = running ? 2.2 : 1.6;
     const th = state.phase * Math.PI * 2;
     off.thigh_L = amp * Math.sin(th);
@@ -232,10 +235,14 @@ function computePose(){
     off.upper_arm_L = armAmp * Math.sin(th + Math.PI);
     off.upper_arm_R = armAmp * Math.sin(th);
     // 前臂向前(角色前方)折：负向偏移，双肘对称前弯，像正常人走路
-    off.fore_arm_L = running ? -60 : -26;
-    off.fore_arm_R = running ? -60 : -26;
-    off.torso = (running ? 13 : 3) * state.facing;
-    off.head = -off.torso;   // 头部竖直抬头，不随躯干前倾后仰
+    off.fore_arm_L = running ? -78 : -26; // 跑步时肘部更锐利，呈 90° 泵臂
+    off.fore_arm_R = running ? -78 : -26;
+    // 躯干向运动方向前倾：跑步时更大幅度前倾，避免“向后坐”
+    off.torso = -(running ? 22 : 3) * state.facing;
+    off.head = -off.torso;   // 头部竖直抬头，抵消躯干倾斜
+    // 走动时头部在躯干中轴线左右小幅度晃动
+    const swayAmp = running ? 0.12 * PX : 0.06 * PX;
+    state.headSway = swayAmp * Math.sin(state.phase * Math.PI * 2);
     return { off, mode: running ? "run" : "walk" };
   }
   // idle：轻微呼吸
@@ -244,6 +251,7 @@ function computePose(){
   off.head = -off.torso + 1.5 * Math.sin(t*1.1);  // 头竖直(抬头)，仅保留轻微摆动
   off.upper_arm_L = 3 * Math.sin(t*1.4);
   off.upper_arm_R = 3 * Math.sin(t*1.4 + 0.6);
+  state.headSway = 0;
   return { off, mode:"idle" };
 }
 
@@ -306,21 +314,29 @@ function draw(){
     const X1 = sx(w.x), Y1 = sy(w.y), X2 = sx(w.tx), Y2 = sy(w.ty);
     const lw = Math.max(3, b.width);
     if (b.shape === "circle"){
-      // 头部 = 脖子(下段细段) + 头部圆(上段)：让头部稳稳坐在脖子上，不再悬浮
-      const ux = (X2 - X1) / b.length, uy = (Y2 - Y1) / b.length; // 骨方向(大致向上)
+      // 头部 = 脖子(下段细段) + 头部圆(上段)
       const neckLen = b.length * 0.42;
       const neckW = Math.max(7, b.width * 0.40);
       const r = b.width * 0.62;
-      // 脖子：从颈根(X1,Y1)沿骨方向延伸 neckLen，正好与躯干顶端相接
-      const nX = X1 + ux * neckLen, nY = Y1 + uy * neckLen;
+      const sway = state.headSway || 0;
+      // 头部圆心：在颈根正上方(躯干左右中轴线)，走动时在中轴线左右小幅晃动
+      const hcWx = w.x + sway;
+      const hcWy = w.y - (neckLen + r * 0.55);
+      const hcx = sx(hcWx), hcy = sy(hcWy);
+      // 脖子：从颈根连到头部圆底部，与头圆自然衔接
+      const nTopWx = hcWx, nTopWy = hcWy + r * 0.95;
+      const nX = sx(nTopWx), nY = sy(nTopWy);
       ctx.strokeStyle = col(b.color); ctx.lineWidth = neckW; ctx.lineCap = "round";
       ctx.beginPath(); ctx.moveTo(X1, Y1); ctx.lineTo(nX, nY); ctx.stroke();
-      // 头部：圆心略微下压，使圆底与脖子顶端重叠衔接
-      const hcx = X1 + ux * (neckLen + r * 0.55);
-      const hcy = Y1 + uy * (neckLen + r * 0.55);
+      // 头部圆
       ctx.fillStyle = col(b.color);
       ctx.beginPath(); ctx.arc(hcx, hcy, r, 0, Math.PI*2); ctx.fill();
       ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1.5; ctx.stroke();
+      // 简单面部参照点：标明“面朝运动方向/抬头向前看”，避免圆被误认为低头
+      ctx.fillStyle = "rgba(60,45,35,.45)";
+      const faceX = hcx + state.facing * r * 0.50;
+      const faceY = hcy - r * 0.22;
+      ctx.beginPath(); ctx.arc(faceX, faceY, Math.max(2.2, r*0.14), 0, Math.PI*2); ctx.fill();
     } else {
       ctx.strokeStyle = col(b.color);
       ctx.lineWidth = lw; ctx.lineCap = "round";
