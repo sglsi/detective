@@ -170,6 +170,7 @@ const state = {
   facing: 1,
   phase: 0, t: 0,
   mode: "idle",           // idle | walk | run | jump
+  jumpStyle: 0,           // 0 = 分腿跳(默认), 1 = joyful-jump(V 形展臂后踢腿)
   showJoints: true,
   speedMul: 1,
 };
@@ -187,7 +188,13 @@ addEventListener("keyup", e=>{
   if (keymap[e.code]) input[keymap[e.code]] = false;
   else if (e.code==="ShiftLeft"||e.code==="ShiftRight") input.run = false;
 });
-function doJump(){ if (state.onGround){ state.vy = -430; state.onGround=false; } }
+function doJump(){
+  if (state.onGround){
+    state.vy = -430;
+    state.onGround = false;
+    state.jumpStyle = Math.random() < 0.75 ? 0 : 1; // 75% 分腿跳，25% joyful-jump
+  }
+}
 // 触屏按钮
 function bindHold(id, on, off){ const el=document.getElementById(id);
   const s=e=>{e.preventDefault();on();}; const e2=e=>{e.preventDefault();off();};
@@ -209,15 +216,26 @@ function computePose(){
   const running = input.run && moving;
 
   if (!state.onGround) {
-    // 跳跃（参考 joyful-jump）：双臂展成 V 形高举，双腿向后踢成 V 形，
-    // 躯干轻微后仰，头部保持竖直抬头。
-    off.thigh_L = 40;  off.thigh_R = 40;        // 大腿向后下方
-    off.shin_L = 50;   off.shin_R = 50;         // 小腿相对大腿折回，使腿成 V 向后
-    off.foot_L = -45;  off.foot_R = -45;        // 脚尖向后
-    off.upper_arm_L = -140; off.upper_arm_R = 140; // 双臂向斜上方展成 V
-    off.fore_arm_L = 0;  off.fore_arm_R = 0;    // 手臂基本伸直
-    off.hand_L = 0;    off.hand_R = 0;
-    off.torso = -12;                            // 轻微后仰；由 sx() 镜像左右
+    if (state.jumpStyle === 0) {
+      // 分腿跳（参考 jumping_split.png）：一腿在前、一腿在后，沿身体中轴线分开；
+      // 双臂竖直上举，肘部微屈，手在头两侧上方；躯干基本竖直。
+      off.thigh_L = -65;  off.thigh_R = 60;      // 前腿抬起 / 后腿后伸
+      off.shin_L = 95;    off.shin_R = 30;       // 前腿小腿下屈 / 后腿小腿略屈
+      off.foot_L = 45;    off.foot_R = 85;       // 前脚平 / 后脚自然下压
+      off.upper_arm_L = -175; off.upper_arm_R = 175; // 双臂竖直上举
+      off.fore_arm_L = -10;  off.fore_arm_R = 10;    // 肘部微屈，手略向内
+      off.hand_L = 0;    off.hand_R = 0;
+      off.torso = 2;                            // 轻微前倾；由 sx() 镜像左右
+    } else {
+      // joyful-jump：双臂展成 V 形高举，双腿向后踢成 V 形，躯干轻微后仰。
+      off.thigh_L = 40;  off.thigh_R = 40;        // 大腿向后下方
+      off.shin_L = 50;   off.shin_R = 50;         // 小腿相对大腿折回
+      off.foot_L = -45;  off.foot_R = -45;        // 脚尖向后
+      off.upper_arm_L = -140; off.upper_arm_R = 140; // 双臂向斜上方展成 V
+      off.fore_arm_L = 0;  off.fore_arm_R = 0;    // 手臂基本伸直
+      off.hand_L = 0;    off.hand_R = 0;
+      off.torso = -12;                            // 轻微后仰
+    }
     off.head = -off.torso;                      // 头部竖直抬头
     state.headSway = 0;
     return { off, mode:"jump" };
