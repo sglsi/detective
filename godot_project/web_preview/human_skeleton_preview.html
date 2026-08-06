@@ -104,7 +104,7 @@ const REST = { torso:0, head:180, upper_arm_L:-10, upper_arm_R:10, fore_arm_L:0,
   hand_L:0, hand_R:0, thigh_L:4, thigh_R:-4, shin_L:0, shin_R:0, foot_L:90, foot_R:90 };
 const ROM = {
   head:[130,230], upper_arm_L:[-180,30], upper_arm_R:[-30,180],
-  fore_arm_L:[0,150], fore_arm_R:[0,150], hand_L:[-70,70], hand_R:[-70,70],
+  fore_arm_L:[-150,0], fore_arm_R:[-150,0], hand_L:[-70,70], hand_R:[-70,70],
   thigh_L:[-100,100], thigh_R:[-100,100], shin_L:[0,150], shin_R:[0,150],
   foot_L:[40,140], foot_R:[40,140], torso:[-30,30],
 };
@@ -209,13 +209,14 @@ function computePose(){
   const running = input.run && moving;
 
   if (!state.onGround) {
-    // 腾空：收腿、抬臂
-    off.thigh_L = -70; off.thigh_R = -70;
-    off.shin_L = 72;   off.shin_R = 72;
-    off.upper_arm_L = -55; off.upper_arm_R = 55;
-    off.fore_arm_L = 40; off.fore_arm_R = 40;
-    off.foot_L = 105; off.foot_R = 105;
-    off.torso = 6 * state.facing;
+    // 腾空跳跃：收腿上提(膝向胸)+双臂上举过头顶
+    off.thigh_L = -82; off.thigh_R = -82;
+    off.shin_L = 112;  off.shin_R = 112;
+    off.upper_arm_L = -118; off.upper_arm_R = 118;
+    off.fore_arm_L = -12;  off.fore_arm_R = -12;
+    off.foot_L = 46;   off.foot_R = 46;
+    off.torso = -8 * state.facing;
+    off.head = -off.torso;
     return { off, mode:"jump" };
   }
   if (moving) {
@@ -230,15 +231,17 @@ function computePose(){
     off.shin_R = kneeBend * Math.max(0, Math.sin(th));
     off.upper_arm_L = armAmp * Math.sin(th + Math.PI);
     off.upper_arm_R = armAmp * Math.sin(th);
-    off.fore_arm_L = running ? 60 : 26;
-    off.fore_arm_R = running ? 60 : 26;
+    // 前臂向前(角色前方)折：负向偏移，双肘对称前弯，像正常人走路
+    off.fore_arm_L = running ? -60 : -26;
+    off.fore_arm_R = running ? -60 : -26;
     off.torso = (running ? 13 : 3) * state.facing;
+    off.head = -off.torso;   // 头部竖直抬头，不随躯干前倾后仰
     return { off, mode: running ? "run" : "walk" };
   }
   // idle：轻微呼吸
   const t = state.t;
   off.torso = 2 * Math.sin(t*1.4);
-  off.head = 1.5 * Math.sin(t*1.1);
+  off.head = -off.torso + 1.5 * Math.sin(t*1.1);  // 头竖直(抬头)，仅保留轻微摆动
   off.upper_arm_L = 3 * Math.sin(t*1.4);
   off.upper_arm_R = 3 * Math.sin(t*1.4 + 0.6);
   return { off, mode:"idle" };
