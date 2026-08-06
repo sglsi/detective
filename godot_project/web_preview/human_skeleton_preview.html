@@ -54,7 +54,7 @@
   <div class="controls">
     <div class="keys">
       <div class="key"><kbd>← →</kbd> / <kbd>A D</kbd>移动</div>
-      <div class="key"><kbd>Shift</kbd>奔跑</div>
+      <div class="key"><kbd>Shift</kbd> + 方向 奔跑<br><span style="font-size:11px;color:var(--muted)">（需同时按住）</span></div>
       <div class="key"><kbd>空格</kbd>跳跃</div>
       <div class="key"><kbd>R</kbd>重置位置</div>
     </div>
@@ -303,10 +303,20 @@ function draw(){
     const X1 = sx(w.x), Y1 = sy(w.y), X2 = sx(w.tx), Y2 = sy(w.ty);
     const lw = Math.max(3, b.width);
     if (b.shape === "circle"){
-      // 头部：以骨段中点为圆心
-      const cx = (X1+X2)/2, cy = (Y1+Y2)/2, r = b.width*0.62;
+      // 头部 = 脖子(下段细段) + 头部圆(上段)：让头部稳稳坐在脖子上，不再悬浮
+      const ux = (X2 - X1) / b.length, uy = (Y2 - Y1) / b.length; // 骨方向(大致向上)
+      const neckLen = b.length * 0.42;
+      const neckW = Math.max(7, b.width * 0.40);
+      const r = b.width * 0.62;
+      // 脖子：从颈根(X1,Y1)沿骨方向延伸 neckLen，正好与躯干顶端相接
+      const nX = X1 + ux * neckLen, nY = Y1 + uy * neckLen;
+      ctx.strokeStyle = col(b.color); ctx.lineWidth = neckW; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(X1, Y1); ctx.lineTo(nX, nY); ctx.stroke();
+      // 头部：圆心略微下压，使圆底与脖子顶端重叠衔接
+      const hcx = X1 + ux * (neckLen + r * 0.55);
+      const hcy = Y1 + uy * (neckLen + r * 0.55);
       ctx.fillStyle = col(b.color);
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(hcx, hcy, r, 0, Math.PI*2); ctx.fill();
       ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1.5; ctx.stroke();
     } else {
       ctx.strokeStyle = col(b.color);
