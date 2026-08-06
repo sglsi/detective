@@ -217,7 +217,7 @@ function computePose(){
     off.upper_arm_L = -140; off.upper_arm_R = 140; // 双臂向斜上方展成 V
     off.fore_arm_L = 0;  off.fore_arm_R = 0;    // 手臂基本伸直
     off.hand_L = 0;    off.hand_R = 0;
-    off.torso = 12 * state.facing;              // 轻微后仰，带出伸展感
+    off.torso = -12;                            // 轻微后仰；由 sx() 镜像左右
     off.head = -off.torso;                      // 头部竖直抬头
     state.headSway = 0;
     return { off, mode:"jump" };
@@ -237,8 +237,8 @@ function computePose(){
     // 前臂向前(角色前方)折：负向偏移，双肘对称前弯，像正常人走路
     off.fore_arm_L = running ? -78 : -26; // 跑步时肘部更锐利，呈 90° 泵臂
     off.fore_arm_R = running ? -78 : -26;
-    // 躯干向运动方向前倾：跑步时更大幅度前倾，避免“向后坐”
-    off.torso = -(running ? 22 : 3) * state.facing;
+    // 躯干前倾：在世界坐标中固定方向，由 sx() 统一镜像，保证左右跑姿态一致
+    off.torso = running ? 22 : 3;
     off.head = -off.torso;   // 头部竖直抬头，抵消躯干倾斜
     // 走动时头部在躯干中轴线左右小幅度晃动
     const swayAmp = running ? 0.12 * PX : 0.06 * PX;
