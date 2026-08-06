@@ -11,6 +11,7 @@ func _initialize() -> void:
 	hero._playing = false
 	var origin: Vector2 = hero.position
 	var specs: Array = [
+		{"anim": "default", "times": [0.0]},
 		{"anim": "walk", "times": [0.0, 0.125, 0.25, 0.375]},
 		{"anim": "idle", "times": [0.0, 0.25, 0.5, 0.75]},
 		{"anim": "wave", "times": [0.0, 0.125, 0.25, 0.375]},

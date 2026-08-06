@@ -7,7 +7,8 @@ extends Node2D
 # 姿态用程序化函数计算（idle/walk/wave/talk/look），apply_pose(name,t) 可直接设姿态，便于离屏截图验证。
 
 var _bones: Dictionary = {}        # name -> Bone2D
-var _base_rot: Dictionary = {}     # name -> float (基准弧度)
+var _base_rot: Dictionary = {}     # name -> float (本地基准弧度)
+var _base_visual_rot: Dictionary = {}  # name -> float (世界视觉基准弧度，从根累加)
 var _cur_rot: Dictionary = {}      # name -> float (当前弧度，apply_pose 时更新)
 var _bones_def: Array = []
 var _built: bool = false
@@ -44,6 +45,8 @@ func apply_pose(name: String, t: float) -> void:
 	for bn in _base_rot.keys():
 		r[bn] = _base_rot[bn]
 	match name:
+		"default":
+			pass  # 保持 _base_rot，即原图 A-pose 精确拼合
 		"idle":
 			r["torso"] = r["torso"] + deg_to_rad(2.0) * sin(TAU * 0.5 * t)
 			r["head"]  = r["head"]  + deg_to_rad(3.0) * sin(TAU * 0.5 * t)
@@ -55,13 +58,17 @@ func apply_pose(name: String, t: float) -> void:
 			r["thigh_R"] = r["thigh_R"] - deg_to_rad(25.0) * sw
 			r["shin_L"]  = r["shin_L"] + deg_to_rad(22.0) * max(0.0, sw)
 			r["shin_R"]  = r["shin_R"] + deg_to_rad(22.0) * max(0.0, -sw)
-			r["upperarm_L"] = r["upperarm_L"] - deg_to_rad(22.0) * sw
-			r["upperarm_R"] = r["upperarm_R"] + deg_to_rad(22.0) * sw
+			# A-pose 手臂已经张开 60°，步行摆动幅度不宜过大
+			r["upperarm_L"] = r["upperarm_L"] - deg_to_rad(12.0) * sw
+			r["upperarm_R"] = r["upperarm_R"] + deg_to_rad(12.0) * sw
 			r["torso"] = r["torso"] + deg_to_rad(4.0)
 			r["hip"]   = r["hip"] + deg_to_rad(sin(TAU * 2.0 * t) * 1.5)
 		"wave":
-			r["upperarm_R"] = r["upperarm_R"] - deg_to_rad(120.0) + deg_to_rad(8.0) * sin(TAU * 2.0 * t)
-			r["forearm_R"]  = r["forearm_R"] + deg_to_rad(20.0) * sin(TAU * 2.0 * t)
+			# 从 A-pose 出发的挥手：右臂抬到水平偏上，前臂相对上臂向上弯曲。
+			# 直接指定目标本地角（= 目标视觉角，因为 shoulder 无旋转）。
+			var wave_s: float = sin(TAU * 2.0 * t)
+			r["upperarm_R"] = deg_to_rad(-90.0 + 8.0 * wave_s)
+			r["forearm_R"]  = deg_to_rad(-60.0 + 15.0 * wave_s)
 			r["head"] = r["head"] + deg_to_rad(6.0)
 		"talk":
 			r["head"] = r["head"] + deg_to_rad(5.0) * sin(TAU * 3.0 * t)
@@ -85,6 +92,7 @@ func _build() -> void:
 		c.queue_free()
 	_bones.clear()
 	_base_rot.clear()
+	_base_visual_rot.clear()
 	var sk := Skeleton2D.new()
 	sk.name = "Skeleton"
 	add_child(sk)
@@ -97,6 +105,11 @@ func _build() -> void:
 		bone.rotation = base
 		nodes[b["name"]] = bone
 		_base_rot[b["name"]] = base
+		# 计算世界视觉基准角（从根累加）
+		if b["parent"] == "":
+			_base_visual_rot[b["name"]] = base
+		else:
+			_base_visual_rot[b["name"]] = _base_visual_rot[b["parent"]] + base
 	for b in _bones_def:
 		var bone: Bone2D = nodes[b["name"]]
 		if b["parent"] == "":
