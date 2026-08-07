@@ -36,6 +36,16 @@ var _battle_contra_states: Dictionary = {}   # id -> bool
 var _battle_hypo_btns: Dictionary = {}
 var _battle_contra_btns: Dictionary = {}
 
+# === 跨重开持久化（#场景二卡死修复）===
+# 推理墙是瞬时节点，每次 setup() 从 0 重建会丢失已提交状态。
+# _state_store 由场景持有（scene._wall_state），墙在 setup 时读取、在状态变化时写回，
+# 使「提交验证后关墙再重开」能恢复到已提交状态，且验证后关墙可推进剧情。
+var _state_store: Dictionary = {}            # 外部传入的持久化字典引用（场景持有）
+var _persist_enabled: bool = false           # 是否启用跨重开持久化（由调用方 setup 时开启）
+var _verified: bool = false                  # 本次/历史是否已提交过验证（拿到判定）
+var _verified_verdict: int = -1              # 最近一次提交得到的判定
+var _on_advance: Callable = Callable()       # 验证后关墙时推进剧情的回调（仅推理阶段有效）
+
 # === UI 引用 ===
 var _top_bar: Control = null
 var _left_panel: Control = null
@@ -77,19 +87,23 @@ const COL_YELLOW := Color(0.95, 0.8, 0.2)
 const COL_RED := Color(0.95, 0.3, 0.3)
 
 
-func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable()) -> void:
+func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false) -> void:
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
 	_on_close = on_close
 	_on_continue = on_continue
 	_difficulty = difficulty
+	_state_store = state_store
+	_persist_enabled = persist
+	_on_advance = on_advance
 	_battle = hypothesis.get("battlefield", {})
 	_case_name = hypothesis.get("case_name", _case_name)
 	_chain_id = hypothesis.get("chain_id", "")
 	_expected_clues = hypothesis.get("expected_clues", _clues.size())
 	_insight_bonus = hypothesis.get("insight_bonus", 0)
 	_init_milestones(hypothesis)
+	_restore_state()      # 构建 UI 前回填关联/战场/里程碑/verified（首次为空则 no-op）
 	_create_ui()
 	_update_all()
 
@@ -103,6 +117,60 @@ func get_verdict() -> int:
 
 func close_wall() -> void:
 	_on_back_pressed()
+
+
+# === 跨重开持久化（#场景二卡死修复）===
+## 推理墙为瞬时节点，重建即丢失进度。状态由场景持有的 _state_store 引用保存：
+## 关联线索 id、战场假设/矛盾状态、里程碑点亮、verified 标记与最近判定。
+
+func _restore_state() -> void:
+	if not _persist_enabled: return
+	if _state_store.is_empty(): return
+	var saved_assoc: Array = _state_store.get("associated", [])
+	var assoc_set := {}
+	for s in saved_assoc: assoc_set[s] = true
+	_associated = 0; _contradicting = 0
+	for c in _clues:
+		if assoc_set.has(c.get("id", "")):
+			c["associated"] = true
+			_associated += 1
+			if not c.get("correct", true): _contradicting += 1
+		else:
+			c["associated"] = false
+	var bf: Dictionary = _state_store.get("battlefield", {})
+	_battle_hypo_states = {}
+	_battle_contra_states = {}
+	for h in _battle.get("hypotheses", []):
+		var hid: String = h.get("id", "")
+		if bf.has(hid): _battle_hypo_states[hid] = int(bf[hid])
+	for c in _battle.get("contradictions", []):
+		var cid: String = c.get("id", "")
+		if bf.has(cid): _battle_contra_states[cid] = bool(bf[cid])
+	for m in _milestones:
+		m["lit"] = (m["id"] in _state_store.get("milestones_lit", []))
+	_verified = _state_store.get("verified", false)
+	_verified_verdict = _state_store.get("verdict", -1)
+
+
+func _persist_state() -> void:
+	if not _persist_enabled: return   # 调用方未开启持久化则不写（兼容旧调用方）
+	var assoc := []
+	for c in _clues:
+		if c.get("associated", false): assoc.append(c.get("id", ""))
+	var m_lit := []
+	for m in _milestones:
+		if m["lit"]: m_lit.append(m["id"])
+	var bf := {}
+	for h in _battle.get("hypotheses", []):
+		bf[h.get("id", "")] = _battle_hypo_states.get(h.get("id", ""), 0)
+	for c in _battle.get("contradictions", []):
+		bf[c.get("id", "")] = _battle_contra_states.get(c.get("id", ""), false)
+	_state_store.clear()
+	_state_store["associated"] = assoc
+	_state_store["milestones_lit"] = m_lit
+	_state_store["battlefield"] = bf
+	_state_store["verified"] = _verified
+	_state_store["verdict"] = _verified_verdict
 
 
 # === 入口：构建五区布局 ===
@@ -833,11 +901,13 @@ func _make_battle_hypo_card(h: Dictionary) -> Control:
 	vb.add_child(lbl)
 
 	var btn := Button.new()
-	btn.text = "未定"
+	var hst: int = _battle_hypo_states.get(id, 0)
+	btn.text = ["未定", "采纳✓", "排除✗"][hst]
 	btn.add_theme_font_size_override("font_size", 15)
 	btn.custom_minimum_size = Vector2(93, 40)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.pressed.connect(_on_battle_hypo_pressed.bind(id))
+	_style_battle_btn(btn, hst)
 	vb.add_child(btn)
 	_battle_hypo_btns[id] = btn
 
@@ -880,11 +950,13 @@ func _make_battle_contra_card(c: Dictionary) -> Control:
 	vb.add_child(lbl)
 
 	var btn := Button.new()
-	btn.text = "未识别"
+	var cst: bool = _battle_contra_states.get(id, false)
+	btn.text = "已识别" if cst else "未识别"
 	btn.add_theme_font_size_override("font_size", 15)
 	btn.custom_minimum_size = Vector2(93, 40)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.pressed.connect(_on_battle_contra_pressed.bind(id))
+	_style_battle_btn(btn, 1 if cst else 0)
 	vb.add_child(btn)
 	_battle_contra_btns[id] = btn
 
@@ -900,6 +972,7 @@ func _on_battle_hypo_pressed(id: String) -> void:
 		btn.text = ["未定", "采纳✓", "排除✗"][st]
 		_style_battle_btn(btn, st)
 	_refresh_battlefield_status_only()
+	_persist_state()
 
 
 func _on_battle_contra_pressed(id: String) -> void:
@@ -910,6 +983,7 @@ func _on_battle_contra_pressed(id: String) -> void:
 		btn.text = "已识别" if st else "未识别"
 		_style_battle_btn(btn, 1 if st else 0)
 	_refresh_battlefield_status_only()
+	_persist_state()
 
 
 func _style_battle_btn(btn: Button, st: int) -> void:
@@ -1035,10 +1109,11 @@ func _toggle_association(cid: String) -> void:
 		clue["associated"] = true
 		_associated += 1
 		if not clue.get("correct", true): _contradicting += 1
-		_status_lbl.text = "线索已关联: %s (共%d条)" % [cid, _associated]
-		_status_lbl.add_theme_color_override("font_color", COL_GREEN)
+	_status_lbl.text = "线索已关联: %s (共%d条)" % [cid, _associated]
+	_status_lbl.add_theme_color_override("font_color", COL_GREEN)
 
 	_update_all()
+	_persist_state()
 
 
 func _update_all() -> void:
@@ -1182,6 +1257,9 @@ func _on_verify_pressed() -> void:
 
 func _on_verify_confirm(v: int) -> void:
 	_verify_win = null
+	_verified = true
+	_verified_verdict = v
+	_persist_state()
 	if _on_verify.is_valid(): _on_verify.call(v)
 	queue_free()
 
@@ -1577,6 +1655,11 @@ func _on_back_pressed() -> void:
 	if _history_panel and is_instance_valid(_history_panel):
 		_close_history_panel()
 		return
+	_persist_state()
+	# 已提交验证且本墙为「验证后自动推进」类型（推理阶段打开）：关墙即推进剧情，
+	# 解决「提交验证后用返回/X 关墙（而非点确定）导致卡在推理阶段」的问题。
+	if _verified and _on_advance.is_valid():
+		_on_advance.call()
 	if _on_continue.is_valid(): _on_continue.call()
 	elif _on_close.is_valid(): _on_close.call()
 	queue_free()

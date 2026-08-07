@@ -120,10 +120,13 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"S3-3","text":"凶手右手指甲很长"},
 			{"id":"S3-4","text":"死者身份：美国克利夫兰人德雷伯"},
 			{"id":"S3-5","text":"凶手伪装德语书写（非德国人）"},
-			{"id":"S3-6","text":"凶手指甲缝必沾墙粉（决定性细节）"},
+		{"id":"S3-6","text":"凶手指甲缝必沾墙粉（决定性细节）"},
 		],
-	}
-	}
+	},
+	"chain_id": scene_id(),
+	"expected_clues": HOTSPOTS.size(),
+	"insight_bonus": 0
+}
 
 # ===== 面板内容 =====
 func map_locations() -> Array:
