@@ -152,7 +152,7 @@ func _build_panel() -> void:
 	var close_btn := Button.new()
 	close_btn.text = "✕"
 	close_btn.custom_minimum_size = Vector2(28, 28)
-	close_btn.pressed.connect(_cancel_tool)
+	close_btn.pressed.connect(hide_toolbar)   # ✕ 真正收起整个工具栏面板（_cancel_tool 只取消当前工具、不隐藏面板）
 	hbox.add_child(close_btn)
 
 	# 面板定位：底部居中。加高以容纳标题条(24) + 按钮行(48) + 内边距。

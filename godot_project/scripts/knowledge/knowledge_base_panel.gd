@@ -64,6 +64,13 @@ func _build_ui() -> void:
 	main.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	main.custom_minimum_size = Vector2(1240, 780)
 	main.size = Vector2(1240, 780)
+	# 显式居中：PRESET_CENTER 在 size 赋值前已按零尺寸算出偏移（锚点居中、偏移0），
+	# 之后 size 撑大导致面板从屏幕中心向右下溢出 → 视觉上「落在右下角」。
+	# 手动按真实尺寸重设偏移，确保面板真正居中（与分辨率无关）。
+	main.offset_left = -main.size.x * 0.5
+	main.offset_top = -main.size.y * 0.5
+	main.offset_right = main.size.x * 0.5
+	main.offset_bottom = main.size.y * 0.5
 	var mstyle := StyleBoxFlat.new()
 	mstyle.bg_color = COL_PANEL
 	mstyle.border_color = COL_BORDER

@@ -289,19 +289,19 @@ func _npc_talk() -> void:
 ## 未进入观察阶段时先进入观察（道具需可点击热点），再展开工具栏；
 ## 已在观察阶段则根据当前工具栏可见性切换显隐。
 func _toggle_toolbar() -> void:
-	var obs := _current_observer()
-	if not _in_observe_phase():
-		if obs == null: _ui.show_notification("当前阶段无法观察"); return
-		obs.show()
-		_ui.show_notification(_observe_open_msg())
-		if _toolbar: _toolbar.show_toolbar()
-		return
+	# 真正的 toggle：已展开 → 收起；未展开 → 展开（非观察阶段则先进入观察再展开）。
+	# 旧实现非观察阶段只 show 后直接 return，导致「能调出、不能隐藏」。
 	if _toolbar and _toolbar.is_active:
 		_toolbar.hide_toolbar()
 		_ui.show_notification("道具栏已收起")
-	else:
-		if _toolbar: _toolbar.show_toolbar()
-		_ui.show_notification("道具栏已展开")
+		return
+	if not _in_observe_phase():
+		var obs := _current_observer()
+		if obs == null: _ui.show_notification("当前阶段无法观察"); return
+		obs.show()
+		_ui.show_notification(_observe_open_msg())
+	if _toolbar: _toolbar.show_toolbar()
+	_ui.show_notification("道具栏已展开")
 
 # ===================== 推理墙（统一机制，参数化来源/假设/回调） =====================
 ## #146 根因修复：进入推理阶段的统一提示。
@@ -345,7 +345,7 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var hypo := hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
 	var cb := on_verify if on_verify.is_valid() else _default_wall_verify
 	# 仅推理阶段打开的墙，验证后关墙即推进过渡；其余（观察阶段预览/场景一无 chain_id 墙）不推进。
-	var advance: Callable = Callable(self, "_enter_transition") if _wall_auto else Callable()
+	var advance: Callable = Callable(self, "_advance_now") if _wall_auto else Callable()
 	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true)
 
 ## 默认验证回调：展示判定结果；REASONING 阶段则自动推进过渡。
@@ -360,7 +360,17 @@ func _default_wall_verify(verdict: int) -> void:
 	}
 	var entry = fb.get(verdict, ["等待", Color.WHITE])
 	_ui.show_notification("推理验证结果：" + entry[0])
-	if _wall_auto: _enter_transition()
+	if _wall_auto: _advance_now()
+
+## 统一推进剧情入口（验证确认 与 关墙返回 共用）：先清掉可能残留的浮层，
+## 再进过渡对话。这是「新玩不推进、读档能推进」的根治点——
+## 新玩过程中若开过知识库弹窗(右下角难点到关闭)或工具栏(关不掉)，其 _modal_panel /
+## 工具栏覆盖层会残留，_advance_blocked() 永久拦截过渡对话；读档重建场景把这些状态清零，
+## 故读档能推进。此处防御性清场，保证无论之前开过什么，验证后剧情必定推进。
+func _advance_now() -> void:
+	_close_modal()                       # 清掉残留弹窗（知识库等），否则 _advance_blocked 拦截
+	if _toolbar: _toolbar.hide_toolbar() # 清掉残留工具栏覆盖层
+	_enter_transition()
 
 ## 推理墙关闭回调（玩家点击「返回探索 / X 关闭」后触发）。
 ## 默认空实现：墙本身是模态浮层，关闭即恢复底层场景交互，等于玩家进入前的状态。
