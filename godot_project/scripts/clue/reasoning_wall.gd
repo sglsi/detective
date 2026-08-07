@@ -59,7 +59,7 @@ var _filter_unassoc: Button = null
 var _filter_misleading: Button = null
 var _clue_list: VBoxContainer = null
 var _tree_root: VBoxContainer = null
-var _assoc_list: HBoxContainer = null
+var _assoc_list: GridContainer = null
 var _battlefield_box: VBoxContainer = null
 var _milestone_lbl: Label = null
 var _star_lbl: Label = null
@@ -523,13 +523,17 @@ func _create_center_panel() -> Control:
 	assoc_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	assoc_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	assoc_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	assoc_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	assoc_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO   # 关联线索多时纵向滚动，不向右溢出
 	assoc_box.add_child(assoc_scroll)
 
-	_assoc_list = HBoxContainer.new()
+	# 用 GridContainer 自动换行，关联线索再多也只在中心面板宽度内折行，
+	# 不会向右溢出盖住右侧「推理战场」栏（原 HBox 单行横排会一直向右延伸）。
+	_assoc_list = GridContainer.new()
 	_assoc_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_assoc_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_assoc_list.add_theme_constant_override("separation", 8)
+	_assoc_list.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_assoc_list.columns = 4
+	_assoc_list.add_theme_constant_override("h_separation", 8)
+	_assoc_list.add_theme_constant_override("v_separation", 8)
 	assoc_scroll.add_child(_assoc_list)
 
 	# 底部操作行
@@ -808,8 +812,10 @@ func _refresh_assoc_panel() -> void:
 	for c in assoc:
 		var b := Button.new()
 		b.text = c.get("name", c.get("id", ""))
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # 长线索名在格子内换行，宽度跟随列宽，不撑破中心面板
 		b.custom_minimum_size = Vector2(120, 44)
-		b.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		b.size_flags_horizontal = Control.SIZE_FILL
+		b.size_flags_vertical = Control.SIZE_FILL
 		b.add_theme_font_size_override("font_size", 13)
 		b.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 		var s := StyleBoxFlat.new()
