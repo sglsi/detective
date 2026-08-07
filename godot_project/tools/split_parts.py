@@ -14,29 +14,50 @@ ys, xs = np.where(a > 10)
 content_top = min(ys) if len(ys) else 0
 content_bottom = max(ys) if len(ys) else H
 content_h = content_bottom - content_top + 1 if len(ys) else H
-u_px = content_h / 8.0
+print(f"source content_top={content_top}, content_h={content_h}")
+
+# 统一缩放到 human-joint-rig 默认 1u=72px，让切分尺寸与预览 PX 完全一致，
+# 避免预览时再次缩放造成接缝/模糊。
+TARGET_U_PX = 72.0
+scale = (8.0 * TARGET_U_PX) / content_h
+if abs(scale - 1.0) > 0.001:
+    new_W = max(1, int(round(W * scale)))
+    new_H = max(1, int(round(H * scale)))
+    IMG = IMG.resize((new_W, new_H), Image.Resampling.LANCZOS)
+    W, H = IMG.size
+    # 重新计算缩放后的内容边界
+    a = np.array(IMG)[:, :, 3]
+    ys, xs = np.where(a > 10)
+    content_top = min(ys) if len(ys) else 0
+    content_bottom = max(ys) if len(ys) else H
+    content_h = content_bottom - content_top + 1 if len(ys) else H
+
+u_px = TARGET_U_PX
 CX = W / 2.0
-print(f"content_top={content_top}, content_h={content_h}, u_px={u_px:.2f}")
+print(f"scaled content_top={content_top}, content_h={content_h}, u_px={u_px:.2f}, scale={scale:.3f}")
 
 L = {"head":1.0, "torso":2.5, "upper_arm":1.3, "fore_arm":1.1, "hand":0.8,
      "thigh":1.9, "shin":1.7, "foot":0.45}
-# 部件宽度：比规范更宽，确保切到完整肢体并留重叠
-Wdt = {"head":1.00, "torso":1.30, "upper_arm":0.38, "fore_arm":0.30, "hand":0.28,
-       "thigh":0.44, "shin":0.34, "foot":0.45}
+# 部件宽度：接近 human-joint-rig 规范，适当加宽以保留关节重叠
+Wdt = {"head":1.00, "torso":1.45, "upper_arm":0.34, "fore_arm":0.28, "hand":0.26,
+       "thigh":0.46, "shin":0.34, "foot":0.40}
 
 # 全局关节坐标（像素）：以 content_top 为基准
 neck_y = content_top + 1.0 * u_px
-shoulder_y = neck_y + 0.20*u_px
-shoulder_dx = 0.55*u_px
+shoulder_y = neck_y + 0.22*u_px
+shoulder_dx = 0.65*u_px
 hip_y = neck_y + L["torso"]*u_px
+hip_dx = 0.26*u_px
 
+# 源图福尔摩斯为直立站姿：四肢自然下垂，手脚沿身体中轴线。
+# 切分角度必须和装配时的 REST 一致，否则静止时会出现错位/缝隙。
 ANG = {
-    "upper_arm_L": -26, "upper_arm_R": 26,
-    "fore_arm_L": -18,  "fore_arm_R": 18,
-    "hand_L": -12,      "hand_R": 12,
-    "thigh_L": -6,      "thigh_R": 6,
-    "shin_L": -2,       "shin_R": 2,
-    "foot_L": -85,      "foot_R": 85,
+    "upper_arm_L": -2, "upper_arm_R": 2,
+    "fore_arm_L": 0,  "fore_arm_R": 0,
+    "hand_L": 0,      "hand_R": 0,
+    "thigh_L": -2,    "thigh_R": 2,
+    "shin_L": 0,      "shin_R": 0,
+    "foot_L": 0,      "foot_R": 0,
 }
 
 def pt_from(p, deg, dist):
@@ -117,12 +138,12 @@ from PIL import ImageChops
 
 # 关节点
 J = {
-    "head_top": (CX, 0),
+    "head_top": (CX, content_top),
     "neck":     (CX, neck_y),
     "shoulder_L": (CX - shoulder_dx, shoulder_y),
     "shoulder_R": (CX + shoulder_dx, shoulder_y),
-    "hip_L":    (CX - 0.20*u_px, hip_y),
-    "hip_R":    (CX + 0.20*u_px, hip_y),
+    "hip_L":    (CX - hip_dx, hip_y),
+    "hip_R":    (CX + hip_dx, hip_y),
 }
 J["elbow_L"] = pt_from(J["shoulder_L"], ANG["upper_arm_L"], L["upper_arm"]*u_px)
 J["elbow_R"] = pt_from(J["shoulder_R"], ANG["upper_arm_R"], L["upper_arm"]*u_px)
@@ -140,22 +161,22 @@ J["toe_R"]   = pt_from(J["ankle_R"], ANG["foot_R"], L["foot"]*u_px)
 # 各部位切分策略
 parts = {
     # name: (strategy, pad_ratio, params...)
-    # head：从图像顶部切到颈根，确保包含完整头发
-    "head":      ("axis", 0.0, (CX, 0), Wdt["head"]*u_px*1.3, neck_y * 1.05, True),  # flip_y so neck at top
-    # torso：上窄下宽梯形，避开脸部同时覆盖躯干与胯部
-    "torso":     ("trapezoid", 0.0, J["neck"], Wdt["torso"]*u_px, L["torso"]*u_px, 0.65*u_px, 1.1*u_px),
+    # head：从 content_top 切到颈根，flip_y 使颈根位于贴图顶部中心
+    "head":      ("axis", 0.0, (CX, content_top), Wdt["head"]*u_px*1.15, (neck_y - content_top) * 1.05, True),
+    # torso：上窄下宽梯形，覆盖躯干与胯部
+    "torso":     ("trapezoid", 0.0, J["neck"], Wdt["torso"]*u_px, L["torso"]*u_px, 1.45*u_px, 1.55*u_px),
     "upper_arm_L": ("straight", 0.35, J["shoulder_L"], J["elbow_L"], Wdt["upper_arm"]*u_px),
     "upper_arm_R": ("straight", 0.35, J["shoulder_R"], J["elbow_R"], Wdt["upper_arm"]*u_px),
     "fore_arm_L":  ("straight", 0.35, J["elbow_L"], J["wrist_L"], Wdt["fore_arm"]*u_px),
     "fore_arm_R":  ("straight", 0.35, J["elbow_R"], J["wrist_R"], Wdt["fore_arm"]*u_px),
-    "hand_L":    ("axis", 0.0, J["wrist_L"], Wdt["hand"]*u_px*1.6, L["hand"]*u_px*1.5, False),
-    "hand_R":    ("axis", 0.0, J["wrist_R"], Wdt["hand"]*u_px*1.6, L["hand"]*u_px*1.5, False),
+    "hand_L":    ("axis", 0.0, J["wrist_L"], Wdt["hand"]*u_px*1.4, L["hand"]*u_px*1.3, False),
+    "hand_R":    ("axis", 0.0, J["wrist_R"], Wdt["hand"]*u_px*1.4, L["hand"]*u_px*1.3, False),
     "thigh_L":   ("straight", 0.35, J["hip_L"], J["knee_L"], Wdt["thigh"]*u_px),
     "thigh_R":   ("straight", 0.35, J["hip_R"], J["knee_R"], Wdt["thigh"]*u_px),
     "shin_L":    ("straight", 0.35, J["knee_L"], J["ankle_L"], Wdt["shin"]*u_px),
     "shin_R":    ("straight", 0.35, J["knee_R"], J["ankle_R"], Wdt["shin"]*u_px),
-    "foot_L":    ("axis", 0.0, J["ankle_L"], Wdt["foot"]*u_px*2.2, L["foot"]*u_px*2.5, False),
-    "foot_R":    ("axis", 0.0, J["ankle_R"], Wdt["foot"]*u_px*2.2, L["foot"]*u_px*2.5, False),
+    "foot_L":    ("axis", 0.0, J["ankle_L"], Wdt["foot"]*u_px*1.8, L["foot"]*u_px*2.0, False),
+    "foot_R":    ("axis", 0.0, J["ankle_R"], Wdt["foot"]*u_px*1.8, L["foot"]*u_px*2.0, False),
 }
 
 preview = IMG.copy()
