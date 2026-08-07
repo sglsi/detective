@@ -190,6 +190,7 @@ func _build_save_data() -> void:
 		"observation_score": StarRatingSystem.observation_score,
 		"reasoning_score": StarRatingSystem.reasoning_score,
 		"insight_score": StarRatingSystem.insight_score,
+		"star_chains": StarRatingSystem.chains.duplicate(),   # v4.0 逐链三维星级（读档恢复用）
 		"scene_state": GameManager.scene_state.duplicate(),   # 场景内运行状态（phase, clue_ids）
 		"collected_clues": _get_collected_clues(),             # 通用已收集线索（场景无关单一真相源）
 		"is_guest": GameManager.is_guest,
@@ -335,6 +336,11 @@ func _restore_from_dict(data: Dictionary) -> void:
 	StarRatingSystem.observation_score = data.get("observation_score", 0)
 	StarRatingSystem.reasoning_score = data.get("reasoning_score", 0)
 	StarRatingSystem.insight_score = data.get("insight_score", 0)
+	# v4.0 逐链三维星级：优先从存档恢复（保证读档后评分不丢）；否则由聚合分重建单链
+	if data.has("star_chains") and not data["star_chains"].is_empty():
+		StarRatingSystem.chains = data["star_chains"].duplicate()
+	else:
+		StarRatingSystem.chains = {}
 	last_save_timestamp = data.get("timestamp", 0)
 	
 	# 恢复其他状态

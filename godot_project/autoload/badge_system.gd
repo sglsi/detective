@@ -10,10 +10,10 @@ extends Node
 ## 接入点：监听 SystemEventBus.case_completed（由 GameManager.end_case 发出）。
 ##
 ## 偏差说明（重要）：运行时徽章定义采用 StarRatingSystem.Badge 枚举
-##（KEEN_EYE / MASTER_DEDUCER / DEPTH_SEEKER / PERFECT_SCORE / SPEED_RUNNER /
-## NO_HINT_MASTER / FIRST_CASE_CLEAR 共 7 枚，已编译验证运行）。
-## 这与 08_系统框架设计.md B-11.2 另列的 7 枚命名（初出茅庐/神枪手/博闻强识…）
-## 不重合。本系统**不另起一套**，以免违反「单一机制」；两套命名统一属后续事项。
+##（COPPER 初出茅庐 / SILVER 渐入佳境 / GOLD 侦探本色 / FIRST_CASE_CLEAR 首案告破 /
+## NO_HINT_MASTER 无提示大师，共 5 枚），与 08_系统框架设计.md B-11.2 等级徽章命名对齐。
+## 专项能力徽章（神枪手/博闻强识/火眼金睛/高效调查）需特定行为埋点，留待后续接入，
+## 与本系统「单一机制」原则不冲突。
 
 # 内存态：badge 枚举值(int) -> {"case_id":String, "time":int}
 var unlocked: Dictionary = {}
@@ -66,11 +66,9 @@ func get_badge_name(b: int) -> String:
 		return "Badge_%d" % b
 	match b:
 		StarRatingSystem.Badge.NONE: return "无"
-		StarRatingSystem.Badge.KEEN_EYE: return "锐眼"
-		StarRatingSystem.Badge.MASTER_DEDUCER: return "推理大师"
-		StarRatingSystem.Badge.DEPTH_SEEKER: return "深掘者"
-		StarRatingSystem.Badge.PERFECT_SCORE: return "完美通关"
-		StarRatingSystem.Badge.SPEED_RUNNER: return "速通者"
+		StarRatingSystem.Badge.COPPER: return "初出茅庐（铜）"
+		StarRatingSystem.Badge.SILVER: return "渐入佳境（银）"
+		StarRatingSystem.Badge.GOLD: return "侦探本色（金）"
 		StarRatingSystem.Badge.NO_HINT_MASTER: return "无提示大师"
 		StarRatingSystem.Badge.FIRST_CASE_CLEAR: return "首案告破"
 		_: return "Badge_%d" % b

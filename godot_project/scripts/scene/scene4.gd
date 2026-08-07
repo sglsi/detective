@@ -34,6 +34,7 @@ const CLUES = {
 
 var _asked_directions: Dictionary = {}   # 已追问方向（用于全追问洞察加成与提示）
 var _d1_seen: bool = false               # 沉默线索 D1（墙上旧照片）是否已发现
+var _insight_bonus: int = 0              # v4.0 洞察星级加成（隐藏线索/全追问累计，封顶由墙处理）
 
 func scene_id() -> String: return "scene4"
 func clue_source() -> String: return "scene4"
@@ -80,10 +81,14 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"S4-1","text":"醉汉即凶手"},
 			{"id":"S4-2","text":"凶手折返取回戒指"},
 			{"id":"S4-3","text":"凶手是马车夫"},
-			{"id":"S4-4","text":"凶手红脸为动脉瘤（真实症状，非重病）"},
+		{"id":"S4-4","text":"凶手红脸为动脉瘤（真实症状，非重病）"},
 		],
-	}
-	}
+	},
+	# v4.0 三星评价：声明本推理链（逐链离散制）
+	"chain_id": scene_id(),
+	"expected_clues": CLUES.size(),  # 本链应收集线索总数（观察之星缺失条数分母）
+	"insight_bonus": _insight_bonus,  # 隐藏线索 D1 + 六方向全追问 累计加成
+}
 
 func map_locations() -> Array:
 	return [
@@ -138,8 +143,7 @@ func _on_arrival_ended() -> void:
 
 func _see_d1_photo() -> void:
 	_d1_seen = true
-	if StarRatingSystem:
-		StarRatingSystem.add_insight(0.5)   # 洞察之星 +0.5（设计 08 D1）
+	_insight_bonus += 1   # v4.0 洞察之星加成：发现沉默线索 D1（设计 08 D1）
 	_start_dialogue([
 		_mk_node("d0","系统","（特写）一张泛黄的军队合影照片，挂在有些歪斜的钉子上。","guide",["d1"]),
 		_mk_node("d1","福尔摩斯","（凑近看）一支旧式步枪团的合影——兰斯当过兵。难怪他对醉汉那副军人站姿没什么反应，见怪不怪了。","click",["d2"]),
@@ -223,8 +227,8 @@ func _dir_other() -> void:
 
 func _start_step3() -> void:
 	# Step3 数据记录 —— 证词提取（08 L1992-2021）：侦探笔记（仅列出玩家实际追问的方向 —— #147）
-	if _asked_directions.size() >= 6 and StarRatingSystem:
-		StarRatingSystem.add_insight(0.5)   # 六方向全追问洞察加成
+	if _asked_directions.size() >= 6:
+		_insight_bonus += 1   # v4.0 洞察之星加成：六方向全追问
 	var testimony := {
 		"time": "发现时间：约凌晨两点十分（兰斯明确证词）",
 		"look": "醉汉外貌：高个子六英尺出头、面色赤红（真实特征，勿误判为'重病'）",
@@ -290,10 +294,8 @@ func _show_route_choice() -> void:
 	])
 
 func _award() -> void:
-	if StarRatingSystem:
-		StarRatingSystem.add_observation(ClueSystem.total_weight(clue_source()) if ClueSystem else 0)  # 按线索分级权重累加
-		StarRatingSystem.add_reasoning(1)
-		StarRatingSystem.add_insight(1)
+	# v4.0：三星由推理墙在评星时通过 StarRatingSystem.submit_chain() 逐链提交，本场景不再累加。
+	pass
 
 func _go_to_next_scene(route: String = "A") -> void:
 	if GameManager:

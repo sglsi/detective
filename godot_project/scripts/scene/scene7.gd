@@ -39,6 +39,7 @@ const DIALOGUE_CLUES = {
 
 func scene_id() -> String: return "scene7"
 func clue_source() -> String: return "scene7"
+var _insight_bonus: int = 0              # v4.0 洞察星级加成（隐藏线索累计，封顶由墙处理）
 func hotspots() -> Array: return HOTSPOTS
 func scene_title() -> String: return "郝黎代旅馆"
 func scene_time_text() -> String: return "DAY 2 深夜"
@@ -105,7 +106,11 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"S7-3","text":"两起命案为同一凶手"},
 			{"id":"S7-4","text":"凶手=杰弗森·霍普"},
 		],
-	}
+	},
+	# v4.0 三星评价：声明本推理链（逐链离散制）
+	"chain_id": scene_id(),
+	"expected_clues": HOTSPOTS.size() + DIALOGUE_CLUES.size(),  # 本链应收集线索总数（观察之星缺失条数分母）
+	"insight_bonus": _insight_bonus,  # 送奶工目击（D4 关联）累计加成
 	}
 
 func map_locations() -> Array:
@@ -163,8 +168,7 @@ func _on_detective_ended() -> void:
 
 func _witness_dialogue() -> void:
 	# 对齐 08 稿 阶段1·单元B（L4079-4109）：送牛奶孩子目击（大个子/红脸/棕外衣/梯子爬窗）
-	if StarRatingSystem:
-		StarRatingSystem.add_insight(0.5)
+	_insight_bonus += 1   # v4.0 洞察之星加成：送奶工目击（隐藏线索 D4 关联）
 	_start_dialogue([
 		_mk_node("w0","系统","（走廊外，一个十二三岁、脸上带雀斑的送奶工凑上前来）","guide",["w1"]),
 		_mk_node("w1","送奶工","（抢着说）我看到了！我看到凶手了！旅馆后巷，梯子竖起来靠着三楼开着的窗户——一个人不慌不忙、从从容容地爬了下来！","click",["w2"]),
@@ -209,10 +213,8 @@ func _enter_transition() -> void:
 	], "z0", _go_to_next_scene)
 
 func _award() -> void:
-	if StarRatingSystem:
-		StarRatingSystem.add_observation(ClueSystem.total_weight(clue_source()) if ClueSystem else 0)  # 按线索分级权重累加
-		StarRatingSystem.add_reasoning(1)
-		StarRatingSystem.add_insight(1)
+	# v4.0：三星由推理墙在评星时通过 StarRatingSystem.submit_chain() 逐链提交，本场景不再累加。
+	pass
 
 func _go_to_next_scene() -> void:
 	if GameManager and not GameManager.is_guest and SaveManager:

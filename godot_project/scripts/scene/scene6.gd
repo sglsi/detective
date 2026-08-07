@@ -31,6 +31,7 @@ const CLUES = {
 var _investigated: Dictionary = {}   # 已调查对象（太太/爱莉丝/房间）
 var _d3_seen: bool = false          # 沉默线索 D3（法律书）是否已发现
 var _harper_done: bool = false      # 是否已追查哈珀
+var _insight_bonus: int = 0         # v4.0 洞察星级加成（隐藏线索累计，封顶由墙处理）
 
 func scene_id() -> String: return "scene6"
 func clue_source() -> String: return "scene6"
@@ -74,7 +75,11 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"S6-2","text":"威廉·哈珀证词可信"},
 			{"id":"S6-3","text":"木棍非凶器（死者服毒）"},
 		],
-	}
+	},
+	# v4.0 三星评价：声明本推理链（逐链离散制）
+	"chain_id": scene_id(),
+	"expected_clues": CLUES.size(),  # 本链应收集线索总数（观察之星缺失条数分母）
+	"insight_bonus": _insight_bonus,  # 发现沉默线索 D3 累计加成
 	}
 
 func map_locations() -> Array:
@@ -180,8 +185,7 @@ func _room_deep_choice() -> void:
 
 func _see_d3() -> void:
 	_d3_seen = true
-	if StarRatingSystem:
-		StarRatingSystem.add_insight(0.5)   # 洞察之星 +0.5（设计 08 D3）
+	_insight_bonus += 1   # v4.0 洞察之星加成：发现沉默线索 D3（设计 08 D3）
 	_start_dialogue([
 		_mk_node("d0","系统","（特写）书架底层几本厚重的《英国法释义》，卷首都签着阿瑟的名字，书脊磨损严重，边角有批注。","guide",["d1"]),
 		_mk_node("d1","福尔摩斯","这位中尉不只是个武夫，还挺懂法。这样的人，不太可能一时冲动就动手杀人。","clue",["d2"],[CLUES["C_SOTCB_606"]]),
@@ -255,10 +259,8 @@ func _enter_transition() -> void:
 	], "z0", _go_to_next_scene)
 
 func _award() -> void:
-	if StarRatingSystem:
-		StarRatingSystem.add_observation(ClueSystem.total_weight(clue_source()) if ClueSystem else 0)  # 按线索分级权重累加
-		StarRatingSystem.add_reasoning(1)
-		StarRatingSystem.add_insight(1)
+	# v4.0：三星由推理墙在评星时通过 StarRatingSystem.submit_chain() 逐链提交，本场景不再累加。
+	pass
 
 func _go_to_next_scene() -> void:
 	if GameManager and not GameManager.is_guest and SaveManager:

@@ -18,38 +18,33 @@ func run_test() -> void:
 	var ok := true
 	var reason := ""
 
-	# 传奇：满分 9 星
-	srs.observation_score = srs.max_observation
-	srs.reasoning_score = 14
-	srs.insight_score = 7
+	# 传奇：单链满星 9⭐（占比 100%）
+	srs.chains = {}
+	srs.submit_chain("t", 3, 3, 3)
 	if not _is_tier(es, es.determine_ending(""), "传奇"):
-		ok = false; reason = "满分应传奇"
+		ok = false; reason = "满星应传奇"
 
-	# 杰出：7 星（obs3+reason3+ins1；ins=3→1星，总分 3+3+1=7，占比 0.778→杰出）
-	srs.observation_score = srs.max_observation
-	srs.reasoning_score = 14
-	srs.insight_score = 3
+	# 杰出：7 星（3+2+2，占比 0.778→杰出）
+	srs.chains = {}
+	srs.submit_chain("t", 3, 2, 2)
 	if not _is_tier(es, es.determine_ending(""), "杰出"):
 		ok = false; reason = "7星应杰出"
 
-	# 合格：5 星（obs3+reason2+ins0；reason 9/14≈0.64→2星）
-	srs.observation_score = srs.max_observation
-	srs.reasoning_score = 9
-	srs.insight_score = 0
+	# 合格：5 星（2+2+1，占比 0.556→合格）
+	srs.chains = {}
+	srs.submit_chain("t", 2, 2, 1)
 	if not _is_tier(es, es.determine_ending(""), "合格"):
 		ok = false; reason = "5星应合格"
 
-	# 见习：3 星（obs3 其余 0）
-	srs.observation_score = srs.max_observation
-	srs.reasoning_score = 0
-	srs.insight_score = 0
+	# 见习：3 星（1+1+1，占比 0.333→见习）
+	srs.chains = {}
+	srs.submit_chain("t", 1, 1, 1)
 	if not _is_tier(es, es.determine_ending(""), "见习"):
 		ok = false; reason = "3星应见习"
 
 	# 跨案累积 + info
-	srs.observation_score = srs.max_observation
-	srs.reasoning_score = 14
-	srs.insight_score = 7
+	srs.chains = {}
+	srs.submit_chain("t", 3, 3, 3)
 	es.determine_ending("case_alpha")
 	var case_tier = es.get_ending_for_case("case_alpha")
 	if not _is_tier(es, case_tier, "传奇"):

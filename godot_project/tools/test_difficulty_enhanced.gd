@@ -70,15 +70,13 @@ func _run() -> void:
 
 	# ── 3. 竞技分数倍率 + 合成星级 ──
 	var s = load("res://autoload/star_rating_system.gd").new()
-	s.observation_score = s.max_observation
-	s.reasoning_score = s.max_reasoning
-	s.insight_score = s.max_insight
-	# 满星 9：NORMAL 倍率 1.0 → 9（精确，无取整歧义）
+	# 满星单链 9⭐（3,3,3）：NORMAL 倍率 1.0 → 9（精确，无取整歧义）
+	s.submit_chain("c", 3, 3, 3)
 	dm.set_difficulty(DifficultyManager.Difficulty.NORMAL)
 	if s.get_adjusted_total_stars() != 9:
 		ok = false; msg = "NORMAL 9星×1.0 应 9，实得 %d" % s.get_adjusted_total_stars()
-	# 6 星（观察3+推理3+洞察0）：避开 0.5 取整歧义
-	s.insight_score = 0
+	# 6 星单链（2,2,2）：避开 0.5 取整歧义
+	s.submit_chain("c", 2, 2, 2)
 	dm.set_difficulty(DifficultyManager.Difficulty.EASY)
 	if s.get_adjusted_total_stars() != 3:
 		ok = false; msg = "EASY 6星×0.5 应 3，实得 %d" % s.get_adjusted_total_stars()
