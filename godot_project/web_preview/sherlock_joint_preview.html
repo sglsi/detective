@@ -59,7 +59,7 @@
       <div class="key"><kbd>R</kbd>重置位置</div>
     </div>
     <div class="opts">
-      <label><input type="checkbox" id="showJoints" checked /> 显示关节锚点</label>
+      <label><input type="checkbox" id="showJoints" /> 显示关节锚点</label>
       <label>速度 <input type="range" id="speed" min="0.3" max="2" step="0.1" value="1" /></label>
     </div>
   </div>
@@ -84,10 +84,10 @@ const W = { head:0.72, torso:0.95, upper_arm:0.30, fore_arm:0.24, hand:0.22, thi
 const ANCHORS = {
   torso:[0,0],
   head:[0,0],
-  upper_arm_L:[-0.52,0.18], upper_arm_R:[0.52,0.18],
+  upper_arm_L:[-0.65,0.22], upper_arm_R:[0.65,0.22],
   fore_arm_L:[0,L.upper_arm], fore_arm_R:[0,L.upper_arm],
   hand_L:[0,L.fore_arm],      hand_R:[0,L.fore_arm],
-  thigh_L:[-0.20,L.torso],    thigh_R:[0.20,L.torso],
+  thigh_L:[-0.26,L.torso],    thigh_R:[0.26,L.torso],
   shin_L:[0,L.thigh],         shin_R:[0,L.thigh],
   foot_L:[0,L.shin],          foot_R:[0,L.shin],
 };
@@ -100,10 +100,12 @@ const PARENT = {
   shin_L:"thigh_L", shin_R:"thigh_R",
   foot_L:"shin_L", foot_R:"shin_R",
 };
+// 福尔摩斯原图为直立站姿：四肢自然下垂、手脚沿身体中轴线。
+// REST 必须和 split_parts.py 的切分角度一致，否则静止时错位。
 const REST = { torso:0, head:180,
-  upper_arm_L:-26, upper_arm_R:26, fore_arm_L:-18, fore_arm_R:18,
-  hand_L:-12, hand_R:12,
-  thigh_L:-6, thigh_R:6, shin_L:-2, shin_R:2,
+  upper_arm_L:0, upper_arm_R:0, fore_arm_L:0, fore_arm_R:0,
+  hand_L:0, hand_R:0,
+  thigh_L:0, thigh_R:0, shin_L:0, shin_R:0,
   foot_L:0, foot_R:0 };
 const ROM = {
   head:[130,230], upper_arm_L:[-180,30], upper_arm_R:[-30,180],
