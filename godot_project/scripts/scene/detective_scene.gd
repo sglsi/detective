@@ -123,10 +123,17 @@ func _create_dummy_labels() -> void:
 ## 场景一覆盖为创建 watson/messenger 两组。
 func _create_observers() -> void:
 	_obs = ClueObserver.new()
-	_obs.setup(self, _obs_text_lbl, _obs_speaker_lbl, hotspots(), null)
+	# 按难度过滤误导线索（简单剔除，普通 30%，困难 70%）
+	var filtered_hotspots: Array = hotspots()
+	if DifficultyManager:
+		filtered_hotspots = DifficultyManager.filter_hotspots_by_difficulty(filtered_hotspots)
+	_obs.setup(self, _obs_text_lbl, _obs_speaker_lbl, filtered_hotspots, null)
 	_obs.hotspot_clicked.connect(_on_hotspot_seen)
 	_obs.clue_recorded.connect(_on_clue_recorded)
 	_obs.all_recorded.connect(_on_all_done)
+	# 简单模式：场景进入即自动高亮所有可交互点（不用点「观察」）
+	if DifficultyManager and DifficultyManager.auto_reveal_clues:
+		_obs.show()
 
 ## 当前生效的观察器（场景二/三即 _obs；场景一根据 phase 返回 watson/messenger）。
 ## 工具栏开关、观察模式切换都通过它操作，避免 scene1 的 _obs 为空导致空引用。

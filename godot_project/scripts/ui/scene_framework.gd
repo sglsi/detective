@@ -404,9 +404,28 @@ func _build_left_bar() -> void:
 	# 右边烫金竖线
 	var divider = ColorRect.new()
 	divider.color = Color(0.78, 0.62, 0.25, 0.7)
-	divider.position = Vector2(LEFT_W - 2, 0); divider.size = Vector2(2, 800)
+	divider.position = Vector2(LEFT_W - 2, 0); divider.size = Vector2(2, _left_bar.size.y)
 	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_left_bar.add_child(divider)
+
+	# 按钮放入可滚动容器，避免 9 个按钮 + 底栏遮挡导致最下方按钮点不到
+	var scroll := ScrollContainer.new()
+	scroll.name = "left_bar_scroll"
+	scroll.position = Vector2(0, 0)
+	scroll.size = Vector2(LEFT_W, _left_bar.size.y)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.mouse_filter = Control.MOUSE_FILTER_PASS
+	_left_bar.add_child(scroll)
+
+	var vb := VBoxContainer.new()
+	vb.name = "left_bar_vbox"
+	vb.size = Vector2(LEFT_W, _left_bar.size.y)
+	vb.size_flags_horizontal = Control.SIZE_FILL
+	vb.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vb.alignment = BoxContainer.ALIGNMENT_BEGIN
+	vb.add_theme_constant_override("separation", 8)
+	scroll.add_child(vb)
 
 	var actions = [
 		{"id":"look", "en":"LOOK", "zh":"观察", "icon":"👁"},
@@ -421,15 +440,13 @@ func _build_left_bar() -> void:
 	]
 	var btn_w := 116
 	var btn_h := 96
-	var gap := 8
-	var total_h := actions.size() * btn_h + (actions.size() - 1) * gap
-	var start_y := 16
 	for i in actions.size():
 		var a = actions[i]
 		var btn = _make_action_button(a, btn_w, btn_h, i)
-		btn.position = Vector2((LEFT_W - btn_w) / 2, start_y + i * (btn_h + gap))
+		btn.custom_minimum_size = Vector2(btn_w, btn_h)
+		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		btn.pressed.connect(func(aid=a["id"]): action_clicked.emit(aid))
-		_left_bar.add_child(btn)
+		vb.add_child(btn)
 		_action_btns[a["id"]] = btn
 
 func _make_action_button(a: Dictionary, w: int, h: int, idx: int) -> Button:
