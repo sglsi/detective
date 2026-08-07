@@ -196,7 +196,7 @@ func _create_ui() -> void:
 	var mid := Control.new()
 	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mid.offset_top = 66
-	mid.offset_bottom = -76
+	mid.offset_bottom = -240   # 收拢到底部对话栏(y=850~1080)之上，避免三栏内容被对话栏遮挡（mid 底≈840）
 	add_child(mid)
 
 	# 左侧面板 (线索库) 28%
@@ -368,25 +368,35 @@ func _create_left_panel() -> Control:
 	filter_row.add_child(_filter_unassoc)
 	filter_row.add_child(_filter_misleading)
 
-	# 线索滚动列表
+	# 线索滚动列表（整列可滚轮滚动：含线索卡片 + 底部「调查记录」按钮）
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.mouse_filter = Control.MOUSE_FILTER_STOP   # 悬停即捕获滚轮，Web/桌面通用
 	vb.add_child(scroll)
+
+	# inner 包住线索列表 + 调查记录按钮，保证整列（含最底部按钮）都能滚到
+	var inner := VBoxContainer.new()
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.size_flags_vertical = 0   # 高度由内容决定，ScrollContainer 才能检测溢出并滚动
+	inner.add_theme_constant_override("separation", 8)
+	scroll.add_child(inner)
 
 	_clue_list = VBoxContainer.new()
 	_clue_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_clue_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# 关键：不可设为垂直 EXPAND_FILL —— 否则列表撑满 scroll 高度、永远不出现滚动条，
+	# 长列表最底部的卡片/「调查记录」按钮会被下方对话栏/底栏盖住且点不到。
+	_clue_list.size_flags_vertical = 0
 	_clue_list.add_theme_constant_override("separation", 8)
-	scroll.add_child(_clue_list)
+	inner.add_child(_clue_list)
 
-	# 右下角：调查记录按钮（查看历史信息，方案 A）
+	# 右下角：调查记录按钮（查看历史信息，方案 A）——放入滚动区，确保最底部也能滚到
 	var rec_row := HBoxContainer.new()
 	rec_row.alignment = BoxContainer.ALIGNMENT_END
 	rec_row.add_theme_constant_override("separation", 8)
 	rec_row.custom_minimum_size = Vector2(200, 44)
-	vb.add_child(rec_row)
+	inner.add_child(rec_row)
 	var rec_btn := _make_action_btn("调查记录")
 	rec_btn.pressed.connect(_on_investigate_pressed)
 	rec_row.add_child(rec_btn)
@@ -492,7 +502,7 @@ func _create_center_panel() -> Control:
 
 	_tree_root = VBoxContainer.new()
 	_tree_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_tree_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_tree_root.size_flags_vertical = 0   # 内容高度驱动滚动：长假设树可滚轮滚动
 	_tree_root.add_theme_constant_override("separation", 10)
 	tree_scroll.add_child(_tree_root)
 
@@ -580,7 +590,7 @@ func _create_right_panel() -> Control:
 
 	_battlefield_box = VBoxContainer.new()
 	_battlefield_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_battlefield_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_battlefield_box.size_flags_vertical = 0   # 内容高度驱动滚动：战场假设多时可滚轮滚动
 	_battlefield_box.add_theme_constant_override("separation", 8)
 	scroll.add_child(_battlefield_box)
 
