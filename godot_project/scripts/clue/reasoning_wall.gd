@@ -23,6 +23,12 @@ var _milestone_total: int = 0
 var _last_report: String = ""
 var _case_name: String = "血字的研究"
 
+# === v4.0 三星评价：逐链离散判定 ===
+var _chain_id: String = ""          # 当前推理链 ID（由 hypothesis.chain_id 提供；空则不计分）
+var _expected_clues: int = 0        # 本链应收集线索总数（观察之星「缺失条数」分母）
+var _insight_bonus: int = 0         # 隐藏线索/全追问等洞察加成（场景经 hypothesis.insight_bonus 传入）
+var _last_stars: Dictionary = {"observation": 1, "reasoning": 1, "insight": 1}
+
 # === 战场状态 ===
 var _battle: Dictionary = {}
 var _battle_hypo_states: Dictionary = {}     # id -> 0未定/1采纳/2排除
@@ -80,6 +86,9 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_difficulty = difficulty
 	_battle = hypothesis.get("battlefield", {})
 	_case_name = hypothesis.get("case_name", _case_name)
+	_chain_id = hypothesis.get("chain_id", "")
+	_expected_clues = hypothesis.get("expected_clues", _clues.size())
+	_insight_bonus = hypothesis.get("insight_bonus", 0)
 	_init_milestones(hypothesis)
 	_create_ui()
 	_update_all()
@@ -1245,22 +1254,32 @@ func _update_milestone_ui() -> void:
 # === 三星评价 ===
 func _update_star_rating() -> void:
 	if not _star_lbl: return
-	var v := get_verdict()
-	# 简化版：推理之星随验证等级；观察之星按已关联正确线索比例；洞察之星按战场命中
-	var reasoning_stars := 1
-	match v:
-		Verdict.SUPPORTED: reasoning_stars = 2
-		Verdict.VERIFIED: reasoning_stars = 3
+	# ---- v4.0 三维离散判定（§B-11.5 / 06 §4.1）----
+	# 1) 观察之星：按缺失条数（缺≥3→1⭐ / 缺1-2→2⭐ / 缺0→3⭐），不区分线索重要性
+	var collected := _clues.size()
+	var missing := maxi(0, _expected_clues - collected)
+	var observe_stars := 3
+	if missing >= 3:
+		observe_stars = 1
+	elif missing >= 1:
+		observe_stars = 2
+
+	# 2) 推理之星：按已关联线索的正确比例（4/4→3⭐ / 3/4→2⭐ / ≤2/4→1⭐），错误无惩罚
 	var correct_assoc := 0; var total_assoc := 0
 	for c in _clues:
 		if c.get("associated", false):
 			total_assoc += 1
 			if c.get("correct", true): correct_assoc += 1
-	var observe_stars := 1
+	var reasoning_stars := 1
 	if total_assoc > 0:
-		var ratio := float(correct_assoc) / total_assoc
-		if ratio >= 1.0: observe_stars = 3
-		elif ratio >= 0.5: observe_stars = 2
+		if correct_assoc == total_assoc:
+			reasoning_stars = 3
+		elif correct_assoc * 4 >= 3 * total_assoc:   # 正确比例 ≥ 3/4
+			reasoning_stars = 2
+		else:
+			reasoning_stars = 1
+
+	# 3) 洞察之星：战场命中比例（绕路/重要方向/最优顺序的代理）+ 隐藏线索加成，封顶 3⭐
 	var insight_stars := 1
 	if not _battle.is_empty():
 		var txt := _battle_status_text()
@@ -1275,7 +1294,16 @@ func _update_star_rating() -> void:
 					var ratio2 := float(ok) / tot
 					if ratio2 >= 1.0: insight_stars = 3
 					elif ratio2 >= 0.5: insight_stars = 2
+					else: insight_stars = 1
+	# 隐藏线索/全追问等洞察加成（场景经 hypothesis.insight_bonus 传入）
+	insight_stars = clampi(insight_stars + _insight_bonus, 1, 3)
+
+	_last_stars = {"observation": observe_stars, "reasoning": reasoning_stars, "insight": insight_stars}
 	_star_lbl.text = "观察%d⭐ 推理%d⭐ 洞察%d⭐" % [observe_stars, reasoning_stars, insight_stars]
+
+	# 提交逐链三星到 StarRatingSystem（幂等覆盖；逐链离散制 v4.0）
+	if StarRatingSystem and _chain_id != "":
+		StarRatingSystem.submit_chain(_chain_id, observe_stars, reasoning_stars, insight_stars)
 
 
 # === 返回调查 + 历史信息面板 ===

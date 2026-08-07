@@ -1,6 +1,6 @@
 extends SceneTree
 
-## P2-1 BadgeSystem 单测：验证通关时徽章评定 + 跨案累积（不触发持久化）
+## v4.0 BadgeSystem 单测：验证通关时徽章评定（铜/银/金按单链总星）+ 跨案累积（不触发持久化）
 ## 哨兵：P1_RESULT: PASS
 
 func _init() -> void:
@@ -14,43 +14,41 @@ func run_test() -> void:
 		quit()
 		return
 
-	# 干净起点
-	StarRatingSystem.observation_score = 0
-	StarRatingSystem.reasoning_score = 0
-	StarRatingSystem.insight_score = 0
+	var ok := true
+
+	# 金徽章：单链满星 9⭐ → GOLD + FIRST_CASE_CLEAR（2 枚）
+	StarRatingSystem.chains = {}
+	StarRatingSystem.submit_chain("scene8", 3, 3, 3)
 	BadgeSystem.reset()
-
-	# 全满分 → 应解锁 KEEN_EYE / MASTER_DEDUCER / DEPTH_SEEKER / PERFECT_SCORE / FIRST_CASE_CLEAR
-	StarRatingSystem.observation_score = StarRatingSystem.max_observation
-	StarRatingSystem.reasoning_score = StarRatingSystem.max_reasoning
-	StarRatingSystem.insight_score = StarRatingSystem.max_insight
-
 	BadgeSystem._merge_badges("case_blood_letter")
-	var expected = [
-		StarRatingSystem.Badge.KEEN_EYE,
-		StarRatingSystem.Badge.MASTER_DEDUCER,
-		StarRatingSystem.Badge.DEPTH_SEEKER,
-		StarRatingSystem.Badge.PERFECT_SCORE,
-		StarRatingSystem.Badge.FIRST_CASE_CLEAR,
-	]
-	var ok = true
-	for b in expected:
-		if not BadgeSystem.has_badge(b):
-			ok = false
-			print("缺失徽章枚举值: ", b)
-	if BadgeSystem.get_unlocked_count() != 5:
-		ok = false
-		print("累积数量异常: ", BadgeSystem.get_unlocked_count())
+	if not BadgeSystem.has_badge(StarRatingSystem.Badge.GOLD):
+		ok = false; print("金徽章缺失")
+	if not BadgeSystem.has_badge(StarRatingSystem.Badge.FIRST_CASE_CLEAR):
+		ok = false; print("首案告破缺失")
+	if BadgeSystem.get_unlocked_count() != 2:
+		ok = false; print("金徽章累积数量异常: ", BadgeSystem.get_unlocked_count())
 
-	# 二次通关：不应新增（累积集合，数量仍为 5）
-	BadgeSystem._merge_badges("case_blood_letter_2")
-	if BadgeSystem.get_unlocked_count() != 5:
-		ok = false
-		print("二次通关数量异常: ", BadgeSystem.get_unlocked_count())
+	# 银徽章：单链 6⭐（2,2,2）→ SILVER
+	StarRatingSystem.chains = {}
+	StarRatingSystem.submit_chain("scene6", 2, 2, 2)
+	BadgeSystem.reset()
+	BadgeSystem._merge_badges("case2")
+	if not BadgeSystem.has_badge(StarRatingSystem.Badge.SILVER):
+		ok = false; print("银徽章缺失")
+
+	# 铜徽章：单链 3⭐（1,1,1）→ COPPER
+	StarRatingSystem.chains = {}
+	StarRatingSystem.submit_chain("scene4", 1, 1, 1)
+	BadgeSystem.reset()
+	BadgeSystem._merge_badges("case3")
+	if not BadgeSystem.has_badge(StarRatingSystem.Badge.COPPER):
+		ok = false; print("铜徽章缺失")
 
 	# 名称映射
-	if BadgeSystem.get_badge_name(StarRatingSystem.Badge.KEEN_EYE) != "锐眼":
-		ok = false
+	if BadgeSystem.get_badge_name(StarRatingSystem.Badge.GOLD) != "侦探本色（金）":
+		ok = false; print("金徽章名称错误")
+	if BadgeSystem.get_badge_name(StarRatingSystem.Badge.COPPER) != "初出茅庐（铜）":
+		ok = false; print("铜徽章名称错误")
 
 	if ok:
 		print("P1_RESULT: PASS")

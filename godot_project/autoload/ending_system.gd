@@ -8,7 +8,9 @@ extends Node
 
 enum EndingTier { LEGENDARY, OUTSTANDING, PASSING, PROBATION }
 
-const MAX_TOTAL_STARS: int = 9   # 三维评分 × 三星
+# 满星分母随已提交推理链数动态计算（v4.0：链数 × 9；例 14 链 = 126⭐）
+# 旧常量 9 仅作兜底（无任何链提交时）。
+const FALLBACK_MAX_TOTAL_STARS: int = 9
 
 var case_endings: Dictionary = {}   # case_id -> EndingTier(int)
 
@@ -23,10 +25,19 @@ func _on_case_completed(case_id: String, _stars: Dictionary) -> void:
 		SystemEventBus.emit_signal("ending_determined", case_id, tier, info)
 	print("[EndingSystem] 案件 %s 结局: %s" % [case_id, info.get("name", "")])
 
+## 当前案件满星（链数 × 9；无链时回退 9）
+func _max_stars() -> int:
+	if StarRatingSystem and StarRatingSystem.has_method("get_max_total_stars"):
+		var m := StarRatingSystem.get_max_total_stars()
+		if m > 0:
+			return m
+	return FALLBACK_MAX_TOTAL_STARS
+
 ## 依据总星级占比判定结局档位（case_id 非空时写入跨案累积）
+## 档位（v4.0）：传奇≥90% / 杰出 70-89% / 合格 50-69% / 见习<50%
 func determine_ending(case_id: String = "") -> int:
 	var total := StarRatingSystem.get_total_stars() if StarRatingSystem else 0
-	var ratio := float(total) / float(MAX_TOTAL_STARS)
+	var ratio := float(total) / float(_max_stars())
 	var tier := EndingTier.PROBATION
 	if ratio >= 0.9:
 		tier = EndingTier.LEGENDARY

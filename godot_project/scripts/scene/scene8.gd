@@ -97,7 +97,11 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"S8-3","text":"凶手是马车夫"},
 			{"id":"S8-4","text":"完整作案过程：毒杀德雷伯 + 刀杀斯特兰森"},
 		],
-	}
+	},
+	# v4.0 三星评价：声明本推理链（逐链离散制）
+	"chain_id": scene_id(),
+	"expected_clues": HOTSPOTS.size() + DIALOGUE_CLUES.size(),  # 本链应收集线索总数（观察之星缺失条数分母）
+	"insight_bonus": 0,   # 场景八无额外隐藏线索加成（洞察之星基础来自战场命中）
 	}
 
 func map_locations() -> Array:
@@ -199,10 +203,9 @@ func _enter_transition() -> void:
 	], "z0", _go_to_next_scene)
 
 func _award() -> void:
-	if StarRatingSystem:
-		StarRatingSystem.add_observation(ClueSystem.total_weight(clue_source()) if ClueSystem else 0)  # 按线索分级权重累加
-		StarRatingSystem.add_reasoning(1)
-		StarRatingSystem.add_insight(1)
+	# v4.0：三星由推理墙在评星时通过 StarRatingSystem.submit_chain() 逐链提交，本场景不再累加。
+	# （保留空实现以兼容 _enter_transition 的调用约定）
+	pass
 
 func _go_to_next_scene() -> void:
 	if GameManager and not GameManager.is_guest and SaveManager:

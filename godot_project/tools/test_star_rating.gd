@@ -1,8 +1,6 @@
 extends SceneTree
-## P1-4 补充单测：三星评价系统（star_rating_system.gd）
-## 三维独立评定，各维按占比给 0-3 星；总分=三维之和（满分 9）。
+## v4.0 三星评价系统单测：逐链三维离散（各 1-3⭐），聚合=链之和，满星=链数×9。
 ## 运行：godot --headless --script res://tools/test_star_rating.gd --path <godot_project>
-## 未经 Godot 实跑验证（环境 shell 被沙箱拦截），请本地运行确认。
 
 var _done := false
 
@@ -18,30 +16,44 @@ func _run() -> void:
 	var ok := true
 	var msg := ""
 
-	# 部分加分：obs 2/满分（<30%）、rea 1/14、ins 3/7 → 各维星数 0/0/1 → 总分 1
-	# P3.1：观察力改为加权评分，满分基数不再是 45；此处用极小观察分保证 0 星，断言与满分基数解耦。
-	s.add_observation(2)
-	s.add_reasoning(1)
-	s.add_insight(3)
-	if s.get_total_stars() != 1:
-		ok = false
-		msg = "部分加分期望总分 1，实得 %d" % s.get_total_stars()
+	# 单链最低：obs1+rea1+ins1 = 3⭐
+	s.submit_chain("c1", 1, 1, 1)
+	if s.get_total_stars() != 3:
+		ok = false; msg = "单链 1/1/1 期望总星 3，实得 %d" % s.get_total_stars()
+	if s.get_chain_total("c1") != 3:
+		ok = false; msg = "c1 链总星应 3，实得 %d" % s.get_chain_total("c1")
+	if s.get_max_total_stars() != 9:
+		ok = false; msg = "单链满星应 9，实得 %d" % s.get_max_total_stars()
 
-	# 满分：三维各自置顶（用各维满分基数，不写死数字）→ 9 星
-	s.observation_score = s.max_observation
-	s.reasoning_score = s.max_reasoning
-	s.insight_score = s.max_insight
+	# 单链满星覆盖：obs3+rea3+ins3 = 9⭐
+	s.submit_chain("c1", 3, 3, 3)
 	if s.get_total_stars() != 9:
-		ok = false
-		msg = "满分期望 9 星，实得 %d" % s.get_total_stars()
+		ok = false; msg = "c1 满星期望 9，实得 %d" % s.get_total_stars()
 
-	# 单维星级边界：insight 7/7=1.0 → 3 星
-	if s.get_stars(s.RatingDimension.INSIGHT) != 3:
-		ok = false
-		msg = "insight 满分应 3 星，实得 %d" % s.get_stars(s.RatingDimension.INSIGHT)
+	# 双链聚合：c1(9) + c2(2,2,2=6) → 15，满星 18
+	s.submit_chain("c2", 2, 2, 2)
+	if s.get_total_stars() != 15:
+		ok = false; msg = "双链聚合期望 15，实得 %d" % s.get_total_stars()
+	if s.get_max_total_stars() != 18:
+		ok = false; msg = "双链满星应 18，实得 %d" % s.get_max_total_stars()
+
+	# 维度聚合（c1=3/3/3, c2=2/2/2 → 观察=5）
+	if s.get_stars(s.RatingDimension.OBSERVATION) != 5:
+		ok = false; msg = "观察聚合应 5，实得 %d" % s.get_stars(s.RatingDimension.OBSERVATION)
+
+	# 空 chain_id 不计入分（避免场景一·华生/信使墙相互覆盖）
+	s.submit_chain("", 3, 3, 3)
+	if s.get_chain_count() != 2:
+		ok = false; msg = "空 chain_id 不应计入，链数应 2，实得 %d" % s.get_chain_count()
+
+	# 越界值被夹取到 1-3
+	s.submit_chain("c3", 9, 0, -1)
+	var c3 = s.get_chain_stars("c3")
+	if c3["observation"] != 3 or c3["reasoning"] != 1 or c3["insight"] != 1:
+		ok = false; msg = "越界值未夹取：%s" % str(c3)
 
 	if ok:
-		print("P1_RESULT: PASS — 三星评价系统逻辑通过")
+		print("P1_RESULT: PASS — v4.0 三星评价（逐链离散/聚合/满星/夹取）通过")
 	else:
 		print("P1_RESULT: FAIL — " + msg)
 	quit()

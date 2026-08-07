@@ -38,6 +38,7 @@ const CLUES = {
 var _route: String = "A"                 # 场景四传来的路线（A/B/C），读档时恢复
 var _asked_directions: Dictionary = {}   # 已追问方向
 var _tracked: bool = false               # Step6 是否选择跟踪
+var _insight_bonus: int = 0              # v4.0 洞察星级加成（全追问累计，封顶由墙处理）
 
 func scene_id() -> String: return "scene5"
 func clue_source() -> String: return "scene5"
@@ -88,8 +89,12 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"S5-3","text":"凶手=马车夫（升级）"},
 			{"id":"S5-4","text":"复仇动机（私人恩怨非政治）"},
 		],
-	}
-	}
+	},
+	# v4.0 三星评价：声明本推理链（逐链离散制）
+	"chain_id": scene_id(),
+	"expected_clues": CLUES.size(),  # 本链应收集线索总数（观察之星缺失条数分母）
+	"insight_bonus": _insight_bonus,  # 五方向全追问 累计加成
+}
 
 func map_locations() -> Array:
 	return [
@@ -213,8 +218,8 @@ func _dir_letgo() -> void:
 
 func _start_step3() -> void:
 	# Step3 数据记录 —— 侦探笔记（08 场景五·来访者记录 7 项，简化为确认式回顾）
-	if _asked_directions.size() >= 5 and StarRatingSystem:
-		StarRatingSystem.add_insight(0.5)   # 五方向全追问洞察加成
+	if _asked_directions.size() >= 5:
+		_insight_bonus += 1   # v4.0 洞察之星加成：五方向全追问
 	# 侦探笔记只记录玩家「实际追问过」的方向，未问的不写进本子
 	var testimony := {
 		"ring": {"name":"追问 · 戒指细节", "desc":"普通结婚金戒指，内侧刻字「好像是 L.F.」——她自己都记不清"},
@@ -349,10 +354,8 @@ func _start_finale() -> void:
 # ===================== 评分 / 存档 / 读档 =====================
 
 func _award() -> void:
-	if StarRatingSystem:
-		StarRatingSystem.add_observation(ClueSystem.total_weight(clue_source()) if ClueSystem else 0)  # 按线索分级权重累加
-		StarRatingSystem.add_reasoning(1)
-		StarRatingSystem.add_insight(1)
+	# v4.0：三星由推理墙在评星时通过 StarRatingSystem.submit_chain() 逐链提交，本场景不再累加。
+	pass
 
 func _go_to_next_scene() -> void:
 	if GameManager and not GameManager.is_guest and SaveManager:

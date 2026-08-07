@@ -1,92 +1,59 @@
 extends SceneTree
-## P3.1.y 评价体系完善回归单测：
-##   1) 综合等级（GDD §2.6.5）：名侦探 / 合格侦探 / 继续推理
-##   2) 简单模式观察 3 星门槛降至 0.8（GDD §2.6.2：关键线索≥80%即可）
-##   3) 与竞技倍率合成星级（P3.1.x）互不冲突
+## v4.0 评价体系回归单测（替代旧「综合等级」）：
+##   1) 结局档位（传奇≥90% / 杰出 70-89% / 合格 50-69% / 见习<50%）基于逐链总星占比
+##   2) 难度不影响原始总星（get_total_stars 与难度无关；倍率仅作用于 get_adjusted_total_stars）
 ## 哨兵：P1_RESULT: PASS
 ## 运行：godot --headless --script res://tools/test_evaluation_grade.gd --path <godot_project>
 
-var _done := false
+var StarRatingSystem
+var EndingSystem
+var DifficultyManager
 
-func _process(_delta: float) -> bool:
-	if _done:
-		return true
-	_done = true
-	_run()
-	return true
+func _init() -> void:
+	call_deferred("run_test")
 
-func _run() -> void:
+## 设定单链三星组合并返回结局档位中文名（清空其它链，保证占比精确）
+func _tier_name(obs: int, rea: int, ins: int) -> String:
+	StarRatingSystem.chains = {}
+	StarRatingSystem.submit_chain("t", obs, rea, ins)
+	var tier = EndingSystem.determine_ending("")
+	return EndingSystem.get_ending_info(tier).get("name", "")
+
+func run_test() -> void:
 	var ok := true
 	var msg := ""
-	var DifficultyManager = root.get_node_or_null("/root/DifficultyManager")
-	var s = load("res://autoload/star_rating_system.gd").new()
+	StarRatingSystem = root.get_node_or_null("/root/StarRatingSystem")
+	EndingSystem = root.get_node_or_null("/root/EndingSystem")
+	DifficultyManager = root.get_node_or_null("/root/DifficultyManager")
+	if not StarRatingSystem or not EndingSystem:
+		print("P1_RESULT: FAIL (autoload 未加载)"); quit(); return
 
-	# ── 1. 综合等级 ──
-	# 名侦探：满星 9，三维均 3 星
-	s.observation_score = s.max_observation
-	s.reasoning_score = s.max_reasoning
-	s.insight_score = s.max_insight
-	var g = s.get_evaluation_grade()
-	if g.get("grade", "") != "master_detective":
-		ok = false; msg = "满星应名侦探，实得 %s" % g.get("grade", "")
+	# 传奇：单链满星 9⭐（占比 100%）
+	if _tier_name(3, 3, 3) != "传奇":
+		ok = false; msg = "满星应传奇"
+	# 杰出：7⭐（3+2+2，占比 0.778）
+	if _tier_name(3, 2, 2) != "杰出":
+		ok = false; msg = "7星应杰出"
+	# 合格：5⭐（2+2+1，占比 0.556）
+	if _tier_name(2, 2, 1) != "合格":
+		ok = false; msg = "5星应合格"
+	# 见习：3⭐（1+1+1，占比 0.333）
+	if _tier_name(1, 1, 1) != "见习":
+		ok = false; msg = "3星应见习"
 
-	# 名侦探：7 星且 2 维满星（obs3+rea3+ins1星；insight 满分7，需≥0.3比值→insight_score=3 才得1星）
-	s.insight_score = 3
-	g = s.get_evaluation_grade()
-	if g.get("grade", "") != "master_detective":
-		ok = false; msg = "7星且2维满星应名侦探，实得 %s" % g.get("grade", "")
-
-	# 合格侦探：7 星但仅 1 维满星（obs3+rea2+ins2）→ 合格侦探
-	s.reasoning_score = int(float(s.max_reasoning) * 0.64)   # 8/14≈0.57→2星
-	s.insight_score = int(float(s.max_insight) * 0.43)       # 3/7≈0.43→2星
-	g = s.get_evaluation_grade()
-	if g.get("grade", "") != "qualified_detective":
-		ok = false; msg = "7星仅1维满星应合格侦探，实得 %s" % g.get("grade", "")
-
-	# 合格侦探：5 星（obs3+rea2+ins0）
-	s.observation_score = s.max_observation
-	s.reasoning_score = int(float(s.max_reasoning) * 0.64)
-	s.insight_score = 0
-	g = s.get_evaluation_grade()
-	if g.get("grade", "") != "qualified_detective":
-		ok = false; msg = "5星应合格侦探，实得 %s" % g.get("grade", "")
-
-	# 继续推理：3 星（obs3+rea0+ins0）
-	s.observation_score = s.max_observation
-	s.reasoning_score = 0
-	s.insight_score = 0
-	g = s.get_evaluation_grade()
-	if g.get("grade", "") != "keep_investigating":
-		ok = false; msg = "3星应继续推理，实得 %s" % g.get("grade", "")
-
-	# ── 2. 简单模式观察 3 星门槛降至 0.8 ──
+	# 难度不影响原始总星
 	if DifficultyManager != null:
-		s.observation_score = int(float(s.max_observation) * 0.85)  # 97/115≈0.843
-		s.reasoning_score = 0
-		s.insight_score = 0
-		DifficultyManager.set_difficulty(DifficultyManager.Difficulty.EASY)
-		var easy_obs = s.get_stars(s.RatingDimension.OBSERVATION)
-		DifficultyManager.set_difficulty(DifficultyManager.Difficulty.NORMAL)
-		var normal_obs = s.get_stars(s.RatingDimension.OBSERVATION)
-		DifficultyManager.set_difficulty(DifficultyManager.Difficulty.NORMAL)
-		if easy_obs != 3 or normal_obs != 2:
-			ok = false; msg = "EASY观察0.85应3星/NORMAL应2星，实得 EASY=%d NORMAL=%d" % [easy_obs, normal_obs]
-
-	# ── 3. 难度不影响原始三星总数（倍率仅作用于 get_adjusted_total_stars，已由 test_difficulty_enhanced 覆盖）──
-	s.observation_score = s.max_observation
-	s.reasoning_score = s.max_reasoning
-	s.insight_score = s.max_insight
-	if DifficultyManager != null:
+		StarRatingSystem.chains = {}
+		StarRatingSystem.submit_chain("t", 3, 3, 3)
 		DifficultyManager.set_difficulty(DifficultyManager.Difficulty.HARD)
-		if s.get_total_stars() != 9:
-			ok = false; msg = "原始总星(HARD下)应恒为9，实得 %d" % s.get_total_stars()
+		var hard_total = StarRatingSystem.get_total_stars()
 		DifficultyManager.set_difficulty(DifficultyManager.Difficulty.NORMAL)
-	# 原始三星总数不受难度影响
-	if s.get_total_stars() != 9:
-		ok = false; msg = "原始总星应恒为9，实得 %d" % s.get_total_stars()
+		var normal_total = StarRatingSystem.get_total_stars()
+		if hard_total != 9 or normal_total != 9:
+			ok = false; msg = "原始总星应恒为 9（与难度无关），实得 HARD=%d NORMAL=%d" % [hard_total, normal_total]
 
 	if ok:
-		print("P1_RESULT: PASS — 评价体系完善（综合等级/简单观察门槛）通过")
+		print("P1_RESULT: PASS — v4.0 结局档位/难度无关性通过")
 	else:
 		print("P1_RESULT: FAIL — " + msg)
 	quit()
