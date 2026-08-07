@@ -21,6 +21,7 @@ var _difficulty := 1
 var _obs: ClueObserver                 # 单组观察器（场景二/三使用；场景一覆盖为两组）
 var _clues: Array = []                 # 本场景已收集线索（本地权威，不读全局 ClueSystem）
 var _wall_auto := false                # 推理墙验证后是否自动推进过渡
+var _wall_state: Dictionary = {}       # 推理墙跨重开的持久化状态（场景持有，墙 setup 时传入）
 var _wall_instance: Control = null      # 当前已打开的推理墙（单例，避免多重叠加）
 var _kb_panel: Control = null            # 当前已打开的知识库面板（单例，避免多重叠加）
 var _modal_panel: Control = null        # 当前已打开的弹窗/面板（单例，避免多重叠加）
@@ -33,6 +34,7 @@ const WindowDrag = preload("res://scripts/ui/window_drag.gd")
 
 # ===================== 生命周期骨架（子类通过 virtual 钩子定制） =====================
 func _ready() -> void:
+	_wall_state = {}   # 每实例独立的状态字典（GDScript 类级字典默认值是共享的，必须逐实例重建）
 	if DifficultyManager: _difficulty = DifficultyManager.current_difficulty
 	_init_game_state()
 	_build_ui()
@@ -338,7 +340,9 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var clues: Array = ClueSystem.get_collected(src) if ClueSystem else _clues
 	var hypo := hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
 	var cb := on_verify if on_verify.is_valid() else _default_wall_verify
-	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue)
+	# 仅推理阶段打开的墙，验证后关墙即推进过渡；其余（观察阶段预览/场景一无 chain_id 墙）不推进。
+	var advance: Callable = Callable(self, "_enter_transition") if _wall_auto else Callable()
+	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true)
 
 ## 默认验证回调：展示判定结果；REASONING 阶段则自动推进过渡。
 ## 三级反馈映射（06 §2.3 + 一致性报告 H-3）：已获证实+倾向成立→正确（绿）；

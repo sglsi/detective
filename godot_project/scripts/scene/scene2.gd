@@ -102,10 +102,13 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"S2-3","text":"凶手身高六英尺以上、体格强壮、中年"},
 			{"id":"S2-4","text":"凶手穿方头靴（关键体貌）"},
 			{"id":"S2-5","text":"现场两组脚印暗示伪装或同伙"},
-			{"id":"S2-6","text":"初步死亡时间：案发当夜"},
+		{"id":"S2-6","text":"初步死亡时间：案发当夜"},
 		],
-	}
-	}
+	},
+	"chain_id": scene_id(),
+	"expected_clues": HOTSPOTS.size(),
+	"insight_bonus": 0
+}
 
 # ===== 面板内容 =====
 func map_locations() -> Array:
