@@ -163,6 +163,10 @@ func _on_clue_recorded(_clue_id: String, _clue_data: Dictionary) -> void:
 
 ## 全部线索记录完成 → 进入推理（virtual：子类可加华生点评）
 func _on_all_done(_clues_arr: Array) -> void:
+	# 关键修复：观察完成后必须停用观察器（_obs.hide 置 _active=false）。
+	# 否则 _obs.is_active() 一直为 true，_advance_blocked() 会永久拦截过渡对话，
+	# 导致「提交验证后游戏卡死不推进」（场景二/三/七/八 同源 bug；场景一已自行 hide）。
+	if _obs and _obs.has_method("hide"): _obs.hide()
 	_on_observe_complete()
 
 func _get_hotspot(id: String):
