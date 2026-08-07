@@ -1,0 +1,44 @@
+{
+  "head": {
+    "pad_ratio": 0.0
+  },
+  "torso": {
+    "pad_ratio": 0.0
+  },
+  "upper_arm_L": {
+    "pad_ratio": 0.35
+  },
+  "upper_arm_R": {
+    "pad_ratio": 0.35
+  },
+  "fore_arm_L": {
+    "pad_ratio": 0.35
+  },
+  "fore_arm_R": {
+    "pad_ratio": 0.35
+  },
+  "hand_L": {
+    "pad_ratio": 0.0
+  },
+  "hand_R": {
+    "pad_ratio": 0.0
+  },
+  "thigh_L": {
+    "pad_ratio": 0.35
+  },
+  "thigh_R": {
+    "pad_ratio": 0.35
+  },
+  "shin_L": {
+    "pad_ratio": 0.35
+  },
+  "shin_R": {
+    "pad_ratio": 0.35
+  },
+  "foot_L": {
+    "pad_ratio": 0.0
+  },
+  "foot_R": {
+    "pad_ratio": 0.0
+  }
+}
