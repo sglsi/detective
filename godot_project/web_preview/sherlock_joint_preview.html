@@ -104,7 +104,7 @@ const REST = { torso:0, head:180,
   upper_arm_L:-26, upper_arm_R:26, fore_arm_L:-18, fore_arm_R:18,
   hand_L:-12, hand_R:12,
   thigh_L:-6, thigh_R:6, shin_L:-2, shin_R:2,
-  foot_L:90, foot_R:90 };
+  foot_L:0, foot_R:0 };
 const ROM = {
   head:[130,230], upper_arm_L:[-180,30], upper_arm_R:[-30,180],
   fore_arm_L:[-150,0], fore_arm_R:[-150,0], hand_L:[-70,70], hand_R:[-70,70],
@@ -140,6 +140,16 @@ for (const id of ORDER) {
 const TEX = {};
 const TEX_ORDER = ["torso","head","upper_arm_L","upper_arm_R","fore_arm_L","fore_arm_R",
   "hand_L","hand_R","thigh_L","thigh_R","shin_L","shin_R","foot_L","foot_R"];
+// 各部位切分时的关节重叠比例（由 split_parts.py 生成）
+const PARTS_META = {
+  "head":{"pad_ratio":0.0},"torso":{"pad_ratio":0.0},
+  "upper_arm_L":{"pad_ratio":0.35},"upper_arm_R":{"pad_ratio":0.35},
+  "fore_arm_L":{"pad_ratio":0.35},"fore_arm_R":{"pad_ratio":0.35},
+  "hand_L":{"pad_ratio":0.0},"hand_R":{"pad_ratio":0.0},
+  "thigh_L":{"pad_ratio":0.35},"thigh_R":{"pad_ratio":0.35},
+  "shin_L":{"pad_ratio":0.35},"shin_R":{"pad_ratio":0.35},
+  "foot_L":{"pad_ratio":0.0},"foot_R":{"pad_ratio":0.0}
+};
 for (const id of TEX_ORDER) {
   const img = new Image();
   img.src = `../assets/sherlock_parts/${id}.png`;
@@ -264,6 +274,9 @@ function computePose(){
     off.thigh_R = amp * Math.sin(th + Math.PI);
     off.shin_L = kneeBase + kneeBend * Math.max(0, Math.sin(th + Math.PI));
     off.shin_R = kneeBase + kneeBend * Math.max(0, Math.sin(th));
+    // 脚保持平放地面：补偿大腿+小腿角度，使脚掌大致水平
+    off.foot_L = -(off.thigh_L + off.shin_L);
+    off.foot_R = -(off.thigh_R + off.shin_R);
     off.upper_arm_L = armAmp * Math.sin(th + Math.PI);
     off.upper_arm_R = armAmp * Math.sin(th);
     // 前臂向前(角色前方)折：负向偏移，双肘对称前弯，像正常人走路
@@ -317,18 +330,25 @@ function col(c, alpha){ return `rgba(${Math.round(c[0]*255)},${Math.round(c[1]*2
 function sx(wx){ return CW/2 + state.facing * (wx - state.x); }
 function sy(wy){ return wy; }
 
-// 绘制贴图骨段：贴图顶部中心对准关节，高度拉伸/压缩到骨段长度
+// 绘制贴图骨段：贴图有效骨段（中间部分）对齐 FK 骨段长度，
+// 两端 pad 自然延伸覆盖关节，避免旋转后露出透明缝。
 function drawBoneImg(id, w){
   const img = TEX[id];
   if (!img || !img.complete || img.naturalWidth === 0) return false;
   const X1 = sx(w.x), Y1 = sy(w.y);
   const b = BONES[id];
+  const pr = (PARTS_META[id] && PARTS_META[id].pad_ratio) || 0;
+  const total = 1 + 2 * pr;          // 贴图总高 / 有效骨段
+  const eff = 1 / total;             // 有效骨段占贴图比例
+  const start = pr / total;          // 有效骨段顶部在贴图中的比例
+  const scale = b.length / (img.height * eff);
   ctx.save();
   ctx.translate(X1, Y1);
   // Canvas rotate 是顺时针，而 FK 内部使用逆时针数学旋转，故取反
   ctx.rotate(-w.a);
-  const scale = b.length / img.height;
-  ctx.drawImage(img, -img.width * scale / 2, 0, img.width * scale, b.length);
+  const drawW = img.width * scale;
+  const drawH = img.height * scale;
+  ctx.drawImage(img, -drawW / 2, -drawH * start, drawW, drawH);
   ctx.restore();
   return true;
 }
