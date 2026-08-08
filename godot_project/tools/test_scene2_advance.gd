@@ -37,12 +37,21 @@ func _initialize() -> void:
 	_chk(s2._wall_instance != null, "推理墙已打开(_wall_instance 非空)")
 	_chk(s2._wall_auto == true, "_wall_auto 为 true（推理阶段打开）")
 
-	# 4) 提交验证（模拟点「确定」→ _on_verify_confirm）
+	# 4) 提交验证（模拟点「确定」→ _on_verify_confirm；_default_wall_verify 现为协程，
+	#    需等一帧 + 额外时间让过渡对话真正启动）
 	var wall = s2._wall_instance
 	wall._on_verify_confirm(3)
-	await create_timer(0.05).timeout
+	await create_timer(0.2).timeout
 	_chk(s2._phase == 4, "提交验证后进入 TRANSITION(phase=4)")  # Phase.TRANSITION==4
 	_chk(s2._dm != null and s2._dm.is_active(), "过渡对话已激活(_dm.is_active)")
+
+	# 4b) 关键：确认 UI 对话栏真的被替换为过渡对话首句（不是旧的「观察模式已开启」）
+	var ui_text := ""
+	if s2._ui and s2._ui._dialogue_label:
+		ui_text = s2._ui._dialogue_label.text
+	print("[DEBUG] _enter_transition 后 UI 对话文本: " + ui_text.substr(0, 60))
+	_chk(ui_text.find("观察模式") == -1 and ui_text.find("直起身") >= 0,
+		"过渡对话首句已渲染到对话栏（非旧观察提示）")
 
 	# 5) 等到推理墙 queue_free 真正生效，检查过渡对话是否可被点击推进（不被 _advance_blocked 拦死）
 	await create_timer(0.2).timeout

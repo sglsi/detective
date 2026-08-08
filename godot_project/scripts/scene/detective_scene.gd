@@ -367,7 +367,11 @@ func _default_wall_verify(verdict: int) -> void:
 	}
 	var entry = fb.get(verdict, ["等待", Color.WHITE])
 	_ui.show_notification("推理验证结果：" + entry[0])
-	if _wall_auto: _advance_now()
+	# Web 运行时偶发：推理墙仍在 STOP 全屏拦截时同步推进 → 过渡对话首句不渲染。
+	# 延迟一帧，等 _on_verify_confirm 的 queue_free() 把墙真正销毁后再进过渡。
+	if _wall_auto:
+		await get_tree().process_frame
+		_advance_now()
 
 ## 统一推进剧情入口（验证确认 与 关墙返回 共用）：先清掉可能残留的浮层，
 ## 再进过渡对话。这是「新玩不推进、读档能推进」的根治点——
