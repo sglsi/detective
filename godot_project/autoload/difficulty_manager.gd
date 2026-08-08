@@ -273,7 +273,9 @@ func filter_hotspots_by_difficulty(hotspots: Array) -> Array:
 	for hs in hotspots:
 		var is_misleading := false
 		if hs is Dictionary:
-			is_misleading = hs.get("is_correct", true) == false or hs.get("misleading", false) == true
+			# 场景 hotspots() 数据用 "correct"，运行时归一化后用 "is_correct"，两者都要兼容
+			var correct_val = hs.get("is_correct", hs.get("correct", true))
+			is_misleading = correct_val == false or hs.get("misleading", false) == true
 		elif hs is HotspotData:
 			is_misleading = not hs.is_correct
 		if not is_misleading:
