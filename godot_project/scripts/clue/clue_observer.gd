@@ -41,7 +41,38 @@ func setup(parent: Control, text_lbl: Label, speaker_lbl: Label,
 		if not hs.get("silent", false):
 			_required_total += 1
 
+## 根据难度生成热点按钮样式：直观体现「场景线索提示」三档梯度
+##   hotspot_hint_level=2（简单）：明亮金边 + 半透明底，所有可交互点高亮
+##   hotspot_hint_level=1（普通）：微弱金边（微光），关键交互点需自行辨认
+##   hotspot_hint_level=0（困难）：无任何标记，玩家必须自行寻找
+## 设计基线：DifficultyManager B-11.2「场景线索提示」列；此前该方法是死代码未被消费。
+func _hotspot_style(level: int) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	if level >= 2:
+		sb.bg_color = Color(0.95, 0.82, 0.35, 0.18)
+		sb.border_color = Color(0.97, 0.84, 0.42, 0.95)
+		sb.border_width_left = 3
+		sb.border_width_right = 3
+		sb.border_width_top = 3
+		sb.border_width_bottom = 3
+	elif level == 1:
+		sb.bg_color = Color(0.95, 0.82, 0.35, 0.06)
+		sb.border_color = Color(0.97, 0.84, 0.42, 0.45)
+		sb.border_width_left = 2
+		sb.border_width_right = 2
+		sb.border_width_top = 2
+		sb.border_width_bottom = 2
+	else:
+		sb.bg_color = Color(0, 0, 0, 0)
+	sb.set_corner_radius_all(6)
+	return sb
+
 func _create_buttons() -> void:
+	# 读取当前难度的提示级别（DifficultyManager 在难度选择时已 set_difficulty）
+	var lvl := 0
+	if DifficultyManager != null:
+		lvl = DifficultyManager.hotspot_hint_level
+	var style := _hotspot_style(lvl)
 	for hs in _hotspots:
 		var btn = Button.new()
 		btn.text = hs["label"]
@@ -49,6 +80,10 @@ func _create_buttons() -> void:
 		btn.size = Vector2(hs["w"], hs["h"])
 		btn.add_theme_font_size_override("font_size", 15 if _hotspots.size() > 4 else 16)
 		btn.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45))
+		# 难度高亮标记：简单/普通给描边，困难无标记
+		btn.add_theme_stylebox_override("normal", style)
+		btn.add_theme_stylebox_override("hover", style)
+		btn.add_theme_stylebox_override("focus", style)
 		btn.visible = false
 		btn.pressed.connect(_on_hotspot.bind(hs["id"], hs["desc"]))
 		_parent.add_child(btn)
