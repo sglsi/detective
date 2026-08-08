@@ -61,16 +61,21 @@ func _build_ui() -> void:
 	# 主面板
 	var main := PanelContainer.new()
 	main.name = "MainPanel"
-	main.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	# 显式居中：四个锚点都设为 0.5（父容器几何中心），偏移保持 0。
+	# 用中心锚点而非 PRESET_CENTER，避免预设在 _ready 时父级尺寸尚未确定而退化为
+	# 左上锚点 + 绝对偏移，导致面板只按 1240x780 的左上角定位、内容撑大后向右下溢出、
+	# 视觉上「不居中」。中心锚点下面板随内容对称膨胀，始终围绕屏幕中心。
+	main.anchor_left = 0.5
+	main.anchor_top = 0.5
+	main.anchor_right = 0.5
+	main.anchor_bottom = 0.5
+	# 中心锚点下，偏移 = ±半尺寸 才能让「面板自身中心」落在屏幕中心（而非左上角）。
+	# 内容若超过最小尺寸，中心锚点会使其对称膨胀，始终围绕屏幕中心保持居中。
+	main.offset_left = -620.0
+	main.offset_top = -390.0
+	main.offset_right = 620.0
+	main.offset_bottom = 390.0
 	main.custom_minimum_size = Vector2(1240, 780)
-	main.size = Vector2(1240, 780)
-	# 显式居中：PRESET_CENTER 在 size 赋值前已按零尺寸算出偏移（锚点居中、偏移0），
-	# 之后 size 撑大导致面板从屏幕中心向右下溢出 → 视觉上「落在右下角」。
-	# 手动按真实尺寸重设偏移，确保面板真正居中（与分辨率无关）。
-	main.offset_left = -main.size.x * 0.5
-	main.offset_top = -main.size.y * 0.5
-	main.offset_right = main.size.x * 0.5
-	main.offset_bottom = main.size.y * 0.5
 	var mstyle := StyleBoxFlat.new()
 	mstyle.bg_color = COL_PANEL
 	mstyle.border_color = COL_BORDER
