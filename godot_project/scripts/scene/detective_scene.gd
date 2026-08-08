@@ -353,13 +353,18 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var clues: Array = ClueSystem.get_collected(src) if ClueSystem else _clues
 	var hypo := hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
 	var cb := on_verify if on_verify.is_valid() else _default_wall_verify
-	# 仅推理阶段打开的墙，验证后关墙即推进过渡；其余（观察阶段预览/场景一无 chain_id 墙）不推进。
-	var advance: Callable = Callable(self, "_advance_now") if _wall_auto else Callable()
+	# advance 始终传入 _advance_now；是否真正推进由「已验证 + 实时状态」在
+	# _default_wall_verify / _on_back_pressed 中判定，避免开墙时刻的 _wall_auto
+	# 把「提前开的预览墙」永久锁死为不推进（场景二反复复现的卡死根因）。
+	var advance: Callable = Callable(self, "_advance_now")
 	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true)
 
-## 默认验证回调：展示判定结果；REASONING 阶段则自动推进过渡。
+## 默认验证回调：展示判定结果；满足「推理阶段」或「线索已收满」则自动推进过渡。
 ## 三级反馈映射（06 §2.3 + 一致性报告 H-3）：已获证实+倾向成立→正确（绿）；
 ## 证据不足→存疑（黄）；矛盾冲突→错误（红）。
+## ⚠️ 推进判定在「提交验证」这一刻实时重算，绝不依赖开墙时算出的 _wall_auto：
+## 若玩家在 OBSERVE 阶段、线索未收满时就点「思考」开了墙（_wall_auto 当时为 false），
+## 之后收满线索再在该墙内提交验证，仍须推进过渡——否则会卡死（场景二反复复现的坑）。
 func _default_wall_verify(verdict: int) -> void:
 	var fb = {
 		0: ["错误 ❌", Color(0.95, 0.3, 0.3)],
@@ -369,10 +374,8 @@ func _default_wall_verify(verdict: int) -> void:
 	}
 	var entry = fb.get(verdict, ["等待", Color.WHITE])
 	_ui.show_notification("推理验证结果：" + entry[0])
-	# Web 运行时偶发：推理墙仍在 STOP 全屏拦截时同步推进 → 过渡对话首句不渲染。
-	# 延迟一帧，等 _on_verify_confirm 的 queue_free() 把墙真正销毁后再进过渡。
-	if _wall_auto:
-		await get_tree().process_frame
+	var advance := _in_reasoning_phase() or (_clues.size() >= hotspots().size())
+	if advance:
 		_advance_now()
 
 ## 统一推进剧情入口（验证确认 与 关墙返回 共用）：先清掉可能残留的浮层，

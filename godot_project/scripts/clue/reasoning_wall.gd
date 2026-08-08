@@ -1276,8 +1276,11 @@ func _on_verify_confirm(v: int) -> void:
 	_verified = true
 	_verified_verdict = v
 	_persist_state()
-	if _on_verify.is_valid(): _on_verify.call(v)
+	# 立即隐藏并销毁墙，解除全屏 MOUSE_FILTER_STOP 拦截，确保过渡对话可点击/渲染；
+	# 不再依赖「等一帧」的 await（Web 运行时偶发不可靠导致卡死）。
+	visible = false
 	queue_free()
+	if _on_verify.is_valid(): _on_verify.call(v)
 
 
 # 仅关闭验证结果窗口（不确认验证、不关闭推理墙），保留推理墙继续操作
