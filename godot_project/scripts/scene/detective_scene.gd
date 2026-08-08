@@ -131,8 +131,11 @@ func _create_observers() -> void:
 	_obs.hotspot_clicked.connect(_on_hotspot_seen)
 	_obs.clue_recorded.connect(_on_clue_recorded)
 	_obs.all_recorded.connect(_on_all_done)
-	# 简单模式：场景进入即自动高亮所有可交互点（不用点「观察」）
-	if DifficultyManager and DifficultyManager.auto_reveal_clues:
+	# 简单模式：场景进入即自动高亮所有可交互点（不用点「观察」）。
+	# 关键护栏：仅当本场景确有可观察热点（hotspots().size()>0）时才 auto-show。
+	# 否则（如场景四 人证调查类，_in_observe_phase 恒 false、hotspots 为空）空观察器一旦
+	# 被激活，会永久让 _advance_blocked() 拦截对话推进 → 入场演出台词点不动、卡死。
+	if DifficultyManager and DifficultyManager.auto_reveal_clues and hotspots().size() > 0:
 		_obs.show()
 
 ## 当前生效的观察器（场景二/三即 _obs；场景一根据 phase 返回 watson/messenger）。
@@ -681,7 +684,10 @@ func _advance_blocked(is_mouse: bool) -> bool:
 	if _wall_instance and is_instance_valid(_wall_instance): return true
 	if _modal_panel and is_instance_valid(_modal_panel): return true
 	if _toolbar and _toolbar.has_method("_is_overlay_active") and _toolbar._is_overlay_active(): return true
-	if _obs and _obs.has_method("is_active") and _obs.is_active(): return true
+	# 观察器激活只应在「观察阶段」拦截对话推进（点击热点是在收集线索，不是在推剧情）。
+	# 非观察阶段（如场景四人证调查类，_in_observe_phase 恒 false）即使观察器因简单模式
+	# auto-show 残留为 active，也不得拦截对话推进，否则入场演出台词点不动、卡死。
+	if _obs and _obs.has_method("is_active") and _obs.is_active() and _in_observe_phase(): return true
 	if is_mouse:
 		var hovered := get_viewport().gui_get_hovered_control()
 		if hovered is BaseButton: return true
