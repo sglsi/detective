@@ -333,8 +333,10 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	if (ClueSystem and ClueSystem.count_collected(src) == 0) and _clues.is_empty():
 		_ui.show_notification("推理墙需要至少一条线索才能打开。"); return
 	# REASONING 阶段打开的墙（自动弹出或手动重开）验证后必须推进过渡；
-	# 观察阶段手动开墙仅预览，不推进。不能无条件置 false（场景二/三同款 bug 已根治）。
-	_wall_auto = _in_reasoning_phase()
+	# 观察阶段「线索已收满」后手动开墙（玩家在 _on_observe_complete 的 2.5s 对话窗口内
+	# 顺手点「思考」即落在 OBSERVE 阶段）同样视为验证模式，必须推进过渡；
+	# 仅「观察阶段且线索未收满」的手动开墙才是预览、不推进。
+	_wall_auto = _in_reasoning_phase() or _clues.size() >= hotspots().size()
 	# #129 根因修复：推理墙是全屏 MOUSE_FILTER_STOP 浮层，会压住任何已开弹窗
 	# （如「知识检索」），使其关闭按钮点击无效。开墙前先关闭现有弹窗。
 	_close_modal()
