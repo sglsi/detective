@@ -119,45 +119,45 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 			_speaker_portrait.texture = tex
 			_speaker_portrait.show()
 			match pos:
-				POS_BL:  # 福尔摩斯：立绘在框内左侧，名字框在立绘上方，正文在右侧（左对齐）
-					_speaker_portrait.position = Vector2(15, 50)
-					_speaker_portrait.size = Vector2(160, 168)
+				POS_BL:  # 福尔摩斯：立绘在框内左侧(220x220)，名字框与正文在右侧、名字在正文上方（左对齐）
+					_speaker_portrait.position = Vector2(15, 5)
+					_speaker_portrait.size = Vector2(220, 220)
 					if _name_panel:
 						_name_panel.show()
-						_name_panel.position = Vector2(15, 10)
-						_name_panel.size = Vector2(160, 34)
+						_name_panel.position = Vector2(250, 8)
+						_name_panel.size = Vector2(300, 34)
 					if _speaker_label:
-						_speaker_label.position = Vector2(20, 14)
-						_speaker_label.size = Vector2(150, 28)
+						_speaker_label.position = Vector2(255, 12)
+						_speaker_label.size = Vector2(290, 28)
 					if _dialogue_label:
-						_dialogue_label.position = Vector2(190, 50)
-						_dialogue_label.size = Vector2(1710, 165)
-				POS_TR:  # 其他人物：立绘在框内右侧，名字框在立绘上方，正文在左侧（右对齐）
-					_speaker_portrait.position = Vector2(1920 - 15 - 160, 50)
-					_speaker_portrait.size = Vector2(160, 168)
+						_dialogue_label.position = Vector2(250, 50)
+						_dialogue_label.size = Vector2(1650, 168)
+				POS_TR:  # 其他人物：立绘在框内右侧(220x220)，名字框与正文在左侧、名字在正文上方（右对齐）
+					_speaker_portrait.position = Vector2(1920 - 15 - 220, 5)
+					_speaker_portrait.size = Vector2(220, 220)
 					if _name_panel:
 						_name_panel.show()
-						_name_panel.position = Vector2(1920 - 15 - 160, 10)
-						_name_panel.size = Vector2(160, 34)
+						_name_panel.position = Vector2(20, 8)
+						_name_panel.size = Vector2(300, 34)
 					if _speaker_label:
-						_speaker_label.position = Vector2(1920 - 15 - 160 + 5, 14)
-						_speaker_label.size = Vector2(150, 28)
+						_speaker_label.position = Vector2(25, 12)
+						_speaker_label.size = Vector2(290, 28)
 					if _dialogue_label:
 						_dialogue_label.position = Vector2(20, 50)
-						_dialogue_label.size = Vector2(1710, 165)
+						_dialogue_label.size = Vector2(1650, 168)
 		else:
-			# 无立绘：名字框置顶左、正文占满整框（居中），避免左侧留白错位
+			# 无立绘：名字框与正文占满整框，名字在正文上方
 			_speaker_portrait.hide()
 			if _name_panel:
 				_name_panel.show()
-				_name_panel.position = Vector2(15, 10)
-				_name_panel.size = Vector2(160, 34)
+				_name_panel.position = Vector2(20, 8)
+				_name_panel.size = Vector2(300, 34)
 			if _speaker_label:
-				_speaker_label.position = Vector2(20, 14)
-				_speaker_label.size = Vector2(150, 28)
+				_speaker_label.position = Vector2(25, 12)
+				_speaker_label.size = Vector2(290, 28)
 			if _dialogue_label:
-				_dialogue_label.position = Vector2(30, 50)
-				_dialogue_label.size = Vector2(1860, 165)
+				_dialogue_label.position = Vector2(20, 50)
+				_dialogue_label.size = Vector2(1880, 168)
 
 func set_dialogue_color(c: Color) -> void:
 	if _speaker_label: _speaker_label.add_theme_color_override("font_color", c)
@@ -580,8 +580,8 @@ func _build_dialogue_bar() -> void:
 	# 说话人立绘（置于对话栏内左侧/右侧，不浮出框外；无立绘时隐藏）
 	_speaker_portrait = TextureRect.new()
 	_speaker_portrait.name = "speaker_portrait"
-	_speaker_portrait.position = Vector2(15, 50)   # 默认在框内（_apply_dialogue 会按角色左右重定位）
-	_speaker_portrait.size = Vector2(160, 168)
+	_speaker_portrait.position = Vector2(15, 5)   # 默认在框内（_apply_dialogue 会按角色左右重定位），尺寸 220x220
+	_speaker_portrait.size = Vector2(220, 220)
 	_speaker_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_speaker_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_speaker_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -591,8 +591,8 @@ func _build_dialogue_bar() -> void:
 	# 角色名（烫金深褐框，置于对话栏内、立绘上方；_apply_dialogue 按角色左右重定位）
 	_name_panel = Panel.new()
 	_name_panel.name = "speaker_name_panel"
-	_name_panel.size = Vector2(160, 34)
-	_name_panel.position = Vector2(15, 10)
+	_name_panel.size = Vector2(300, 34)
+	_name_panel.position = Vector2(250, 8)
 	var nsb = StyleBoxFlat.new()
 	nsb.bg_color = Color(0.10, 0.07, 0.04, 0.95)
 	nsb.border_color = COL_GOLD
@@ -609,7 +609,7 @@ func _build_dialogue_bar() -> void:
 	_speaker_label.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	_speaker_label.add_theme_color_override("font_outline_color", COL_SHADOW)
 	_speaker_label.add_theme_constant_override("outline_size", 2)
-	_speaker_label.position = Vector2(20, 14); _speaker_label.size = Vector2(150, 28)
+	_speaker_label.position = Vector2(255, 12); _speaker_label.size = Vector2(290, 28)
 	_speaker_label.vertical_alignment = 1
 	_speaker_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dialogue_bar.add_child(_speaker_label)
@@ -622,7 +622,7 @@ func _build_dialogue_bar() -> void:
 	_dialogue_label.add_theme_font_size_override("font_size", 24)
 	_dialogue_label.add_theme_color_override("font_color", COL_PARCH_DARK)
 	_dialogue_label.add_theme_constant_override("line_spacing", 6)
-	_dialogue_label.position = Vector2(190, 50); _dialogue_label.size = Vector2(1710, 165)
+	_dialogue_label.position = Vector2(250, 50); _dialogue_label.size = Vector2(1650, 168)
 	_dialogue_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dialogue_bar.add_child(_dialogue_label)
 
