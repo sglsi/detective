@@ -266,9 +266,9 @@ func _open_evidence() -> void:
 			var img: String = c.get("image", "")
 			var anchor: String = c.get("anchor", "")
 			# 带锚点的线索 → 渲染「部位图 + 文字」同卡，关联身体部位；否则纯文字卡片
-			var c = ClueAnchorCard.new()
-			c.setup_card(img, anchor, title, str(c.get("desc", "")), 920, 200)
-			cards.append(c)
+			var card = ClueAnchorCard.new()
+			card.setup_card(img, anchor, title, str(c.get("desc", "")), 920, 200)
+			cards.append(card)
 	if cards.is_empty():
 		_ui.show_notification(_no_evidence_msg())
 	else:
