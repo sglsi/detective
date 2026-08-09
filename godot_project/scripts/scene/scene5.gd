@@ -358,6 +358,10 @@ func _award() -> void:
 	pass
 
 func _go_to_next_scene() -> void:
+	# 过渡对话结束后弹出「侦破过程」评价面板（风格对齐场景一），点继续再存档进入下一场景
+	_show_scene_rating("场景五 完成 · 侦破过程", "res://scenes/scene6.tscn", Callable(self, "_go_to_next_scene_continue"))
+
+func _go_to_next_scene_continue() -> void:
 	if GameManager and not GameManager.is_guest and SaveManager:
 		var ids := ClueSystem.get_collected_ids(clue_source()) if ClueSystem else []
 		await SaveSystem.request_save("scene5", Phase.TRANSITION, {"clue_ids": ids, "route": _route})

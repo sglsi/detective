@@ -298,6 +298,10 @@ func _award() -> void:
 	pass
 
 func _go_to_next_scene(route: String = "A") -> void:
+	# 过渡对话结束后弹出「侦破过程」评价面板（风格对齐场景一），点继续再存档进入下一场景
+	_show_scene_rating("场景四 完成 · 侦破过程", "res://scenes/scene5.tscn", Callable(self, "_go_to_next_scene_continue").bind(route))
+
+func _go_to_next_scene_continue(route: String = "A") -> void:
 	if GameManager:
 		GameManager.scene_state["scene4_route"] = route   # 供场景五分支消费（#92 对齐时接线）
 	if GameManager and not GameManager.is_guest and SaveManager:

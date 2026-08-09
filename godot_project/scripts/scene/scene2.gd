@@ -185,14 +185,8 @@ func _enter_transition() -> void:
 		["c8","system","（谜题钩子）马蹄印显示：一个新蹄铁，三个旧蹄铁——全城那么多出租马车，怎么找到这一匹？此问题已记入推理战场待验证。","guide"]]), "c0", _go_to_next_scene)
 
 func _go_to_next_scene() -> void:
-	if GameManager and not GameManager.is_guest and SaveManager:
-		# 自动存档必须写入本场景的 scene_state（phase + scene_id + clue_ids），
-		# 否则读档时 _restore_saved_state 因 scene_id 不匹配而判定「无存档」→ 场景从头重启。
-		var ids: Array = []
-		for c in _clues: ids.append(c.get("id", ""))
-		await SaveSystem.request_save("scene2", Phase.TRANSITION, {"clue_ids": ids})
-	# 场景三已实现，进入室内尸体现场
-	SceneLoader.transition_to("res://scenes/scene3.tscn")
+	# 过渡对话结束后弹出「侦破过程」评价面板（风格对齐场景一），点继续再存档进入下一场景
+	_show_scene_rating("场景二 完成 · 侦破过程", "res://scenes/scene3.tscn", Callable(self, "_save_and_transition").bind("scene2", "res://scenes/scene3.tscn"))
 
 # ===== 读档分支（ClueSystem 同步与通知已由基类 _restore_saved_state 完成） =====
 func _apply_restored_phase(p: int, ids: Array, _clues_arr: Array) -> bool:

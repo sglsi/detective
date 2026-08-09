@@ -831,6 +831,91 @@ func _render_investigate_panel(title_prefix: String, questions: Array, asked: Di
 	opts.append({"text": "✅ " + done_text, "cb": on_done})
 	_show_choice_panel(title_prefix + "（已问 " + str(asked.size()) + "/" + str(questions.size()) + "）", opts)
 
+# ===================== 场景「侦破过程」评价面板（全场景共用，风格对齐场景一 _show_rating） =====================
+## 在过渡对话结束后、进入下一场景前弹出本场景的侦破过程评价面板：
+##   · 本链三星（观察🔍/推理🧠/洞察💡，来自 StarRatingSystem.get_chain_stars）
+##   · 本场景线索收集进度 / 调查完成情况
+##   · 案件累计星级
+## show_case_total=true 时（结局场景八）额外展示全案总星级、结局档位与各链星级概览。
+## on_continue 为空则按钮默认 SceneLoader.transition_to(next_scene_path)。
+func _show_scene_rating(scene_label: String, next_scene_path: String, on_continue: Callable, show_case_total: bool = false) -> void:
+	if _toolbar: _toolbar.hide_toolbar()
+	var panel := Control.new(); panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP; add_child(panel)
+	var bg := ColorRect.new(); bg.color = Color(0.06,0.05,0.08,0.97); bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); panel.add_child(bg)
+	var tt := Label.new(); tt.text = scene_label; tt.add_theme_font_size_override("font_size", 34)
+	tt.add_theme_color_override("font_color", Color(0.92,0.82,0.45)); tt.position = Vector2(0,50); tt.size = Vector2(1920,50); tt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	panel.add_child(tt)
+	# 三星（来自 StarRatingSystem 当前链）
+	var stars := {"observation":0,"reasoning":0,"insight":0}
+	var srs = Engine.get_singleton("StarRatingSystem")
+	if srs: stars = srs.get_chain_stars(scene_id())
+	var names := ["观察之星","推理之星","洞察之星"]; var keys := ["observation","reasoning","insight"]; var icons := ["🔍","🧠","💡"]
+	var y := 160
+	for i in 3:
+		var sval: int = int(stars.get(keys[i], 0))
+		var nl := Label.new(); nl.text = icons[i] + " " + names[i]; nl.add_theme_font_size_override("font_size", 24); nl.add_theme_color_override("font_color", Color(0.88,0.82,0.72))
+		nl.position = Vector2(560, y); nl.size = Vector2(260,40); panel.add_child(nl)
+		for s in 3:
+			var sl := Label.new(); sl.text = "★" if s < sval else "☆"; sl.add_theme_font_size_override("font_size", 34)
+			sl.add_theme_color_override("font_color", Color(0.95,0.78,0.20) if s < sval else Color(0.35,0.30,0.22))
+			sl.position = Vector2(840 + s*54, y-6); sl.size = Vector2(46,46); panel.add_child(sl)
+		y += 60
+	# 本场景进度
+	var prog := "调查问询完成"
+	if hotspots().size() > 0:
+		prog = "线索收集 %d/%d" % [_clues.size(), hotspots().size()]
+	var pl := Label.new(); pl.text = prog; pl.add_theme_font_size_override("font_size", 18); pl.add_theme_color_override("font_color", Color(0.6,0.55,0.45))
+	pl.position = Vector2(560, y); pl.size = Vector2(600,30); panel.add_child(pl); y += 40
+	# 案件累计星级
+	if srs:
+		var cl := Label.new(); cl.text = "案件累计星级：%d / %d ⭐" % [srs.get_total_stars(), srs.get_max_total_stars()]; cl.add_theme_font_size_override("font_size", 18); cl.add_theme_color_override("font_color", Color(0.7,0.65,0.5))
+		cl.position = Vector2(560, y); cl.size = Vector2(700,30); panel.add_child(cl); y += 40
+	# 结局全案总结
+	if show_case_total and srs:
+		var pct := 0.0
+		if srs.get_max_total_stars() > 0:
+			pct = float(srs.get_total_stars()) / float(srs.get_max_total_stars())
+		var grade := "见习侦探"
+		if pct >= 0.9: grade = "传奇侦探"
+		elif pct >= 0.7: grade = "杰出侦探"
+		elif pct >= 0.5: grade = "合格侦探"
+		var gl := Label.new(); gl.text = "结局评定：%s（完整度 %.0f%%）" % [grade, pct*100]; gl.add_theme_font_size_override("font_size", 22); gl.add_theme_color_override("font_color", Color(0.92,0.82,0.45))
+		gl.position = Vector2(560, y); gl.size = Vector2(820,36); panel.add_child(gl); y += 46
+		for cid in srs.chains.keys():
+			var c: Dictionary = srs.chains[cid]
+			var ll := Label.new(); ll.text = "%s：🔍%d 🧠%d 💡%d" % [cid, int(c["observation"]), int(c["reasoning"]), int(c["insight"])]; ll.add_theme_font_size_override("font_size", 15); ll.add_theme_color_override("font_color", Color(0.55,0.50,0.40))
+			ll.position = Vector2(580, y); ll.size = Vector2(800,26); panel.add_child(ll); y += 26
+	# 继续按钮
+	var cont := Button.new(); cont.text = "继续推进"; cont.position = Vector2(760, 980); cont.size = Vector2(400, 64)
+	cont.add_theme_font_size_override("font_size", 26); cont.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
+	cont.add_theme_stylebox_override("normal", _sb(Color(0.50,0.10,0.10,0.95), Color(0.85,0.65,0.25), 2, 4))
+	cont.pressed.connect(_on_rating_continue.bind(panel, on_continue, next_scene_path))
+	panel.add_child(cont)
+
+func _on_rating_continue(panel: Control, on_continue: Callable, next_scene_path: String) -> void:
+	if is_instance_valid(panel): panel.queue_free()
+	if on_continue.is_valid():
+		on_continue.call()
+	elif next_scene_path != "":
+		var sl = Engine.get_singleton("SceneLoader")
+		if sl: sl.transition_to(next_scene_path)
+
+## 通用存档并跳转（封装场景进入下一场景前的自动存档；线索优先取本地 _clues，空则回退 ClueSystem）。
+func _save_and_transition(scene_key: String, next_path: String) -> void:
+	var gm = Engine.get_singleton("GameManager")
+	var sm = Engine.get_singleton("SaveManager")
+	var cs = Engine.get_singleton("ClueSystem")
+	var sv = Engine.get_singleton("SaveSystem")
+	if gm and (not gm.is_guest) and sm:
+		var ids := []
+		for c in _clues: ids.append(c.get("id", ""))
+		if ids.is_empty() and cs:
+			for cid in cs.get_collected_ids(clue_source()): ids.append(cid)
+		await sv.request_save(scene_key, _phase, {"clue_ids": ids})
+	var sl = Engine.get_singleton("SceneLoader")
+	if sl: sl.transition_to(next_path)
+
 # ===================== 子类需实现的「内容」钩子 =====================
 func _phase_name(_p: int) -> String: return "未知阶段"
 func _enter_arrival() -> void: pass
