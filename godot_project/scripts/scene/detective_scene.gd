@@ -848,7 +848,7 @@ func _show_scene_rating(scene_label: String, next_scene_path: String, on_continu
 	panel.add_child(tt)
 	# 三星（来自 StarRatingSystem 当前链）
 	var stars := {"observation":0,"reasoning":0,"insight":0}
-	var srs = Engine.get_singleton("StarRatingSystem")
+	var srs = StarRatingSystem
 	if srs: stars = srs.get_chain_stars(scene_id())
 	var names := ["观察之星","推理之星","洞察之星"]; var keys := ["observation","reasoning","insight"]; var icons := ["🔍","🧠","💡"]
 	var y := 160
@@ -898,22 +898,22 @@ func _on_rating_continue(panel: Control, on_continue: Callable, next_scene_path:
 	if on_continue.is_valid():
 		on_continue.call()
 	elif next_scene_path != "":
-		var sl = Engine.get_singleton("SceneLoader")
+		var sl = SceneLoader
 		if sl: sl.transition_to(next_scene_path)
 
 ## 通用存档并跳转（封装场景进入下一场景前的自动存档；线索优先取本地 _clues，空则回退 ClueSystem）。
 func _save_and_transition(scene_key: String, next_path: String) -> void:
-	var gm = Engine.get_singleton("GameManager")
-	var sm = Engine.get_singleton("SaveManager")
-	var cs = Engine.get_singleton("ClueSystem")
-	var sv = Engine.get_singleton("SaveSystem")
+	var gm = GameManager
+	var sm = SaveManager
+	var cs = ClueSystem
+	var sv = SaveSystem
 	if gm and (not gm.is_guest) and sm:
 		var ids := []
 		for c in _clues: ids.append(c.get("id", ""))
 		if ids.is_empty() and cs:
 			for cid in cs.get_collected_ids(clue_source()): ids.append(cid)
 		await sv.request_save(scene_key, _phase, {"clue_ids": ids})
-	var sl = Engine.get_singleton("SceneLoader")
+	var sl = SceneLoader
 	if sl: sl.transition_to(next_path)
 
 # ===================== 子类需实现的「内容」钩子 =====================
