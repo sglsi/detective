@@ -34,6 +34,7 @@ var _dialogue_bar: Control
 var _speaker_label: Label
 var _dialogue_label: Label
 var _speaker_portrait: TextureRect
+var _name_panel: Panel
 var _portraits: Array = []
 var _action_btns: Dictionary = {}
 var _nav_btns: Dictionary = {}
@@ -111,24 +112,52 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 		_dialogue_label.text = text
 		_dialogue_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if pos == POS_BL else HORIZONTAL_ALIGNMENT_RIGHT
 
-	# 立绘位置：按角色定位到对应角落
+	# 立绘 / 角色名 / 正文：统一放进对话栏内——立绘占一侧、正文占另一侧、互不重叠
 	if _speaker_portrait:
 		var tex: Texture2D = PortraitLibrary.get_portrait(speaker, mood)
 		if tex != null:
 			_speaker_portrait.texture = tex
 			_speaker_portrait.show()
 			match pos:
-				POS_BL:
-					# 左下角：立绘浮于对话栏上方偏左
-					_speaker_portrait.position = Vector2(24, -310)
-					_speaker_portrait.size = Vector2(280, 340)
-				POS_TR:
-					# 右上角：立绘浮于对话栏上方偏右
-					_speaker_portrait.position = Vector2(1600, -560)
-					_speaker_portrait.size = Vector2(260, 300)
-			# 位置/尺寸变化后刷新立绘基准
+				POS_BL:  # 福尔摩斯：立绘在框内左侧，名字框在立绘上方，正文在右侧（左对齐）
+					_speaker_portrait.position = Vector2(15, 50)
+					_speaker_portrait.size = Vector2(160, 168)
+					if _name_panel:
+						_name_panel.show()
+						_name_panel.position = Vector2(15, 10)
+						_name_panel.size = Vector2(160, 34)
+					if _speaker_label:
+						_speaker_label.position = Vector2(20, 14)
+						_speaker_label.size = Vector2(150, 28)
+					if _dialogue_label:
+						_dialogue_label.position = Vector2(190, 50)
+						_dialogue_label.size = Vector2(1710, 165)
+				POS_TR:  # 其他人物：立绘在框内右侧，名字框在立绘上方，正文在左侧（右对齐）
+					_speaker_portrait.position = Vector2(1920 - 15 - 160, 50)
+					_speaker_portrait.size = Vector2(160, 168)
+					if _name_panel:
+						_name_panel.show()
+						_name_panel.position = Vector2(1920 - 15 - 160, 10)
+						_name_panel.size = Vector2(160, 34)
+					if _speaker_label:
+						_speaker_label.position = Vector2(1920 - 15 - 160 + 5, 14)
+						_speaker_label.size = Vector2(150, 28)
+					if _dialogue_label:
+						_dialogue_label.position = Vector2(20, 50)
+						_dialogue_label.size = Vector2(1710, 165)
 		else:
+			# 无立绘：名字框置顶左、正文占满整框（居中），避免左侧留白错位
 			_speaker_portrait.hide()
+			if _name_panel:
+				_name_panel.show()
+				_name_panel.position = Vector2(15, 10)
+				_name_panel.size = Vector2(160, 34)
+			if _speaker_label:
+				_speaker_label.position = Vector2(20, 14)
+				_speaker_label.size = Vector2(150, 28)
+			if _dialogue_label:
+				_dialogue_label.position = Vector2(30, 50)
+				_dialogue_label.size = Vector2(1860, 165)
 
 func set_dialogue_color(c: Color) -> void:
 	if _speaker_label: _speaker_label.add_theme_color_override("font_color", c)
@@ -548,30 +577,31 @@ func _build_dialogue_bar() -> void:
 	bot_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dialogue_bar.add_child(bot_bar)
 
-	# 说话人立绘（悬浮在对话栏左上方，不挤占文本区；无立绘时隐藏）
+	# 说话人立绘（置于对话栏内左侧/右侧，不浮出框外；无立绘时隐藏）
 	_speaker_portrait = TextureRect.new()
 	_speaker_portrait.name = "speaker_portrait"
-	_speaker_portrait.position = Vector2(24, -292)   # 相对对话栏，浮于其上方
-	_speaker_portrait.size = Vector2(280, 280)
+	_speaker_portrait.position = Vector2(15, 50)   # 默认在框内（_apply_dialogue 会按角色左右重定位）
+	_speaker_portrait.size = Vector2(160, 168)
 	_speaker_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_speaker_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_speaker_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_speaker_portrait.visible = false
 	_dialogue_bar.add_child(_speaker_portrait)
 
-	# 角色名 (左侧烫金深褐框)
-	var name_panel = Panel.new()
-	name_panel.size = Vector2(280, 42)
-	name_panel.position = Vector2(28, 16)
+	# 角色名（烫金深褐框，置于对话栏内、立绘上方；_apply_dialogue 按角色左右重定位）
+	_name_panel = Panel.new()
+	_name_panel.name = "speaker_name_panel"
+	_name_panel.size = Vector2(160, 34)
+	_name_panel.position = Vector2(15, 10)
 	var nsb = StyleBoxFlat.new()
 	nsb.bg_color = Color(0.10, 0.07, 0.04, 0.95)
 	nsb.border_color = COL_GOLD
 	nsb.border_width_left = 2; nsb.border_width_right = 2
 	nsb.border_width_top = 2; nsb.border_width_bottom = 2
 	nsb.set_corner_radius_all(4)
-	name_panel.add_theme_stylebox_override("panel", nsb)
-	name_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_dialogue_bar.add_child(name_panel)
+	_name_panel.add_theme_stylebox_override("panel", nsb)
+	_name_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dialogue_bar.add_child(_name_panel)
 	_speaker_label = Label.new()
 	_speaker_label.name = "speaker"
 	_speaker_label.text = "Holmes:"
@@ -579,12 +609,12 @@ func _build_dialogue_bar() -> void:
 	_speaker_label.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	_speaker_label.add_theme_color_override("font_outline_color", COL_SHADOW)
 	_speaker_label.add_theme_constant_override("outline_size", 2)
-	_speaker_label.position = Vector2(36, 20); _speaker_label.size = Vector2(264, 34)
+	_speaker_label.position = Vector2(20, 14); _speaker_label.size = Vector2(150, 28)
 	_speaker_label.vertical_alignment = 1
 	_speaker_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dialogue_bar.add_child(_speaker_label)
 
-	# 对话文本（衬线深褐，大字号，羊皮纸上易读）
+	# 对话文本（衬线深褐，大字号，羊皮纸上易读；位置随角色左右，避免与立绘重叠）
 	_dialogue_label = Label.new()
 	_dialogue_label.name = "dialogue_text"
 	_dialogue_label.text = ""
@@ -592,7 +622,7 @@ func _build_dialogue_bar() -> void:
 	_dialogue_label.add_theme_font_size_override("font_size", 24)
 	_dialogue_label.add_theme_color_override("font_color", COL_PARCH_DARK)
 	_dialogue_label.add_theme_constant_override("line_spacing", 6)
-	_dialogue_label.position = Vector2(50, 70); _dialogue_label.size = Vector2(1840, 140)
+	_dialogue_label.position = Vector2(190, 50); _dialogue_label.size = Vector2(1710, 165)
 	_dialogue_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dialogue_bar.add_child(_dialogue_label)
 
