@@ -130,7 +130,7 @@ var collected_clues: Array = []
 ## 登记一条已收集线索（按 id 去重；已存在则更新字段）
 ## weight：线索分级权重（关键10/重要5/一般2/其他0，误导0）。tier 为其中文展示标签，
 ## 由 weight+correct 派生，仅供 UI/笔记展示，不参与计算。默认 0 兼容旧调用方（存/读档测试）。
-func collect_clue(id: String, name: String, desc: String, correct: bool, source: String = "", weight: int = 0) -> void:
+func collect_clue(id: String, name: String, desc: String, correct: bool, source: String = "", weight: int = 0, image: String = "", anchor: String = "") -> void:
 	var tier := tier_label(weight, correct)
 	for c in collected_clues:
 		if c.get("id", "") == id:
@@ -140,11 +140,13 @@ func collect_clue(id: String, name: String, desc: String, correct: bool, source:
 			c["source"] = source
 			c["weight"] = weight
 			c["tier"] = tier
+			c["image"] = image
+			c["anchor"] = anchor
 			# 线索发现即重置停滞计数（设计 08 §3.5：停滞由「未发现线索的连续交互」驱动）
 			if DifficultyManager != null:
 				DifficultyManager.reset_stall_counter()
 			return
-	collected_clues.append({"id": id, "name": name, "desc": desc, "correct": correct, "source": source, "weight": weight, "tier": tier})
+	collected_clues.append({"id": id, "name": name, "desc": desc, "correct": correct, "source": source, "weight": weight, "tier": tier, "image": image, "anchor": anchor})
 	if DifficultyManager != null:
 		DifficultyManager.reset_stall_counter()
 
@@ -153,15 +155,15 @@ func collect_clue(id: String, name: String, desc: String, correct: bool, source:
 ## 从而消除「场景内联 desc」与「.tres ClueData.desc」两处重复维护、易漂移的问题。
 ## 注意：correct 始终取自场景内联——它是游戏性判定标志（驱动推理墙 CONTRADICTORY），
 ## 不在 ClueData 15 字段模型中，故不覆盖，避免误改判定结果。
-func collect_clue_from_catalog(id: String, name: String, desc: String, correct: bool, source: String = "", inline_weight: int = -1) -> void:
+func collect_clue_from_catalog(id: String, name: String, desc: String, correct: bool, source: String = "", inline_weight: int = -1, image: String = "", anchor: String = "") -> void:
 	var def = get_clue_definition(id)
 	var w := weight_of(id, correct, inline_weight)
 	if def != null:
 		var cn: String = def.name if def.name != "" else name
 		var cd: String = def.description if def.description != "" else desc
-		collect_clue(id, cn, cd, correct, source, w)
+		collect_clue(id, cn, cd, correct, source, w, image, anchor)
 	else:
-		collect_clue(id, name, desc, correct, source, w)
+		collect_clue(id, name, desc, correct, source, w, image, anchor)
 
 # ============ 线索分级权重（P3.1：把设计的「线索等级」在运行时落地）============
 # 设计依据：00_核心设计思路.md §2.2 权重表（关键10/重要5/一般2/其他0/误导0-不扣分）。

@@ -158,13 +158,13 @@ func _create_observers() -> void:
 		# crop 为「锚点表缺失时」的回退取景，数值已与 clue_image_anchors.gd
 		# 中 watson_teaching.png 的定稿锚点对齐（x=cx-w/2, y=cy-h/2, cx=cx+w/2, cy=cy+h/2）
 		{"id":"wrist","label":"手腕肤色分界","x":580,"y":400,"w":100,"h":60,"desc":"手部微晒黑，手腕偏白 -> 刚从热带回来",
-		 "crop":{"x":0.2215,"y":0.5605,"cx":0.4985,"cy":0.7695}},
+		 "crop":{"x":0.2215,"y":0.5605,"cx":0.4985,"cy":0.7695},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
 		{"id":"shoulder","label":"左肩旧伤","x":450,"y":450,"w":100,"h":70,"desc":"左肩动作略显僵硬 -> 战场负伤",
-		 "crop":{"x":0.5845,"y":0.3225,"cx":0.7575,"cy":0.4575}},
+		 "crop":{"x":0.5845,"y":0.3225,"cx":0.7575,"cy":0.4575},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
 		{"id":"face","label":"面色憔悴","x":520,"y":240,"w":110,"h":70,"desc":"面色微晒黑且憔悴 -> 久病初愈",
-		 "crop":{"x":0.392,"y":0.040,"cx":0.632,"cy":0.326}},
+		 "crop":{"x":0.392,"y":0.040,"cx":0.632,"cy":0.326},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
 		{"id":"pose","label":"军人站姿","x":500,"y":600,"w":130,"h":80,"desc":"站姿挺拔 -> 阿富汗军医",
-		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0}},
+		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"pose"},
 	], tex)
 	_watson_obs.all_recorded.connect(_on_watson_all_recorded)
 	_watson_obs.clue_recorded.connect(_on_collect_clue.bind("watson"))
@@ -175,17 +175,17 @@ func _create_observers() -> void:
 	var mess_tex = load("res://assets/characters/messenger/messenger_portrait.png")
 	_messenger_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, [
 		{"id":"tattoo","label":"手背锚文身","x":580,"y":260,"w":130,"h":50,"desc":"蓝色锚形文身 -> 海军标志","correct":true,
-		 "crop":{"x":0.16,"y":0.39,"cx":0.46,"cy":0.59}},
+		 "crop":{"x":0.16,"y":0.39,"cx":0.46,"cy":0.59},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"tattoo"},
 		{"id":"beard","label":"络腮胡须","x":680,"y":200,"w":120,"h":55,"desc":"军人式络腮胡 -> 军队常见","correct":true,
-		 "crop":{"x":0.36884,"y":0.1568,"cx":0.59970,"cy":0.3408}},
+		 "crop":{"x":0.36884,"y":0.1568,"cx":0.59970,"cy":0.3408},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"beard"},
 		{"id":"posture","label":"笔挺站姿","x":620,"y":520,"w":130,"h":60,"desc":"昂首挺胸 -> 军事训练","correct":true,
-		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0}},
+		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"posture"},
 		{"id":"manner","label":"发号施令","x":520,"y":230,"w":110,"h":50,"desc":"发号施令 -> 军士/士官","correct":true,
-		 "crop":{"x":0.35698,"y":0.0855,"cx":0.60997,"cy":0.3500}},
+		 "crop":{"x":0.35698,"y":0.0855,"cx":0.60997,"cy":0.3500},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"manner"},
 		{"id":"sleeve","label":"袖口磨损","x":780,"y":420,"w":115,"h":50,"desc":"袖口磨损 -> 干扰:衣服旧了","correct":false,
-		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72}},
+		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"sleeve"},
 		{"id":"limp","label":"走路略跛","x":580,"y":600,"w":120,"h":55,"desc":"右腿略跛 -> 干扰:扭伤","correct":false,
-		 "crop":{"x":0.4905,"y":0.7800,"cx":0.7005,"cy":0.98768}},
+		 "crop":{"x":0.4905,"y":0.7800,"cx":0.7005,"cy":0.98768},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"limp"},
 	], mess_tex)
 	_messenger_obs.all_recorded.connect(_on_messenger_all_recorded)
 	_messenger_obs.clue_recorded.connect(_on_collect_clue.bind("messenger"))
@@ -205,7 +205,10 @@ func _on_collect_clue(clue_id: String, clue_data: Dictionary, source: String) ->
 			clue_data.get("name", clue_id),
 			clue_data.get("desc", ""),
 			clue_data.get("correct", true),
-			source
+			source,
+			-1,
+			clue_data.get("image", ""),
+			clue_data.get("anchor", "")
 		)
 
 # ===== 基类钩子：地图 / 案件簿（内容） =====

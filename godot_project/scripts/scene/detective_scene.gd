@@ -1,5 +1,8 @@
 extends Control
 class_name DetectiveScene
+
+const ClueAnchorCard = preload("res://scripts/ui/clue_anchor_card.gd")
+
 ## DetectiveScene — 统一侦探场景框架（按场景二结构提炼）
 ##
 ## 设计目标（用户需求）：游戏中所有场景共享同一套架构；场景二/三应完全一致，
@@ -254,16 +257,22 @@ func _clue_sources() -> Array:
 ## 证据按钮（所有场景一致）：展示已收集线索列表，而非推理墙。
 ## 推理墙由左侧「思考」动作键打开——避免同一按钮身兼两职、各场景行为不一。
 func _open_evidence() -> void:
-	var items: Array = []
+	var cards: Array = []
 	for src in _clue_sources():
 		var collected = ClueSystem.get_collected(src) if ClueSystem else []
 		for c in collected:
 			var tag = "" if _clue_sources().size() <= 1 else ("【" + src + "】")
-			items.append({"name": tag + str(c.get("name", c.get("id", ""))), "desc": str(c.get("desc", ""))})
-	if items.is_empty():
+			var title = tag + str(c.get("name", c.get("id", "")))
+			var img: String = c.get("image", "")
+			var anchor: String = c.get("anchor", "")
+			# 带锚点的线索 → 渲染「部位图 + 文字」同卡，关联身体部位；否则纯文字卡片
+			var c = ClueAnchorCard.new()
+			c.setup_card(img, anchor, title, str(c.get("desc", "")), 920, 200)
+			cards.append(c)
+	if cards.is_empty():
 		_ui.show_notification(_no_evidence_msg())
 	else:
-		_popup("证据库", items)
+		_popup_clue_cards("证据库", cards)
 
 # ===================== 动作（通用分发 + 内容 virtual） =====================
 func _on_action(action_id: String) -> void:
@@ -777,6 +786,32 @@ func _popup(title_txt: String, items: Array) -> void:
 		var d = Label.new(); d.text = str(it.get("desc", "")); d.position = Vector2(30, yy + 26); d.size = Vector2(880, 24)
 		d.add_theme_font_size_override("font_size", 16); d.add_theme_color_override("font_color", Color(0.6, 0.55, 0.45))
 		ct.add_child(d); yy += 60
+	sc.add_child(ct); o.add_child(sc)
+	var cl = Button.new(); cl.text = "关闭"; cl.position = Vector2(430, 620); cl.size = Vector2(140, 45)
+	cl.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); cl.add_theme_font_size_override("font_size", 20)
+	cl.pressed.connect(_close_modal); 	o.add_child(cl); add_child(o)
+	_register_modal(o, title_txt)
+
+## 证据库专用弹窗：直接容纳 ClueAnchorCard 卡片列表（线索与身体部位同卡绑定）。
+## 与 _popup 共用同一套 modal 单例/拖拽/关闭机制，仅内容区改为卡片纵向滚动。
+func _popup_clue_cards(title_txt: String, cards: Array) -> void:
+	if _modal_panel and is_instance_valid(_modal_panel):
+		if _modal_title == title_txt:
+			_close_modal(); return
+		_modal_panel.queue_free(); _modal_panel = null
+	var o = Panel.new(); o.position = Vector2(460, 120); o.size = Vector2(1000, 700); o.z_index = 100
+	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
+	var tt = Label.new(); tt.text = title_txt; tt.position = Vector2(30, 20); tt.add_theme_font_size_override("font_size", 28)
+	tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
+	var drag_bar := Control.new(); drag_bar.name = "DragBar"
+	drag_bar.position = Vector2(0, 0); drag_bar.size = Vector2(1000, 64)
+	drag_bar.mouse_filter = Control.MOUSE_FILTER_STOP; o.add_child(drag_bar)
+	WindowDrag.make_draggable(o, drag_bar)
+	var sc = ScrollContainer.new(); sc.position = Vector2(30, 70); sc.size = Vector2(940, 570)
+	var ct = Control.new(); ct.size = Vector2(920, max(cards.size() * 212, 10))
+	var yy = 0
+	for c in cards:
+		c.position = Vector2(0, yy); ct.add_child(c); yy += 212
 	sc.add_child(ct); o.add_child(sc)
 	var cl = Button.new(); cl.text = "关闭"; cl.position = Vector2(430, 620); cl.size = Vector2(140, 45)
 	cl.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); cl.add_theme_font_size_override("font_size", 20)
