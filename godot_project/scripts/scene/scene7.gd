@@ -217,11 +217,8 @@ func _award() -> void:
 	pass
 
 func _go_to_next_scene() -> void:
-	if GameManager and not GameManager.is_guest and SaveManager:
-		var ids: Array = []
-		for c in _clues: ids.append(c.get("id", ""))
-		await SaveSystem.request_save("scene7", Phase.TRANSITION, {"clue_ids": ids})
-	SceneLoader.transition_to("res://scenes/scene8.tscn")
+	# 过渡对话结束后弹出「侦破过程」评价面板（风格对齐场景一），点继续再存档进入下一场景
+	_show_scene_rating("场景七 完成 · 侦破过程", "res://scenes/scene8.tscn", Callable(self, "_save_and_transition").bind("scene7", "res://scenes/scene8.tscn"))
 
 # ===================== 自定义选项面板（安全分支） =====================
 

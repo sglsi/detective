@@ -510,7 +510,7 @@ func _show_rating() -> void:
 	cont.pressed.connect(_show_case_branch.bind(w))
 	w.add_child(cont)
 
-func _on_rating_continue(w: Control) -> void:
+func _on_sc1_rating_done(w: Control) -> void:
 	w.queue_free(); _save_and_continue()
 
 func _save_and_continue() -> void:

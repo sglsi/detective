@@ -208,6 +208,10 @@ func _award() -> void:
 	pass
 
 func _go_to_next_scene() -> void:
+	# 结局：先评全案（结局档位 + 各链星级概览），点继续再结案并回主菜单
+	_show_scene_rating("案件告破 · 全案侦破评定", "", Callable(self, "_scene8_continue"), true)
+
+func _scene8_continue() -> void:
 	if GameManager and not GameManager.is_guest and SaveManager:
 		var ids := ClueSystem.get_collected_ids(clue_source()) if ClueSystem else []
 		await SaveSystem.request_save("scene8", Phase.TRANSITION, {"clue_ids": ids})
