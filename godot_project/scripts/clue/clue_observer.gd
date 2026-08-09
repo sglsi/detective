@@ -1,6 +1,9 @@
 extends Node
 class_name ClueObserver
 
+const ClueImageAnchors = preload("res://data/clue_image_anchors.gd")
+const ClueAnchorCard = preload("res://scripts/ui/clue_anchor_card.gd")
+
 ## 可复用的线索收集模块 — 封装热点创建、放大观察、记录确认全流程
 ## 场景一中华生和信使两轮观察共享同一套代码，只传入不同的热点数据和回调即可
 
@@ -125,7 +128,9 @@ func mark_recorded(clue_id: String) -> void:
 	var hs_data: Dictionary = {"id": clue_id, "name": clue_id, "desc": "", "correct": true}
 	for hs in _hotspots:
 		if hs["id"] == clue_id:
-			hs_data = {"id": hs["id"], "name": hs["label"], "desc": hs.get("desc", ""), "correct": hs.get("correct", true)}
+			hs_data = {"id": hs["id"], "name": hs["label"], "desc": hs.get("desc", ""),
+				"correct": hs.get("correct", true),
+				"image": hs.get("image", ""), "anchor": hs.get("anchor", "")}
 			break
 	_recorded_clues.append(hs_data)
 
@@ -173,60 +178,61 @@ func _show_observation_layer(clue_id: String, desc: String) -> void:
 	dim.name = "obs_dim"
 	_parent.add_child(dim)
 
-	# 放大的肖像图（优先局部裁剪，无 crop 则显示整图）
-	var img = TextureRect.new()
-	img.name = "obs_img"
-	img.position = Vector2(260, 60); img.size = Vector2(700, 950)
-	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	if _portrait_texture:
-		# 查找当前线索的裁剪区域（归一化坐标）
-		var hs_crop: Dictionary = {}
-		for hs in _hotspots:
-			if hs["id"] == clue_id and hs.has("crop"):
-				hs_crop = hs["crop"]
-				break
-		if not hs_crop.is_empty() and _portrait_texture:
-			var at := AtlasTexture.new()
-			at.atlas = _portrait_texture
-			var tw: float = _portrait_texture.get_width()
-			var th: float = _portrait_texture.get_height()
-			at.region = Rect2(
-				float(hs_crop.get("x", 0)) * tw,
-				float(hs_crop.get("y", 0)) * th,
-				(float(hs_crop.get("cx", 1)) - float(hs_crop.get("x", 0))) * tw,
-				(float(hs_crop.get("cy", 1)) - float(hs_crop.get("y", 0))) * th
-			)
-			img.texture = at
-		else:
-			img.texture = _portrait_texture
-	_parent.add_child(img)
+	# 取该线索的元信息（标题 / 关联图片 / 锚点部位）
+	var hs_meta: Dictionary = {}
+	for hs in _hotspots:
+		if hs["id"] == clue_id:
+			hs_meta = hs
+			break
+	var disp_img: String = hs_meta.get("image", "")
+	if disp_img == "" and _portrait_texture != null:
+		disp_img = _portrait_texture.resource_path
+	var anchor_name: String = hs_meta.get("anchor", "")
+	var anchor: Dictionary = {}
+	if disp_img != "" and anchor_name != "":
+		anchor = ClueImageAnchors.get_anchor(disp_img, anchor_name)
+	var title: String = hs_meta.get("label", clue_id)
 
-	# 标题
-	var parts = {"wrist":"手腕","arm":"左臂","face":"面色","pose":"站姿",
-		"tattoo":"手背","beard":"胡须","posture":"站姿","manner":"神态",
-		"sleeve":"袖口","limp":"跛行","ring":"戒指","shoes":"鞋"}
-	var title = Label.new()
-	title.text = "Step 2 放大: " + parts.get(clue_id, clue_id)
-	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45))
-	title.position = Vector2(260, 20); title.size = Vector2(700, 40)
-	title.name = "obs_title"
-	_parent.add_child(title)
+	# 头部标题
+	var head = Label.new()
+	head.text = "🔍 观察线索：" + title
+	head.add_theme_font_size_override("font_size", 24)
+	head.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45))
+	head.position = Vector2(260, 20); head.size = Vector2(900, 40)
+	head.name = "obs_title"
+	_parent.add_child(head)
 
-	# 描述文本
-	var dl = Label.new()
-	dl.text = desc; dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	dl.add_theme_font_size_override("font_size", 16)
-	dl.add_theme_color_override("font_color", Color(0.8, 0.78, 0.68))
-	dl.position = Vector2(1000, 100); dl.size = Vector2(850, 220)
-	dl.name = "obs_desc"
-	_parent.add_child(dl)
+	# 左侧：整图（若有锚点则在部位上画金框），让玩家看清「这是华生的哪个部位」
+	var tex: Texture2D = null
+	if disp_img != "" and ResourceLoader.exists(disp_img):
+		tex = load(disp_img)
+	elif _portrait_texture != null:
+		tex = _portrait_texture
+	if tex != null:
+		var full = TextureRect.new()
+		full.name = "obs_img"
+		full.texture = tex
+		full.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		full.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		full.position = Vector2(260, 80); full.size = Vector2(360, 480)
+		_parent.add_child(full)
+		if not anchor.is_empty():
+			ClueAnchorCard.draw_highlight(_parent, Vector2(260, 80), Vector2(360, 480), tex, anchor, anchor_name)
+
+	# 右侧：线索锚点卡片（部位放大裁剪 + 文字）—— 线索与身体部位同卡绑定，不再「旁边几个字」
+	var card_img: String = disp_img
+	if card_img == "" and _portrait_texture != null:
+		card_img = _portrait_texture.resource_path
+	var card = ClueAnchorCard.new()
+	card.setup_card(card_img, anchor_name, title, desc, 560, 540)
+	card.name = "obs_card"
+	card.position = Vector2(660, 80)
+	_parent.add_child(card)
 
 	# Step 3 记录按钮
 	var cf = Button.new()
 	cf.text = "Step 3 记录"
-	cf.position = Vector2(1000, 360); cf.size = Vector2(240, 55)
+	cf.position = Vector2(660, 640); cf.size = Vector2(240, 55)
 	cf.add_theme_font_size_override("font_size", 22)
 	cf.name = "obs_confirm"
 	cf.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))
@@ -243,7 +249,8 @@ func _show_observation_layer(clue_id: String, desc: String) -> void:
 func _clear_observation_layer() -> void:
 	# 清掉「所有」同名残留（而非只清第一个）：若历史上曾叠加出多层观察层，
 	# 残留的全屏 obs_dim 会永远拦截鼠标点击，表现为整个场景卡死。
-	for name in ["obs_dim", "obs_img", "obs_title", "obs_desc", "obs_confirm"]:
+	for name in ["obs_dim", "obs_img", "obs_title", "obs_desc", "obs_confirm",
+			"obs_card", "ClueAnchorHL", "ClueAnchorHL_lab"]:
 		while true:
 			var n = _parent.find_child(name, true, false)
 			if not n: break
@@ -262,7 +269,9 @@ func _on_record(clue_id: String, desc: String) -> void:
 	var hs_data: Dictionary = {"id": clue_id, "name": clue_id, "desc": desc, "correct": true}
 	for hs in _hotspots:
 		if hs["id"] == clue_id:
-			hs_data = {"id": hs["id"], "name": hs["label"], "desc": hs.get("desc", ""), "correct": hs.get("correct", true)}
+			hs_data = {"id": hs["id"], "name": hs["label"], "desc": hs.get("desc", ""),
+				"correct": hs.get("correct", true),
+				"image": hs.get("image", ""), "anchor": hs.get("anchor", "")}
 			break
 
 	_recorded_clues.append(hs_data)
