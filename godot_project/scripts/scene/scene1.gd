@@ -76,6 +76,7 @@ func _restore_saved_state() -> bool:
 			return true
 		Phase.MESSENGER_OBSERVE:
 			_phase = Phase.MESSENGER_OBSERVE
+			if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
 			_ui.restore_observer(_messenger_obs, saved_ids, ["tattoo","beard","posture","manner","sleeve","limp"])
 			if _messenger_obs.get_recorded() >= 6:
 				_on_messenger_all_recorded(_messenger_obs.get_recorded_clues()); return true
@@ -116,7 +117,7 @@ func _phase_name(p: int) -> String:
 		_: return "未知阶段"
 
 func _all_hotspots() -> Array:
-	var w = [{"id":"wrist","name":"手腕肤色分界","desc":"华生手腕肤色分界明显——长期暴露于热带阳光"},{"id":"shoulder","name":"左肩旧伤","desc":"华生左肩动作略显僵硬——战场负伤留下的旧疾"},{"id":"face","name":"面色黝黑憔悴","desc":"华生面色黝黑且憔悴——久病初愈的迹象"},{"id":"pose","name":"军人站姿","desc":"华生站姿挺拔，带有明显军人气质"}]
+	var w = [{"id":"wrist","name":"肤色黑白分明","desc":"华生手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来"},{"id":"shoulder","name":"右肩损伤","desc":"华生右肩动作略显僵硬——战场负伤留下的旧疾"},{"id":"face","name":"脸部疲惫","desc":"华生面部疲惫、面色黝黑——久病初愈、长途劳顿的痕迹"},{"id":"pose","name":"军人气质","desc":"华生站姿挺拔、气质干练——典型的军人作风"}]
 	var m = [{"id":"tattoo","name":"锚形文身","desc":"信使手背上有蓝色锚形文身——皇家海军标志"},{"id":"beard","name":"络腮胡","desc":"信使留着军人式络腮胡"},{"id":"posture","name":"挺拔站姿","desc":"信使站姿挺拔有力"},{"id":"manner","name":"神态平静","desc":"信使神态从容淡定"},{"id":"sleeve","name":"袖口细节","desc":"信使袖口有磨损痕迹"},{"id":"limp","name":"轻微跛行","desc":"信使走路有轻微跛行"}]
 	var r: Array = []
 	r.append_array(w); r.append_array(m)
@@ -160,13 +161,13 @@ func _create_observers() -> void:
 	_watson_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, [
 		# crop 为「锚点表缺失时」的回退取景，数值已与 clue_image_anchors.gd
 		# 中 watson_teaching.png 的定稿锚点对齐（x=cx-w/2, y=cy-h/2, cx=cx+w/2, cy=cy+h/2）
-		{"id":"wrist","label":"手腕肤色分界","x":580,"y":400,"w":100,"h":60,"desc":"手部微晒黑，手腕偏白 -> 刚从热带回来",
+		{"id":"wrist","label":"肤色黑白分明","x":580,"y":400,"w":100,"h":60,"desc":"手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来",
 		 "crop":{"x":0.2215,"y":0.5605,"cx":0.4985,"cy":0.7695},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
-		{"id":"shoulder","label":"左肩旧伤","x":450,"y":450,"w":100,"h":70,"desc":"左肩动作略显僵硬 -> 战场负伤",
+		{"id":"shoulder","label":"右肩损伤","x":450,"y":450,"w":100,"h":70,"desc":"右肩动作略显僵硬——战场负伤留下的旧疾",
 		 "crop":{"x":0.5845,"y":0.3225,"cx":0.7575,"cy":0.4575},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
-		{"id":"face","label":"面色憔悴","x":520,"y":240,"w":110,"h":70,"desc":"面色微晒黑且憔悴 -> 久病初愈",
+		{"id":"face","label":"脸部疲惫","x":520,"y":240,"w":110,"h":70,"desc":"面部疲惫、面色黝黑——久病初愈、长途劳顿的痕迹",
 		 "crop":{"x":0.392,"y":0.040,"cx":0.632,"cy":0.326},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
-		{"id":"pose","label":"军人站姿","x":500,"y":600,"w":130,"h":80,"desc":"站姿挺拔 -> 阿富汗军医",
+		{"id":"pose","label":"军人气质","x":500,"y":600,"w":130,"h":80,"desc":"站姿挺拔、气质干练——典型的军人作风",
 		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"pose"},
 	], tex, _portrait_ctrl, "res://assets/characters/watson/watson_teaching.png")
 	_watson_obs.all_recorded.connect(_on_watson_all_recorded)
@@ -247,8 +248,8 @@ func _on_action(action_id: String) -> void:
 		_: _create_notification("「" + action_id + "」已激活")
 
 func _do_look() -> void:
-	if _phase == Phase.OBSERVE_WATSON: _watson_obs.show(); _ui.set_dialogue("提示", "观察模式 — 点击华生身上的按钮"); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
-	elif _phase == Phase.MESSENGER_OBSERVE: _messenger_obs.show(); _ui.set_dialogue("提示", "观察模式 — 点击信使身上的按钮"); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
+	if _phase == Phase.OBSERVE_WATSON: _watson_obs.show(); _ui.set_dialogue("提示", "观察模式 — 点击华生身上高亮的圆圈"); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
+	elif _phase == Phase.MESSENGER_OBSERVE: _messenger_obs.show(); _ui.set_dialogue("提示", "观察模式 — 点击信使身上高亮的圆圈"); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
 	elif _phase == Phase.WATSON_REASONING or _phase == Phase.MESSENGER_REASONING: _create_notification("已在推理墙中，请先完成验证")
 
 func _do_talk() -> void:
@@ -353,8 +354,8 @@ func _show_opening_dialogue() -> void:
 	_phase = Phase.OPENING
 	var nodes: Array[Resource] = []
 	nodes.append(_dn("s0", "福尔摩斯", "证据在你身上: 手腕、左臂、靨色、站姿", "click", ["s1"], "从容"))
-	nodes.append(_dn("s1","系统","[新手教程] 第一次观察\n目标：找出4条线索，证明'华生是阿富汗军医'\n操作：点击华生身上的高亮按钮，逐一观察细节","click",["s2"],"guide"))
-	nodes.append(_dn("s2","系统","点击华生身上的可交互区域。完成后进入推理墙验证。","click",["end"],"guide"))
+	nodes.append(_dn("s1","系统","[新手教程] 第一次观察\n目标：找出4条线索，证明'华生是阿富汗军医'\n操作：点击华生身上高亮的圆圈，逐一观察细节","click",["s2"],"guide"))
+	nodes.append(_dn("s2","系统","点击华生身上高亮的圆圈。完成后进入推理墙验证。","click",["end"],"guide"))
 	var res = DialogueResource.new(); res.scene_id="s1_open"; res.nodes=nodes
 	res.easy_start_node="s0"; res.normal_start_node="s0"; res.hard_start_node="s0"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
@@ -363,7 +364,7 @@ func _on_opening_end() -> void:
 	_phase = Phase.OBSERVE_WATSON
 	if _portrait_ctrl: _portrait_ctrl.visible = true
 	_watson_obs.show()
-	_ui.set_dialogue("提示", "点击华生身上的按钮，观察 4 处线索。")
+	_ui.set_dialogue("提示", "点击华生身上高亮的圆圈，观察 4 处线索。")
 	_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
 	# 进入观察阶段即自动弹出道具工具栏
 	if _toolbar: _toolbar.show_toolbar()
@@ -385,16 +386,16 @@ func _show_watson_reasoning_wall() -> void:
 	var hypo := {"title": "华生刚从阿富汗回来？", "description": "从华生身上的痕迹（手腕肤色分界、左臂旧伤、面色憔悴、军人站姿）推断其身份与经历。",
 		"battlefield": {
 			"hypotheses": [
-				{"id":"W-01","text":"华生手腕有热带晒痕","correct":true},
-				{"id":"W-02","text":"华生左臂有旧伤","correct":true},
-				{"id":"W-03","text":"华生面色憔悴","correct":true},
-				{"id":"W-04","text":"华生站姿像军人","correct":true},
+				{"id":"W-01","text":"华生肤色黑白分明，有热带晒痕","correct":true},
+				{"id":"W-02","text":"华生右肩有旧伤","correct":true},
+				{"id":"W-03","text":"华生脸部疲惫、面色憔悴","correct":true},
+				{"id":"W-04","text":"华生站姿气质像军人","correct":true},
 			],
 			"contradictions": [],
 		},
 		"milestones": [
 			{"id":"MW-1","text":"华生刚从阿富汗战场归来"},
-			{"id":"MW-2","text":"华生是军医（左臂旧伤、军人站姿）"},
+			{"id":"MW-2","text":"华生是军医（右肩旧伤、军人气质）"},
 			{"id":"MW-3","text":"身份可经观察痕迹推断（演绎法初探）"},
 		],
 	}
@@ -425,7 +426,7 @@ func _start_messenger_phase() -> void:
 
 func _on_messenger_dialogue_end() -> void:
 	_phase = Phase.MESSENGER_OBSERVE
-	_ui.set_dialogue("提示", "点击信使身上的可交互区域。注意分辨干扰项！")
+	_ui.set_dialogue("提示", "点击信使身上高亮的圆圈。注意分辨干扰项！")
 	_ui.set_dialogue_color(Color(0.5,0.9,0.5))
 
 func _show_messenger_reasoning_wall() -> void:
@@ -464,13 +465,13 @@ func _resume_observe() -> void:
 		_phase = Phase.OBSERVE_WATSON
 		if _portrait_ctrl: _portrait_ctrl.visible = true
 		_watson_obs.show()
-		_ui.set_dialogue("提示", "已回到华生观察 — 继续点击身上按钮收集剩余线索（" + str(_watson_obs.get_recorded()) + "/4）")
+		_ui.set_dialogue("提示", "已回到华生观察 — 继续点击身上高亮的圆圈收集剩余线索（" + str(_watson_obs.get_recorded()) + "/4）")
 		_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
 	elif _phase == Phase.MESSENGER_REASONING:
 		_phase = Phase.MESSENGER_OBSERVE
 		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
 		_messenger_obs.show()
-		_ui.set_dialogue("提示", "已回到信使观察 — 继续点击身上按钮收集剩余线索（" + str(_messenger_obs.get_recorded()) + "/6）")
+		_ui.set_dialogue("提示", "已回到信使观察 — 继续点击身上高亮的圆圈收集剩余线索（" + str(_messenger_obs.get_recorded()) + "/6）")
 		_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
 	if _toolbar: _toolbar.show_toolbar()
 
