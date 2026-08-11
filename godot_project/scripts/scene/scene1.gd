@@ -142,10 +142,10 @@ func _build_ui() -> void:
 	# 信使立绘（默认隐藏，MESSENGER_OBSERVE 阶段显示）
 	var mtex = load("res://assets/characters/messenger/messenger_portrait.png")
 	if mtex:
-		# 原图 643x1916（竖图，宽高比 0.3356）。_make_portrait 已修渲染 bug：
-		# 用 EXPAND_IGNORE_SIZE + 手动 contain，不再是被压成正方形的畸形。
-		# 放大到 220x632（显示 208x620），置于场景右侧与华生左右呼应，脚底屏幕 y≈842 不超界、不被对话栏遮挡。
-		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(1300, 160), Vector2(220, 632), false)
+		# 新图 808x1920（竖图，宽高比 0.421）。_make_portrait 用 EXPAND_IGNORE_SIZE + 手动 contain。
+		# 框 280x632 按高 contain 显示约 266x632（比旧 220 框的 208x494 明显放大）；
+		# 向下移动一个屏幕小腿长度(~131px)，使信使从"踩在椅子上"落到地面，脚底约 y=973。
+		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(1300, 291), Vector2(280, 632), false)
 		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false  # MESSENGER_OBSERVE 阶段才显示（_start_messenger_phase）
 
 ## 场景一用 UI 内部对话标签渲染观察层，不需要占位标签
@@ -168,7 +168,7 @@ func _create_observers() -> void:
 		 "crop":{"x":0.392,"y":0.040,"cx":0.632,"cy":0.326},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
 		{"id":"pose","label":"军人站姿","x":500,"y":600,"w":130,"h":80,"desc":"站姿挺拔 -> 阿富汗军医",
 		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"pose"},
-	], tex)
+	], tex, _portrait_ctrl, "res://assets/characters/watson/watson_teaching.png")
 	_watson_obs.all_recorded.connect(_on_watson_all_recorded)
 	_watson_obs.clue_recorded.connect(_on_collect_clue.bind("watson"))
 	# 把观察热点转发到全局 SceneEventBus，使工具栏能用「放大镜/卷尺/黄页」定位当前细节
@@ -190,7 +190,7 @@ func _create_observers() -> void:
 		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"sleeve"},
 		{"id":"limp","label":"走路略跛","x":598,"y":726,"w":68,"h":34,"desc":"右腿略跛 -> 干扰:扭伤","correct":false,
 		 "crop":{"x":0.4905,"y":0.7800,"cx":0.7005,"cy":0.98768},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"limp"},
-	], mess_tex)
+	], mess_tex, _messenger_portrait_ctrl, "res://assets/characters/messenger/messenger_portrait.png")
 	_messenger_obs.all_recorded.connect(_on_messenger_all_recorded)
 	_messenger_obs.clue_recorded.connect(_on_collect_clue.bind("messenger"))
 	_messenger_obs.hotspot_clicked.connect(_on_obs_hotspot_to_tool)

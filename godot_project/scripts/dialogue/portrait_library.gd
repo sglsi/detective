@@ -83,7 +83,7 @@ const NPC_BUSTS := {
 	"卡彭蒂耶中尉": "res://assets/characters/lieutenant_carpentier/carpentier_bust.png",
 	"送牛奶的孩子": "res://assets/characters/milk_boy/milkboy_bust.png",
 	"伪装者": "res://assets/characters/old_woman/oldwoman_bust.png",
-	"信使": "res://assets/characters/messenger/messenger_portrait.png",
+	"信使": "res://assets/characters/messenger/messenger_head.png",
 	"人事官员": "res://assets/characters/recorder/recorder_bust.png",
 	"斯坦格森": "res://assets/characters/stangerson/stangerson_bust.png",
 	# —— 别名 / 缺失角色兜底 ——

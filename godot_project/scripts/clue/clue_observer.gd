@@ -2,7 +2,7 @@ extends Node
 class_name ClueObserver
 
 const ClueImageAnchors = preload("res://data/clue_image_anchors.gd")
-const ClueAnchorCard = preload("res://scripts/ui/clue_anchor_card.gd")
+const ClueHighlightCircle = preload("res://scripts/ui/clue_highlight_circle.gd")
 
 ## 可复用的线索收集模块 — 封装热点创建、放大观察、记录确认全流程
 ## 场景一中华生和信使两轮观察共享同一套代码，只传入不同的热点数据和回调即可
@@ -29,14 +29,19 @@ var _parent: Control
 var _text_lbl: Label
 var _speaker_lbl: Label
 var _portrait_texture: Texture2D = null
+var _portrait_ctrl: Control = null        # 对应角色立绘控件（圆圈叠加其上）
+var _portrait_img_path: String = ""       # 立绘图的资源路径，用于查锚点算圆圈坐标
 
 func setup(parent: Control, text_lbl: Label, speaker_lbl: Label,
-			hotspots: Array, portrait_tex: Texture2D = null) -> void:
+			hotspots: Array, portrait_tex: Texture2D = null,
+			portrait_ctrl: Control = null, portrait_img_path: String = "") -> void:
 	_parent = parent
 	_text_lbl = text_lbl
 	_speaker_lbl = speaker_lbl
 	_hotspots = hotspots
 	_portrait_texture = portrait_tex
+	_portrait_ctrl = portrait_ctrl
+	_portrait_img_path = portrait_img_path
 	_create_buttons()
 	# 计算必点总数（silent 线索不计入完成条件，仅作可选奖励）
 	_required_total = 0
@@ -158,117 +163,57 @@ func _on_hotspot(clue_id: String, desc: String) -> void:
 	if not _active: return
 	# 已记录过的线索不再响应（防重复记录）
 	if _recorded_ids.has(clue_id): return
-	# 已有放大层打开时忽略其他热点点击（防止叠加多层遮罩——
-	# _clear_observation_layer 只清一组节点，叠加层的残留 obs_dim 会
-	# 全屏拦截鼠标，表现为「点哪都没反应」的卡死）
-	if _parent.find_child("obs_dim", true, false): return
 	hotspot_clicked.emit(clue_id)
 
 	# 隐藏该热点按钮
 	hide_button_by_id(clue_id)
 
-	# 弹出放大观察层
-	_show_observation_layer(clue_id, desc)
+	# 在立绘相关部位画高亮圆圈（替代原「文字 + 文本框 / 放大卡」）
+	_mark_clue_at_anchor(clue_id)
+	# 直接记录线索（去除弹窗与文字）
+	_record(clue_id, desc)
 
-func _show_observation_layer(clue_id: String, desc: String) -> void:
-	# 半透明遮罩
-	var dim = ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.5)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.name = "obs_dim"
-	_parent.add_child(dim)
-
-	# 取该线索的元信息（标题 / 关联图片 / 锚点部位）
-	var hs_meta: Dictionary = {}
+## 在对应角色立绘的相关部位画一个高亮圆圈（替代原「文字 + 文本框 / 放大卡」）。
+## 圆圈叠加在 _portrait_ctrl 之上，依据立绘 contain 显示区 + 锚点（基于立绘图本身）定位，
+## 与显示缩放无关；低透明不拦截鼠标。
+func _mark_clue_at_anchor(clue_id: String) -> void:
+	if _portrait_ctrl == null or _portrait_img_path == "":
+		return
+	# 取该线索的锚点名称
+	var anchor_name: String = ""
 	for hs in _hotspots:
 		if hs["id"] == clue_id:
-			hs_meta = hs
+			anchor_name = hs.get("anchor", "")
 			break
-	var disp_img: String = hs_meta.get("image", "")
-	if disp_img == "" and _portrait_texture != null:
-		disp_img = _portrait_texture.resource_path
-	var anchor_name: String = hs_meta.get("anchor", "")
-	var anchor: Dictionary = {}
-	if disp_img != "" and anchor_name != "":
-		anchor = ClueImageAnchors.get_anchor(disp_img, anchor_name)
-	var title: String = hs_meta.get("label", clue_id)
+	var a: Dictionary = ClueImageAnchors.get_anchor(_portrait_img_path, anchor_name)
+	if a.is_empty():
+		return
+	var tex: Texture2D = load(_portrait_img_path)
+	if tex == null:
+		return
+	# 与 _make_portrait 一致的 contain 显示区（局部于立绘控件坐标系）
+	var tw := float(tex.get_width())
+	var th := float(tex.get_height())
+	var box := _portrait_ctrl.size - Vector2(12, 12)
+	var sc: float = min(box.x / tw, box.y / th)
+	var dw: float = tw * sc
+	var dh: float = th * sc
+	var img_pos := Vector2(6, 6) + (box - Vector2(dw, dh)) * 0.5
+	var img_size := Vector2(dw, dh)
+	# 锚点中心映射到显示区（局部坐标）
+	var cx := img_pos.x + float(a["cx"]) * img_size.x
+	var cy := img_pos.y + float(a["cy"]) * img_size.y
+	# 圆圈半径：覆盖锚点框（取显示区上半宽/半高最大值，略留白）
+	var rx := float(a["w"]) * img_size.x * 0.5
+	var ry := float(a["h"]) * img_size.y * 0.5
+	var r: float = max(rx, ry) * 1.12
+	var circle = ClueHighlightCircle.new()
+	circle.setup(Vector2(cx, cy), r)
+	circle.name = "hl_" + clue_id
+	_portrait_ctrl.add_child(circle)
 
-	# 头部标题
-	var head = Label.new()
-	head.text = "🔍 观察线索：" + title
-	head.add_theme_font_size_override("font_size", 24)
-	head.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45))
-	head.position = Vector2(260, 20); head.size = Vector2(900, 40)
-	head.name = "obs_title"
-	_parent.add_child(head)
 
-	# 左侧：整图（若有锚点则在部位上画金框），让玩家看清「这是华生的哪个部位」
-	var tex: Texture2D = null
-	if disp_img != "" and ResourceLoader.exists(disp_img):
-		tex = load(disp_img)
-	elif _portrait_texture != null:
-		tex = _portrait_texture
-	if tex != null:
-		var full = TextureRect.new()
-		full.name = "obs_img"
-		var box_pos := Vector2(260, 80)
-		var box_size := Vector2(360, 480)
-		# 等比 contain（同 _make_portrait）：本 Godot 4.7 构建 expand_mode=2 实测会把 size 重算成正方形，
-		# 故用 EXPAND_IGNORE_SIZE(=1) 让手动计算的 contain 尺寸生效。
-		var tw := float(tex.get_width())
-		var th := float(tex.get_height())
-		var sc: float = min(box_size.x / tw, box_size.y / th)
-		var dw: float = tw * sc
-		var dh: float = th * sc
-		full.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		full.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		full.size = Vector2(dw, dh)
-		full.position = box_pos + (box_size - Vector2(dw, dh)) * 0.5
-		full.texture = tex
-		_parent.add_child(full)
-		if not anchor.is_empty():
-			ClueAnchorCard.draw_highlight(_parent, box_pos, box_size, tex, anchor, anchor_name)
-
-	# 右侧：线索锚点卡片（部位放大裁剪 + 文字）—— 线索与身体部位同卡绑定，不再「旁边几个字」
-	var card_img: String = disp_img
-	if card_img == "" and _portrait_texture != null:
-		card_img = _portrait_texture.resource_path
-	var card = ClueAnchorCard.new()
-	card.setup_card(card_img, anchor_name, title, desc, 560, 540)
-	card.name = "obs_card"
-	card.position = Vector2(660, 80)
-	_parent.add_child(card)
-
-	# Step 3 记录按钮
-	var cf = Button.new()
-	cf.text = "Step 3 记录"
-	cf.position = Vector2(660, 640); cf.size = Vector2(240, 55)
-	cf.add_theme_font_size_override("font_size", 22)
-	cf.name = "obs_confirm"
-	cf.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))
-	var sb = StyleBoxFlat.new()
-	sb.bg_color = Color(0.50, 0.10, 0.10, 0.95)
-	sb.border_color = Color(0.85, 0.65, 0.25)
-	sb.border_width_left = 2; sb.border_width_right = 2
-	sb.border_width_top = 2; sb.border_width_bottom = 2
-	sb.set_corner_radius_all(4)
-	cf.add_theme_stylebox_override("normal", sb)
-	cf.pressed.connect(func(): _on_record(clue_id, desc))
-	_parent.add_child(cf)
-
-func _clear_observation_layer() -> void:
-	# 清掉「所有」同名残留（而非只清第一个）：若历史上曾叠加出多层观察层，
-	# 残留的全屏 obs_dim 会永远拦截鼠标点击，表现为整个场景卡死。
-	for name in ["obs_dim", "obs_img", "obs_title", "obs_desc", "obs_confirm",
-			"obs_card", "ClueAnchorHL", "ClueAnchorHL_lab"]:
-		while true:
-			var n = _parent.find_child(name, true, false)
-			if not n: break
-			n.name = name + "_dying"  # 立即改名，防止 queue_free 生效前被重复命中
-			n.queue_free()
-
-func _on_record(clue_id: String, desc: String) -> void:
-	_clear_observation_layer()
+func _record(clue_id: String, desc: String) -> void:
 	# 去重守卫：同一线索绝不重复计数（重复会导致 _recorded 虚增、
 	# all_recorded 提前触发或重复触发，破坏场景阶段推进）
 	if _recorded_ids.has(clue_id):
