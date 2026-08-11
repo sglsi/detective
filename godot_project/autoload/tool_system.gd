@@ -56,8 +56,9 @@ func _seed_combinations() -> void:
 		"magnifier+C_SOTCB_702": "放大镜下：脸上 RACHE 字迹与第一案墙上相似——两案共同铁证",
 		"directory+C_SOTCB_706": "黄页/电报核查：J.H.现欧洲——J.H.=杰弗森·霍普？",
 		"rope+C_SOTCB_703": "绳索痕迹：窗沿摩擦痕显示凶手以绳类固定身体翻窗而下",
-		# —— 通用兜底（命中即给通用发现）——
-		"handcuffs+suspect": "嫌疑人已被制服",
+	# —— 通用兜底（命中即给通用发现）——
+	"magnifier+blood": "发现血型信息：AB型，Rh阴性",
+	"handcuffs+suspect": "嫌疑人已被制服",
 		"plaster+footprint": "石膏翻模完成，可比对鞋底花纹",
 		"directory+name": "查得住址与职业信息",
 		"newspaper+article": "发现同期悬赏启事，暗合案情",

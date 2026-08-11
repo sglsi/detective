@@ -118,10 +118,17 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 		if tex != null:
 			_speaker_portrait.texture = tex
 			_speaker_portrait.show()
+			# 手动算 contain 进 220x220 框（EXPAND_IGNORE_SIZE 让 size 生效；expand_mode=2 会正方形化）
+			var tw := float(tex.get_width())
+			var th := float(tex.get_height())
+			var box := Vector2(220, 220)
+			var sc: float = min(box.x / tw, box.y / th)
+			var dw: float = tw * sc
+			var dh: float = th * sc
+			_speaker_portrait.size = Vector2(dw, dh)
 			match pos:
-				POS_BL:  # 福尔摩斯：立绘在框内左侧(220x220)，名字框与正文在右侧、名字在正文上方（左对齐）
-					_speaker_portrait.position = Vector2(15, 5)
-					_speaker_portrait.size = Vector2(220, 220)
+				POS_BL:  # 福尔摩斯：立绘在框内左侧(220x220)居中，名字框与正文在右侧、名字在正文上方（左对齐）
+					_speaker_portrait.position = Vector2(15, 5) + (box - Vector2(dw, dh)) * 0.5
 					if _name_panel:
 						_name_panel.show()
 						_name_panel.position = Vector2(250, 8)
@@ -132,9 +139,8 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 					if _dialogue_label:
 						_dialogue_label.position = Vector2(250, 50)
 						_dialogue_label.size = Vector2(1650, 168)
-				POS_TR:  # 其他人物：立绘在框内右侧(220x220)，名字框与正文在左侧、名字在正文上方（右对齐）
-					_speaker_portrait.position = Vector2(1920 - 15 - 220, 5)
-					_speaker_portrait.size = Vector2(220, 220)
+				POS_TR:  # 其他人物：立绘在框内右侧(220x220)居中，名字框与正文在左侧、名字在正文上方（右对齐）
+					_speaker_portrait.position = Vector2(1920 - 15 - 220, 5) + (box - Vector2(dw, dh)) * 0.5
 					if _name_panel:
 						_name_panel.show()
 						_name_panel.position = Vector2(20, 8)
@@ -583,6 +589,8 @@ func _build_dialogue_bar() -> void:
 	_speaker_portrait.position = Vector2(15, 5)   # 默认在框内（_apply_dialogue 会按角色左右重定位），尺寸 220x220
 	_speaker_portrait.size = Vector2(220, 220)
 	_speaker_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# 同 _make_portrait：本 Godot 4.7 构建中 expand_mode=2 会把 size 重算成正方形，
+	# 改用 EXPAND_IGNORE_SIZE(=1)，实际显示尺寸在 _apply_dialogue 设纹理时手动算 contain。
 	_speaker_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_speaker_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_speaker_portrait.visible = false
@@ -688,11 +696,21 @@ func _make_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vecto
 	# 图片
 	var img = TextureRect.new()
 	img.name = "img"
-	img.texture = tex
 	img.flip_h = flip
-	img.position = Vector2(6, 6); img.size = size - Vector2(12, 12)
-	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# 等比 contain：本 Godot 4.7 构建 expand_mode 枚举语义反转，FIT_* 名字与效果相反，
+	# 隐藏数字 2 实测会把 size 重算成正方形（竖图被压成中间窄条）。故改用手动算 contain：
+	# 用 EXPAND_IGNORE_SIZE(=1) 让「手动计算的 contain 尺寸」生效，配 STRETCH_KEEP_ASPECT_CENTERED 居中。
+	var tw := float(tex.get_width())
+	var th := float(tex.get_height())
+	var box := size - Vector2(12, 12)
+	var sc: float = min(box.x / tw, box.y / th)
+	var dw: float = tw * sc
+	var dh: float = th * sc
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	img.size = Vector2(dw, dh)
+	img.position = Vector2(6, 6) + (box - Vector2(dw, dh)) * 0.5
+	img.texture = tex
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	port.add_child(img)
 	_mag_portraits.append(img)   # 供放大镜放大立绘纹理（立绘在上层，命中立绘优先于背景）
