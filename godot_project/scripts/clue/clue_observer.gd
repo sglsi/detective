@@ -211,13 +211,23 @@ func _show_observation_layer(clue_id: String, desc: String) -> void:
 	if tex != null:
 		var full = TextureRect.new()
 		full.name = "obs_img"
-		full.texture = tex
-		full.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var box_pos := Vector2(260, 80)
+		var box_size := Vector2(360, 480)
+		# 等比 contain（同 _make_portrait）：本 Godot 4.7 构建 expand_mode=2 实测会把 size 重算成正方形，
+		# 故用 EXPAND_IGNORE_SIZE(=1) 让手动计算的 contain 尺寸生效。
+		var tw := float(tex.get_width())
+		var th := float(tex.get_height())
+		var sc: float = min(box_size.x / tw, box_size.y / th)
+		var dw: float = tw * sc
+		var dh: float = th * sc
 		full.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		full.position = Vector2(260, 80); full.size = Vector2(360, 480)
+		full.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		full.size = Vector2(dw, dh)
+		full.position = box_pos + (box_size - Vector2(dw, dh)) * 0.5
+		full.texture = tex
 		_parent.add_child(full)
 		if not anchor.is_empty():
-			ClueAnchorCard.draw_highlight(_parent, Vector2(260, 80), Vector2(360, 480), tex, anchor, anchor_name)
+			ClueAnchorCard.draw_highlight(_parent, box_pos, box_size, tex, anchor, anchor_name)
 
 	# 右侧：线索锚点卡片（部位放大裁剪 + 文字）—— 线索与身体部位同卡绑定，不再「旁边几个字」
 	var card_img: String = disp_img

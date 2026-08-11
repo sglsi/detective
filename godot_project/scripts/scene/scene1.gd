@@ -142,9 +142,11 @@ func _build_ui() -> void:
 	# 信使立绘（默认隐藏，MESSENGER_OBSERVE 阶段显示）
 	var mtex = load("res://assets/characters/messenger/messenger_portrait.png")
 	if mtex:
-		# 新全身像放到壁炉左侧、凳子前面，脚底落在地板上
-		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(520, 530), Vector2(200, 596), false)
-		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false
+		# 原图 643x1916（竖图，宽高比 0.3356）。_make_portrait 已修渲染 bug：
+		# 用 EXPAND_IGNORE_SIZE + 手动 contain，不再是被压成正方形的畸形。
+		# 放大到 220x632（显示 208x620），置于场景右侧与华生左右呼应，脚底屏幕 y≈842 不超界、不被对话栏遮挡。
+		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(1300, 160), Vector2(220, 632), false)
+		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false  # MESSENGER_OBSERVE 阶段才显示（_start_messenger_phase）
 
 ## 场景一用 UI 内部对话标签渲染观察层，不需要占位标签
 func _create_dummy_labels() -> void:
@@ -175,18 +177,18 @@ func _create_observers() -> void:
 	_messenger_obs = ClueObserver.new(); _messenger_obs.name = "messenger_observer"; add_child(_messenger_obs)
 	var mess_tex = load("res://assets/characters/messenger/messenger_portrait.png")
 	_messenger_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, [
-		# 热点位置与新全身立绘 520,530/200,596（累计右移+350、下移+280）对齐，观察时仍用 spritesheet 细节图
-		{"id":"tattoo","label":"手背锚文身","x":560,"y":910,"w":90,"h":40,"desc":"蓝色锚形文身 -> 海军标志","correct":true,
+		# 热点位置与新全身立绘 560,343/150,447（等比 0.75）对齐，观察时仍用 spritesheet 细节图
+		{"id":"tattoo","label":"手背锚文身","x":590,"y":628,"w":68,"h":30,"desc":"蓝色锚形文身 -> 海军标志","correct":true,
 		 "crop":{"x":0.16,"y":0.39,"cx":0.46,"cy":0.59},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"tattoo"},
-		{"id":"beard","label":"络腮胡须","x":570,"y":690,"w":90,"h":45,"desc":"军人式络腮胡 -> 军队常见","correct":true,
+		{"id":"beard","label":"络腮胡须","x":598,"y":463,"w":68,"h":34,"desc":"军人式络腮胡 -> 军队常见","correct":true,
 		 "crop":{"x":0.36884,"y":0.1568,"cx":0.59970,"cy":0.3408},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"beard"},
-		{"id":"posture","label":"笔挺站姿","x":550,"y":850,"w":100,"h":55,"desc":"昂首挺胸 -> 军事训练","correct":true,
+		{"id":"posture","label":"笔挺站姿","x":583,"y":583,"w":75,"h":41,"desc":"昂首挺胸 -> 军事训练","correct":true,
 		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"posture"},
-		{"id":"manner","label":"发号施令","x":565,"y":630,"w":95,"h":45,"desc":"发号施令 -> 军士/士官","correct":true,
+		{"id":"manner","label":"发号施令","x":594,"y":418,"w":71,"h":34,"desc":"发号施令 -> 军士/士官","correct":true,
 		 "crop":{"x":0.35698,"y":0.0855,"cx":0.60997,"cy":0.3500},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"manner"},
-		{"id":"sleeve","label":"袖口磨损","x":615,"y":810,"w":80,"h":40,"desc":"袖口磨损 -> 干扰:衣服旧了","correct":false,
+		{"id":"sleeve","label":"袖口磨损","x":631,"y":553,"w":60,"h":30,"desc":"袖口磨损 -> 干扰:衣服旧了","correct":false,
 		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"sleeve"},
-		{"id":"limp","label":"走路略跛","x":570,"y":1040,"w":90,"h":45,"desc":"右腿略跛 -> 干扰:扭伤","correct":false,
+		{"id":"limp","label":"走路略跛","x":598,"y":726,"w":68,"h":34,"desc":"右腿略跛 -> 干扰:扭伤","correct":false,
 		 "crop":{"x":0.4905,"y":0.7800,"cx":0.7005,"cy":0.98768},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"limp"},
 	], mess_tex)
 	_messenger_obs.all_recorded.connect(_on_messenger_all_recorded)
