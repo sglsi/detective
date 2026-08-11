@@ -52,3 +52,7 @@ magtest/
 
 # ===== 超分临时产物（从 git 恢复的原始图 / 对比图，非源码）=====
 godot_project/tools/models/_*.png
+
+# ===== 手动测试产生的垃圾（他人本地截图/错误日志/录屏目录，非源码）=====
+godot_project/tools/ck_*
+godot_project/tools/shots/

@@ -49,7 +49,7 @@ func _ready() -> void:
 
 	# 6. 测试收集最后一个 → all_recorded 触发
 	obs._recorded = 4
-	obs._on_record("face", "面色黝黑")
+	obs._record("face", "面色黝黑")
 	print("[Test] 全收后 recorded=", obs.get_recorded(), " 应触发 all_recorded")
 
 	print("========== 验证完成 ==========")
