@@ -437,6 +437,7 @@ func _show_watson_reasoning_wall() -> void:
 	, Callable(self, "_resume_observe"))
 
 func _start_messenger_phase() -> void:
+	if _ui: _ui.reset_camera()   # 华生→信使切换：先归位摄像机，避免残留华生推近放大态挡住信使立绘/操作
 	if _ui: _ui.set_camera_enabled(false)   # 信使对话阶段禁用摄像机
 	# 对齐 08 稿 v3.16.0 §阶段2信使到访（L395-416）
 	_phase = Phase.MESSENGER_OBSERVE; _messenger_obs.show()

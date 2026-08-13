@@ -369,8 +369,12 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# 墙销毁时自动清空单例引用，保证下次「思考」能正确开关
 	wall.tree_exiting.connect(func():
 		if _wall_instance == wall: _wall_instance = null
-		# 墙关闭（返回探索 或 验证后过渡）：恢复摄像机（过渡时旧场景即将被替换，无害）
-		if _ui: _ui.set_camera_enabled(true)
+		# 墙关闭（返回探索 或 验证后过渡）：恢复摄像机并归位到统览态。
+		# 根治「观察推近后开墙/验证」残留放大态，导致下一阶段看不到场景
+		# （场景一华生→信使同款 bug：华生推近后切信使，镜头停在放大态挡住信使立绘）。
+		if _ui:
+			_ui.set_camera_enabled(true)
+			_ui.reset_camera()
 	)
 	_wall_instance = wall
 	if _toolbar: _toolbar.hide_toolbar()   # 确保墙置顶、不被工具栏 CanvasLayer(layer 128) 遮挡
@@ -627,8 +631,12 @@ func _start_dialogue(nodes: Array[Resource], start: String, on_end: Callable, st
 
 ## 对话结束统一处理：先恢复摄像机（回到可观察状态），再执行场景自定义的 on_end。
 ## 推理墙/评分等会自行再次禁用摄像机，故此处无条件恢复是安全的。
+## 额外安全网：对话结束一律 reset_camera() 归位到统览态（zoom=1, position=0），
+## 杜绝「观察推近后残留放大态」导致下一阶段/场景看不到内容（场景一华生→信使同款 bug）。
 func _on_dialogue_ended_base(on_end: Callable) -> void:
-	if _ui: _ui.set_camera_enabled(true)
+	if _ui:
+		_ui.set_camera_enabled(true)
+		_ui.reset_camera()
 	if on_end.is_valid(): on_end.call()
 
 func _on_line(_id: String) -> void:
