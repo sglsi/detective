@@ -3,6 +3,7 @@ class_name ClueObserver
 
 const ClueImageAnchors = preload("res://data/clue_image_anchors.gd")
 const ClueHighlightCircle = preload("res://scripts/ui/clue_highlight_circle.gd")
+const CLUE_HINT_RADIUS: float = 26.0   # 线索提示圆圈统一半径（与锚点框大小无关，仅作提示，避免大小不一）
 
 ## 可复用的线索收集模块 — 封装热点创建、放大观察、记录确认全流程
 ## 场景一中华生和信使两轮观察共享同一套代码，只传入不同的热点数据和回调即可
@@ -31,6 +32,10 @@ var _speaker_lbl: Label
 var _portrait_texture: Texture2D = null
 var _portrait_ctrl: Control = null        # 对应角色立绘控件（圆圈叠加其上）
 var _portrait_img_path: String = ""       # 立绘图的资源路径，用于查锚点算圆圈坐标
+# M2.x：摄像机世界层（地点类线索命中区/提示圈挂此，随缩放平移变换）与
+# 「场景根→世界局部」偏移（=_scene_area.position），用于坐标换算。
+var _world_layer: Control = null
+var _world_offset: Vector2 = Vector2.ZERO
 
 # 放大观察弹窗状态（Q4：点击部位 -> 弹放大图+底部说明文字 -> 再点/按键退出并才记录）
 var _zoomed := false
@@ -40,7 +45,8 @@ var _zoom_desc := ""
 
 func setup(parent: Control, text_lbl: Label, speaker_lbl: Label,
 			hotspots: Array, portrait_tex: Texture2D = null,
-			portrait_ctrl: Control = null, portrait_img_path: String = "") -> void:
+			portrait_ctrl: Control = null, portrait_img_path: String = "",
+			world_layer: Control = null, world_offset: Vector2 = Vector2.ZERO) -> void:
 	_parent = parent
 	_text_lbl = text_lbl
 	_speaker_lbl = speaker_lbl
@@ -48,6 +54,8 @@ func setup(parent: Control, text_lbl: Label, speaker_lbl: Label,
 	_portrait_texture = portrait_tex
 	_portrait_ctrl = portrait_ctrl
 	_portrait_img_path = portrait_img_path
+	_world_layer = world_layer
+	_world_offset = world_offset
 	_create_buttons()
 	# 计算必点总数（silent 线索不计入完成条件，仅作可选奖励）
 	_required_total = 0
@@ -71,22 +79,34 @@ func _is_simple_mode() -> bool:
 	return DifficultyManager != null and DifficultyManager.current_difficulty == DifficultyManager.Difficulty.EASY
 
 func _create_buttons() -> void:
-	# 热点按钮 = 透明点击区（仅命中人物部位，不显示任何文字/边框）；
-	# 视觉提示改用「高亮圆圈」，在 show() 时按难度分级直接画到立绘上。
+	# 可点击命中区与「高亮圆圈」同处立绘控件(_portrait_ctrl)之上、用同一锚点数学定位，
+	# 让玩家点击圆圈（人物部位）即触发观察 —— 解决此前「圆圈在立绘、命中区在视口别处」的错位。
+	# 按钮透明无文字，仅作命中区域；视觉提示统一交给圆圈。无立绘锚点时退化为视口坐标按钮。
 	var style := _transparent_btn_style()
 	for hs in _hotspots:
 		var btn = Button.new()
 		btn.text = ""
 		btn.flat = true
-		btn.position = Vector2(hs["x"], hs["y"])
-		btn.size = Vector2(hs["w"], hs["h"])
 		btn.add_theme_stylebox_override("normal", style)
 		btn.add_theme_stylebox_override("hover", style)
 		btn.add_theme_stylebox_override("focus", style)
 		btn.add_theme_stylebox_override("pressed", style)
+		btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		btn.visible = false
 		btn.pressed.connect(_on_hotspot.bind(hs["id"], hs["desc"]))
-		_parent.add_child(btn)
+		if _portrait_ctrl != null:
+			_portrait_ctrl.add_child(btn)
+		else:
+			# 地点类：命中区挂入摄像机世界层(_world)，随缩放/平移与背景一起变换，
+			# 使「缩放后也能精准点地点类线索」。热点坐标定义在场景根系，减 _world_offset
+			# 转世界局部系，scale=1 时屏幕位置与改动前完全一致（无回归）。
+			btn.position = Vector2(float(hs.get("x", 0.0)), float(hs.get("y", 0.0))) - _world_offset
+			btn.size = Vector2(float(hs.get("w", 0.0)), float(hs.get("h", 0.0)))
+			if _world_layer != null:
+				_world_layer.add_child(btn)
+			else:
+				# 兜底：无世界层时（非摄像机场景）退化为原视口坐标按钮
+				_parent.add_child(btn)
 		_btns.append(btn)
 
 func show() -> void:
@@ -97,6 +117,10 @@ func show() -> void:
 	for i in _hotspots.size():
 		if i < _btns.size():
 			_btns[i].visible = not _recorded_ids.has(_hotspots[i]["id"])
+	# 把可点击命中区定位到立绘上的锚点部位（与高亮圆圈同一坐标），
+	# 确保玩家点击圆圈即命中 —— 这是「点击圆圈无反应」的根治点。
+	if _portrait_ctrl != null:
+		_position_buttons()
 	# 进入观察即按难度在立绘上画出高亮圆圈（简单=亮圈、普通=淡圈、困难=无），
 	# 作为「这里有条线索」的提示，玩家点击高亮部位才弹放大图 + 说明文字。
 	_draw_initial_hints()
@@ -122,6 +146,15 @@ func hide_button_by_id(clue_id: String) -> void:
 ## 同时维护 _required_recorded（与正常记录路径一致，避免恢复后完成判定错位）。
 func mark_recorded(clue_id: String) -> void:
 	if _recorded_ids.has(clue_id): return
+	# 防御：线索必须在当前观察器热点内（难度过滤可能已移除该线索，
+	# 避免读旧难度存档时把不存在的线索计入，导致计数虚增）
+	var _found := false
+	for hs in _hotspots:
+		if hs["id"] == clue_id:
+			_found = true
+			break
+	if not _found:
+		return
 	_recorded_ids.append(clue_id)
 	_recorded += 1
 	for hs in _hotspots:
@@ -130,9 +163,6 @@ func mark_recorded(clue_id: String) -> void:
 				_required_recorded += 1
 			break
 	hide_button_by_id(clue_id)
-	# 读档即显示：恢复存档时在立绘对应部位重绘高亮圆圈（与正常观察点击路径一致），
-	# 确保玩家读档后立即可见「已收集线索标在人物哪」而不必重新点击。
-	_mark_clue_at_anchor(clue_id)
 	var hs_data: Dictionary = {"id": clue_id, "name": clue_id, "desc": "", "correct": true}
 	for hs in _hotspots:
 		if hs["id"] == clue_id:
@@ -183,43 +213,155 @@ func _on_hotspot(clue_id: String, desc: String) -> void:
 ##   intensity=1（普通提示）：半透明淡圈（仅提示可点击区域，玩家需自行辨认）
 ## 已存在同 id 圆圈则跳过（show() 提示 + close_zoom 收集 只画一次，避免叠加）。
 func _mark_clue_at_anchor(clue_id: String, intensity: int = 2) -> void:
-	if _portrait_ctrl == null or _portrait_img_path == "":
+	if _has_mark(clue_id):
 		return
-	if _portrait_ctrl.has_node("hl_" + clue_id):
+	if _portrait_ctrl != null and _portrait_img_path != "":
+		# 取该线索的锚点名称
+		var anchor_name: String = ""
+		for hs in _hotspots:
+			if hs["id"] == clue_id:
+				anchor_name = hs.get("anchor", "")
+				break
+		var a: Dictionary = ClueImageAnchors.get_anchor(_portrait_img_path, anchor_name)
+		if a.is_empty():
+			return
+		var tex: Texture2D = load(_portrait_img_path)
+		if tex == null:
+			return
+		# 与 _make_portrait 一致的 contain 显示区（局部于立绘控件坐标系）
+		var tw := float(tex.get_width())
+		var th := float(tex.get_height())
+		var box := _portrait_ctrl.size - Vector2(12, 12)
+		var sc: float = min(box.x / tw, box.y / th)
+		var dw: float = tw * sc
+		var dh: float = th * sc
+		var img_pos := Vector2(6, 6) + (box - Vector2(dw, dh)) * 0.5
+		var img_size := Vector2(dw, dh)
+		# 锚点中心映射到显示区（局部坐标）
+		var cx := img_pos.x + float(a["cx"]) * img_size.x
+		var cy := img_pos.y + float(a["cy"]) * img_size.y
+		# 圆圈半径：统一为固定小半径，仅作提示（不再随锚点框大小变化，避免大小不一）
+		var r: float = CLUE_HINT_RADIUS
+		var col := Color(0.98, 0.82, 0.30, 1.0) if intensity >= 2 else Color(0.98, 0.82, 0.30, 0.5)
+		var circle = ClueHighlightCircle.new()
+		circle.setup(Vector2(cx, cy), r, col)
+		circle.name = "hl_" + clue_id
+		_portrait_ctrl.add_child(circle)
 		return
-	# 取该线索的锚点名称
-	var anchor_name: String = ""
+	# 地点类：在 _world 层热点中心画小金圈（与命中区重合，随相机缩放/平移一起变换）
+	if _world_layer == null:
+		return
+	var hs_d: Dictionary = {}
 	for hs in _hotspots:
 		if hs["id"] == clue_id:
-			anchor_name = hs.get("anchor", "")
+			hs_d = hs
 			break
+	if hs_d.is_empty():
+		return
+	var cx0 := float(hs_d.get("x", 0.0)) - _world_offset.x + float(hs_d.get("w", 0.0)) * 0.5
+	var cy0 := float(hs_d.get("y", 0.0)) - _world_offset.y + float(hs_d.get("h", 0.0)) * 0.5
+	var col2 := Color(0.98, 0.82, 0.30, 1.0) if intensity >= 2 else Color(0.98, 0.82, 0.30, 0.5)
+	var circle2 = ClueHighlightCircle.new()
+	circle2.setup(Vector2(cx0, cy0), CLUE_HINT_RADIUS, col2)
+	circle2.name = "hl_" + clue_id
+	_world_layer.add_child(circle2)
+
+## 某线索的高亮圆圈是否已存在（角色立绘层 或 世界层任一）
+func _has_mark(cid: String) -> bool:
+	if _portrait_ctrl != null and _portrait_ctrl.has_node("hl_" + cid):
+		return true
+	if _world_layer != null and _world_layer.has_node("hl_" + cid):
+		return true
+	return false
+
+## 移除某线索的高亮圆圈（线索被收集后调用，提示圆圈即消失）。
+## 同时清理角色立绘层(_portrait_ctrl)与世界层(_world_layer)两处，覆盖地点类分支。
+func _remove_clue_circle(clue_id: String) -> void:
+	for parent in [_portrait_ctrl, _world_layer]:
+		if parent == null:
+			continue
+		var c = parent.get_node_or_null("hl_" + clue_id)
+		if c != null:
+			c.queue_free()
+
+## 计算某锚点对应人物部位在立绘控件(_portrait_ctrl)局部坐标系中的矩形（命中区/圆圈共用）。
+## 与 _mark_clue_at_anchor 完全一致的坐标推导，确保「可点击区」与「高亮圆圈」重合。
+func _anchor_local_rect(anchor_name: String) -> Rect2:
+	if _portrait_ctrl == null or _portrait_img_path == "":
+		return Rect2()
 	var a: Dictionary = ClueImageAnchors.get_anchor(_portrait_img_path, anchor_name)
 	if a.is_empty():
-		return
+		return Rect2()
 	var tex: Texture2D = load(_portrait_img_path)
 	if tex == null:
-		return
-	# 与 _make_portrait 一致的 contain 显示区（局部于立绘控件坐标系）
+		return Rect2()
 	var tw := float(tex.get_width())
 	var th := float(tex.get_height())
 	var box := _portrait_ctrl.size - Vector2(12, 12)
+	if box.x <= 0 or box.y <= 0:
+		return Rect2()
 	var sc: float = min(box.x / tw, box.y / th)
 	var dw: float = tw * sc
 	var dh: float = th * sc
 	var img_pos := Vector2(6, 6) + (box - Vector2(dw, dh)) * 0.5
 	var img_size := Vector2(dw, dh)
-	# 锚点中心映射到显示区（局部坐标）
 	var cx := img_pos.x + float(a["cx"]) * img_size.x
 	var cy := img_pos.y + float(a["cy"]) * img_size.y
-	# 圆圈半径：覆盖锚点框（取显示区上半宽/半高最大值，略留白）
 	var rx := float(a["w"]) * img_size.x * 0.5
 	var ry := float(a["h"]) * img_size.y * 0.5
 	var r: float = max(rx, ry) * 1.12
-	var col := Color(0.98, 0.82, 0.30, 1.0) if intensity >= 2 else Color(0.98, 0.82, 0.30, 0.5)
-	var circle = ClueHighlightCircle.new()
-	circle.setup(Vector2(cx, cy), r, col)
-	circle.name = "hl_" + clue_id
-	_portrait_ctrl.add_child(circle)
+	# 命中区略大于圆圈，便于点击（半径至少 30px）
+	var half: float = max(r, 30.0)
+	return Rect2(cx - half, cy - half, half * 2.0, half * 2.0)
+
+## 返回某线索对应人物部位在「世界层」局部坐标系中的中心点（供摄像机点线索推近）。
+## 与 _mark_clue_at_anchor 完全一致的坐标推导；返回立绘控件在 _world 中的位置 + 部位中心。
+## 找不到则返回 Vector2.ZERO。
+func get_clue_world_point(clue_id: String) -> Vector2:
+	if _portrait_ctrl != null and _portrait_img_path != "":
+		var anchor_name: String = ""
+		for hs in _hotspots:
+			if hs["id"] == clue_id:
+				anchor_name = hs.get("anchor", "")
+				break
+		var a: Dictionary = ClueImageAnchors.get_anchor(_portrait_img_path, anchor_name)
+		if a.is_empty():
+			return Vector2.ZERO
+		var tex: Texture2D = load(_portrait_img_path)
+		if tex == null:
+			return Vector2.ZERO
+		var tw := float(tex.get_width()); var th := float(tex.get_height())
+		var box := _portrait_ctrl.size - Vector2(12, 12)
+		var sc: float = min(box.x / tw, box.y / th)
+		var dw: float = tw * sc; var dh: float = th * sc
+		var img_pos := Vector2(6, 6) + (box - Vector2(dw, dh)) * 0.5
+		var cx := img_pos.x + float(a["cx"]) * dw
+		var cy := img_pos.y + float(a["cy"]) * dh
+		# _portrait_ctrl 是 _world 的子节点，其 position 即世界层局部坐标
+		return _portrait_ctrl.position + Vector2(cx, cy)
+	# 地点类：热点中心 → _world 局部系（供摄像机点线索推近，与命中区同一坐标）
+	if _world_layer == null:
+		return Vector2.ZERO
+	var hs_d: Dictionary = {}
+	for hs in _hotspots:
+		if hs["id"] == clue_id:
+			hs_d = hs
+			break
+	if hs_d.is_empty():
+		return Vector2.ZERO
+	var cx0 := float(hs_d.get("x", 0.0)) - _world_offset.x + float(hs_d.get("w", 0.0)) * 0.5
+	var cy0 := float(hs_d.get("y", 0.0)) - _world_offset.y + float(hs_d.get("h", 0.0)) * 0.5
+	return Vector2(cx0, cy0)
+
+## 把每个热点按钮定位到立绘上的锚点部位（与高亮圆圈同一局部坐标），
+## 使「可点击命中区」与「视觉高亮」重合。仅在 _portrait_ctrl 有效时调用（show 时尺寸已就绪）。
+func _position_buttons() -> void:
+	for i in _hotspots.size():
+		if i >= _btns.size(): break
+		var rect := _anchor_local_rect(_hotspots[i].get("anchor", ""))
+		if rect.size.x > 0 and rect.size.y > 0:
+			_btns[i].position = rect.position
+			_btns[i].size = rect.size
 
 ## 进入观察时按难度在立绘上画初始高亮圆圈（提示「这里有条线索」）。
 ## 简单(2)=亮圈 / 普通(1)=淡圈 / 困难(0)=无提示（玩家自行找部位点击）。
@@ -253,7 +395,9 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 		if hs["id"] == clue_id:
 			hs_d = hs
 			break
-	var img_path: String = hs_d.get("image", "")
+	# 放大图统一使用「屏上立绘」同一张图 + 同一套锚点（与高亮圆圈一致），
+	# 解决此前放大图用 spritesheet 裁切、圆圈用 portrait 锚点导致「点哪放哪」错位的问题。
+	var img_path: String = _portrait_img_path if _portrait_img_path != "" else hs_d.get("image", "")
 	var anchor_name: String = hs_d.get("anchor", "")
 	var title: String = hs_d.get("label", clue_id)
 
@@ -355,8 +499,8 @@ func _close_zoom() -> void:
 	if _zoom_popup != null:
 		_zoom_popup.queue_free()
 		_zoom_popup = null
-	# 在部位画高亮圆圈（标记已收集，与读档恢复行为一致），并正式记录
-	_mark_clue_at_anchor(cid)
+	# 线索已收集：移除该部位的高亮圆圈（点击后不再提示），并正式记录
+	_remove_clue_circle(cid)
 	_record(cid, desc)
 
 func _record(clue_id: String, desc: String) -> void:
