@@ -42,6 +42,11 @@ var _nav_btns: Dictionary = {}
 var _mag_bg: TextureRect = null
 var _mag_portraits: Array[TextureRect] = []
 
+# 摄像机/观察层：可缩放+平移的「世界子树」（背景+立绘+线索圈都挂这里），
+# 与对话框/工具栏/推理墙等 UI 分离 —— 缩放世界层时 UI 永远不变形。
+# 这是 Control 架构下对 Camera2D 的等价替代（Camera2D 只影响 Node2D，不作用于 Control）。
+var _world: Control = null
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_all()
@@ -56,8 +61,8 @@ func setup(location: String, time_str: String, bg_tex: Texture2D = null, portrai
 			add_portrait(p["texture"], p.get("name", ""), p.get("pos", Vector2(50, 350)), p.get("size", Vector2(280, 360)))
 
 func set_scene_background(tex: Texture2D) -> void:
-	if not _scene_area: return
-	var existing = _scene_area.find_child("scene_bg", true, false)
+	if not _world: return
+	var existing = _world.find_child("scene_bg", true, false)
 	if existing: existing.queue_free()
 	var bg = TextureRect.new()
 	bg.name = "scene_bg"
@@ -68,17 +73,22 @@ func set_scene_background(tex: Texture2D) -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# 背景置于最底层，确保迷雾/灯光层（z_index=-5）叠在背景之上、人物立绘（z=0）之下。
 	bg.z_index = -10
-	_scene_area.add_child(bg)
-	_scene_area.move_child(bg, 0)
+	_world.add_child(bg)
+	_world.move_child(bg, 0)
 	_mag_bg = bg   # 供放大镜直接放大背景纹理
 
 func add_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vector2, flip: bool = false) -> Control:
 	var port = _make_portrait(tex, name_text, pos, size, flip)
-	_scene_area.add_child(port)
+	_world.add_child(port)
 	_portraits.append(port)
 	return port
 
 func get_scene_area() -> Control: return _scene_area
+
+## M2.x：摄像机世界层与「场景根→世界局部」偏移，供地点类线索命中区/提示圈挂入，
+## 使其随缩放/平移与背景一起变换（缩放后仍能精准点）。_world 局部原点 = _scene_area 左上角。
+func get_world_layer() -> Control: return _world
+func get_world_offset() -> Vector2: return _scene_area.position
 
 # === 对话人物位置映射 ===
 # 需求：有福尔摩斯时福尔摩斯在左下角；其他人物在右上角。
@@ -542,6 +552,8 @@ func _build_scene_area() -> void:
 	_scene_area.position = Vector2(LEFT_W, TOP_H)
 	_scene_area.size = Vector2(1920 - LEFT_W, 1080 - TOP_H - DIALOGUE_H)
 	_scene_area.mouse_filter = Control.MOUSE_FILTER_PASS
+	# 裁切溢出：世界层缩放/平移超出视野时不侵入左侧栏/对话栏等 UI
+	_scene_area.clip_contents = true
 	add_child(_scene_area)
 
 	# 默认深色背景（z 必须低于 scene_bg 的 -10，否则会盖住背景图）
@@ -552,6 +564,16 @@ func _build_scene_area() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.z_index = -20
 	_scene_area.add_child(bg)
+
+	# 世界子树（摄像机作用对象）：背景 + 立绘 + 线索圈都挂在这里。
+	# 初始铺满 _scene_area、不缩放；缩放/平移由摄像机方法施加。
+	_world = Control.new()
+	_world.name = "world_layer"
+	_world.position = Vector2.ZERO
+	_world.size = _scene_area.size
+	_world.mouse_filter = Control.MOUSE_FILTER_PASS   # PASS：空白区点击落到 _unhandled_input（供拖拽平移），不拦截子节点命中
+	_world.z_index = 0
+	_scene_area.add_child(_world)
 
 # === 底部对话栏 ===
 
@@ -763,3 +785,85 @@ func get_saved_phase(scene_id: String) -> int:
 func get_saved_clue_ids() -> Array:
 	if not GameManager: return []
 	return GameManager.scene_state.get("clue_ids", []).duplicate()
+
+# ===== 摄像机 / 观察层（M1：统览 + 滚轮缩放 + 拖拽平移 + 点线索推近） =====
+# 缩放/平移作用于 _world（背景+立绘+线索圈），UI 层与之分离，故缩放时永不变形。
+# 这是 Control 架构下对 Camera2D 的等价替代（Camera2D 只影响 Node2D，不作用于 Control）。
+# 坐标系：_world 局部原点 = _scene_area 左上角；世界点 w 在屏幕上的局部坐标 s = _world.position + w * zoom。
+
+const CAM_ZOOM_MIN := 1.0        # 最小=统览全场景（背景正好铺满视野，不能再缩小）
+const CAM_ZOOM_MAX := 3.0        # 最大=推近看细节
+const CAM_OVERVIEW_ZOOM := 1.0
+var _camera_zoom := 1.0
+var _camera_enabled := true
+var _camera_panning := false
+var _camera_tween: Tween = null
+
+## 阶段开关：对话/推理墙阶段设为 false（避免滚轮/拖拽误触），观察阶段设为 true
+func set_camera_enabled(b: bool) -> void:
+	_camera_enabled = b
+	if not b:
+		_camera_panning = false
+
+## 平滑把摄像机移到「世界坐标 world_pt 居中、缩放 zoom」状态（点线索推近用）
+func focus_world_point(world_pt: Vector2, zoom: float) -> void:
+	if not _world: return
+	zoom = clamp(zoom, CAM_ZOOM_MIN, CAM_ZOOM_MAX)
+	var center_local := _scene_area.size * 0.5
+	var target_pos := center_local - world_pt * zoom
+	_tween_camera(target_pos, Vector2(zoom, zoom))
+
+## 回到统览态（zoom=1, position=0）
+func reset_camera() -> void:
+	if not _world: return
+	_tween_camera(Vector2.ZERO, Vector2(CAM_OVERVIEW_ZOOM, CAM_OVERVIEW_ZOOM))
+
+## Tab 切换：非统览态→回到统览；已在统览态→忽略
+func toggle_overview() -> void:
+	if not _world: return
+	if abs(_world.scale.x - CAM_OVERVIEW_ZOOM) < 0.02 and _world.position.is_equal_approx(Vector2.ZERO):
+		return
+	reset_camera()
+
+func _tween_camera(target_pos: Vector2, target_scale: Vector2) -> void:
+	if _camera_tween and _camera_tween.is_valid():
+		_camera_tween.kill()
+	_camera_tween = create_tween()
+	_camera_tween.set_parallel(true)
+	_camera_tween.tween_property(_world, "position", target_pos, 0.35).set_ease(Tween.EASE_OUT)
+	_camera_tween.tween_property(_world, "scale", target_scale, 0.35).set_ease(Tween.EASE_OUT)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _camera_enabled or not _world: return
+	if event is InputEventMouseButton:
+		var in_area := _scene_area.get_global_rect().has_point(get_global_mouse_position())
+		match event.button_index:
+			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
+				if not in_area: return
+				var local := get_global_mouse_position() - _scene_area.global_position
+				var factor := 1.12 if event.button_index == MOUSE_BUTTON_WHEEL_UP else (1.0 / 1.12)
+				_zoom_at(local, factor)
+			MOUSE_BUTTON_LEFT, MOUSE_BUTTON_MIDDLE, MOUSE_BUTTON_RIGHT:
+				# 左键拖拽：仅在观察阶段（_camera_enabled）生效，对话框/推理墙已禁用，不与点击推进冲突
+				if event.pressed:
+					_camera_panning = true
+				else:
+					_camera_panning = false
+	elif event is InputEventMouseMotion and _camera_panning:
+		_world.position += event.relative
+	elif event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_TAB:
+			toggle_overview()
+
+## 以场景区局部坐标 local_pt 为锚点缩放（鼠标在哪、放大哪）
+func _zoom_at(local_pt: Vector2, factor: float) -> void:
+	if _camera_tween and _camera_tween.is_valid():
+		_camera_tween.kill()
+	var z_old: float = _world.scale.x
+	var z_new: float = clamp(z_old * factor, CAM_ZOOM_MIN, CAM_ZOOM_MAX)
+	if abs(z_new - z_old) < 0.001:
+		return
+	# 缩放前落在指针下的世界点：w = (local_pt - position) / z_old
+	var w := (local_pt - _world.position) / z_old
+	_world.scale = Vector2(z_new, z_new)
+	_world.position = local_pt - w * z_new

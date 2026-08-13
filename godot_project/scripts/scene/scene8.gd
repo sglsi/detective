@@ -141,7 +141,10 @@ func _enter_arrival() -> void:
 		_mk_node("c5","系统","（咔嗒——手铐锁死。霍普怒吼挣脱，向窗子冲去，撞碎木框玻璃；葛莱森、雷斯垂德一拥而上，激烈搏斗后将其制伏）","guide",["c6"]),
 		_mk_node("c6","福尔摩斯","（喘着气，微笑）他的马车就在下面——就用他的马车送他去苏格兰场吧。在走之前，你有什么要说的吗？","click",["c7"]),
 		_mk_node("c7","霍普","（平静地笑了笑）我也许永远不会受到审讯了——我得了主动脉瘤症，过不了几天血瘤就要破裂。我愿意在死前把这件事交代明白。","clue",["c8"],[DIALOGUE_CLUES["C_SOTCB_803"]]),
-		_mk_node("c8","福尔摩斯","（拉过椅子坐下）霍普先生，我建议你从头讲起。你想问什么就问吧——他的时间不多了。","click",["end"]),
+		_mk_node("c8","福尔摩斯","（拉过椅子坐下）霍普先生，我建议你从头讲起。","click",["c8_e","c8_n","c8_h"]),
+	_mk_node("c8_e","福尔摩斯","（低声）让他把经过、动机、细节都讲出来——你从作案、动机、药丸三方向追问，每条都记下。","click",["c8_n"],[],"指导",1),
+	_mk_node("c8_n","福尔摩斯","（低声）让他从头讲。你从作案、动机、药丸三个方向追问。","click",["c8_h"],[],"指导",2),
+	_mk_node("c8_h","福尔摩斯","（拉过椅子坐下）……听他说，你自己判断哪些是真话。","click",["end"],[],"从容",3),
 	], "c0", _show_confession_panel)
 
 func _show_confession_panel() -> void:
@@ -183,7 +186,7 @@ func _confess_c() -> void:
 func _enter_observe() -> void:
 	_phase = Phase.OBSERVE
 	_obs.show()
-	_ui.set_dialogue("提示", "🔍 观察模式已开启。点击霍普身上的标记点（共 " + str(HOTSPOTS.size()) + " 处）。\n左侧 LOOK 可重新激活标记；收集完全部线索后打开推理墙。")
+	_ui.set_dialogue("提示", _observe_hint("霍普") + _observe_warn_suffix() + "\n左侧 LOOK 可重新激活标记；收集完全部线索后打开推理墙。")
 
 func _enter_reasoning() -> void:
 	_phase = Phase.REASONING; _wall_auto = true

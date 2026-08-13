@@ -130,7 +130,10 @@ func _create_observers() -> void:
 	var filtered_hotspots: Array = hotspots()
 	if DifficultyManager:
 		filtered_hotspots = DifficultyManager.filter_hotspots_by_difficulty(filtered_hotspots)
-	_obs.setup(self, _obs_text_lbl, _obs_speaker_lbl, filtered_hotspots, null)
+	# M2.x：把摄像机世界层 + 场景根→世界局部的偏移传入，使地点类线索命中区/提示圈
+	# 挂入 _world、随缩放平移变换（缩放后仍精准可点；点线索镜头也能推近）。
+	_obs.setup(self, _obs_text_lbl, _obs_speaker_lbl, filtered_hotspots, null, null, "",
+		_ui.get_world_layer() if _ui else null, _ui.get_world_offset() if _ui else Vector2.ZERO)
 	_obs.hotspot_clicked.connect(_on_hotspot_seen)
 	_obs.clue_recorded.connect(_on_clue_recorded)
 	_obs.all_recorded.connect(_on_all_done)
@@ -173,6 +176,13 @@ func _on_clue_recorded(_clue_id: String, _clue_data: Dictionary) -> void:
 		)
 	var total := hotspots().size()
 	_ui.show_notification("线索已记录：" + str(_clue_data.get("name", "")) + "（" + str(_clues.size()) + "/" + str(total) + "）")
+	# M2：记录线索后镜头推近到该部位（与场景一行为一致），强化「观察互动」。
+	# 仅在观察器能提供世界坐标时执行（无立绘/无锚点的场景返回 ZERO，自动跳过）。
+	var obs := _current_observer()
+	if _ui and obs and obs.has_method("get_clue_world_point"):
+		var wp := obs.get_clue_world_point(_clue_id)
+		if wp != Vector2.ZERO:
+			_ui.focus_world_point(wp, 2.2)
 
 ## 全部线索记录完成 → 进入推理（virtual：子类可加华生点评）
 func _on_all_done(_clues_arr: Array) -> void:
@@ -352,12 +362,15 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# #129 根因修复：推理墙是全屏 MOUSE_FILTER_STOP 浮层，会压住任何已开弹窗
 	# （如「知识检索」），使其关闭按钮点击无效。开墙前先关闭现有弹窗。
 	_close_modal()
+	if _ui: _ui.set_camera_enabled(false)   # 推理墙全屏覆盖，禁用摄像机平移/缩放
 	var rw = load("res://scripts/clue/reasoning_wall.gd")
 	if not rw: _ui.show_notification("推理墙模块未找到"); return
 	var wall = rw.new(); wall.name = "ReasoningWall"; add_child(wall)
 	# 墙销毁时自动清空单例引用，保证下次「思考」能正确开关
 	wall.tree_exiting.connect(func():
 		if _wall_instance == wall: _wall_instance = null
+		# 墙关闭（返回探索 或 验证后过渡）：恢复摄像机（过渡时旧场景即将被替换，无害）
+		if _ui: _ui.set_camera_enabled(true)
 	)
 	_wall_instance = wall
 	if _toolbar: _toolbar.hide_toolbar()   # 确保墙置顶、不被工具栏 CanvasLayer(layer 128) 遮挡
@@ -598,15 +611,25 @@ func _apply_restored_phase(_phase_val: int, _ids: Array, _clues_arr: Array) -> b
 
 # ===================== 对话引擎（通用） =====================
 ## 启动一段对话：复用/重建 DialogueManager，连接通用 _on_line 与给定结束回调。
-func _start_dialogue(nodes: Array[Resource], start: String, on_end: Callable) -> void:
+## 启动一段对话。start_e/start_n/start_h 分别指定三难度入口（缺省回退 start）；
+## 场景二~八据此让同一段对话按难度走不同链（scene1 已验证）。
+func _start_dialogue(nodes: Array[Resource], start: String, on_end: Callable, start_e: String = "", start_n: String = "", start_h: String = "") -> void:
 	if _dm:
 		if _dm.dialogue_advanced.is_connected(_on_line): _dm.dialogue_advanced.disconnect(_on_line)
 		_dm.queue_free()
 	_dm = DialogueManager.new(); add_child(_dm)
 	_dm.dialogue_advanced.connect(_on_line)
-	_dm.dialogue_ended.connect(on_end)
-	_dm.dialogue_resource = _make_dialogue_resource(scene_id() + "_dlg", nodes, start)
+	# M2：对话进行中禁用摄像机（避免点击推进与拖拽/缩放冲突），结束后由基类恢复
+	if _ui: _ui.set_camera_enabled(false)
+	_dm.dialogue_ended.connect(_on_dialogue_ended_base.bind(on_end))
+	_dm.dialogue_resource = _make_dialogue_resource(scene_id() + "_dlg", nodes, start, start_e, start_n, start_h)
 	_dm.start_dialogue()
+
+## 对话结束统一处理：先恢复摄像机（回到可观察状态），再执行场景自定义的 on_end。
+## 推理墙/评分等会自行再次禁用摄像机，故此处无条件恢复是安全的。
+func _on_dialogue_ended_base(on_end: Callable) -> void:
+	if _ui: _ui.set_camera_enabled(true)
+	if on_end.is_valid(): on_end.call()
 
 func _on_line(_id: String) -> void:
 	var n = _dm.current_node
@@ -614,9 +637,11 @@ func _on_line(_id: String) -> void:
 
 ## 构造对话节点：末节点不挂 next（advance() 检测到 next 为空即干净结束，
 ## 避免把末节点指到不存在的虚拟节点而刷 ERROR——已在场景二/三根治）。
+## 行格式: [id, speaker, text] 或 [id, speaker, text, next] 或 [id, speaker, text, next, mood]
+##   或 [id, speaker, text, next, mood, diff_filter]
+## next 传 "" 表示按 id 自增推导（与省略等价），便于只想指定 mood 的行。
+## diff_filter: 0=全难度 / 1=EASY / 2=NORMAL / 3=HARD（缺省 0）；用于「不同难度不同台词」分支变体。
 func _make_nodes(raw: Array) -> Array[Resource]:
-	# 行格式: [id, speaker, text] 或 [id, speaker, text, next] 或 [id, speaker, text, next, mood]
-	# next 传 "" 表示按 id 自增推导（与省略等价），便于只想指定 mood 的行。
 	var nodes: Array[Resource] = []
 	var last_idx := raw.size() - 1
 	for i in raw.size():
@@ -633,17 +658,28 @@ func _make_nodes(raw: Array) -> Array[Resource]:
 				nxt.append(base[0] + str(num))
 		n.next_nodes = nxt
 		n.mood = r[4] if len(r) > 4 else "neutral"
+		n.difficulty_filter = r[5] if len(r) > 5 else 0
 		nodes.append(n)
 	return nodes
 
-func _make_dialogue_resource(sid: String, ns: Array[Resource], start: String):
+## 构造对话资源。start_e/start_n/start_h 分别指定三难度的入口节点（缺省回退 start），
+## 用于「不同难度走独立对话链」（如 scene1 开场 s0_e/s0_n/s0_h）。
+func _make_dialogue_resource(sid: String, ns: Array[Resource], start: String, start_e: String = "", start_n: String = "", start_h: String = "") -> DialogueResource:
 	var r = DialogueResource.new(); r.scene_id = sid; r.scene_name = scene_id()
-	r.nodes = ns; r.easy_start_node = start; r.normal_start_node = start; r.hard_start_node = start
+	r.nodes = ns
+	var e := start_e if start_e != "" else start
+	var n_ := start_n if start_n != "" else start
+	var h := start_h if start_h != "" else start
+	r.easy_start_node = e; r.normal_start_node = n_; r.hard_start_node = h
 	return r
 
 ## P3-0 构造对话节点：支持 trigger 与 grants_clues（对话授予线索）。
 ## 默认 trigger=="click" 即点即推进；grants 为 [{"id","name","desc","correct"}, ...]。
-func _mk_node(id: String, speaker: String, text: String, trigger: String = "click", next: Array = [], grants: Array = [], mood: String = "neutral") -> DialogueNodeResource:
+## ⚠️ diff_filter: 0=全难度 / 1=EASY / 2=NORMAL / 3=HARD（见 DialogueNodeResource.should_show）。
+##    用于「不同难度不同台词」：父节点 next 指 [variant_e, variant_n, variant_h]，每个变体带各自
+##    diff_filter 并链式为 next（variant_e→variant_n→variant_h→end），引擎 skip-walk 会自动走到
+##    当前难度第一个可见变体，且不误判 end 提前结束（scene1 已验证，tools/test_difficulty_dialogue.gd 通过）。
+func _mk_node(id: String, speaker: String, text: String, trigger: String = "click", next: Array = [], grants: Array = [], mood: String = "neutral", diff_filter: int = 0) -> DialogueNodeResource:
 	var n = DialogueNodeResource.new()
 	n.node_id = id; n.speaker = speaker; n.text = text; n.trigger = trigger
 	var nn: Array[String] = []
@@ -652,7 +688,43 @@ func _mk_node(id: String, speaker: String, text: String, trigger: String = "clic
 	n.next_nodes = nn
 	n.grants_clues = grants
 	n.mood = mood
+	n.difficulty_filter = diff_filter
 	return n
+
+## ===== 难度相关对话辅助（scene1 已验证，下沉为基类供场景二~八复用） =====
+## 观察提示文案按难度分流。person=true 主语用「身上」（人物，如华生/信使），false 用「里」（地点/场景）。
+func _observe_hint(target: String, person: bool = false) -> String:
+	var where := "身上" if person else "里"
+	if DifficultyManager:
+		match DifficultyManager.current_difficulty:
+			DifficultyManager.Difficulty.EASY:
+				return "观察模式 — 所有可观察点已高亮，点击%s%s高亮的圆圈" % [target, where]
+			DifficultyManager.Difficulty.HARD:
+				return "观察模式 — 无提示标记，请自行观察%s%s的细节" % [target, where]
+	return "观察模式 — 点击%s%s高亮的圆圈" % [target, where]
+
+## 从推理墙返回继续观察时的提示尾句（困难无高亮）。
+func _resume_suffix() -> String:
+	if DifficultyManager and DifficultyManager.current_difficulty == DifficultyManager.Difficulty.HARD:
+		return "继续自行观察收集剩余线索"
+	return "继续点击高亮的圆圈收集剩余线索"
+
+## 困难/普通模式（当前难度过滤后仍存在干扰项）下，提示玩家甄别干扰线索。
+## 仅在「当前难度确有 correct=false 的热点」时返回非空，避免无干扰项的场景（如场景二/三）误报。
+## （场景一信使观察的 sleeve/limp 干扰项即走此路径；场景二~八无干扰项，恒返回空）
+func _observe_warn_suffix() -> String:
+	if _has_misleading_clues():
+		return "（注意：本场景线索可能混有干扰项，请甄别判断）"
+	return ""
+
+func _has_misleading_clues() -> bool:
+	var hs: Array = hotspots()
+	if DifficultyManager:
+		hs = DifficultyManager.filter_hotspots_by_difficulty(hs)
+	for h in hs:
+		if not h.get("correct", true):
+			return true
+	return false
 
 ## 同步本地 _clues 数组（证据库/物品栏展示用）为 ClueSystem 中本场景 source 的已收集线索。
 func _sync_clues() -> void:
@@ -874,6 +946,7 @@ func _render_investigate_panel(title_prefix: String, questions: Array, asked: Di
 ## show_case_total=true 时（结局场景八）额外展示全案总星级、结局档位与各链星级概览。
 ## on_continue 为空则按钮默认 SceneLoader.transition_to(next_scene_path)。
 func _show_scene_rating(scene_label: String, next_scene_path: String, on_continue: Callable, show_case_total: bool = false) -> void:
+	if _ui: _ui.set_camera_enabled(false)   # 评分面板全屏覆盖，禁用摄像机
 	if _toolbar: _toolbar.hide_toolbar()
 	var panel := Control.new(); panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP; add_child(panel)
