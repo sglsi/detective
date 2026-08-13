@@ -78,7 +78,7 @@ func _restore_saved_state() -> bool:
 			_phase = Phase.MESSENGER_OBSERVE
 			if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
 			_ui.restore_observer(_messenger_obs, saved_ids, ["tattoo","beard","posture","manner","sleeve","limp"])
-			if _messenger_obs.get_recorded() >= 6:
+			if _messenger_obs.get_recorded() >= _messenger_obs.needs_count():
 				_on_messenger_all_recorded(_messenger_obs.get_recorded_clues()); return true
 			_ui.set_dialogue("提示", "已恢复进度 — 信使观察阶段（已收集 "+str(_messenger_obs.get_recorded())+"/6 条）\n点击 LOOK 查看剩余标记点")
 			return true
@@ -177,7 +177,7 @@ func _create_observers() -> void:
 
 	_messenger_obs = ClueObserver.new(); _messenger_obs.name = "messenger_observer"; add_child(_messenger_obs)
 	var mess_tex = load("res://assets/characters/messenger/messenger_portrait.png")
-	_messenger_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, [
+	_messenger_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, DifficultyManager.filter_hotspots_by_difficulty([
 		# 热点位置与新全身立绘 560,343/150,447（等比 0.75）对齐，观察时仍用 spritesheet 细节图
 		{"id":"tattoo","label":"手背锚文身","x":590,"y":628,"w":68,"h":30,"desc":"蓝色锚形文身 -> 海军标志","correct":true,
 		 "crop":{"x":0.16,"y":0.39,"cx":0.46,"cy":0.59},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"tattoo"},
@@ -191,7 +191,7 @@ func _create_observers() -> void:
 		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"sleeve"},
 		{"id":"limp","label":"走路略跛","x":598,"y":726,"w":68,"h":34,"desc":"右腿略跛 -> 干扰:扭伤","correct":false,
 		 "crop":{"x":0.4905,"y":0.7800,"cx":0.7005,"cy":0.98768},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"limp"},
-	], mess_tex, _messenger_portrait_ctrl, "res://assets/characters/messenger/messenger_portrait.png")
+	]), mess_tex, _messenger_portrait_ctrl, "res://assets/characters/messenger/messenger_portrait.png")
 	_messenger_obs.all_recorded.connect(_on_messenger_all_recorded)
 	_messenger_obs.clue_recorded.connect(_on_collect_clue.bind("messenger"))
 	_messenger_obs.hotspot_clicked.connect(_on_obs_hotspot_to_tool)
@@ -215,6 +215,13 @@ func _on_collect_clue(clue_id: String, clue_data: Dictionary, source: String) ->
 			clue_data.get("image", ""),
 			clue_data.get("anchor", "")
 		)
+	# M1 摄像机：记录一条线索后平滑推近到该部位（点线索推近）
+	if _ui:
+		var obs = _current_observer()
+		if obs != null:
+			var wp = obs.get_clue_world_point(clue_id)
+			if wp != Vector2.ZERO:
+				_ui.focus_world_point(wp, 2.2)
 
 # ===== 基类钩子：地图 / 案件簿（内容） =====
 func map_locations() -> Array:
@@ -224,9 +231,10 @@ func casebook_steps() -> Array:
 	return ["赫德森太太开场", "华生观察练习", "信使观察练习", "推理验证完成"]
 
 func casebook_done_flags() -> Array:
-	return [_phase >= Phase.OPENING, _watson_obs.get_recorded() >= 4, _messenger_obs.get_recorded() >= 6, _phase >= Phase.MESSENGER_REASONING]
+	return [_phase >= Phase.OPENING, _watson_obs.get_recorded() >= _watson_obs.needs_count(), _messenger_obs.get_recorded() >= _messenger_obs.needs_count(), _phase >= Phase.MESSENGER_REASONING]
 
 func _enter_arrival() -> void:
+	if _ui: _ui.set_camera_enabled(false)   # 开场对话阶段禁用摄像机
 	_show_mrs_hudson_dialogue()
 
 # ===== 左侧动作（场景一为观察/对话切换式） =====
@@ -248,8 +256,8 @@ func _on_action(action_id: String) -> void:
 		_: _create_notification("「" + action_id + "」已激活")
 
 func _do_look() -> void:
-	if _phase == Phase.OBSERVE_WATSON: _watson_obs.show(); _ui.set_dialogue("提示", "观察模式 — 点击华生身上高亮的圆圈"); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
-	elif _phase == Phase.MESSENGER_OBSERVE: _messenger_obs.show(); _ui.set_dialogue("提示", "观察模式 — 点击信使身上高亮的圆圈"); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
+	if _phase == Phase.OBSERVE_WATSON: _watson_obs.show(); _ui.set_dialogue("提示", _observe_hint("华生")); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
+	elif _phase == Phase.MESSENGER_OBSERVE: _messenger_obs.show(); _ui.set_dialogue("提示", _observe_hint("信使")); _ui.set_dialogue_color(Color(0.5,0.9,0.5))
 	elif _phase == Phase.WATSON_REASONING or _phase == Phase.MESSENGER_REASONING: _create_notification("已在推理墙中，请先完成验证")
 
 func _do_talk() -> void:
@@ -318,7 +326,7 @@ func _do_save(slot: int = -1) -> void:
 	_create_notification("✅ 进度已保存")
 
 # ===== 对话（场景一用显式 next 的 _dn 构造器） =====
-func _dn(id, sp, txt, tri, nxt, mood="neutral") -> DialogueNodeResource:
+func _dn(id, sp, txt, tri, nxt, mood="neutral", diff_filter: int = 0) -> DialogueNodeResource:
 	var n = DialogueNodeResource.new()
 	n.node_id=id; n.speaker=sp; n.text=txt; n.trigger=tri
 	var nn: Array[String] = []
@@ -326,9 +334,14 @@ func _dn(id, sp, txt, tri, nxt, mood="neutral") -> DialogueNodeResource:
 		if s is String: nn.append(s)
 	n.next_nodes = nn
 	n.mood = mood
+	n.difficulty_filter = diff_filter   # 0=全难度 / 1=EASY / 2=NORMAL / 3=HARD（见 DialogueNodeResource.should_show）
 	return n
 
+## 观察提示/返回尾句已下沉为基类 DetectiveScene._observe_hint / _resume_suffix
+## （场景一仅调用，传 person=true 用「身上」措辞；详见基类）。
+
 func _show_mrs_hudson_dialogue() -> void:
+	if _ui: _ui.set_camera_enabled(false)   # 对话阶段禁用摄像机
 	# 对齐 08 稿 v3.16.0 §阶段1初次见面（L133-153）：悬念开场 + 赫德森太太端茶
 	_dm = DialogueManager.new(); add_child(_dm)
 	_dm.dialogue_advanced.connect(_on_line)
@@ -339,7 +352,12 @@ func _show_mrs_hudson_dialogue() -> void:
 	nodes.append(_dn("h2","华生","（一愣）什么？","click",["h3"],"吃惊"))
 	nodes.append(_dn("h3","福尔摩斯","我说，你是一名刚从阿富汗回来的军医。我说对了吗？","click",["h4"],"从容"))
 	nodes.append(_dn("h4","华生","您……您怎么知道的？我们刚认识不到十秒钟。","click",["h5"],"惊讶"))
-	nodes.append(_dn("h5","福尔摩斯","（微笑，转向玩家视角）这位新朋友显然不相信。不如——你来告诉他我是怎么看出来的？","click",["end"],"指导"))
+	nodes.append(_dn("h5","福尔摩斯","（微笑，转向玩家视角）这位新朋友显然不相信。不如——你来告诉他我是怎么看出来的？","click",["h5_e","h5_n","h5_h"],"指导"))
+	# 不同难度不同引导：h5 之后分流，难度过滤节点须「链式为 next」(h5_e→h5_n→h5_h→end)，
+	# 引擎 should_show 跳过隐藏变体时才会依次走到第一个可见变体（否则会误判 end 提前结束）。
+	nodes.append(_dn("h5_e","福尔摩斯","（低声）从手腕晒痕、右肩旧伤、脸色疲惫、军人站姿这几处下手，每条都要讲出证据。","click",["h5_n"],"指导",1))
+	nodes.append(_dn("h5_n","福尔摩斯","（点头）用你观察到的证据，把结论串起来。","click",["h5_h"],"指导",2))
+	nodes.append(_dn("h5_h","福尔摩斯","（什么也没说，只是望着你）……","click",["end"],"从容",3))
 	var res = DialogueResource.new(); res.scene_id="s1_intro"; res.nodes=nodes
 	res.easy_start_node="h0"; res.normal_start_node="h0"; res.hard_start_node="h0"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
@@ -350,21 +368,34 @@ func _on_mrs_hudson_end() -> void:
 	_show_opening_dialogue()
 
 func _show_opening_dialogue() -> void:
+	if _ui: _ui.set_camera_enabled(false)   # 对话阶段禁用摄像机
 	# 对齐 08 稿 v3.16.0 §阶段1教程环节（L155-282）：六步探索闭环引导
+	# ⚠️ 不同难度不同台词：三难度各走独立链（start_node 分流），
+	#    EASY 逐条点出部位+全部高亮 / NORMAL 标准提示 / HARD 无引导、严格证据
 	_phase = Phase.OPENING
 	var nodes: Array[Resource] = []
-	nodes.append(_dn("s0", "福尔摩斯", "证据在你身上: 手腕、左臂、靨色、站姿", "click", ["s1"], "从容"))
-	nodes.append(_dn("s1","系统","[新手教程] 第一次观察\n目标：找出4条线索，证明'华生是阿富汗军医'\n操作：点击华生身上高亮的圆圈，逐一观察细节","click",["s2"],"guide"))
-	nodes.append(_dn("s2","系统","点击华生身上高亮的圆圈。完成后进入推理墙验证。","click",["end"],"guide"))
+	# —— 简单（EASY）：详细引导，逐条点出部位 ——
+	nodes.append(_dn("s0_e","福尔摩斯","看这位朋友——手腕的晒痕、右肩的旧伤、脸色的疲惫、军人的站姿，都在说他刚从战场回来。来，我们把这些一条条看清楚。","click",["s1_e"],"从容"))
+	nodes.append(_dn("s1_e","系统","[新手教程] 第一次观察\n目标：找出 4 条线索（手腕晒痕、右肩旧伤、脸色疲惫、军人站姿）\n操作：可观察点已全部高亮，点击圆圈逐一查看细节","click",["s2_e"],"guide"))
+	nodes.append(_dn("s2_e","系统","所有可观察点已高亮，点击华生身上高亮的圆圈即可。完成后进入推理墙验证。","click",["end"],"guide"))
+	# —— 普通（NORMAL）：标准提示 ——
+	nodes.append(_dn("s0_n","福尔摩斯","证据在你身上: 手腕、右肩、面色、站姿","click",["s1_n"],"从容"))
+	nodes.append(_dn("s1_n","系统","[新手教程] 第一次观察\n目标：找出 4 条线索，证明'华生是阿富汗军医'\n操作：点击华生身上高亮的圆圈，逐一观察细节","click",["s2_n"],"guide"))
+	nodes.append(_dn("s2_n","系统","点击华生身上高亮的圆圈。完成后进入推理墙验证。","click",["end"],"guide"))
+	# —— 困难（HARD）：无引导，严格证据 ——
+	nodes.append(_dn("s0_h","福尔摩斯","（审视华生）……证据都在他身上。自己看，别等我喂。","click",["s1_h"],"从容"))
+	nodes.append(_dn("s1_h","系统","[硬核模式] 第一次观察\n目标：凭观察找出 4 条线索\n无任何高亮提示，自行判断华生身上值得注意的细节","click",["s2_h"],"guide"))
+	nodes.append(_dn("s2_h","系统","无提示。自行观察华生，找出关键线索后进入推理墙。","click",["end"],"guide"))
 	var res = DialogueResource.new(); res.scene_id="s1_open"; res.nodes=nodes
-	res.easy_start_node="s0"; res.normal_start_node="s0"; res.hard_start_node="s0"
+	res.easy_start_node="s0_e"; res.normal_start_node="s0_n"; res.hard_start_node="s0_h"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
 
 func _on_opening_end() -> void:
 	_phase = Phase.OBSERVE_WATSON
+	if _ui: _ui.set_camera_enabled(true)   # 进入观察：启用摄像机（统览/缩放/拖拽）
 	if _portrait_ctrl: _portrait_ctrl.visible = true
 	_watson_obs.show()
-	_ui.set_dialogue("提示", "点击华生身上高亮的圆圈，观察 4 处线索。")
+	_ui.set_dialogue("提示", _observe_hint("华生", true) + "，观察 4 处线索。")
 	_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
 	# 进入观察阶段即自动弹出道具工具栏
 	if _toolbar: _toolbar.show_toolbar()
@@ -383,6 +414,7 @@ func _show_watson_reasoning_wall() -> void:
 	if _toolbar: _toolbar.hide_toolbar()
 	if _portrait_ctrl: _portrait_ctrl.visible = false
 	_phase = Phase.WATSON_REASONING
+	if _ui: _ui.set_camera_enabled(false)   # 推理墙：禁用摄像机
 	var hypo := {"title": "华生刚从阿富汗回来？", "description": "从华生身上的痕迹（手腕肤色分界、左臂旧伤、面色憔悴、军人站姿）推断其身份与经历。",
 		"battlefield": {
 			"hypotheses": [
@@ -405,6 +437,7 @@ func _show_watson_reasoning_wall() -> void:
 	, Callable(self, "_resume_observe"))
 
 func _start_messenger_phase() -> void:
+	if _ui: _ui.set_camera_enabled(false)   # 信使对话阶段禁用摄像机
 	# 对齐 08 稿 v3.16.0 §阶段2信使到访（L395-416）
 	_phase = Phase.MESSENGER_OBSERVE; _messenger_obs.show()
 	if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
@@ -419,30 +452,29 @@ func _start_messenger_phase() -> void:
 	nodes.append(_dn("m2","信使","（递信封，手背露出锚形文身）福尔摩斯先生，这是特白厄斯·葛莱森警官给您的信。","click",["m3"]))
 	nodes.append(_dn("m3","福尔摩斯","（瞥了一眼信使手背，漫不经心）谢谢。您曾经是海军陆战队军士吧。","click",["m4"],"从容"))
 	nodes.append(_dn("m4","信使","（惊讶）啊，您怎么知道我是海军陆战队的军士？","click",["m5"]))
-	nodes.append(_dn("m5","福尔摩斯","（转向玩家）又一个练习机会。这次，你来试试？","click",["end"],"指导"))
+	nodes.append(_dn("m5","福尔摩斯","（转向玩家）又一个练习机会。这次，你来试试？","click",["m5_e","m5_n","m5_h"],"指导"))
+	# 不同难度不同引导（链式为 next：m5_e→m5_n→m5_h→end，确保隐藏变体被跳过而非误结束）
+	nodes.append(_dn("m5_e","福尔摩斯","提示：他的手背文身、络腮胡、站姿、神态——都是军人标志，逐一找出。","click",["m5_n"],"指导",1))
+	nodes.append(_dn("m5_n","福尔摩斯","这次靠你自己观察，找出信使身上的军人特征。","click",["m5_h"],"从容",2))
+	nodes.append(_dn("m5_h","福尔摩斯","（望着信使）……证据在他身上。自己看。","click",["end"],"从容",3))
 	var res = DialogueResource.new(); res.scene_id="s1_mess"; res.nodes=nodes
 	res.easy_start_node="m0"; res.normal_start_node="m0"; res.hard_start_node="m0"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
 
 func _on_messenger_dialogue_end() -> void:
 	_phase = Phase.MESSENGER_OBSERVE
-	_ui.set_dialogue("提示", "点击信使身上高亮的圆圈。注意分辨干扰项！")
+	if _ui: _ui.set_camera_enabled(true)   # 进入信使观察：启用摄像机
+	_ui.set_dialogue("提示", _observe_hint("信使", true) + ("。注意分辨干扰项！" if DifficultyManager.mislead_chance > 0.0 else "。"))
 	_ui.set_dialogue_color(Color(0.5,0.9,0.5))
 
 func _show_messenger_reasoning_wall() -> void:
 	_messenger_obs.hide(); _phase = Phase.MESSENGER_REASONING
+	if _ui: _ui.set_camera_enabled(false)   # 推理墙：禁用摄像机
 	if _toolbar: _toolbar.hide_toolbar()
 	if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false
 	var hypo := {"title": "信使是海军陆战队军士？", "description": "从信使身上（锚形文身、络腮胡、挺拔站姿、发号施令神态）推断其军旅身份；注意分辨干扰项（袖口磨损、轻微跛行）。",
 		"battlefield": {
-			"hypotheses": [
-				{"id":"M-01","text":"锚文身=海军标志","correct":true},
-				{"id":"M-02","text":"络腮胡=军人常见","correct":true},
-				{"id":"M-03","text":"站姿挺拔=军事训练","correct":true},
-				{"id":"M-04","text":"发号施令=军士/士官","correct":true},
-				{"id":"M-05","text":"袖口磨损=旧衣服（干扰）","correct":false},
-				{"id":"M-06","text":"轻微跛行=扭伤（干扰）","correct":false},
-			],
+			"hypotheses": _messenger_hypotheses(),
 			"contradictions": [],
 		},
 		"milestones": [
@@ -456,27 +488,41 @@ func _show_messenger_reasoning_wall() -> void:
 		_calc_stars(); _show_commission_letter_dialogue()
 	, Callable(self, "_resume_observe"))
 
+## 信使推理墙假设：仅当当前难度存在干扰线索时才纳入干扰假设（简单模式无干扰）。
+func _messenger_hypotheses() -> Array:
+	var arr := [
+		{"id":"M-01","text":"锚文身=海军标志","correct":true},
+		{"id":"M-02","text":"络腮胡=军人常见","correct":true},
+		{"id":"M-03","text":"站姿挺拔=军事训练","correct":true},
+		{"id":"M-04","text":"发号施令=军士/士官","correct":true},
+	]
+	if DifficultyManager.mislead_chance > 0.0:
+		arr.append({"id":"M-05","text":"袖口磨损=旧衣服（干扰）","correct":false})
+		arr.append({"id":"M-06","text":"轻微跛行=扭伤（干扰）","correct":false})
+	return arr
+
 ## 推理墙「继续收集线索」回调：把玩家从推理墙状态带回未完成的线索收集页面。
 ## 开墙时 _show_*_reasoning_wall 已把 phase 改为 *_REASONING 并隐藏立绘/观察器，
 ## 这里据此还原回对应的 *_OBSERVE 阶段，重新显示人物与可点击热点。
 func _resume_observe() -> void:
 	_wall_auto = false
+	if _ui: _ui.set_camera_enabled(true)   # 回到观察：启用摄像机
 	if _phase == Phase.WATSON_REASONING:
 		_phase = Phase.OBSERVE_WATSON
 		if _portrait_ctrl: _portrait_ctrl.visible = true
 		_watson_obs.show()
-		_ui.set_dialogue("提示", "已回到华生观察 — 继续点击身上高亮的圆圈收集剩余线索（" + str(_watson_obs.get_recorded()) + "/4）")
+		_ui.set_dialogue("提示", "已回到华生观察 — " + _resume_suffix() + "（" + str(_watson_obs.get_recorded()) + "/4）")
 		_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
 	elif _phase == Phase.MESSENGER_REASONING:
 		_phase = Phase.MESSENGER_OBSERVE
 		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
 		_messenger_obs.show()
-		_ui.set_dialogue("提示", "已回到信使观察 — 继续点击身上高亮的圆圈收集剩余线索（" + str(_messenger_obs.get_recorded()) + "/6）")
+		_ui.set_dialogue("提示", "已回到信使观察 — " + _resume_suffix() + "（" + str(_messenger_obs.get_recorded()) + "/6）")
 		_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
 	if _toolbar: _toolbar.show_toolbar()
 
 func _calc_stars() -> void:
-	_stars_observe = 2 if _watson_obs.get_recorded() >= 4 and _messenger_obs.get_recorded() >= 6 else 1
+	_stars_observe = 2 if _watson_obs.get_recorded() >= _watson_obs.needs_count() and _messenger_obs.get_recorded() >= _messenger_obs.needs_count() else 1
 	_stars_reason = 3 if _watson_v == 3 and _messenger_v == 3 else (2 if _watson_v >= 2 or _messenger_v >= 2 else 1)
 	_stars_insight = 2 if _watson_v >= 2 and _messenger_v >= 2 else 1
 
@@ -488,6 +534,7 @@ func _vname(v: int) -> String:
 		_: return "CONTRADICTORY"
 
 func _show_rating() -> void:
+	if _ui: _ui.set_camera_enabled(false)   # 评分阶段：禁用摄像机
 	_watson_obs.hide(); _messenger_obs.hide()
 	if _portrait_ctrl: _portrait_ctrl.visible = false
 	_phase = Phase.RATING
@@ -515,7 +562,7 @@ func _show_rating() -> void:
 	var cont = Button.new(); cont.text = "存档并进入场景二"; cont.position = Vector2(660,700); cont.size = Vector2(600,65)
 	cont.add_theme_font_size_override("font_size",26); cont.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
 	cont.add_theme_stylebox_override("normal", _sb(Color(0.50,0.10,0.10,0.95), Color(0.85,0.65,0.25), 2, 4))
-	cont.pressed.connect(_show_case_branch.bind(w))
+	cont.pressed.connect(func(): w.queue_free(); _accept_case())
 	w.add_child(cont)
 
 func _on_sc1_rating_done(w: Control) -> void:
@@ -539,6 +586,7 @@ func _save_and_continue() -> void:
 
 # ===== 委托信解锁 + 双钩子结尾（依据 02 §9 双钩子系统 + 委托信解锁） =====
 func _show_commission_letter_dialogue() -> void:
+	if _ui: _ui.set_camera_enabled(false)   # 委托信对话：禁用摄像机
 	_phase = Phase.RATING
 	# 委托信解锁为线索（B-01 前置：信使验证通过 ≥ SUPPORTED 后解锁）
 	if ClueSystem:
@@ -562,6 +610,7 @@ func _on_commission_ended() -> void:
 
 ## 双钩子（剧情钩子 + 谜题钩子），融入对话不做独立 UI（02 §9 §11）
 func _show_hooks_dialogue() -> void:
+	if _ui: _ui.set_camera_enabled(false)   # 钩子对话：禁用摄像机
 	_dm = DialogueManager.new(); add_child(_dm)
 	_dm.dialogue_advanced.connect(_on_line)
 	_dm.dialogue_ended.connect(_on_hooks_ended)
@@ -579,27 +628,7 @@ func _show_hooks_dialogue() -> void:
 func _on_hooks_ended() -> void:
 	_show_rating()
 
-# ===== 分支 B-01：承接 / 拒绝案件（02 §9 §7） =====
-func _show_case_branch(w: Control) -> void:
-	w.queue_free()
-	var p = Control.new(); p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); p.mouse_filter = Control.MOUSE_FILTER_STOP; add_child(p)
-	var dim = ColorRect.new(); dim.color = Color(0,0,0,0.7); dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE; p.add_child(dim)
-	var f = Panel.new(); f.size = Vector2(660,360); f.position = Vector2(630,310)
-	f.add_theme_stylebox_override("panel", _sb(Color(0.13,0.10,0.07,0.97), Color(0.78,0.62,0.28),3,8)); p.add_child(f)
-	var t = Label.new(); t.text = "是否承接这桩案件？"; t.add_theme_font_size_override("font_size",26)
-	t.add_theme_color_override("font_color", Color(0.92,0.82,0.45)); t.position = Vector2(40,28); t.size = Vector2(580,40); f.add_child(t)
-	var sub = Label.new(); sub.text = "（分支 B-01）承接后将前往劳瑞斯顿花园街3号勘查现场"; sub.add_theme_font_size_override("font_size",15)
-	sub.add_theme_color_override("font_color", Color(0.6,0.55,0.45)); sub.position = Vector2(40,76); sub.size = Vector2(580,36); f.add_child(sub)
-	var accept = Button.new(); accept.text = "承接案件"; accept.position = Vector2(60,210); accept.size = Vector2(250,60)
-	accept.add_theme_font_size_override("font_size",22); accept.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
-	accept.add_theme_stylebox_override("normal", _sb(Color(0.20,0.40,0.15,0.95), Color(0.60,0.85,0.30),2,4))
-	accept.pressed.connect(func(): p.queue_free(); _accept_case()); f.add_child(accept)
-	var reject = Button.new(); reject.text = "拒绝委托"; reject.position = Vector2(350,210); reject.size = Vector2(250,60)
-	reject.add_theme_font_size_override("font_size",22); reject.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
-	reject.add_theme_stylebox_override("normal", _sb(Color(0.40,0.15,0.10,0.95), Color(0.85,0.45,0.25),2,4))
-	reject.pressed.connect(func(): p.queue_free(); _reject_case()); f.add_child(reject)
-
+# ===== 分支 B-01（承接 / 拒绝案件）已取消：案件自动承接，评分面板点「进入场景二」即承接并前往现场 =====
 func _accept_case() -> void:
 	_phase = Phase.COMPLETE
 	if GameManager: GameManager.add_milestone("sc_01_completed")
@@ -612,12 +641,6 @@ func _accept_case() -> void:
 	else: _create_notification("注册后可解锁云端存档")
 	await get_tree().create_timer(1.0).timeout
 	SceneLoader.transition_to("res://scenes/scene2.tscn")
-
-func _reject_case() -> void:
-	_create_notification("你拒绝了这桩委托 — 回到贝克街的日常")
-	await get_tree().create_timer(1.5).timeout
-	if GameStateMachine: GameStateMachine.go_menu()
-	else: SceneLoader.transition_to("res://scenes/main_menu.tscn")
 
 # ===== 笔记、证物（场景一自建弹窗内容，沿用基类 _popup 统一样式） =====
 func _clue_sources() -> Array:
