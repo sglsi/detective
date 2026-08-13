@@ -297,3 +297,17 @@ func _hash_float(id_str: String) -> float:
 		# 防止 int 溢出 Godot 自动变负，强制保持正数
 		h = h & 0xFFFFFFFF
 	return float(h) / float(0xFFFFFFFF)
+
+## ── 困难模式首次提醒标记（持久化到 user://，首次进入困难模式时弹一次性提醒）──
+const HARD_WARN_CFG_PATH := "user://hard_mode_warned.cfg"
+func is_hard_mode_warned() -> bool:
+	var cfg := ConfigFile.new()
+	if cfg.load(HARD_WARN_CFG_PATH) == OK:
+		return bool(cfg.get_value("flags", "warned", false))
+	return false
+func mark_hard_mode_warned() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("flags", "warned", true)
+	var err := cfg.save(HARD_WARN_CFG_PATH)
+	if err != OK:
+		printerr("[DifficultyManager] 保存困难模式提醒标记失败: ", err)
