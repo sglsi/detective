@@ -89,6 +89,13 @@ func _restore_saved_state() -> bool:
 			return true
 		Phase.RATING, Phase.COMPLETE:
 			_phase = Phase.RATING
+			# 场景一评分由各推理墙得出的实例星级，未走 StarRatingSystem 链，读档须显式恢复，
+			# 否则 _show_rating 读到默认值（1⭐），与游玩时实得星级不符（评价体系丢失）。
+			if ss.has("stars_observe"): _stars_observe = int(ss["stars_observe"])
+			if ss.has("stars_reason"): _stars_reason = int(ss["stars_reason"])
+			if ss.has("stars_insight"): _stars_insight = int(ss["stars_insight"])
+			if ss.has("watson_v"): _watson_v = int(ss["watson_v"])
+			if ss.has("messenger_v"): _messenger_v = int(ss["messenger_v"])
 			_show_rating()
 			return true
 	return false
@@ -576,10 +583,18 @@ func _save_and_continue() -> void:
 	if not (GameManager and GameManager.is_guest) and SaveManager:
 		# 自动存档必须写入本场景的 scene_state（phase + scene_id + clue_ids），
 		# 否则读档时 _restore_saved_state 因 scene_id 不匹配而判定「无存档」→ 场景从头重启。
+		# 同时写入场景一的三维星级与两墙验证值，确保读档后评分面板与游玩时一致。
 		var ids: Array = []
 		for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
 		for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
-		await SaveSystem.request_save("scene1", Phase.COMPLETE, {"clue_ids": ids})
+		await SaveSystem.request_save("scene1", Phase.COMPLETE, {
+			"clue_ids": ids,
+			"stars_observe": _stars_observe,
+			"stars_reason": _stars_reason,
+			"stars_insight": _stars_insight,
+			"watson_v": _watson_v,
+			"messenger_v": _messenger_v,
+		})
 		_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")
 	await get_tree().create_timer(2.0).timeout
@@ -637,7 +652,14 @@ func _accept_case() -> void:
 		var ids: Array = []
 		for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
 		for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
-		await SaveSystem.request_save("scene1", Phase.COMPLETE, {"clue_ids": ids})
+		await SaveSystem.request_save("scene1", Phase.COMPLETE, {
+			"clue_ids": ids,
+			"stars_observe": _stars_observe,
+			"stars_reason": _stars_reason,
+			"stars_insight": _stars_insight,
+			"watson_v": _watson_v,
+			"messenger_v": _messenger_v,
+		})
 		_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")
 	await get_tree().create_timer(1.0).timeout
