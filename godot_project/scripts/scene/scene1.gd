@@ -53,6 +53,8 @@ func _restore_saved_state() -> bool:
 				var src := "watson" if cid in ["wrist","shoulder","face","pose"] else "messenger"
 				ClueSystem.collect_clue_from_catalog(cid, h.get("name", cid), h.get("desc",""), h.get("correct", true), src)
 	_phase = saved_phase
+	# 读到终局阶段时，阻止后续「进入场景二」按钮再次自动存档，避免 identical 重复槽位。
+	_suppress_terminal_save = _is_terminal_phase(saved_phase)
 	_create_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
 
 	match saved_phase:
@@ -110,6 +112,9 @@ func _find_hotspot(id: String) -> Dictionary:
 func _on_obs_hotspot_to_tool(clue_id: String) -> void:
 	if SceneEventBus:
 		SceneEventBus.hotspot_clicked.emit(clue_id)
+
+func _is_terminal_phase(p: int) -> bool:
+	return p == Phase.RATING or p == Phase.COMPLETE
 
 func _phase_name(p: int) -> String:
 	match p:
@@ -581,21 +586,24 @@ func _save_and_continue() -> void:
 	if GameStateMachine: GameStateMachine.go_complete()
 	if GameManager: GameManager.add_milestone("sc_01_completed")
 	if not (GameManager and GameManager.is_guest) and SaveManager:
-		# 自动存档必须写入本场景的 scene_state（phase + scene_id + clue_ids），
-		# 否则读档时 _restore_saved_state 因 scene_id 不匹配而判定「无存档」→ 场景从头重启。
-		# 同时写入场景一的三维星级与两墙验证值，确保读档后评分面板与游玩时一致。
-		var ids: Array = []
-		for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
-		for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
-		await SaveSystem.request_save("scene1", Phase.COMPLETE, {
-			"clue_ids": ids,
-			"stars_observe": _stars_observe,
-			"stars_reason": _stars_reason,
-			"stars_insight": _stars_insight,
-			"watson_v": _watson_v,
-			"messenger_v": _messenger_v,
-		})
-		_create_notification("进度已保存")
+		if _suppress_terminal_save:
+			_create_notification("已恢复至终局进度，直接进入场景二")
+		else:
+			# 自动存档必须写入本场景的 scene_state（phase + scene_id + clue_ids），
+			# 否则读档时 _restore_saved_state 因 scene_id 不匹配而判定「无存档」→ 场景从头重启。
+			# 同时写入场景一的三维星级与两墙验证值，确保读档后评分面板与游玩时一致。
+			var ids: Array = []
+			for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
+			for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
+			await SaveSystem.request_save("scene1", Phase.COMPLETE, {
+				"clue_ids": ids,
+				"stars_observe": _stars_observe,
+				"stars_reason": _stars_reason,
+				"stars_insight": _stars_insight,
+				"watson_v": _watson_v,
+				"messenger_v": _messenger_v,
+			})
+			_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")
 	await get_tree().create_timer(2.0).timeout
 	SceneLoader.transition_to("res://scenes/scene2.tscn")
@@ -649,18 +657,21 @@ func _accept_case() -> void:
 	_phase = Phase.COMPLETE
 	if GameManager: GameManager.add_milestone("sc_01_completed")
 	if not (GameManager and GameManager.is_guest) and SaveManager:
-		var ids: Array = []
-		for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
-		for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
-		await SaveSystem.request_save("scene1", Phase.COMPLETE, {
-			"clue_ids": ids,
-			"stars_observe": _stars_observe,
-			"stars_reason": _stars_reason,
-			"stars_insight": _stars_insight,
-			"watson_v": _watson_v,
-			"messenger_v": _messenger_v,
-		})
-		_create_notification("进度已保存")
+		if _suppress_terminal_save:
+			_create_notification("已恢复至终局进度，直接进入场景二")
+		else:
+			var ids: Array = []
+			for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
+			for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
+			await SaveSystem.request_save("scene1", Phase.COMPLETE, {
+				"clue_ids": ids,
+				"stars_observe": _stars_observe,
+				"stars_reason": _stars_reason,
+				"stars_insight": _stars_insight,
+				"watson_v": _watson_v,
+				"messenger_v": _messenger_v,
+			})
+			_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")
 	await get_tree().create_timer(1.0).timeout
 	SceneLoader.transition_to("res://scenes/scene2.tscn")

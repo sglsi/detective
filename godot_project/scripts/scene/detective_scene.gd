@@ -26,6 +26,7 @@ var _clues: Array = []                 # 本场景已收集线索（本地权威
 var _wall_auto := false                # 推理墙验证后是否自动推进过渡
 var _wall_state: Dictionary = {}       # 推理墙跨重开的持久化状态（场景持有，墙 setup 时传入）
 var _wall_instance: Control = null      # 当前已打开的推理墙（单例，避免多重叠加）
+var _suppress_terminal_save := false    # 读档恢复到终局阶段时置 true，阻止「继续」按钮再次自动写入 identical 存档；人工 SAVE 不受影响
 var _kb_panel: Control = null            # 当前已打开的知识库面板（单例，避免多重叠加）
 var _modal_panel: Control = null        # 当前已打开的弹窗/面板（单例，避免多重叠加）
 var _modal_title: String = ""           # 当前弹窗标题（用于同按钮开关切换）
@@ -597,6 +598,9 @@ func _restore_saved_state() -> bool:
 	var saved_ids: Array = ss.get("clue_ids", [])
 	# 先恢复阶段（避免子方法漏设 _phase 导致阶段错乱——场景一/二/三同款防御）
 	_phase = saved_phase
+	# 若读档的是终局阶段，则本次「继续推进」按钮不再自动存档——否则每次读档点继续
+	# 都会写入一份 identical 存档，导致读档面板出现多个一模一样的终局槽位。
+	_suppress_terminal_save = _is_terminal_phase(saved_phase)
 	_ui.show_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
 	# 以存档 clue_ids 为唯一权威重建本地进度，并同步 ClueSystem（推理墙单一真相源），
 	# 杜绝「场景内进度（_obs 已记录数）」与「推理墙（ClueSystem 全局累计）」不一致的「两层皮」。
@@ -1018,22 +1022,28 @@ func _on_rating_continue(panel: Control, on_continue: Callable, next_scene_path:
 		if sl: sl.transition_to(next_scene_path)
 
 ## 通用存档并跳转（封装场景进入下一场景前的自动存档；线索优先取本地 _clues，空则回退 ClueSystem）。
+## 若 _suppress_terminal_save 为 true（刚从终局存档恢复而来），跳过本次自动存档，避免生成 identical 槽位。
 func _save_and_transition(scene_key: String, next_path: String) -> void:
-	var gm = GameManager
-	var sm = SaveManager
-	var cs = ClueSystem
-	var sv = SaveSystem
-	if gm and (not gm.is_guest) and sm:
-		var ids := []
-		for c in _clues: ids.append(c.get("id", ""))
-		if ids.is_empty() and cs:
-			for cid in cs.get_collected_ids(clue_source()): ids.append(cid)
-		await sv.request_save(scene_key, _phase, {"clue_ids": ids})
+	if not _suppress_terminal_save:
+		var gm = GameManager
+		var sm = SaveManager
+		var cs = ClueSystem
+		var sv = SaveSystem
+		if gm and (not gm.is_guest) and sm:
+			var ids := []
+			for c in _clues: ids.append(c.get("id", ""))
+			if ids.is_empty() and cs:
+				for cid in cs.get_collected_ids(clue_source()): ids.append(cid)
+			await sv.request_save(scene_key, _phase, {"clue_ids": ids})
 	var sl = SceneLoader
 	if sl: sl.transition_to(next_path)
 
 # ===================== 子类需实现的「内容」钩子 =====================
 func _phase_name(_p: int) -> String: return "未知阶段"
+## 子类覆盖：哪些阶段属于「终局阶段」。读档恢复到终局阶段时，会置 _suppress_terminal_save=true，
+## 避免玩家点击「继续推进/进入下一场景」时再次自动存档，产生 identical 重复槽位。
+## 人工 SAVE 按钮不受此标志影响，始终允许手动重复存档。
+func _is_terminal_phase(_p: int) -> bool: return false
 func _enter_arrival() -> void: pass
 func _on_observe_complete() -> void: pass
 func _enter_reasoning() -> void: pass
