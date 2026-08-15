@@ -452,12 +452,17 @@ func _start_messenger_phase() -> void:
 	if _ui: _ui.reset_camera()   # 华生→信使切换：先归位摄像机，避免残留华生推近放大态挡住信使立绘/操作
 	if _ui: _ui.set_camera_enabled(false)   # 信使对话阶段禁用摄像机
 	# 对齐 08 稿 v3.16.0 §阶段2信使到访（L395-416）
-	_phase = Phase.MESSENGER_OBSERVE; _messenger_obs.show()
-	if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
-	# 进入信使观察阶段即自动弹出道具工具栏
-	if _toolbar: _toolbar.show_toolbar()
+	# ⚠️ 时序修复（思傅 2026-08-15）：此前信使立绘与线索高亮圈在对话开始前就一次性显示，
+	# 表现为「赫德森太太还在问'让不让他进来'时，信使与线索就已经在场景里」。
+	# 现改为跟剧情分步出现（由 dialogue_node_entered 钩子按节点触发）：
+	#   - m1（福尔摩斯：让他进来吧）→ 信使入场（立绘显示）
+	#   - m3（福尔摩斯：您曾经是海军陆战队军士吧）→ 点亮线索提示圈（仅提示，暂不开放点击）
+	#   - 对话结束 _on_messenger_dialogue_end → 正式激活观察（开放点击 + 弹出工具栏）
+	# 故此处先不 show 信使观察器（不画圈、不激活点击），由 _on_messenger_node_entered 驱动。
+	_phase = Phase.MESSENGER_OBSERVE
 	_dm = DialogueManager.new(); add_child(_dm)
 	_dm.dialogue_advanced.connect(_on_line)
+	_dm.dialogue_node_entered.connect(_on_messenger_node_entered)
 	_dm.dialogue_ended.connect(_on_messenger_dialogue_end)
 	var nodes: Array[Resource] = []
 	nodes.append(_dn("m0","系统","（门铃响起）赫德森太太：福尔摩斯先生，有一位信使要送一封信给您，让他进来吗？","click",["m1"],"guide"))
@@ -474,11 +479,24 @@ func _start_messenger_phase() -> void:
 	res.easy_start_node="m0"; res.normal_start_node="m0"; res.hard_start_node="m0"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
 
+## 信使对话节点钩子：按剧情节点分步显现信使与线索提示（修复「对话前信使与线索就已出现」）。
+## 仅绑定在 _start_messenger_phase 创建的 _dm 上，对话结束的 _on_messenger_dialogue_end 中解绑。
+func _on_messenger_node_entered(node_id: String) -> void:
+	if node_id == "m1":
+		# 福尔摩斯同意让信使进来 → 信使入场（立绘显示）
+		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
+	elif node_id == "m3":
+		# 福尔摩斯介绍信使为海军陆战队军士 → 点亮线索提示圈（仅提示，暂不开放点击）
+		if _messenger_obs: _messenger_obs.reveal_hints()
+
 func _on_messenger_dialogue_end() -> void:
+	if _dm: _dm.dialogue_node_entered.disconnect(_on_messenger_node_entered)
 	_phase = Phase.MESSENGER_OBSERVE
 	if _ui: _ui.set_camera_enabled(true)   # 进入信使观察：启用摄像机
+	_messenger_obs.show()   # 正式激活观察（开放点击；reveal_hints 在 m3 画的提示圈保留，已记录线索不重复显示）
 	_ui.set_dialogue("提示", _observe_hint("信使", true) + ("。注意分辨干扰项！" if DifficultyManager.mislead_chance > 0.0 else "。"))
 	_ui.set_dialogue_color(Color(0.5,0.9,0.5))
+	if _toolbar: _toolbar.show_toolbar()   # 观察阶段弹出道具工具栏
 
 func _show_messenger_reasoning_wall() -> void:
 	_messenger_obs.hide(); _phase = Phase.MESSENGER_REASONING
