@@ -1,6 +1,6 @@
 extends SceneTree
-## 端到端自测：场景三「集齐 9 线索 → 推理墙 → 验证 → 过渡对话 → scene 切换」全链路
-## 真实实例化 scene3，驱动对话推进、自动记录 9 线索、触发 all_recorded、
+## 端到端自测：场景三「集齐 13 线索 → 推理墙 → 验证 → 过渡对话 → scene 切换」全链路
+## 真实实例化 scene3，驱动对话推进、自动记录 13 线索（含 1 条 silent 自由发现）、触发 all_recorded、
 ## 等待 _enter_reasoning 计时器打开推理墙、模拟验证回调、确认进入 TRANSITION。
 ## 看门狗兜底，任何挂死都会强制刷日志退出。
 
@@ -42,22 +42,29 @@ func _initialize() -> void:
 	var rec = s3._obs.get_recorded()
 	var cs = ClueSystem.get_collected("indoor").size()
 	var local_n = s3._clues.size()
-	log.append("记录数=%d ClueSystem(indoor)=%d 场景内=%d (期望 9/9/9)" % [rec, cs, local_n])
-	if rec != 9 or cs != 9 or local_n != 9:
+	log.append("记录数=%d ClueSystem(indoor)=%d 场景内=%d (期望 13/13/13)" % [rec, cs, local_n])
+	if rec != 13 or cs != 13 or local_n != 13:
 		ok = false
 		print("P11_FAIL 线索登记不足：recorded=%d clueSystem=%d local=%d" % [rec, cs, local_n])
 
-	# all_recorded 已在第 9 条时自动发射 → _on_indoor_all_done（2.5s）→ _enter_reasoning（2.5s）→ _open_wall
+	# all_recorded 已在收满时自动发射 → _on_observe_complete（2.5s）→ _enter_reasoning（phase=REASONING，提示"思考"动作）
 	await _wait(6.5)
 	await process_frame
 	await process_frame
 
-	var wall = s3.find_child("ReasoningWall", true, false)
 	var phase_after = s3._phase
-	log.append("进入推理后 phase=%d 墙存在=%s" % [phase_after, str(wall != null)])
+	log.append("进入推理后 phase=%d (期望 3=REASONING)" % phase_after)
 	if phase_after != s3.Phase.REASONING:
 		ok = false
 		print("P11_FAIL 未进入 REASONING，当前 phase=", phase_after)
+
+	# 真实玩家路径：点「思考」开墙（_enter_reasoning 仅提示 think，墙由 think 绑定 _open_wall 触发）
+	s3._open_wall()
+	await process_frame
+	await process_frame
+
+	var wall = s3.find_child("ReasoningWall", true, false)
+	log.append("开墙后 墙存在=%s" % str(wall != null))
 	if wall == null:
 		ok = false
 		print("P11_FAIL 推理墙未创建（_open_wall 可能运行时报错）")
@@ -67,7 +74,7 @@ func _initialize() -> void:
 		# ---- 模拟「关联全部线索 + 提交验证」----
 		var n_clues = wall._clues.size()
 		log.append("推理墙线索数=%d" % n_clues)
-		if n_clues != 9:
+		if n_clues != 13:
 			ok = false
 			print("P11_FAIL 推理墙线索数异常：", n_clues)
 		# 直接调用验证回调（_on_verify_pressed 内部 2.5s 后回调，这里绕过点击直接验证回调语义）
@@ -77,16 +84,22 @@ func _initialize() -> void:
 		# 模拟玩家关联所有线索
 		for c in wall._clues:
 			if not c.get("associated", false):
-				wall._on_card_clicked(c["id"])
+				wall._toggle_association(c["id"])
 		var v2 = wall.get_verdict()
 		log.append("关联全部后 verdict=%d (期望 3=VERIFIED) 关联数=%d" % [v2, wall._associated])
 		if v2 != 3:
 			ok = false
 			print("P11_FAIL 全关联后 verdict 非 VERIFIED：", v2)
 
-		# 触发验证流程（与点击「提交验证」等价）：内部 await 2.5s 后回调 on_verify
+		# 触发验证流程：_on_verify_pressed 弹出结果窗口 → 点「确定」(_on_verify_confirm)
+		# 才真正 queue_free 墙 + 触发 _on_verify 回调 → _advance_now → 过渡
 		wall._on_verify_pressed()
-		await _wait(3.0)
+		await process_frame
+		await process_frame
+		wall._on_verify_confirm(wall.get_verdict())
+		await process_frame
+		await process_frame
+		await _wait(0.5)
 		await process_frame
 		await process_frame
 
@@ -102,12 +115,12 @@ func _initialize() -> void:
 	else:
 		# 检查过渡对话是否激活（SceneFramework 对话框），并自动推进 3 句
 		var dm = s3._dm
-		var dm_active = (dm != null and dm.is_active())
+		var dm_active = (dm != null and is_instance_valid(dm) and dm.is_active())
 		log.append("过渡对话激活=%s" % str(dm_active))
 		if not dm_active:
 			ok = false
 			print("P11_FAIL 过渡对话未激活")
-		else:
+		elif is_instance_valid(dm):
 			for i in 5:
 				if dm.is_active() and dm.get_current_trigger() != "choice":
 					dm.advance()
@@ -120,7 +133,7 @@ func _initialize() -> void:
 		print("[P11]", l)
 
 	if ok:
-		print("P11_E2E_OK 场景三全链路通过（9线索→推理墙→验证→过渡对话）")
+		print("P11_E2E_OK 场景三全链路通过（13线索→推理墙→验证→过渡对话）")
 	else:
 		print("P11_E2E_FAIL 场景三全链路存在阻断点")
 	quit()

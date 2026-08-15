@@ -1,7 +1,7 @@
 extends SceneTree
 ## 端到端自测（真实玩家路径）：scene2 全流程 → change_scene 切 scene3 → scene3 全流程
 ## 完整复刻用户操作：scene2 六线索(真实 _record)→推理墙→全关联→提交验证→过渡对话
-## →_go_to_next_scene(真实场景切换)→scene3 抵达/警长对话(真实 advance)→9 线索→推理墙。
+## →_go_to_next_scene(真实场景切换)→scene3 抵达/警长对话(真实 advance)→13 线索→推理墙。
 ## 带着 scene2 遗留状态（ClueSystem garden 线索、GameManager 存档态、登录态）进 scene3，
 ## 用于暴露「单场景测试测不出」的跨场景污染 / 卡死。
 
@@ -48,27 +48,43 @@ func _initialize() -> void:
 		await process_frame
 	log.append("scene2 线索 local=%d cs=%d" % [s2._clues.size(), ClueSystem.get_collected("garden").size()])
 
-	# all_recorded → 2.5s → _enter_reasoning → 2.5s → _open_wall
+	# all_recorded → 2.5s → _enter_reasoning（提示"思考"）→ 玩家点 think 开墙
 	await _wait(6.5)
+	# 真实玩家路径：点「思考」开墙（think 绑定 _open_wall）
+	s2._open_wall()
+	await process_frame
+	await process_frame
 	var wall2 = s2.find_child("ReasoningWall", true, false)
 	log.append("scene2 phase=%d 墙=%s" % [s2._phase, str(wall2 != null)])
 	if wall2 == null:
 		ok = false; print("P12_FAIL scene2 推理墙未打开")
 	else:
 		for c in wall2._clues:
-			if not c.get("associated", false): wall2._on_card_clicked(c["id"])
+			if not c.get("associated", false): wall2._toggle_association(c["id"])
 		wall2._on_verify_pressed()
-		await _wait(3.0)
+		await process_frame
+		await process_frame
+		wall2._on_verify_confirm(wall2.get_verdict())
+		await process_frame
+		await process_frame
 
 	log.append("scene2 验证后 phase=%d (期望 %d=TRANSITION)" % [s2._phase, s2.Phase.TRANSITION])
 	if s2._phase != s2.Phase.TRANSITION:
 		ok = false; print("P12_FAIL scene2 验证后未进入 TRANSITION")
 
-	# 推进过渡对话直到 dialogue_ended → _go_to_next_scene（含 await SaveManager.save_game()
-	# 与真实 change_scene_to_file("res://scenes/scene3.tscn")）
-	await _advance_dialogue(s2, 8)
-	# change_scene 是延迟执行的，等几帧 + 存档 await
-	await _wait(3.0)
+	# 推进过渡对话直到 dialogue_ended → _go_to_next_scene → _show_scene_rating（侦破过程评价面板）
+	await _advance_dialogue(s2, 30)
+	# 过渡对话结束后弹出「侦破过程」评价面板；真实玩家须点「继续推进」才会触发场景切换
+	await process_frame
+	await process_frame
+	var rating_cont = _find_button_by_text(s2, "继续推进")
+	if rating_cont != null:
+		log.append("scene2 评价面板出现，真实点击「继续推进」")
+		rating_cont.pressed.emit()
+	else:
+		log.append("⚠ scene2 评价面板未出现（场景切换将不会发生）")
+	# change_scene 是延迟执行的（评分类 + 存档 await + 黑屏淡入淡出），等足时间
+	await _wait(3.5)
 	await process_frame
 	await process_frame
 
@@ -89,9 +105,9 @@ func _initialize() -> void:
 	log.append("scene3 初始 phase=%d (0=ARRIVAL)" % s3._phase)
 
 	# 真实推进 arrival + 警长对话
-	await _advance_dialogue(s3, 12)
+	await _advance_dialogue(s3, 30)
 	if s3._phase < s3.Phase.OBSERVE:
-		await _advance_dialogue(s3, 12)
+		await _advance_dialogue(s3, 30)
 	log.append("scene3 对话后 phase=%d (期望 %d=OBSERVE)" % [s3._phase, s3.Phase.OBSERVE])
 	if s3._phase != s3.Phase.OBSERVE:
 		ok = false; print("P12_FAIL scene3 未进入 OBSERVE, phase=", s3._phase)
@@ -101,24 +117,32 @@ func _initialize() -> void:
 		s3._obs._record(h["id"], str(h.get("desc", "")))
 		await process_frame
 	var cs_indoor = ClueSystem.get_collected("indoor").size()
-	log.append("scene3 线索 local=%d cs=%d rec=%d (期望 9)" % [s3._clues.size(), cs_indoor, s3._obs.get_recorded()])
-	if cs_indoor != 9:
+	log.append("scene3 线索 local=%d cs=%d rec=%d (期望 13)" % [s3._clues.size(), cs_indoor, s3._obs.get_recorded()])
+	if cs_indoor != 13:
 		ok = false; print("P12_FAIL scene3 线索登记异常 cs=", cs_indoor)
 
 	await _wait(6.5)
+	# 真实玩家路径：点「思考」开墙
+	s3._open_wall()
+	await process_frame
+	await process_frame
 	var wall3 = s3.find_child("ReasoningWall", true, false)
 	log.append("scene3 phase=%d 墙=%s" % [s3._phase, str(wall3 != null)])
 	if s3._phase != s3.Phase.REASONING or wall3 == null:
 		ok = false; print("P12_FAIL scene3 收集完毕后未进入推理墙（用户卡死点）phase=", s3._phase, " 墙=", wall3 != null)
 	else:
 		var n3 = wall3._clues.size()
-		log.append("scene3 推理墙线索数=%d (期望 9，若>9 则混入了 garden 线索)" % n3)
-		if n3 != 9: ok = false; print("P12_FAIL 推理墙线索数=", n3)
+		log.append("scene3 推理墙线索数=%d (期望 19 = 6 garden + 13 indoor 全案池；>13 证明跨场景线索已并入)" % n3)
+		if n3 != 19: ok = false; print("P12_FAIL 推理墙线索数=", n3)
 		for c in wall3._clues:
-			if not c.get("associated", false): wall3._on_card_clicked(c["id"])
+			if not c.get("associated", false): wall3._toggle_association(c["id"])
 		log.append("scene3 全关联 verdict=%d (期望 3)" % wall3.get_verdict())
 		wall3._on_verify_pressed()
-		await _wait(3.0)
+		await process_frame
+		await process_frame
+		wall3._on_verify_confirm(wall3.get_verdict())
+		await process_frame
+		await process_frame
 
 	log.append("scene3 验证后 phase=%d (期望 %d=TRANSITION)" % [s3._phase, s3.Phase.TRANSITION])
 	if s3._phase != s3.Phase.TRANSITION:
@@ -145,6 +169,16 @@ func _advance_dialogue(scene: Node, max_clicks: int) -> void:
 
 func _wait(sec: float) -> void:
 	await create_timer(sec).timeout
+
+## 递归查找子树内首个文本匹配的 Button（用于点击「侦破过程」评价面板的「继续推进」）
+func _find_button_by_text(node: Node, txt: String) -> Button:
+	if node is Button and node.text == txt:
+		return node
+	for c in node.get_children():
+		var r = _find_button_by_text(c, txt)
+		if r != null:
+			return r
+	return null
 
 func _watchdog_quit() -> void:
 	print("P12_WATCHDOG 超时强制退出（疑似挂死——这可能正是用户卡死点）")
