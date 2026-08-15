@@ -512,9 +512,22 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	var full_text := desc
 	if tool != null and str(tool) != "" and str(tool) != "none":
 		full_text += "\n\n（🔧 可用工具：" + str(tool) + "）"
-	# 说明框：宽度与上方图片框一致(side)，高度减半(123)，紧贴图片下方。
+	# 字体再放大 2 个字号（19 → 21）；文本框外框与上方图片框保持一致（同为金边 3px / 圆角 8）。
+	var FONT_SIZE: int = 21
+	# 先建 RichTextLabel 以取主题字体的真实行高
+	var rl := RichTextLabel.new()
+	rl.bbcode_enabled = false
+	rl.fit_content = true
+	rl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rl.add_theme_font_size_override("font_size", FONT_SIZE)
+	rl.add_theme_color_override("default_color", Color(0.93, 0.89, 0.79))
+	rl.text = full_text
+	rl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 行高按放大后字号估算（含行间距），文本框高度 = 3 × 行高
+	var line_h: float = float(FONT_SIZE) * 1.3
+	# 文本框高度 = 3 × 放大后行高；超出此高度的内容在框内滚动。
 	var box_w: float = side
-	var box_h: float = 123.0
+	var box_h: float = 3.0 * line_h
 	var box_x: float = img_x
 	var box_y: float = img_y + side + 10.0
 	var desc_panel := Panel.new()
@@ -522,28 +535,21 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	desc_panel.size = Vector2(box_w, box_h)
 	var psb := StyleBoxFlat.new()
 	psb.bg_color = Color(0.06, 0.05, 0.07, 0.82)
-	psb.border_color = Color(0.78, 0.62, 0.28, 0.9)
-	psb.border_width_left = 2; psb.border_width_right = 2
-	psb.border_width_top = 2; psb.border_width_bottom = 2
-	psb.set_corner_radius_all(10)
+	psb.border_color = Color(0.95, 0.80, 0.35, 1)   # 与图片框金边一致
+	psb.border_width_left = 3; psb.border_width_right = 3
+	psb.border_width_top = 3; psb.border_width_bottom = 3
+	psb.set_corner_radius_all(8)                     # 与图片框圆角一致
 	desc_panel.add_theme_stylebox_override("panel", psb)
 	desc_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	popup.add_child(desc_panel)
 	var sc := ScrollContainer.new()
-	sc.position = Vector2(12, 12); sc.size = Vector2(box_w - 24.0, box_h - 24.0)
-	sc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sc.position = Vector2(10, 10); sc.size = Vector2(box_w - 20.0, box_h - 20.0)
+	# PASS：滚轮可在框内滚动文字；点击穿透到 popup 关闭（滚轮 pressed=false 不会误关）
+	sc.mouse_filter = Control.MOUSE_FILTER_PASS
 	desc_panel.add_child(sc)
-	var rl := RichTextLabel.new()
-	rl.bbcode_enabled = false
-	rl.fit_content = true
-	rl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	# ⚠️ 关键：RichTextLabel 必须在 ScrollContainer 内横向撑满(SIZE_EXPAND_FILL)，
 	# 否则其宽度塌缩为 1px，文字逐字换行、整块不可读（此前「弹出框无文字」的根因）。
 	rl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rl.add_theme_font_size_override("font_size", 19)
-	rl.add_theme_color_override("default_color", Color(0.93, 0.89, 0.79))
-	rl.text = full_text
-	rl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sc.add_child(rl)
 
 	# 底部提示
