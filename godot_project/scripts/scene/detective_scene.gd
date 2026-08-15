@@ -154,6 +154,14 @@ func _create_observers() -> void:
 func _current_observer() -> ClueObserver:
 	return _obs
 
+## 通用：进入观察阶段（供各场景 _on_detective_ended 调用，去除重复的 boilerplate）。
+## 只负责「显示观察器 + 给出观察提示」；阶段置位（_phase = Phase.OBSERVE）由各场景在自己的
+## 钩子里完成（基类用 int 表示阶段，具体枚举由子类定义，故不能在此硬写）。
+## target_noun 为观察对象名词（"花园" / "屋内" / "身上"），用于生成观察提示文案。
+func _begin_observe(target_noun: String) -> void:
+	_obs.show()
+	_ui.set_dialogue("提示", _observe_hint(target_noun) + _observe_warn_suffix() + "\n左侧 LOOK 可重新激活标记；收集完全部线索后打开推理墙整理。")
+
 func _connect_ui_signals() -> void:
 	_ui.nav_clicked.connect(_on_nav)
 	_ui.action_clicked.connect(_on_action)
@@ -181,13 +189,13 @@ func _on_clue_recorded(_clue_id: String, _clue_data: Dictionary) -> void:
 		)
 	var total := hotspots().size()
 	_ui.show_notification("线索已记录：" + str(_clue_data.get("name", "")) + "（" + str(_clues.size()) + "/" + str(total) + "）")
-	# M2：记录线索后镜头推近到该部位（与场景一行为一致），强化「观察互动」。
-	# 仅在观察器能提供世界坐标时执行（无立绘/无锚点的场景返回 ZERO，自动跳过）。
-	var obs := _current_observer()
-	if _ui and obs and obs.has_method("get_clue_world_point"):
-		var wp := obs.get_clue_world_point(_clue_id)
-		if wp != Vector2.ZERO:
-			_ui.focus_world_point(wp, 2.2)
+	# ⚠️ 关键修复（2026-08-15 用户反馈「点线索后其他线索被放大场景隐藏、流程卡死」）：
+	# 原 M2 实现在记录线索后调用 focus_world_point(wp, 2.2) 把摄像机推近并锁定在刚记录的线索处，
+	# 导致其余未记录线索被推出视口外、点不到，流程无法继续。改为记录后回到「统览原场景」
+	# （zoom=1, position=0），确保其余未记录线索始终可见、可点，直到全部收集完毕。
+	# 推近镜头本只是「观察互动」的调味，却破坏了多线索勘查的可用性，故移除。
+	if _ui:
+		_ui.reset_camera()
 
 ## 全部线索记录完成 → 进入推理（virtual：子类可加华生点评）
 func _on_all_done(_clues_arr: Array) -> void:
