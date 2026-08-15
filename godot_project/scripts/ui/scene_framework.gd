@@ -317,6 +317,7 @@ func _build_top_bar() -> void:
 	_top_bar.position = Vector2(0, 0); _top_bar.size = Vector2(1920, TOP_H)
 	_top_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_top_bar)
+	# 顶部栏只作装饰/导航容器，绝不可吞掉下方场景区点击。
 
 	# 深褐底
 	var bg = ColorRect.new()
@@ -582,6 +583,9 @@ func _build_dialogue_bar() -> void:
 	_dialogue_bar.name = "dialogue_bar"
 	_dialogue_bar.position = Vector2(0, 1080 - DIALOGUE_H)
 	_dialogue_bar.size = Vector2(1920, DIALOGUE_H)
+	# 对话栏只承载显示与台词回看按钮，不能整体拦截场景区点击；
+	# 否则场景二/三等地点类线索圈会被底部栏吞掉（圆圈在 _world，栏在上方 sibling）。
+	_dialogue_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_dialogue_bar)
 
 	# 羊皮纸底
