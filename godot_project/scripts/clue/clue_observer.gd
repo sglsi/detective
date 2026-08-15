@@ -570,11 +570,16 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	popup.grab_focus()
 
 ## 放大图输入处理：再次点击画面 / 按 Enter/Space/Esc/E 关闭并记录
+## ⚠️ 滚轮(上/下/左/右)也是 InputEventMouseButton 且 pressed=true，但只用于框内滚动文字，
+## 必须排除，否则滚轮滑动会误触发关闭。
 func _on_zoom_input(event: InputEvent) -> void:
 	if not _zoomed: return
 	var close := false
 	if event is InputEventMouseButton and event.pressed:
-		close = true
+		var b: int = event.button_index
+		if b != MOUSE_BUTTON_WHEEL_UP and b != MOUSE_BUTTON_WHEEL_DOWN \
+				and b != MOUSE_BUTTON_WHEEL_LEFT and b != MOUSE_BUTTON_WHEEL_RIGHT:
+			close = true
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ENTER or event.keycode == KEY_SPACE or event.keycode == KEY_ESCAPE or event.keycode == KEY_E:
 			close = true
