@@ -512,8 +512,8 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	var full_text := desc
 	if tool != null and str(tool) != "" and str(tool) != "none":
 		full_text += "\n\n（🔧 可用工具：" + str(tool) + "）"
-	# 字体再放大 2 个字号（19 → 21）；文本框外框与上方图片框保持一致（同为金边 3px / 圆角 8）。
-	var FONT_SIZE: int = 21
+	# 文本框字号与对话栏一致（项目主题 default_font_size = 18，对话栏未单独覆盖）；其它样式不变。
+	var FONT_SIZE: int = 18
 	# 先建 RichTextLabel 以取主题字体的真实行高
 	var rl := RichTextLabel.new()
 	rl.bbcode_enabled = false
