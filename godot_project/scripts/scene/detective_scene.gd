@@ -168,10 +168,11 @@ func _connect_ui_signals() -> void:
 
 # ===================== 观察器（通用） =====================
 func _on_hotspot_seen(clue_id: String) -> void:
-	var h = _get_hotspot(clue_id)
-	if not h: return
-	var tip := _hotspot_tip(h.get("tool", ""))
-	_ui.set_dialogue("发现：" + str(h.get("label", "")), str(h.get("desc", "")) + tip)
+	# 线索说明统一在放大弹出框（ClueObserver._open_zoom）内展示，不再写入底部对话框。
+	# 同时转发给工具栏，使放大镜/卷尺/黄页等道具能定位「当前正在观察的线索」
+	# （与场景一 _on_obs_hotspot_to_tool 行为一致，统一线索机制接线）。
+	if SceneEventBus:
+		SceneEventBus.hotspot_clicked.emit(clue_id)
 
 ## 记录一条线索：追加到本地数组并同步到 ClueSystem（推理墙单一真相源）。
 ## 与场景二/三历史行为完全一致：name 取线索 label。
