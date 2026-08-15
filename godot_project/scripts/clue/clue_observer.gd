@@ -389,9 +389,18 @@ func _draw_initial_hints() -> void:
 
 
 ## 点击线索部位后弹出该部位放大图（整图 + 金框标出锚点区域，等比 contain 居中放大），
-## 同时底部对话框给出该线索的说明文字。玩家再次点击画面任意处 / 按 Enter/Space/Esc 关闭放大图，
-## 关闭时才把该线索正式记入推理墙（Q4 确认：记录发生在「退出放大图」时刻，而非点开时刻）。
+## 线索说明文字统一收进弹出框内的滚动面板（不再写入底部对话框，便于阅读）。
+## 玩家再次点击画面任意处 / 按 Enter/Space/Esc 关闭放大图，关闭时才把该线索正式记入推理墙
+## （Q4 确认：记录发生在「退出放大图」时刻，而非点开时刻）。
 ## 所有难度都弹放大图 + 展示说明文字（那是观察结果，不是提示；提示仅指「难度分级的部位高亮」）。
+## 统一机制：场景一（人物立绘，有锚点→裁切部位）、场景二/三（地点背景，有锚点→裁切区域；
+## 无锚点如场景三→整图放大兜底），三场景共用同一套弹出框，文案与交互完全一致。
+func _vp_size() -> Vector2:
+	var vp = get_viewport()
+	if vp != null:
+		return vp.size
+	return Vector2(1920, 1080)
+
 func _open_zoom(clue_id: String, desc: String) -> void:
 	if _zoomed: return
 	_zoomed = true
@@ -402,11 +411,11 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 		if hs["id"] == clue_id:
 			hs_d = hs
 			break
-	# 放大图统一使用「屏上立绘」同一张图 + 同一套锚点（与高亮圆圈一致），
-	# 解决此前放大图用 spritesheet 裁切、圆圈用 portrait 锚点导致「点哪放哪」错位的问题。
+	# 放大图统一使用「屏上立绘 / 场景背景」同一张图 + 同一套锚点（与高亮圆圈一致）。
 	var img_path: String = _portrait_img_path if _portrait_img_path != "" else hs_d.get("image", "")
 	var anchor_name: String = hs_d.get("anchor", "")
 	var title: String = hs_d.get("label", clue_id)
+	var vp := _vp_size()
 
 	# 放大图遮罩层：FULL_RECT 覆盖整个游玩区（对话栏 z_index=150 在其之上，保持可见）
 	var popup := Control.new()
@@ -419,25 +428,30 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	popup.add_child(dim)
 
-	# 部位放大图：AtlasTexture 截取锚点区域，等比 contain 居中放大（Godot 4.7 用 expand_mode=2 = contain）
-	if img_path != "" and ResourceLoader.exists(img_path) and anchor_name != "":
+	# 部位放大图：有锚点数据 → AtlasTexture 截取锚点区域（场景一/二）；
+	# 无锚点数据（地点类缺锚点，如场景三）→ 整图放大兜底，保证弹出框始终有可视内容。
+	var side: float = min(vp.x * 0.42, 500.0)
+	var img_pos := Vector2((vp.x - side) / 2.0, 60.0)
+	if img_path != "" and ResourceLoader.exists(img_path):
 		var tex: Texture2D = load(img_path)
-		var a: Dictionary = ClueImageAnchors.get_anchor(img_path, anchor_name)
-		if tex != null and not a.is_empty():
-			var tw := float(tex.get_width()); var th := float(tex.get_height())
-			var at := AtlasTexture.new()
-			at.atlas = tex
-			at.region = Rect2((float(a["cx"]) - float(a["w"]) / 2.0) * tw,
-							  (float(a["cy"]) - float(a["h"]) / 2.0) * th,
-							  float(a["w"]) * tw, float(a["h"]) * th)
-			var side: float = min(get_viewport().size.x * 0.42, 760.0)
+		if tex != null:
 			var img := TextureRect.new()
-			img.texture = at
 			img.expand_mode = 2
 			img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			img.size = Vector2(side, side)
-			img.position = Vector2((get_viewport().size.x - side) / 2.0, 410.0 - side / 2.0)
+			img.position = img_pos
 			img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var a: Dictionary = ClueImageAnchors.get_anchor(img_path, anchor_name) if anchor_name != "" else {}
+			if not a.is_empty():
+				var tw := float(tex.get_width()); var th := float(tex.get_height())
+				var at := AtlasTexture.new()
+				at.atlas = tex
+				at.region = Rect2((float(a["cx"]) - float(a["w"]) / 2.0) * tw,
+								  (float(a["cy"]) - float(a["h"]) / 2.0) * th,
+								  float(a["w"]) * tw, float(a["h"]) * th)
+				img.texture = at
+			else:
+				img.texture = tex
 			popup.add_child(img)
 			# 金框包住放大图
 			var frame := Panel.new()
@@ -458,18 +472,51 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	lab.text = "🔍 " + title
 	lab.add_theme_font_size_override("font_size", 26)
 	lab.add_theme_color_override("font_color", Color(0.95, 0.82, 0.45))
-	lab.position = Vector2(0, 24)
-	lab.size = Vector2(get_viewport().size.x, 40)
+	lab.position = Vector2(0, 20)
+	lab.size = Vector2(vp.x, 40)
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	popup.add_child(lab)
+
+	# 线索说明：统一收进弹出框内（不再写入底部对话框，便于阅读），长文可滚动。
+	var tool: Variant = hs_d.get("tool", "")
+	var full_text := desc
+	if tool != null and str(tool) != "" and str(tool) != "none":
+		full_text += "\n\n[🔧 可用工具：" + str(tool) + "]"
+	var desc_panel := Panel.new()
+	desc_panel.position = Vector2((vp.x - 1300) / 2.0, 566.0)
+	desc_panel.size = Vector2(1300, 246)
+	var psb := StyleBoxFlat.new()
+	psb.bg_color = Color(0.06, 0.05, 0.07, 0.82)
+	psb.border_color = Color(0.78, 0.62, 0.28, 0.9)
+	psb.border_width_left = 2; psb.border_width_right = 2
+	psb.border_width_top = 2; psb.border_width_bottom = 2
+	psb.set_corner_radius_all(10)
+	desc_panel.add_theme_stylebox_override("panel", psb)
+	desc_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	popup.add_child(desc_panel)
+	var sc := ScrollContainer.new()
+	sc.position = Vector2(28, 14); sc.size = Vector2(1244, 218)
+	sc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	desc_panel.add_child(sc)
+	var rl := RichTextLabel.new()
+	rl.bbcode_enabled = false
+	rl.fit_content = true
+	rl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rl.size = Vector2(1200, 40)
+	rl.add_theme_font_size_override("font_size", 20)
+	rl.add_theme_color_override("default_color", Color(0.93, 0.89, 0.79))
+	rl.text = full_text
+	rl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sc.add_child(rl)
+
 	# 底部提示
 	var hint := Label.new()
 	hint.text = "（点击任意处 / 按 Enter 关闭，并记录此线索）"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_color_override("font_color", Color(0.7, 0.66, 0.55))
-	hint.position = Vector2(0, 800)
-	hint.size = Vector2(get_viewport().size.x, 30)
+	hint.position = Vector2(0, 826)
+	hint.size = Vector2(vp.x, 28)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	popup.add_child(hint)
@@ -479,11 +526,6 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	_zoom_popup = popup
 	# 抢焦点以捕获键盘 Enter/Space/Esc
 	popup.grab_focus()
-
-	# 底部对话框给出说明文字（所有难度都展示——这是观察结果，不是提示）
-	if _speaker_lbl != null:
-		_speaker_lbl.text = "福尔摩斯"
-	_text_lbl.text = desc
 
 ## 放大图输入处理：再次点击画面 / 按 Enter/Space/Esc/E 关闭并记录
 func _on_zoom_input(event: InputEvent) -> void:
@@ -539,20 +581,8 @@ func _record(clue_id: String, desc: String) -> void:
 	if not rec_silent:
 		_required_recorded += 1
 
-	# 底部文字：进度只统计必点线索；沉默线索为额外奖励，不计入分母。
-	var parts = {0:"第一",1:"第二",2:"第三",3:"第四",4:"第五",5:"第六"}
-	var progress := "线索已记录！%s条线索 (%d/%d)" % [parts.get(_recorded-1, ""), _required_recorded, _required_total]
-	# 简单模式（设计文档 B-11.2「自动展示推理 / 对话细节补充=全部」）：点击后自动展示该线索的
-	# 观察推理文字，与「圈定人物相关部位的高亮圆圈」并存，对应「高亮可点击区域 + 自动展示推理」。
-	# 普通/困难模式不自动展示文字（玩家自行观察 / 无提示），仅保留圆圈标记。
-	if _is_simple_mode():
-		if _speaker_lbl != null:
-			_speaker_lbl.text = "福尔摩斯"
-		_text_lbl.text = "%s\n—— 已记录 %d/%d 条线索" % [desc, _required_recorded, _required_total]
-	else:
-		_text_lbl.text = progress
-		if _speaker_lbl != null:
-			_speaker_lbl.text = ""
+	# ⚠️ 统一：线索说明已完整呈现在放大弹出框内（见 _open_zoom），不再写入底部对话框。
+	# 记录进度反馈由场景 _on_clue_recorded → show_notification 统一处理，避免与叙事对话框打架。
 
 	# 完成判定基于「必点」线索：silent 未点也能推进场景
 	# 守卫：all_recorded 只在「跨过阈值」时发射一次；越过后再记录新必点线索不重复发射
