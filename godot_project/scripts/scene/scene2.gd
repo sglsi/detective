@@ -181,8 +181,7 @@ func _show_detective_dialogue() -> void:
 
 func _on_detective_ended() -> void:
 	_phase = Phase.OBSERVE
-	_obs.show()
-	_ui.set_dialogue("提示", _observe_hint("花园") + _observe_warn_suffix() + "\n左侧 LOOK 可重新激活标记；收集完全部 6 条线索后打开推理墙整理。")
+	_begin_observe("花园")
 
 func _enter_reasoning() -> void:
 	_phase = Phase.REASONING; _wall_auto = true
