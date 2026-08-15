@@ -52,6 +52,12 @@ func _ready() -> void:
 	_build_all()
 
 func setup(location: String, time_str: String, bg_tex: Texture2D = null, portraits: Array = []) -> void:
+	# ⚠️ 关键时序修复：父节点（DetectiveScene）在自身 _ready 内 add_child 本框架后，
+	# 会立刻调用 _create_observers() → _ui.get_world_layer()。但子节点 _ready 被 Godot 延迟到
+	# 父 _ready 之后才执行，届时 _build_all 才建 _world。若此处不同步建好 _world，
+	# 则 _create_observers 拿到 null world_layer → 地点类热点 btn 落到错误父节点、圆圈不画
+	#（表现为「场景二/三点击线索无反应」）。setup 在 add_child(_ui) 后同步调用，故在此先把世界层建好。
+	_ensure_world()
 	_location = location
 	_time_text = time_str
 	_set_top_bar_text()
@@ -547,7 +553,15 @@ func _make_action_button(a: Dictionary, w: int, h: int, idx: int) -> Button:
 
 # === 中央场景区 ===
 
+## 幂等建世界层：供 setup() 在 _ready 前同步调用，也供 _build_all 复用（已建则跳过）。
+func _ensure_world() -> void:
+	if _world != null:
+		return
+	_build_scene_area()
+
 func _build_scene_area() -> void:
+	if _scene_area != null:
+		return
 	_scene_area = Control.new()
 	_scene_area.name = "scene_area"
 	_scene_area.position = Vector2(LEFT_W, TOP_H)

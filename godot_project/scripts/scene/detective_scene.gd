@@ -127,6 +127,10 @@ func _create_dummy_labels() -> void:
 ## 场景一覆盖为创建 watson/messenger 两组。
 func _create_observers() -> void:
 	_obs = ClueObserver.new()
+	_obs.name = "observer"
+	# ⚠️ 必须加入场景树：否则 _obs 不在树内，_open_zoom() 里 get_viewport() 返回 null，
+	# 点中线索后放大图崩溃（表现为「点击无反应」）。场景一已 add_child，此处补齐二/三/七/八。
+	add_child(_obs)
 	# 按难度过滤误导线索（简单剔除，普通 30%，困难 70%）
 	var filtered_hotspots: Array = hotspots()
 	if DifficultyManager:
