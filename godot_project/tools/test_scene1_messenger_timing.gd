@@ -41,27 +41,49 @@ func run_test() -> void:
 		print("SC1_MSG: FAIL (1) 信使/线索在对话前就出现了 (portrait=", inst._messenger_portrait_ctrl.visible, " active=", inst._messenger_obs.is_active(), ")")
 		ok = false
 
-	# (2) 推进到 m1：福尔摩斯同意让信使进来 → 信使入场
-	inst._dm.advance(); await create_timer(0.02).timeout
-	var a1: bool = inst._messenger_portrait_ctrl.visible
-	if not a1:
-		print("SC1_MSG: FAIL (2) m1 后信使立绘未显示")
+	# (2) 推进到 m1（福尔摩斯「让他进来吧」正在说）→ 信使【仍不可见】（修正点：
+	#     之前挂在 m1 节点进入就显示，导致台词还在播信使就出现；现挂到 m1 说完后）
+	inst._dm.advance(); await create_timer(0.02).timeout   # -> m1
+	var a1_still_hidden: bool = not inst._messenger_portrait_ctrl.visible
+	if not a1_still_hidden:
+		print("SC1_MSG: FAIL (2) 福尔摩斯说'让他进来'的同时信使就显现了（应说完后才出现）")
 		ok = false
 
-	# (3) 推进到 m2、m3；m3 福尔摩斯介绍其为海军军士 → 点亮提示圈（但不激活点击）
-	inst._dm.advance(); await create_timer(0.02).timeout   # m2
-	inst._dm.advance(); await create_timer(0.02).timeout   # m3 -> reveal_hints
+	# (2b) 推进到 m2（信使说话节点进入 = m1 已说完后）→ 信使入场（可见），圈仍不点亮
+	inst._dm.advance(); await create_timer(0.02).timeout   # -> m2
+	var a2_visible: bool = inst._messenger_portrait_ctrl.visible
+	var hl_after_m2: int = _count_hl(inst._messenger_obs._portrait_ctrl)
+	if not a2_visible:
+		print("SC1_MSG: FAIL (2b) m1 说完后（进入 m2）信使立绘仍未显示")
+		ok = false
+	if hl_after_m2 != 0:
+		print("SC1_MSG: FAIL (2b) m2 阶段提示圈不应点亮（应 m3 说完后），hl=", hl_after_m2)
+		ok = false
+
+	# (3) 推进到 m3（福尔摩斯介绍其为海军军士，正在说）→ 圈【仍不点亮】，信使保持可见
+	inst._dm.advance(); await create_timer(0.02).timeout   # -> m3
+	var a3_visible: bool = inst._messenger_portrait_ctrl.visible
+	var hl_after_m3: int = _count_hl(inst._messenger_obs._portrait_ctrl)
+	if not a3_visible:
+		print("SC1_MSG: FAIL (3) m3 阶段信使立绘不应消失")
+		ok = false
+	if hl_after_m3 != 0:
+		print("SC1_MSG: FAIL (3) m3 说的时候提示圈不应点亮（应 m3 说完后），hl=", hl_after_m3)
+		ok = false
+
+	# (3b) 推进到 m4（信使惊讶，m3 已说完后）→ 点亮线索提示圈（但不激活点击）
+	inst._dm.advance(); await create_timer(0.02).timeout   # -> m4
 	var lvl: int = dm_node.hotspot_hint_level
-	var a3_active: bool = not inst._messenger_obs.is_active()   # reveal 绝不可激活点击
+	var a3b_active: bool = not inst._messenger_obs.is_active()   # reveal 绝不可激活点击
 	var hl_count: int = _count_hl(inst._messenger_obs._portrait_ctrl)
 	# 期望点亮数 = 观察器经难度过滤后的真实热点数（EASY 剔除非误导线索→4 条；HARD 含误导→6 条）
 	var expected_hl: int = inst._messenger_obs._hotspots.size()
-	var a3_hints: bool = (lvl > 0 and hl_count == expected_hl) or (lvl == 0 and hl_count == 0)
-	if not a3_active:
-		print("SC1_MSG: FAIL (3) m3 reveal_hints 错误地激活了观察器（对话中可点）")
+	var a3b_hints: bool = (lvl > 0 and hl_count == expected_hl) or (lvl == 0 and hl_count == 0)
+	if not a3b_active:
+		print("SC1_MSG: FAIL (3b) m4 reveal_hints 错误地激活了观察器（对话中可点）")
 		ok = false
-	if a3_hints == false:
-		print("SC1_MSG: FAIL (3) m3 后提示圈未点亮 (hint_level=", lvl, " hl_count=", hl_count, " expected=", expected_hl, ")")
+	if a3b_hints == false:
+		print("SC1_MSG: FAIL (3b) m4 后提示圈未点亮 (hint_level=", lvl, " hl_count=", hl_count, " expected=", expected_hl, ")")
 		ok = false
 
 	# (4) 推进直到对话结束 → 观察器激活（正式观察）
@@ -75,8 +97,10 @@ func run_test() -> void:
 		print("SC1_MSG: FAIL (4) 对话结束后观察器未激活（信使线索仍点不到）")
 		ok = false
 
-	print("[SC1_MSG] a0(premature_hidden)=", a0, " a1(m1_portrait)=", a1,
-		  " a3_active_still_false=", a3_active, " a3_hints(lvl=", lvl, " hl=", hl_count, ")=", a3_hints,
+	print("[SC1_MSG] a0(premature_hidden)=", a0, " a1_still_hidden(m1)=", a1_still_hidden,
+		  " a2_visible(m2)=", a2_visible, " hl_after_m2=", hl_after_m2,
+		  " a3_visible(m3)=", a3_visible, " hl_after_m3=", hl_after_m3,
+		  " a3b_active(m4)=", a3b_active, " a3b_hints(lvl=", lvl, " hl=", hl_count, ")=", a3b_hints,
 		  " a_end(active)=", a_end)
 	print("SC1_MSG: ", "PASS ✅" if ok else "FAIL ❌")
 	quit()
