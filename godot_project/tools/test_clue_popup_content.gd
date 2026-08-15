@@ -1,10 +1,11 @@
 extends SceneTree
 ## 验证线索放大弹出框的统一改造：
-##  1) 场景二型（有锚点 image+anchor）：弹出框含说明文字(RichTextLabel) + 裁切放大图(AtlasTexture)
-##  2) 场景三型（仅 image 无 anchor）：弹出框含说明文字 + 整图放大兜底(TextureRect 非 AtlasTexture)
+##  1) 场景二型（image + 显式 anchor）：弹出框含说明文字(RichTextLabel) + 裁切放大图(AtlasTexture)
+##  2) 场景三型（仅 image 未写 anchor）：靠「线索 id 兜底」查到锚点 → 同样裁切到相关线索(AtlasTexture)，
+##     不再显示整张背景（2026-08-15 修复：场景三此前整图兜底、看不到具体线索）。
 ##  3) 说明文字不再写入底部对话框（_text_lbl / _speaker_lbl 保持空）
 ##
-## 统一机制：场景一/二/三 共用 ClueObserver._open_zoom；场景三此前因缺 image/anchor 整图不显示。
+## 统一机制：场景一/二/三 共用 ClueObserver._open_zoom；地点类(/scenes/)做上下文放大裁切、角色立绘保持原裁切。
 
 var ok := true
 
@@ -40,7 +41,7 @@ func run_test() -> void:
 	obs2.hide()
 	obs2.queue_free()
 
-	# ── 用例 B：场景三型热点（仅 image，无 anchor）──
+	# ── 用例 B：场景三型热点（仅 image 未写 anchor，靠 id 兜底裁切到相关线索）──
 	var hs3 := [
 		{"id":"c301","label":"尸体·面部与姿态","x":840.0,"y":410.0,"w":220.0,"h":46.0,
 		 "desc":"死者约四十三四岁，中等身材，宽宽的肩膀，黑色鬈发，短硬的胡子。僵硬的脸上露出恐怖、忿恨的表情。","tool":"放大镜",
@@ -51,7 +52,7 @@ func run_test() -> void:
 	obs3.show()
 	obs3._btns[0].emit_signal("pressed")
 	await create_timer(0.02).timeout
-	_check_popup(obs3, "死者约四十三四岁", false, "B(场景三·整图兜底)", "c301")
+	_check_popup(obs3, "死者约四十三四岁", true, "B(场景三·id兜底裁切)", "c301")
 	obs3.hide()
 	obs3.queue_free()
 
