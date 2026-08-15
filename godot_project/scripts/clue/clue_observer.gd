@@ -431,7 +431,9 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	# 部位放大图：有锚点数据 → AtlasTexture 截取锚点区域（场景一/二）；
 	# 无锚点数据（地点类缺锚点，如场景三）→ 整图放大兜底，保证弹出框始终有可视内容。
 	var side: float = min(vp.x * 0.42, 500.0)
-	var img_pos := Vector2((vp.x - side) / 2.0, 60.0)
+	var img_x: float = (vp.x - side) / 2.0
+	var img_y: float = 60.0
+	var img_pos := Vector2(img_x, img_y)
 	if img_path != "" and ResourceLoader.exists(img_path):
 		var tex: Texture2D = load(img_path)
 		if tex != null:
@@ -482,10 +484,15 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	var tool: Variant = hs_d.get("tool", "")
 	var full_text := desc
 	if tool != null and str(tool) != "" and str(tool) != "none":
-		full_text += "\n\n[🔧 可用工具：" + str(tool) + "]"
+		full_text += "\n\n（🔧 可用工具：" + str(tool) + "）"
+	# 说明框：宽度与上方图片框一致(side)，高度减半(123)，紧贴图片下方。
+	var box_w: float = side
+	var box_h: float = 123.0
+	var box_x: float = img_x
+	var box_y: float = img_y + side + 10.0
 	var desc_panel := Panel.new()
-	desc_panel.position = Vector2((vp.x - 1300) / 2.0, 566.0)
-	desc_panel.size = Vector2(1300, 246)
+	desc_panel.position = Vector2(box_x, box_y)
+	desc_panel.size = Vector2(box_w, box_h)
 	var psb := StyleBoxFlat.new()
 	psb.bg_color = Color(0.06, 0.05, 0.07, 0.82)
 	psb.border_color = Color(0.78, 0.62, 0.28, 0.9)
@@ -496,15 +503,17 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	desc_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	popup.add_child(desc_panel)
 	var sc := ScrollContainer.new()
-	sc.position = Vector2(28, 14); sc.size = Vector2(1244, 218)
+	sc.position = Vector2(12, 12); sc.size = Vector2(box_w - 24.0, box_h - 24.0)
 	sc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	desc_panel.add_child(sc)
 	var rl := RichTextLabel.new()
 	rl.bbcode_enabled = false
 	rl.fit_content = true
 	rl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	rl.size = Vector2(1200, 40)
-	rl.add_theme_font_size_override("font_size", 20)
+	# ⚠️ 关键：RichTextLabel 必须在 ScrollContainer 内横向撑满(SIZE_EXPAND_FILL)，
+	# 否则其宽度塌缩为 1px，文字逐字换行、整块不可读（此前「弹出框无文字」的根因）。
+	rl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rl.add_theme_font_size_override("font_size", 19)
 	rl.add_theme_color_override("default_color", Color(0.93, 0.89, 0.79))
 	rl.text = full_text
 	rl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -515,7 +524,7 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	hint.text = "（点击任意处 / 按 Enter 关闭，并记录此线索）"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_color_override("font_color", Color(0.7, 0.66, 0.55))
-	hint.position = Vector2(0, 826)
+	hint.position = Vector2(0, box_y + box_h + 12.0)
 	hint.size = Vector2(vp.x, 28)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
