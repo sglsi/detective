@@ -401,6 +401,24 @@ func _vp_size() -> Vector2:
 		return vp.size
 	return Vector2(1920, 1080)
 
+## 地点类线索「上下文放大裁切」：以锚点中心向外扩张到至少 MIN_FRAC 图幅的方形区域，
+## 框住线索周围上下文，便于放大后辨认（区分于角色立绘类，后者裁切框本身已足够大）。
+## 区域超出图像边界时 clamp 到 [0,1]，绝不越界（避免 AtlasTexture 取黑边/报错）。
+func _zoom_crop_region(img_path: String, a: Dictionary) -> Rect2:
+	var tex: Texture2D = load(img_path)
+	if tex == null:
+		return Rect2()
+	var tw := float(tex.get_width()); var th := float(tex.get_height())
+	var acx := float(a["cx"]); var acy := float(a["cy"])
+	var aw := float(a["w"]); var ah := float(a["h"])
+	var half: float = max(aw, ah) * 1.7
+	half = max(half, 0.18)
+	var x0: float = clampf(acx - half, 0.0, 1.0)
+	var y0: float = clampf(acy - half, 0.0, 1.0)
+	var x1: float = clampf(acx + half, 0.0, 1.0)
+	var y1: float = clampf(acy + half, 0.0, 1.0)
+	return Rect2(x0 * tw, y0 * th, (x1 - x0) * tw, (y1 - y0) * th)
+
 func _open_zoom(clue_id: String, desc: String) -> void:
 	if _zoomed: return
 	_zoomed = true
@@ -413,7 +431,10 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 			break
 	# 放大图统一使用「屏上立绘 / 场景背景」同一张图 + 同一套锚点（与高亮圆圈一致）。
 	var img_path: String = _portrait_img_path if _portrait_img_path != "" else hs_d.get("image", "")
+	# 锚点兜底：热点未显式写 anchor 时，以线索 id 作为锚点名（场景三热点只写了 image、未写 anchor）。
 	var anchor_name: String = hs_d.get("anchor", "")
+	if anchor_name == "":
+		anchor_name = clue_id
 	var title: String = hs_d.get("label", clue_id)
 	var vp := _vp_size()
 
@@ -448,9 +469,15 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 				var tw := float(tex.get_width()); var th := float(tex.get_height())
 				var at := AtlasTexture.new()
 				at.atlas = tex
-				at.region = Rect2((float(a["cx"]) - float(a["w"]) / 2.0) * tw,
-								  (float(a["cy"]) - float(a["h"]) / 2.0) * th,
-								  float(a["w"]) * tw, float(a["h"]) * th)
+				# 地点类背景（/scenes/）上的线索是「大图里的小细节」：原始锚点框往往仅几十像素，
+				# 直接裁切后放大几乎不可辨认（表现为「图片框空白」）。故对地点类做「以线索为中心向外
+				# 扩张到至少 0.18 图幅」的上下文裁切再放大显示；角色立绘类（场景一）保持原裁切不变。
+				if img_path.contains("/scenes/"):
+					at.region = _zoom_crop_region(img_path, a)
+				else:
+					at.region = Rect2((float(a["cx"]) - float(a["w"]) / 2.0) * tw,
+									  (float(a["cy"]) - float(a["h"]) / 2.0) * th,
+									  float(a["w"]) * tw, float(a["h"]) * th)
 				img.texture = at
 			else:
 				img.texture = tex
