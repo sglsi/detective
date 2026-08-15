@@ -158,13 +158,13 @@ func collect_clue(id: String, name: String, desc: String, correct: bool, source:
 ## 从而消除「场景内联 desc」与「.tres ClueData.desc」两处重复维护、易漂移的问题。
 ## 注意：correct 始终取自场景内联——它是游戏性判定标志（驱动推理墙 CONTRADICTORY），
 ## 不在 ClueData 15 字段模型中，故不覆盖，避免误改判定结果。
-func collect_clue_from_catalog(id: String, name: String, desc: String, correct: bool, source: String = "", inline_weight: int = -1, image: String = "", anchor: String = "") -> void:
+func collect_clue_from_catalog(id: String, name: String, desc: String, correct: bool, source: String = "", inline_weight: int = -1, image: String = "", anchor: String = "", content_tags: Array = [], attribute_tags: Array = [], relation_tags: Array = []) -> void:
 	var def = get_clue_definition(id)
 	var w := weight_of(id, correct, inline_weight)
-	# 三级标签从 .tres 目录（ClueData 15+3 字段）权威取用；目录缺失则回退空（阶段1/2 由场景内联或 .tres 填充）
-	var ct: Array = def.content_tags if (def != null) else []
-	var at: Array = def.attribute_tags if (def != null) else []
-	var rt: Array = def.relation_tags if (def != null) else []
+	# 三级标签：场景内联优先（阶段1/2 由 HOTSPOTS 指定），.tres 目录（ClueData）作为权威兜底
+	var ct: Array = content_tags if not content_tags.is_empty() else (def.content_tags if (def != null) else [])
+	var at: Array = attribute_tags if not attribute_tags.is_empty() else (def.attribute_tags if (def != null) else [])
+	var rt: Array = relation_tags if not relation_tags.is_empty() else (def.relation_tags if (def != null) else [])
 	if def != null:
 		var cn: String = def.name if def.name != "" else name
 		var cd: String = def.description if def.description != "" else desc

@@ -70,4 +70,4 @@ func run_test() -> void:
 	else:
 		for m in msgs: print(m)
 		print("PHASE0_RESULT: FAIL")
-	quit()
+	quit(0)
