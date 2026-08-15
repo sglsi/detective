@@ -648,16 +648,36 @@ func _clue_state(clue: Dictionary) -> int:
 	return ClueState.COLLECTED
 
 
+# === 阶段2：证据属性标签 + 可信度（由 attribute_tags 派生）===
+func _attribute_label_of(clue: Dictionary) -> String:
+	var at: Array = clue.get("attribute_tags", [])
+	if at.is_empty(): return "其他"
+	return at[0]
+
+
+func _credibility_of(clue: Dictionary) -> String:
+	var at: Array = clue.get("attribute_tags", [])
+	if at.has("直接物证"): return "高"
+	if at.has("目击证词"): return "中"
+	if at.has("嫌疑人陈述"): return "中"
+	if at.has("二手传闻"): return "低"
+	return "中"
+
+
 func _make_clue_card(clue: Dictionary) -> Button:
 	var card := Button.new()
 	var name: String = clue.get("name", clue.get("label", clue.get("id", "")))
 	var state := _clue_state(clue)
 	var state_text: String = ["已收集", "已关联", "已验证", "已失效"][state]
+	var attr: String = _attribute_label_of(clue)
+	var cred: String = _credibility_of(clue)
 	card.text = name
 	if _difficulty != Diff.HARD:
 		card.text += "  [%s]" % state_text
+	card.text += "\n%s · 可信度:%s" % [attr, cred]
+	card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card.tooltip_text = clue.get("desc", "")
-	card.custom_minimum_size = Vector2(200, 56)
+	card.custom_minimum_size = Vector2(200, 72)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.add_theme_font_size_override("font_size", 15)
 
@@ -1090,6 +1110,15 @@ func _show_clue_detail(clue: Dictionary) -> void:
 		src_tag.add_theme_color_override("font_color", Color(0.5, 0.48, 0.40))
 		tags.add_child(src_tag)
 		vb.add_child(tags)
+
+	# 阶段2：证据属性（人证/物证）与可信度
+	var ac_row := HBoxContainer.new()
+	var ac_lbl := Label.new()
+	ac_lbl.text = "证据属性: %s    可信度: %s" % [_attribute_label_of(clue), _credibility_of(clue)]
+	ac_lbl.add_theme_font_size_override("font_size", 14)
+	ac_lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.50))
+	ac_row.add_child(ac_lbl)
+	vb.add_child(ac_row)
 
 	var btn_row := HBoxContainer.new()
 	var assoc_btn := Button.new()
