@@ -88,6 +88,21 @@ var _slot_b_lbl: Label = null
 var _result_lbl: Label = null
 var _notebook_vb: VBoxContainer = null
 
+# === 自由连线（各线索/假设之间拖拽相互关系）===
+# 关系数组元素：{"from": String, "to": String, "kind": String}
+#   kind ∈ "support"(线索→假设 支持) / "oppose"(线索→假设 反对) /
+#         "contradict"(线索↔线索 矛盾) / "relate"(弱关联/假设↔假设 仅连线)
+# 设计依据：docs/02_核心设计/06_推理墙运行机制.md §2.2 双交互模式（自由连线模式）
+var _relations: Array = []
+var _connect_mode: bool = false               # 顶部栏「🔗连线」开关
+var _connect_btn: Button = null
+var _rel_layer: Control = null                # 关系连线绘制层（全屏覆盖，不拦截输入）
+var _hypo_nodes: Dictionary = {}              # 假设节点 id -> Control（用于连线命中与绘制）
+var _dragging_link: bool = false
+var _link_src: String = ""
+var _link_kind: String = "support"
+var _link_preview: Vector2 = Vector2.ZERO
+
 # === 常量 ===
 const COL_GOLD := Color(0.92, 0.84, 0.55)
 const COL_GOLD_LIGHT := Color(0.95, 0.90, 0.78)
@@ -122,10 +137,30 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 
 
 func get_verdict() -> int:
-	if _contradicting > 0: return Verdict.CONTRADICTORY
-	if _associated >= 3: return Verdict.VERIFIED
-	if _associated >= 1: return Verdict.SUPPORTED
+	# 矛盾信号：误导线索(_contradicting) + 关系中的矛盾/反对（线索↔线索矛盾、线索→假设反对）
+	if _contradiction_signals() > 0: return Verdict.CONTRADICTORY
+	# 支持信号：已关联线索(_associated) + 线索→假设 支持关系
+	if _support_signals() >= 3: return Verdict.VERIFIED
+	if _support_signals() >= 1: return Verdict.SUPPORTED
 	return Verdict.INSUFFICIENT
+
+
+## 关系信号：把「拖拽相互关系」接入验证判定（原判定只看 _associated/_contradicting 计数，
+## 与 design doc §2.2『关联推理应实时更新验证等级』一致）
+func _contradiction_signals() -> int:
+	var n := _contradicting
+	for r in _relations:
+		if r.kind == "contradict" or r.kind == "oppose":
+			n += 1
+	return n
+
+
+func _support_signals() -> int:
+	var n := _associated
+	for r in _relations:
+		if r.kind == "support":
+			n += 1
+	return n
 
 
 func close_wall() -> void:
@@ -144,6 +179,9 @@ func _restore_state() -> void:
 	for s in saved_assoc: assoc_set[s] = true
 	_associated = 0; _contradicting = 0
 	_doubt_book = _state_store.get("doubt_book", [])
+	_relations = []
+	for r in _state_store.get("relations", []):
+		_relations.append({"from": r.get("from", ""), "to": r.get("to", ""), "kind": r.get("kind", "relate")})
 	for c in _clues:
 		if assoc_set.has(c.get("id", "")):
 			c["associated"] = true
@@ -186,6 +224,7 @@ func _persist_state() -> void:
 	_state_store["verified"] = _verified
 	_state_store["verdict"] = _verified_verdict
 	_state_store["doubt_book"] = _doubt_book
+	_state_store["relations"] = _relations.duplicate()
 
 
 # === 入口：构建五区布局 ===
@@ -198,6 +237,14 @@ func _create_ui() -> void:
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+
+	# 关系连线绘制层：全屏覆盖、不拦截输入，连线绘制在面板之上（z=15，低于验证窗口 z=19/20）
+	_rel_layer = Control.new()
+	_rel_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_rel_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rel_layer.z_index = 15
+	_rel_layer.draw.connect(_on_rel_layer_draw)
+	add_child(_rel_layer)
 
 	# 顶部功能栏 (高度 60)
 	_top_bar = _create_top_bar()
@@ -281,6 +328,27 @@ func _create_top_bar() -> Control:
 	close_btn.offset_left = -110
 	close_btn.pressed.connect(_on_back_pressed)
 	bar.add_child(close_btn)
+
+	var connect_btn := Button.new()
+	connect_btn.text = "🔗 连线：关"
+	connect_btn.add_theme_font_size_override("font_size", 15)
+	connect_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	connect_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	connect_btn.offset_right = -260
+	connect_btn.offset_left = -390
+	connect_btn.pressed.connect(_on_connect_toggled)
+	bar.add_child(connect_btn)
+	_connect_btn = connect_btn
+
+	var clear_btn := Button.new()
+	clear_btn.text = "🧹 清除关系"
+	clear_btn.add_theme_font_size_override("font_size", 15)
+	clear_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	clear_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	clear_btn.offset_right = -400
+	clear_btn.offset_left = -540
+	clear_btn.pressed.connect(_on_clear_relations)
+	bar.add_child(clear_btn)
 
 	var line := ColorRect.new()
 	line.color = Color(0.45, 0.35, 0.15, 0.5)
@@ -915,6 +983,7 @@ func _make_clue_card(clue: Dictionary) -> Button:
 	card.add_theme_stylebox_override("normal", sn)
 	card.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	card.pressed.connect(_on_clue_card_pressed.bind(clue["id"]))
+	card.gui_input.connect(_on_node_gui.bind(clue["id"]))
 	return card
 
 
@@ -1014,7 +1083,8 @@ func _make_hypothesis_node(h: Dictionary) -> Control:
 	evi_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	evi_lbl.custom_minimum_size = Vector2(160, 20)
 	vb.add_child(evi_lbl)
-
+	card.gui_input.connect(_on_node_gui.bind(id))
+	_hypo_nodes[id] = card
 	return card
 
 
@@ -1364,6 +1434,7 @@ func _show_clue_detail(clue: Dictionary) -> void:
 
 # === 关联逻辑 ===
 func _on_clue_card_pressed(cid: String) -> void:
+	if _connect_mode: return   # 连线模式下点击不弹详情，由拖拽建立关系
 	var clue: Dictionary = _find_clue(cid)
 	if not clue.is_empty():
 		_show_clue_detail(clue)
@@ -1393,6 +1464,159 @@ func _toggle_association(cid: String) -> void:
 	_persist_state()
 
 
+# === 自由连线：各线索/假设之间拖拽相互关系 ===
+# 关系信号接入验证见 _contradiction_signals()/_support_signals()/get_verdict()。
+# 设计依据：docs/02_核心设计/06_推理墙运行机制.md §2.2（拖拽模式默认；自由连线模式 M2+ 线索↔线索）
+
+## 建立一条关系。kind="auto" 时（线索↔线索）自动跑矛盾检测：有矛盾→"contradict"，否则→"relate"。
+## 返回 false 表示无效或重复（不建立）。
+func connect_nodes(from_id: String, to_id: String, kind: String) -> bool:
+	if from_id == "" or to_id == "" or from_id == to_id: return false
+	for r in _relations:
+		if r.from == from_id and r.to == to_id and r.kind == kind: return false
+	var resolved := kind
+	if kind == "auto":
+		var a := _find_clue(from_id); var b := _find_clue(to_id)
+		if not a.is_empty() and not b.is_empty() and not _detect_contradiction(a, b).is_empty():
+			resolved = "contradict"
+		else:
+			resolved = "relate"
+	_relations.append({"from": from_id, "to": to_id, "kind": resolved})
+	_refresh_relations()
+	_persist_state()
+	return true
+
+
+func remove_relation(from_id: String, to_id: String) -> void:
+	var kept := []
+	for r in _relations:
+		if not (r.from == from_id and r.to == to_id):
+			kept.append(r)
+	_relations = kept
+	_refresh_relations()
+	_persist_state()
+
+
+func clear_relations() -> void:
+	_relations = []
+	_refresh_relations()
+	_persist_state()
+
+
+func get_relations() -> Array:
+	return _relations.duplicate()
+
+
+func set_connect_mode(on: bool) -> void:
+	_connect_mode = on
+
+
+func _on_connect_toggled() -> void:
+	_connect_mode = not _connect_mode
+	if _connect_btn and is_instance_valid(_connect_btn):
+		_connect_btn.text = "🔗 连线：" + ("开" if _connect_mode else "关")
+	if _status_lbl:
+		_status_lbl.text = "连线模式：" + ("开（拖拽线索/假设建立关系）" if _connect_mode else "关（点击线索查看详情）")
+
+
+func _on_clear_relations() -> void:
+	clear_relations()
+	if _status_lbl:
+		_status_lbl.text = "已清除全部关系（%d 条）" % _relations.size()
+
+
+## 节点 gui_input：连线模式下，左键按下即开始拖拽建立关系（Shift=反对，否则=支持）
+func _on_node_gui(event: InputEvent, id: String) -> void:
+	if not _connect_mode: return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_start_link(id, event.shift_pressed)
+		get_viewport().set_input_as_handled()
+
+
+func _start_link(id: String, shift: bool) -> void:
+	_dragging_link = true
+	_link_src = id
+	_link_kind = "oppose" if shift else "support"
+	_link_preview = get_viewport().get_mouse_position()
+	if _rel_layer: _rel_layer.queue_redraw()
+
+
+## 松开时命中测试：返回光标下、且非源节点的线索/假设节点 id
+func _link_target_at(gp: Vector2) -> String:
+	for cid in _card_btns.keys():
+		var n: Control = _card_btns[cid]
+		if is_instance_valid(n) and n.get_global_rect().has_point(gp): return cid
+	for hid in _hypo_nodes.keys():
+		var n: Control = _hypo_nodes[hid]
+		if is_instance_valid(n) and n.get_global_rect().has_point(gp): return hid
+	return ""
+
+
+func _commit_link(src: String, dst: String) -> void:
+	var src_clue := _card_btns.has(src)
+	var dst_clue := _card_btns.has(dst)
+	var kind := "relate"
+	if src_clue and dst_clue:
+		kind = "auto"          # 线索↔线索：自动矛盾检测
+	elif src_clue != dst_clue:
+		kind = _link_kind      # 线索↔假设：支持/反对
+	connect_nodes(src, dst, kind)
+
+
+func _refresh_relations() -> void:
+	if _rel_layer: _rel_layer.queue_redraw()
+
+
+func _node_center(id: String) -> Vector2:
+	var node: Control = null
+	if _card_btns.has(id): node = _card_btns[id]
+	elif _hypo_nodes.has(id): node = _hypo_nodes[id]
+	if node == null or not is_instance_valid(node): return Vector2.ZERO
+	return _rel_layer.to_local(node.global_position + node.size * 0.5)
+
+
+func _rel_color(kind: String) -> Color:
+	match kind:
+		"support": return Color(0.4, 0.85, 0.4)
+		"oppose": return Color(0.95, 0.6, 0.2)
+		"contradict": return Color(0.95, 0.3, 0.3)
+		_: return Color(0.6, 0.6, 0.6)
+
+
+func _draw_dashed_line(canvas: Control, a: Vector2, b: Vector2, col: Color) -> void:
+	var dist := a.distance_to(b)
+	var dash := 12.0; var gap := 8.0
+	var seg := dash + gap
+	if seg <= 0: return
+	var steps := int(dist / seg)
+	var dir := (b - a).normalized()
+	var pos := a
+	for i in steps:
+		var p2 := pos + dir * dash
+		if p2.distance_to(a) > dist: p2 = b
+		canvas.draw_line(pos, p2, col, 2)
+		pos = p2 + dir * gap
+	if pos.distance_to(b) > 1.0:
+		canvas.draw_line(pos, b, col, 2)
+
+
+func _on_rel_layer_draw() -> void:
+	if _relations.is_empty() and not _dragging_link:
+		return
+	for r in _relations:
+		var a := _node_center(r.from); var b := _node_center(r.to)
+		if a == Vector2.ZERO or b == Vector2.ZERO: continue
+		var col := _rel_color(r.kind)
+		if r.kind == "relate" or r.kind == "contradict" or r.kind == "oppose":
+			_draw_dashed_line(_rel_layer, a, b, col)
+		else:
+			_rel_layer.draw_line(a, b, col, 3)
+	if _dragging_link and _link_src != "":
+		var a := _node_center(_link_src)
+		if a != Vector2.ZERO:
+			_rel_layer.draw_line(a, _rel_layer.to_local(_link_preview), _rel_color(_link_kind), 2)
+
+
 func _update_all() -> void:
 	_refresh_clue_list()
 	_refresh_hypothesis_tree()
@@ -1402,6 +1626,7 @@ func _update_all() -> void:
 	_update_verdict_label()
 	_update_milestone_ui()
 	_update_star_rating()
+	_refresh_relations()
 
 
 func _update_verdict_label() -> void:
@@ -1565,11 +1790,8 @@ func _on_verify_title_gui(event: InputEvent) -> void:
 func _compute_report(v: int) -> String:
 	var levels := {0: "矛盾冲突", 1: "证据不足", 2: "倾向成立", 3: "已获证实"}
 	var hypo_name: String = _hypothesis.get("title", "")
-	var support := 0; var misleading := 0
-	for c in _clues:
-		if c.get("associated", false):
-			if c.get("correct", true): support += 1
-			else: misleading += 1
+	var support := _support_signals()
+	var contra := _contradiction_signals()
 	if _difficulty == Diff.HARD:
 		return "假设：%s\n验证等级：%s" % [hypo_name, levels.get(v, "?")]
 	var report := "假设：%s\n验证等级：%s\n" % [hypo_name, levels.get(v, "?")]
@@ -1577,11 +1799,11 @@ func _compute_report(v: int) -> String:
 		Verdict.VERIFIED:
 			report += "支持依据：%d 条正确证据，证据链完整闭合\n行动建议：提交结论，推进结案" % support
 		Verdict.SUPPORTED:
-			report += "支持依据：%d 条证据倾向支持\n存疑点：%d 条误导项待排除\n行动建议：深挖剩余疑点，寻找决定性证据完成闭环" % [support, misleading]
+			report += "支持依据：%d 条证据倾向支持\n存疑点：%d 条矛盾/误导项待排除\n行动建议：深挖剩余疑点，寻找决定性证据完成闭环" % [support, contra]
 		Verdict.INSUFFICIENT:
 			report += "存疑点：证据不足（仅关联 %d 条）\n行动建议：补充更多相关证据，或转向其他假设调查" % _associated
 		Verdict.CONTRADICTORY:
-			report += "存疑点：存在 %d 条矛盾证据\n行动建议：推翻该假设，或寻找证据解释矛盾" % _contradicting
+			report += "存疑点：存在 %d 条矛盾证据（含关系矛盾）\n行动建议：推翻该假设，或寻找证据解释矛盾" % contra
 	return report
 
 
@@ -1908,6 +2130,21 @@ func _input(event: InputEvent) -> void:
 		if event is InputEventMouseMotion and _hist_win and is_instance_valid(_hist_win):
 			_hist_win.global_position = get_viewport().get_mouse_position() - _hist_drag_offset
 			return
+	# 自由连线拖拽中：鼠标移动实时预览，松开时在命中节点上建立关系
+	if _dragging_link:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+			_dragging_link = false
+			var tgt := _link_target_at(get_viewport().get_mouse_position())
+			if tgt != "" and tgt != _link_src:
+				_commit_link(_link_src, tgt)
+			_link_src = ""
+			if _rel_layer: _rel_layer.queue_redraw()
+			return
+		if event is InputEventMouseMotion:
+			_link_preview = get_viewport().get_mouse_position()
+			if _rel_layer: _rel_layer.queue_redraw()
+			return
+
 	# 验证结果窗口拖动中
 	if _verify_drag:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
