@@ -365,8 +365,14 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	if _wall_instance and is_instance_valid(_wall_instance):
 		_wall_instance.close_wall()
 		return
-	var src := source if source != "" else clue_source()
-	if (ClueSystem and ClueSystem.count_collected(src) == 0) and _clues.is_empty():
+	# 案件级大墙：未显式指定 source（场景二~八）时打开「全案线索池」（归并所有场景已收集线索，
+	# 支持跨场景线索关联）；场景一显式传 "watson"/"messenger" 时仍按该组范围（保留其分墙设计）。
+	var use_case_wide := (source == "")
+	var src := source if not use_case_wide else clue_source()
+	var pool: Array = _clues
+	if ClueSystem != null:
+		pool = ClueSystem.get_collected("") if use_case_wide else ClueSystem.get_collected(src)
+	if (ClueSystem and ClueSystem.count_collected("") == 0) and _clues.is_empty():
 		_ui.show_notification("推理墙需要至少一条线索才能打开。"); return
 	# REASONING 阶段打开的墙（自动弹出或手动重开）验证后必须推进过渡；
 	# 观察阶段「线索已收满」后手动开墙（玩家在 _on_observe_complete 的 2.5s 对话窗口内
@@ -392,15 +398,21 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	)
 	_wall_instance = wall
 	if _toolbar: _toolbar.hide_toolbar()   # 确保墙置顶、不被工具栏 CanvasLayer(layer 128) 遮挡
-	# 推理墙读取通用线索登记（单一真相源），与场景内 _clues 保持一致
-	var clues: Array = ClueSystem.get_collected(src) if ClueSystem else _clues
+	# 推理墙读取通用线索登记（单一真相源）；案件级大墙传「全案线索池」，观察星仍按本场景已收集条数计
+	var clues: Array = pool
+	var local_count: int = clues.size()
+	if ClueSystem != null:
+		local_count = ClueSystem.count_collected(src)
 	var hypo := hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
+	# 未显式给定 expected_clues 时，用「本场景已收集条数」作观察星分母，避免全案池扩大抬高观察星
+	if not hypo.has("expected_clues"):
+		hypo["expected_clues"] = local_count
 	var cb := on_verify if on_verify.is_valid() else _default_wall_verify
 	# advance 始终传入 _advance_now；是否真正推进由「已验证 + 实时状态」在
 	# _default_wall_verify / _on_back_pressed 中判定，避免开墙时刻的 _wall_auto
 	# 把「提前开的预览墙」永久锁死为不推进（场景二反复复现的卡死根因）。
 	var advance: Callable = Callable(self, "_advance_now")
-	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true)
+	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true, local_count)
 
 ## 默认验证回调：展示判定结果；满足「推理阶段」或「线索已收满」则自动推进过渡。
 ## 三级反馈映射（06 §2.3 + 一致性报告 H-3）：已获证实+倾向成立→正确（绿）；

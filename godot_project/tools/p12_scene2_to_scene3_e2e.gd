@@ -1,6 +1,6 @@
 extends SceneTree
 ## 端到端自测（真实玩家路径）：scene2 全流程 → change_scene 切 scene3 → scene3 全流程
-## 完整复刻用户操作：scene2 六线索(真实 _on_record)→推理墙→全关联→提交验证→过渡对话
+## 完整复刻用户操作：scene2 六线索(真实 _record)→推理墙→全关联→提交验证→过渡对话
 ## →_go_to_next_scene(真实场景切换)→scene3 抵达/警长对话(真实 advance)→9 线索→推理墙。
 ## 带着 scene2 遗留状态（ClueSystem garden 线索、GameManager 存档态、登录态）进 scene3，
 ## 用于暴露「单场景测试测不出」的跨场景污染 / 卡死。
@@ -44,7 +44,7 @@ func _initialize() -> void:
 
 	# 真实收集 6 条花园线索
 	for h in s2.HOTSPOTS:
-		s2._obs._on_record(h["id"], str(h.get("desc", "")))
+		s2._obs._record(h["id"], str(h.get("desc", "")))
 		await process_frame
 	log.append("scene2 线索 local=%d cs=%d" % [s2._clues.size(), ClueSystem.get_collected("garden").size()])
 
@@ -98,7 +98,7 @@ func _initialize() -> void:
 
 	# 真实收集 9 条室内线索
 	for h in s3.HOTSPOTS:
-		s3._obs._on_record(h["id"], str(h.get("desc", "")))
+		s3._obs._record(h["id"], str(h.get("desc", "")))
 		await process_frame
 	var cs_indoor = ClueSystem.get_collected("indoor").size()
 	log.append("scene3 线索 local=%d cs=%d rec=%d (期望 9)" % [s3._clues.size(), cs_indoor, s3._obs.get_recorded()])

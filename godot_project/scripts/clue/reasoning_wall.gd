@@ -26,6 +26,7 @@ var _case_name: String = "血字的研究"
 # === v4.0 三星评价：逐链离散判定 ===
 var _chain_id: String = ""          # 当前推理链 ID（由 hypothesis.chain_id 提供；空则不计分）
 var _expected_clues: int = 0        # 本链应收集线索总数（观察之星「缺失条数」分母）
+var _local_clue_count: int = 0       # 本场景已收集条数（案件级大墙下，观察星按此计，不受全案池扩大影响）
 var _insight_bonus: int = 0         # 隐藏线索/全追问等洞察加成（场景经 hypothesis.insight_bonus 传入）
 var _last_stars: Dictionary = {"observation": 1, "reasoning": 1, "insight": 1}
 
@@ -87,7 +88,7 @@ const COL_YELLOW := Color(0.95, 0.8, 0.2)
 const COL_RED := Color(0.95, 0.3, 0.3)
 
 
-func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false) -> void:
+func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1) -> void:
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
@@ -101,6 +102,8 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_case_name = hypothesis.get("case_name", _case_name)
 	_chain_id = hypothesis.get("chain_id", "")
 	_expected_clues = hypothesis.get("expected_clues", _clues.size())
+	# 案件级大墙：_clues 可能是全案池（跨场景），观察星须按「本场景已收集条数」计，避免被池扩大抬高
+	_local_clue_count = local_clue_count if local_clue_count >= 0 else _clues.size()
 	_insight_bonus = hypothesis.get("insight_bonus", 0)
 	_init_milestones(hypothesis)
 	_restore_state()      # 构建 UI 前回填关联/战场/里程碑/verified（首次为空则 no-op）
@@ -1353,7 +1356,8 @@ func _update_star_rating() -> void:
 	if not _star_lbl: return
 	# ---- v4.0 三维离散判定（§B-11.5 / 06 §4.1）----
 	# 1) 观察之星：按缺失条数（缺≥3→1⭐ / 缺1-2→2⭐ / 缺0→3⭐），不区分线索重要性
-	var collected := _clues.size()
+	# 案件级大墙下，观察星按「本场景已收集条数」(_local_clue_count) 计，不受全案线索池扩大影响
+	var collected := _local_clue_count
 	var missing := maxi(0, _expected_clues - collected)
 	var observe_stars := 3
 	if missing >= 3:

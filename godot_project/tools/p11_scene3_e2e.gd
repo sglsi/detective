@@ -32,11 +32,11 @@ func _initialize() -> void:
 	# 把观察器标记为 active（模拟 _on_detective_end 里的 .show()）
 	s3._obs.show()
 
-	# ---- 走真实玩家路径记录全部 9 条线索：_on_record 会发 clue_recorded 信号
+	# ---- 走真实玩家路径记录全部 9 条线索：_record 会发 clue_recorded 信号
 	#      → DetectiveScene._on_clue_recorded 填 _clues + ClueSystem；
 	#      第 9 条自动触发 all_recorded → _on_observe_complete（真实卡死路径全覆盖）----
 	for h in s3.HOTSPOTS:
-		s3._obs._on_record(h["id"], str(h.get("desc", "")))
+		s3._obs._record(h["id"], str(h.get("desc", "")))
 		await process_frame
 
 	var rec = s3._obs.get_recorded()

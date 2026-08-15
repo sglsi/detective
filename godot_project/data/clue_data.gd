@@ -21,3 +21,11 @@ extends Resource
 @export var is_key_evidence: bool = false   # 是否关键证据
 @export var state: int = 0                  # ClueState 整数
 @export var discovery_time: String = ""
+# ============ 三级标签体系（推理墙跨场景关联 / 人证物证区分的数据底座）============
+# 设计依据：08_系统框架设计（ClueData 字段契约）+ 06_推理墙运行机制 §2.1/§3.1。
+# - content_tags：线索指代的事物/概念（如「车轮印」「血字」「海军军士」），用于跨线索语义关联。
+# - attribute_tags：属性标签（直接物证/目击证词/二手传闻/嫌疑人陈述），驱动人证/物证区分与可信度评估。
+# - relation_tags：关系标签（该线索支持的假设/结论节点 id），驱动「标签→假设」自动匹配（替换 788 退化逻辑）。
+@export var content_tags: Array = []
+@export var attribute_tags: Array = []
+@export var relation_tags: Array = []
