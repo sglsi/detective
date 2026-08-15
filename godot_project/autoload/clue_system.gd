@@ -130,7 +130,7 @@ var collected_clues: Array = []
 ## 登记一条已收集线索（按 id 去重；已存在则更新字段）
 ## weight：线索分级权重（关键10/重要5/一般2/其他0，误导0）。tier 为其中文展示标签，
 ## 由 weight+correct 派生，仅供 UI/笔记展示，不参与计算。默认 0 兼容旧调用方（存/读档测试）。
-func collect_clue(id: String, name: String, desc: String, correct: bool, source: String = "", weight: int = 0, image: String = "", anchor: String = "") -> void:
+func collect_clue(id: String, name: String, desc: String, correct: bool, source: String = "", weight: int = 0, image: String = "", anchor: String = "", content_tags: Array = [], attribute_tags: Array = [], relation_tags: Array = []) -> void:
 	var tier := tier_label(weight, correct)
 	for c in collected_clues:
 		if c.get("id", "") == id:
@@ -142,11 +142,14 @@ func collect_clue(id: String, name: String, desc: String, correct: bool, source:
 			c["tier"] = tier
 			c["image"] = image
 			c["anchor"] = anchor
+			c["content_tags"] = content_tags
+			c["attribute_tags"] = attribute_tags
+			c["relation_tags"] = relation_tags
 			# 线索发现即重置停滞计数（设计 08 §3.5：停滞由「未发现线索的连续交互」驱动）
 			if DifficultyManager != null:
 				DifficultyManager.reset_stall_counter()
 			return
-	collected_clues.append({"id": id, "name": name, "desc": desc, "correct": correct, "source": source, "weight": weight, "tier": tier, "image": image, "anchor": anchor})
+	collected_clues.append({"id": id, "name": name, "desc": desc, "correct": correct, "source": source, "weight": weight, "tier": tier, "image": image, "anchor": anchor, "content_tags": content_tags, "attribute_tags": attribute_tags, "relation_tags": relation_tags})
 	if DifficultyManager != null:
 		DifficultyManager.reset_stall_counter()
 
@@ -158,12 +161,16 @@ func collect_clue(id: String, name: String, desc: String, correct: bool, source:
 func collect_clue_from_catalog(id: String, name: String, desc: String, correct: bool, source: String = "", inline_weight: int = -1, image: String = "", anchor: String = "") -> void:
 	var def = get_clue_definition(id)
 	var w := weight_of(id, correct, inline_weight)
+	# 三级标签从 .tres 目录（ClueData 15+3 字段）权威取用；目录缺失则回退空（阶段1/2 由场景内联或 .tres 填充）
+	var ct: Array = def.content_tags if (def != null) else []
+	var at: Array = def.attribute_tags if (def != null) else []
+	var rt: Array = def.relation_tags if (def != null) else []
 	if def != null:
 		var cn: String = def.name if def.name != "" else name
 		var cd: String = def.description if def.description != "" else desc
-		collect_clue(id, cn, cd, correct, source, w, image, anchor)
+		collect_clue(id, cn, cd, correct, source, w, image, anchor, ct, at, rt)
 	else:
-		collect_clue(id, name, desc, correct, source, w, image, anchor)
+		collect_clue(id, name, desc, correct, source, w, image, anchor, ct, at, rt)
 
 # ============ 线索分级权重（P3.1：把设计的「线索等级」在运行时落地）============
 # 设计依据：00_核心设计思路.md §2.2 权重表（关键10/重要5/一般2/其他0/误导0-不扣分）。
