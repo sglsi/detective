@@ -14,24 +14,24 @@ const HOTSPOTS = [
 	# 每个热点都带 image+anchor，点击后像场景1一样弹出背景放大框+底部线索说明。
 	{"id":"c201","label":"碾轧的花草","x":180,"y":800,"w":150,"h":42,
 	 "desc":"路边草地被压过了——两道平行的印子，草地上有两道平行的凹痕，像是车轮碾轧留下的。有马车在此停靠过。","tool":"none",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c201"},
+	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c201","relation_tags":["H2-01"]},
 	{"id":"c202","label":"平行车轮印","x":880,"y":660,"w":150,"h":42,
 	 "desc":"用卷尺测量：轴距约3.8英尺，轮宽约2英寸，压痕最深处约1.2英寸。查知识库·伦敦马车类型：出租四轮马车轴距约3.8~4.0英尺，车身较窄以适应伦敦小巷——这是一辆出租马车。伦敦的出租马车为了钻小巷，轴距都做窄了，私家马车不会这么窄。","tool":"卷尺",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c202"},
+	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c202","relation_tags":["H2-01"]},
 	# ── 勘查对象B：马蹄印迹（08稿 六步闭环）──
 	{"id":"c203","label":"右前蹄新蹄铁","x":1200,"y":700,"w":150,"h":42,
 	 "desc":"放大镜下：四个蹄铁磨损程度不同——右前蹄铁特别新，边缘锐利，亮得像刚从铁匠铺出来的；其余三个有不同程度磨损。这匹马的右前蹄铁是最近换的。","tool":"none",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c203"},
+	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c203","relation_tags":["C2-03"]},
 	{"id":"c204","label":"马蹄印迹零乱","x":760,"y":790,"w":150,"h":42,
 	 "desc":"蹄印方向散乱，有迂回和停顿痕迹，非正常行进路线——如果有人驾驭，马不会走得这么乱。赶车的不在车上，马曾无人看管：马车夫很可能进了那栋房子。","tool":"none",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c204"},
+	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c204","relation_tags":["H2-01","C2-02"]},
 	# ── 勘查对象C：步伐距离（08稿 六步闭环）──
 	{"id":"c205","label":"两组不同脚印","x":1000,"y":800,"w":150,"h":42,
 	 "desc":"泥地里有两组明显不同的脚印，部分叠在另一部分上面（有先后顺序），且都在警察脚印之下——案发当晚有两个人来过。放大镜下：大步子的脚印是方头靴，小步子是漆皮靴。方头靴多为干体力活的人穿，漆皮靴多为体面人士。","tool":"卷尺",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c205"},
+	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c205","relation_tags":["H2-03","C2-01"]},
 	{"id":"c206","label":"步伐距离差异","x":1280,"y":790,"w":150,"h":42,
 	 "desc":"卷尺测量：大步子步幅约4.5英尺，小步子约3.5英尺。查知识库·步态与身高（步幅约为身高的0.45倍）：步幅4.5英尺→身高约6英尺（183cm）的大个子；步幅3.5英尺→身高约5英尺4英寸（163cm）。步幅骗不了人。","tool":"卷尺",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c206"},
+	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c206","relation_tags":["H2-02"]},
 ]
 
 # ===== 框架配置 =====

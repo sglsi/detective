@@ -186,7 +186,11 @@ func _on_clue_recorded(_clue_id: String, _clue_data: Dictionary) -> void:
 			_clue_data.get("desc", ""),
 			_clue_data.get("correct", true),
 			clue_source(),
-			int(_clue_data.get("wt", -1))
+			int(_clue_data.get("wt", -1)),
+			"", "",
+			_clue_data.get("content_tags", []),
+			_clue_data.get("attribute_tags", []),
+			_clue_data.get("relation_tags", [])
 		)
 	var total := hotspots().size()
 	_ui.show_notification("线索已记录：" + str(_clue_data.get("name", "")) + "（" + str(_clues.size()) + "/" + str(total) + "）")
@@ -635,7 +639,7 @@ func _restore_saved_state() -> bool:
 		var h = _get_hotspot(cid)
 		if not h.is_empty():
 			_clues.append(h)
-			if ClueSystem: ClueSystem.collect_clue_from_catalog(cid, h.get("label", ""), h.get("desc", ""), h.get("correct", true), clue_source(), int(h.get("wt", -1)))
+			if ClueSystem: ClueSystem.collect_clue_from_catalog(cid, h.get("label", ""), h.get("desc", ""), h.get("correct", true), clue_source(), int(h.get("wt", -1)), "", "", h.get("content_tags", []), h.get("attribute_tags", []), h.get("relation_tags", []))
 	return _apply_restored_phase(saved_phase, saved_ids, _clues)
 
 ## 子类按自身 Phase 分支恢复（通用骨架已处理好 ClueSystem 同步与通知）
@@ -785,11 +789,11 @@ func _restore_clues_from_ids(saved_ids: Array) -> void:
 		var h = _get_hotspot(cid)
 		if not h.is_empty():
 			_clues.append(h)
-			ClueSystem.collect_clue_from_catalog(cid, h.get("label", ""), h.get("desc", ""), h.get("correct", true), clue_source(), int(h.get("wt", -1)))
+			ClueSystem.collect_clue_from_catalog(cid, h.get("label", ""), h.get("desc", ""), h.get("correct", true), clue_source(), int(h.get("wt", -1)), "", "", h.get("content_tags", []), h.get("attribute_tags", []), h.get("relation_tags", []))
 		else:
 			var p = prior.get(cid, {})
 			# 对话/工具授予的非热点线索：从先前已收集副本回收权重（prior 含 "weight"）
-			ClueSystem.collect_clue_from_catalog(cid, p.get("name", ""), p.get("desc", ""), p.get("correct", true), clue_source(), int(p.get("weight", -1)))
+			ClueSystem.collect_clue_from_catalog(cid, p.get("name", ""), p.get("desc", ""), p.get("correct", true), clue_source(), int(p.get("weight", -1)), "", "", p.get("content_tags", []), p.get("attribute_tags", []), p.get("relation_tags", []))
 			_clues.append({"id": cid, "name": p.get("name", ""), "desc": p.get("desc", "")})
 
 ## 剧情推进闸门（#124 根因修复）：以下情形一律不推进剧情——

@@ -787,12 +787,13 @@ func _make_hypothesis_node(h: Dictionary) -> Control:
 
 func _evidence_for_hypothesis(hid: String) -> Array:
 	var out := []
-	# 简单策略：若线索有关联标记，且其 tags 含该假设 id，则视为证据。
-	#  scene1 当前数据未打 relation_tags，退化为：所有已关联线索都作为全局证据展示。
+	# 标签驱动（阶段1）：仅当线索「已关联」且其 relation_tags 含该假设节点 id 时，
+	# 才作为该节点的证据。替换原退化逻辑（relation_tags 为空则全量罗列），
+	# 实现「线索按标签自动匹配假设」——不同线索精确落到对应假设/矛盾节点。
 	for c in _clues:
 		if c.get("associated", false):
 			var tags: Array = c.get("relation_tags", [])
-			if tags.is_empty() or tags.has(hid):
+			if tags.has(hid):
 				out.append(c.get("name", c.get("id", "")))
 	return out
 
