@@ -453,10 +453,12 @@ func _start_messenger_phase() -> void:
 	if _ui: _ui.set_camera_enabled(false)   # 信使对话阶段禁用摄像机
 	# 对齐 08 稿 v3.16.0 §阶段2信使到访（L395-416）
 	# ⚠️ 时序修复（思傅 2026-08-15）：此前信使立绘与线索高亮圈在对话开始前就一次性显示，
-	# 表现为「赫德森太太还在问'让不让他进来'时，信使与线索就已经在场景里」。
-	# 现改为跟剧情分步出现（由 dialogue_node_entered 钩子按节点触发）：
-	#   - m1（福尔摩斯：让他进来吧）→ 信使入场（立绘显示）
-	#   - m3（福尔摩斯：您曾经是海军陆战队军士吧）→ 点亮线索提示圈（仅提示，暂不开放点击）
+	# 表现为「赫德森太太还在问'让不让他进来'时，信使与线索就已经在场景里」；
+	# 后又发现挂在 m1/m3 节点「进入」时触发，导致福尔摩斯「说让他进来」的**同时**信使就
+	# 显现（台词还在播放）。现改为挂到「该节点说完后」的下一个节点进入时才触发：
+	#   - m2（信使说话节点进入 = m1「让他进来吧」已说完后）→ 信使入场（立绘显示）
+	#   - m4（信使惊讶节点进入 = m3「您曾经是海军陆战队军士吧」已说完后）→ 点亮线索提示圈
+	#     （仅提示，暂不开放点击）
 	#   - 对话结束 _on_messenger_dialogue_end → 正式激活观察（开放点击 + 弹出工具栏）
 	# 故此处先不 show 信使观察器（不画圈、不激活点击），由 _on_messenger_node_entered 驱动。
 	_phase = Phase.MESSENGER_OBSERVE
@@ -482,11 +484,13 @@ func _start_messenger_phase() -> void:
 ## 信使对话节点钩子：按剧情节点分步显现信使与线索提示（修复「对话前信使与线索就已出现」）。
 ## 仅绑定在 _start_messenger_phase 创建的 _dm 上，对话结束的 _on_messenger_dialogue_end 中解绑。
 func _on_messenger_node_entered(node_id: String) -> void:
-	if node_id == "m1":
-		# 福尔摩斯同意让信使进来 → 信使入场（立绘显示）
+	if node_id == "m2":
+		# m1「让他进来吧」已说完后（进入信使说话节点 m2）才让信使入场（立绘显示），
+		# 避免福尔摩斯「说让他进来」的同时信使就显现。
 		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
-	elif node_id == "m3":
-		# 福尔摩斯介绍信使为海军陆战队军士 → 点亮线索提示圈（仅提示，暂不开放点击）
+	elif node_id == "m4":
+		# m3「您曾经是海军陆战队军士吧」已说完后（进入 m4）才点亮线索提示圈，
+		# 仅提示、暂不开放点击（对话未结束防误点）。
 		if _messenger_obs: _messenger_obs.reveal_hints()
 
 func _on_messenger_dialogue_end() -> void:
