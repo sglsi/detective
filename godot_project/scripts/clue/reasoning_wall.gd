@@ -78,6 +78,16 @@ var _verify_drag_offset := Vector2.ZERO
 
 var _card_btns: Dictionary = {}              # clue_id -> Button
 
+# === 阶段3：线索对比台 + 矛盾疑点册 ===
+var _compare_slots: Array = []               # 对比台两条线索（clue dict），最多 2 条
+var _doubt_book: Array = []                  # 已发现疑点：[{"cid":..,"a":..,"b":..}]
+var _comparison_desk: Control = null
+var _desk_body: VBoxContainer = null
+var _slot_a_lbl: Label = null
+var _slot_b_lbl: Label = null
+var _result_lbl: Label = null
+var _notebook_vb: VBoxContainer = null
+
 # === 常量 ===
 const COL_GOLD := Color(0.92, 0.84, 0.55)
 const COL_GOLD_LIGHT := Color(0.95, 0.90, 0.78)
@@ -133,6 +143,7 @@ func _restore_state() -> void:
 	var assoc_set := {}
 	for s in saved_assoc: assoc_set[s] = true
 	_associated = 0; _contradicting = 0
+	_doubt_book = _state_store.get("doubt_book", [])
 	for c in _clues:
 		if assoc_set.has(c.get("id", "")):
 			c["associated"] = true
@@ -174,6 +185,7 @@ func _persist_state() -> void:
 	_state_store["battlefield"] = bf
 	_state_store["verified"] = _verified
 	_state_store["verdict"] = _verified_verdict
+	_state_store["doubt_book"] = _doubt_book
 
 
 # === 入口：构建五区布局 ===
@@ -558,7 +570,208 @@ func _create_center_panel() -> Control:
 	verify_btn.pressed.connect(_on_verify_pressed)
 	bottom_row.add_child(verify_btn)
 
+	# 阶段3：线索对比台固定在中央区底部，预留 ~150px 高度
+	margin.offset_bottom = -162
+	var desk := _build_comparison_desk()
+	desk.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	desk.offset_top = -150
+	desk.offset_bottom = -8
+	panel.add_child(desk)
+	_comparison_desk = desk
+
 	return panel
+
+
+# === 阶段3：线索对比台 + 矛盾疑点册 ===
+func _build_comparison_desk() -> Control:
+	var desk := PanelContainer.new()
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(0.09, 0.11, 0.09, 0.98)
+	s.border_color = Color(0.55, 0.65, 0.45, 0.7)
+	s.border_width_left = 1; s.border_width_right = 1
+	s.border_width_top = 1; s.border_width_bottom = 1
+	s.set_corner_radius_all(6)
+	desk.add_theme_stylebox_override("panel", s)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	vb.add_theme_constant_override("margin_left", 10)
+	vb.add_theme_constant_override("margin_top", 6)
+	vb.add_theme_constant_override("margin_right", 10)
+	vb.add_theme_constant_override("margin_bottom", 6)
+	desk.add_child(vb)
+
+	var hdr := HBoxContainer.new()
+	var title := Label.new()
+	title.text = "线索对比台（放入两条线索比对，发现矛盾即入疑点册）"
+	title.add_theme_font_size_override("font_size", 15)
+	title.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr.add_child(title)
+	var collapse_btn := Button.new()
+	collapse_btn.text = "▾"
+	collapse_btn.add_theme_font_size_override("font_size", 14)
+	collapse_btn.pressed.connect(_on_desk_collapse)
+	hdr.add_child(collapse_btn)
+	vb.add_child(hdr)
+
+	_desk_body = VBoxContainer.new()
+	_desk_body.add_theme_constant_override("separation", 6)
+	vb.add_child(_desk_body)
+
+	var rowA := HBoxContainer.new()
+	_slot_a_lbl = Label.new()
+	_slot_a_lbl.text = "槽A：空"
+	_slot_a_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_slot_a_lbl.add_theme_font_size_override("font_size", 14)
+	_slot_a_lbl.add_theme_color_override("font_color", Color(0.80, 0.78, 0.65))
+	rowA.add_child(_slot_a_lbl)
+	_desk_body.add_child(rowA)
+
+	var rowB := HBoxContainer.new()
+	_slot_b_lbl = Label.new()
+	_slot_b_lbl.text = "槽B：空"
+	_slot_b_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_slot_b_lbl.add_theme_font_size_override("font_size", 14)
+	_slot_b_lbl.add_theme_color_override("font_color", Color(0.80, 0.78, 0.65))
+	rowB.add_child(_slot_b_lbl)
+	_desk_body.add_child(rowB)
+
+	var cmp_row := HBoxContainer.new()
+	var cmp_btn := Button.new()
+	cmp_btn.text = "比对"
+	cmp_btn.add_theme_font_size_override("font_size", 15)
+	cmp_btn.add_theme_color_override("font_color", COL_GOLD)
+	cmp_btn.pressed.connect(_on_compare_pressed)
+	cmp_row.add_child(cmp_btn)
+	var clr_btn := Button.new()
+	clr_btn.text = "清空"
+	clr_btn.add_theme_font_size_override("font_size", 13)
+	clr_btn.pressed.connect(func(): _compare_slots = []; _refresh_desk())
+	cmp_row.add_child(clr_btn)
+	_desk_body.add_child(cmp_row)
+
+	_result_lbl = Label.new()
+	_result_lbl.text = "（把两条线索放入对比台，点击「比对」）"
+	_result_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_result_lbl.add_theme_font_size_override("font_size", 14)
+	_result_lbl.add_theme_color_override("font_color", Color(0.7, 0.75, 0.6))
+	_desk_body.add_child(_result_lbl)
+
+	_notebook_vb = VBoxContainer.new()
+	_notebook_vb.add_theme_constant_override("separation", 3)
+	_desk_body.add_child(_notebook_vb)
+
+	return desk
+
+
+func _on_desk_collapse() -> void:
+	if not _desk_body: return
+	_desk_body.visible = not _desk_body.visible
+
+
+func _find_clue(cid: String) -> Dictionary:
+	for c in _clues:
+		if c.get("id", "") == cid: return c
+	return {}
+
+
+func _clue_name(cid: String) -> String:
+	var c: Dictionary = _find_clue(cid)
+	if c.is_empty(): return cid
+	return c.get("name", cid)
+
+
+func _load_comparison(cid: String) -> void:
+	var clue: Dictionary = _find_clue(cid)
+	if clue.is_empty(): return
+	if _compare_slots.size() < 2:
+		for i in range(_compare_slots.size()):
+			if _compare_slots[i].get("id", "") == cid:
+				_compare_slots.remove_at(i)
+				break
+		_compare_slots.append(clue)
+	else:
+		_compare_slots.remove_at(0)
+		_compare_slots.append(clue)
+	_refresh_desk()
+
+
+func _refresh_desk() -> void:
+	if not _slot_a_lbl or not _slot_b_lbl: return
+	var a: String = "空"
+	var b: String = "空"
+	if _compare_slots.size() >= 1: a = _compare_slots[0].get("name", _compare_slots[0].get("id", "?"))
+	if _compare_slots.size() >= 2: b = _compare_slots[1].get("name", _compare_slots[1].get("id", "?"))
+	_slot_a_lbl.text = "槽A：" + a
+	_slot_b_lbl.text = "槽B：" + b
+	if _notebook_vb:
+		for c in _notebook_vb.get_children(): c.queue_free()
+		if _doubt_book.is_empty():
+			var empty := Label.new()
+			empty.text = "（疑点册为空）"
+			empty.add_theme_font_size_override("font_size", 12)
+			empty.add_theme_color_override("font_color", Color(0.5, 0.48, 0.40))
+			_notebook_vb.add_child(empty)
+		else:
+			for d in _doubt_book:
+				var lab := Label.new()
+				lab.text = "• %s  （%s ↔ %s）" % [_contradiction_title(d.get("cid", "")), _clue_name(d.get("a", "")), _clue_name(d.get("b", ""))]
+				lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				lab.add_theme_font_size_override("font_size", 13)
+				lab.add_theme_color_override("font_color", Color(0.9, 0.7, 0.5))
+				_notebook_vb.add_child(lab)
+
+
+func _contradiction_title(cid: String) -> String:
+	for c in _battle.get("contradictions", []):
+		if c.get("id", "") == cid: return c.get("text", cid)
+	return cid
+
+
+func _detect_contradiction(a: Dictionary, b: Dictionary) -> Array:
+	var ta: Array = a.get("relation_tags", [])
+	var tb: Array = b.get("relation_tags", [])
+	var ca: Array = []
+	var cb: Array = []
+	for t in ta:
+		if t.begins_with("C"): ca.append(t)
+	for t in tb:
+		if t.begins_with("C"): cb.append(t)
+	var out := []
+	for t in ca:
+		if cb.has(t) and not out.has(t):
+			out.append(t)
+	return out
+
+
+func _on_compare_pressed() -> void:
+	if _compare_slots.size() < 2:
+		if _result_lbl: _result_lbl.text = "请先放入两条线索再比对"
+		return
+	var a: Dictionary = _compare_slots[0]
+	var b: Dictionary = _compare_slots[1]
+	var hits: Array = _detect_contradiction(a, b)
+	if hits.is_empty():
+		if _result_lbl: _result_lbl.text = "暂未发现冲突（无矛盾，无任何惩罚）"
+		return
+	var names := []
+	for cid in hits:
+		names.append(_contradiction_title(cid))
+	if _result_lbl: _result_lbl.text = "发现疑点：" + ", ".join(names)
+	for cid in hits:
+		_add_doubt(cid, a.get("id", ""), b.get("id", ""))
+		_battle_contra_states[cid] = true   # 直接标记（键可能原不存在，幂等）
+	_refresh_battlefield_status_only()
+	_refresh_desk()
+	_persist_state()
+
+
+func _add_doubt(cid: String, a: String, b: String) -> void:
+	for d in _doubt_book:
+		if d.get("cid", "") == cid:
+			return
+	_doubt_book.append({"cid": cid, "a": a, "b": b})
 
 
 func _create_right_panel() -> Control:
@@ -1120,6 +1333,19 @@ func _show_clue_detail(clue: Dictionary) -> void:
 	ac_row.add_child(ac_lbl)
 	vb.add_child(ac_row)
 
+	# 阶段3：从详情弹窗把线索放入对比台
+	var desk_row := HBoxContainer.new()
+	var to_desk := Button.new()
+	to_desk.text = "→ 放入对比台"
+	to_desk.add_theme_font_size_override("font_size", 15)
+	to_desk.add_theme_color_override("font_color", COL_GOLD)
+	to_desk.pressed.connect(func():
+		_load_comparison(clue["id"])
+		_detail_popup.hide()
+	)
+	desk_row.add_child(to_desk)
+	vb.add_child(desk_row)
+
 	var btn_row := HBoxContainer.new()
 	var assoc_btn := Button.new()
 	var is_assoc: bool = clue.get("associated", false)
@@ -1138,7 +1364,9 @@ func _show_clue_detail(clue: Dictionary) -> void:
 
 # === 关联逻辑 ===
 func _on_clue_card_pressed(cid: String) -> void:
-	_toggle_association(cid)
+	var clue: Dictionary = _find_clue(cid)
+	if not clue.is_empty():
+		_show_clue_detail(clue)
 
 
 func _toggle_association(cid: String) -> void:
@@ -1169,6 +1397,7 @@ func _update_all() -> void:
 	_refresh_clue_list()
 	_refresh_hypothesis_tree()
 	_refresh_assoc_panel()
+	_refresh_desk()
 	_refresh_battlefield()
 	_update_verdict_label()
 	_update_milestone_ui()
