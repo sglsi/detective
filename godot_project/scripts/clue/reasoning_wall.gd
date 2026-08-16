@@ -337,6 +337,7 @@ func _create_top_bar() -> Control:
 	connect_btn.offset_right = -260
 	connect_btn.offset_left = -390
 	connect_btn.pressed.connect(_on_connect_toggled)
+	connect_btn.tooltip_text = "开启后：在节点上按住左键拖到另一节点建立关系（Shift=反对，否则支持）"
 	bar.add_child(connect_btn)
 	_connect_btn = connect_btn
 
@@ -626,7 +627,7 @@ func _create_center_panel() -> Control:
 	vb.add_child(bottom_row)
 
 	_status_lbl = Label.new()
-	_status_lbl.text = "点击左侧线索推入关联面板，再次点击可移除"
+	_status_lbl.text = "点击左侧线索推入关联面板，再次点击可移除；点右上「🔗连线」可拖拽线索/假设互建关系"
 	_status_lbl.add_theme_font_size_override("font_size", 13)
 	_status_lbl.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
 	_status_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -984,6 +985,7 @@ func _make_clue_card(clue: Dictionary) -> Button:
 	card.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	card.pressed.connect(_on_clue_card_pressed.bind(clue["id"]))
 	card.gui_input.connect(_on_node_gui.bind(clue["id"]))
+	card.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
 	return card
 
 
@@ -1084,6 +1086,7 @@ func _make_hypothesis_node(h: Dictionary) -> Control:
 	evi_lbl.custom_minimum_size = Vector2(160, 20)
 	vb.add_child(evi_lbl)
 	card.gui_input.connect(_on_node_gui.bind(id))
+	card.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
 	_hypo_nodes[id] = card
 	return card
 
@@ -1513,10 +1516,19 @@ func set_connect_mode(on: bool) -> void:
 
 func _on_connect_toggled() -> void:
 	_connect_mode = not _connect_mode
+	mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
 	if _connect_btn and is_instance_valid(_connect_btn):
 		_connect_btn.text = "🔗 连线：" + ("开" if _connect_mode else "关")
+		if _connect_mode:
+			_connect_btn.add_theme_color_override("font_color", COL_GREEN)
+		else:
+			_connect_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	for n in _card_btns.values():
+		if is_instance_valid(n): n.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
+	for n in _hypo_nodes.values():
+		if is_instance_valid(n): n.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
 	if _status_lbl:
-		_status_lbl.text = "连线模式：" + ("开（拖拽线索/假设建立关系）" if _connect_mode else "关（点击线索查看详情）")
+		_status_lbl.text = "连线模式：" + ("开（在节点上按住左键拖到另一节点建立关系；Shift=反对，否则支持）" if _connect_mode else "关（点击线索查看详情；点「🔗连线」可拖拽建立关系）")
 
 
 func _on_clear_relations() -> void:
@@ -1572,7 +1584,7 @@ func _node_center(id: String) -> Vector2:
 	if _card_btns.has(id): node = _card_btns[id]
 	elif _hypo_nodes.has(id): node = _hypo_nodes[id]
 	if node == null or not is_instance_valid(node): return Vector2.ZERO
-	return _rel_layer.to_local(node.global_position + node.size * 0.5)
+	return _rel_layer.get_global_transform().affine_inverse() * (node.global_position + node.size * 0.5)
 
 
 func _rel_color(kind: String) -> Color:
@@ -1614,7 +1626,7 @@ func _on_rel_layer_draw() -> void:
 	if _dragging_link and _link_src != "":
 		var a := _node_center(_link_src)
 		if a != Vector2.ZERO:
-			_rel_layer.draw_line(a, _rel_layer.to_local(_link_preview), _rel_color(_link_kind), 2)
+			_rel_layer.draw_line(a, _rel_layer.get_global_transform().affine_inverse() * _link_preview, _rel_color(_link_kind), 2)
 
 
 func _update_all() -> void:
