@@ -26,7 +26,6 @@ var _case_name: String = "血字的研究"
 # === v4.0 三星评价：逐链离散判定 ===
 var _chain_id: String = ""          # 当前推理链 ID（由 hypothesis.chain_id 提供；空则不计分）
 var _expected_clues: int = 0        # 本链应收集线索总数（观察之星「缺失条数」分母）
-var _local_clue_count: int = 0       # 本场景已收集条数（案件级大墙下，观察星按此计，不受全案池扩大影响）
 var _insight_bonus: int = 0         # 隐藏线索/全追问等洞察加成（场景经 hypothesis.insight_bonus 传入）
 var _last_stars: Dictionary = {"observation": 1, "reasoning": 1, "insight": 1}
 
@@ -75,44 +74,8 @@ var _verify_win: Control = null               # 「提交验证」结果窗口
 var _verify_v: int = 0                        # 当前判定等级（供 ESC 确认）
 var _verify_drag := false
 var _verify_drag_offset := Vector2.ZERO
-var _graph_view: Control = null               # 图谱视图（GraphViewController）叠加层
-
-# === 统一顶栏：线型/颜色/视图/焦点 选择器 ===
-var _pen_solid_btn: Button = null
-var _pen_dashed_btn: Button = null
-var _color_btns: Dictionary = {}
-var _mode_c_btn: Button = null
-var _mode_b_btn: Button = null
-var _top_focus_sel: OptionButton = null
-var _top_undo_btn: Button = null
-var _top_redo_btn: Button = null
 
 var _card_btns: Dictionary = {}              # clue_id -> Button
-
-# === 阶段3：线索对比台 + 矛盾疑点册 ===
-var _compare_slots: Array = []               # 对比台两条线索（clue dict），最多 2 条
-var _doubt_book: Array = []                  # 已发现疑点：[{"cid":..,"a":..,"b":..}]
-var _comparison_desk: Control = null
-var _desk_body: VBoxContainer = null
-var _slot_a_lbl: Label = null
-var _slot_b_lbl: Label = null
-var _result_lbl: Label = null
-var _notebook_vb: VBoxContainer = null
-
-# === 自由连线（各线索/假设之间拖拽相互关系）===
-# 关系数组元素：{"from": String, "to": String, "kind": String}
-#   kind ∈ "support"(线索→假设 支持) / "oppose"(线索→假设 反对) /
-#         "contradict"(线索↔线索 矛盾) / "relate"(弱关联/假设↔假设 仅连线)
-# 设计依据：docs/02_核心设计/06_推理墙运行机制.md §2.2 双交互模式（自由连线模式）
-var _relations: Array = []
-var _connect_mode: bool = false               # 顶部栏「🔗连线」开关
-var _connect_btn: Button = null
-var _rel_layer: Control = null                # 关系连线绘制层（全屏覆盖，不拦截输入）
-var _hypo_nodes: Dictionary = {}              # 假设节点 id -> Control（用于连线命中与绘制）
-var _dragging_link: bool = false
-var _link_src: String = ""
-var _link_kind: String = "support"
-var _link_preview: Vector2 = Vector2.ZERO
 
 # === 常量 ===
 const COL_GOLD := Color(0.92, 0.84, 0.55)
@@ -122,10 +85,9 @@ const COL_PANEL := Color(0.10, 0.08, 0.06, 0.92)
 const COL_GREEN := Color(0.4, 0.85, 0.4)
 const COL_YELLOW := Color(0.95, 0.8, 0.2)
 const COL_RED := Color(0.95, 0.3, 0.3)
-const COL_GREY := Color(0.6, 0.6, 0.6)
 
 
-func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1) -> void:
+func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false) -> void:
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
@@ -139,46 +101,18 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_case_name = hypothesis.get("case_name", _case_name)
 	_chain_id = hypothesis.get("chain_id", "")
 	_expected_clues = hypothesis.get("expected_clues", _clues.size())
-	# 案件级大墙：_clues 可能是全案池（跨场景），观察星须按「本场景已收集条数」计，避免被池扩大抬高
-	_local_clue_count = local_clue_count if local_clue_count >= 0 else _clues.size()
 	_insight_bonus = hypothesis.get("insight_bonus", 0)
 	_init_milestones(hypothesis)
 	_restore_state()      # 构建 UI 前回填关联/战场/里程碑/verified（首次为空则 no-op）
 	_create_ui()
 	_update_all()
-	_on_open_graph_view()    # 图谱=默认主视图（覆盖列表区；左/右/中/底面板已隐藏）
 
 
 func get_verdict() -> int:
-	# 矛盾信号：误导线索(_contradicting) + 关系中的矛盾/反对（线索↔线索矛盾、线索→假设反对）
-	if _contradiction_signals() > 0: return Verdict.CONTRADICTORY
-	# 支持信号：已关联线索(_associated) + 线索→假设 支持关系
-	if _support_signals() >= 3: return Verdict.VERIFIED
-	if _support_signals() >= 1: return Verdict.SUPPORTED
+	if _contradicting > 0: return Verdict.CONTRADICTORY
+	if _associated >= 3: return Verdict.VERIFIED
+	if _associated >= 1: return Verdict.SUPPORTED
 	return Verdict.INSUFFICIENT
-
-
-## 关系信号：把「拖拽相互关系」接入验证判定（原判定只看 _associated/_contradicting 计数，
-## 与 design doc §2.2『关联推理应实时更新验证等级』一致）
-func _contradiction_signals() -> int:
-	var n := _contradicting
-	for r in _relations:
-		# 虚线（存疑）只显示、不计入判定，防止玩家乱连误判结案
-		if r.get("dashed", false):
-			continue
-		if r.kind == "contradict" or r.kind == "oppose":
-			n += 1
-	return n
-
-
-func _support_signals() -> int:
-	var n := _associated
-	for r in _relations:
-		if r.get("dashed", false):
-			continue
-		if r.kind == "support":
-			n += 1
-	return n
 
 
 func close_wall() -> void:
@@ -196,11 +130,6 @@ func _restore_state() -> void:
 	var assoc_set := {}
 	for s in saved_assoc: assoc_set[s] = true
 	_associated = 0; _contradicting = 0
-	_doubt_book = _state_store.get("doubt_book", [])
-	_relations = []
-	for r in _state_store.get("relations", []):
-		_relations.append({"from": r.get("from", ""), "to": r.get("to", ""), "kind": r.get("kind", "relate"),
-			"color_key": r.get("color_key", _kind_to_key(r.get("kind", "relate"))), "dashed": r.get("dashed", false)})
 	for c in _clues:
 		if assoc_set.has(c.get("id", "")):
 			c["associated"] = true
@@ -242,8 +171,6 @@ func _persist_state() -> void:
 	_state_store["battlefield"] = bf
 	_state_store["verified"] = _verified
 	_state_store["verdict"] = _verified_verdict
-	_state_store["doubt_book"] = _doubt_book
-	_state_store["relations"] = _relations.duplicate()
 
 
 # === 入口：构建五区布局 ===
@@ -256,14 +183,6 @@ func _create_ui() -> void:
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
-
-	# 关系连线绘制层：全屏覆盖、不拦截输入，连线绘制在面板之上（z=15，低于验证窗口 z=19/20）
-	_rel_layer = Control.new()
-	_rel_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_rel_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_rel_layer.z_index = 15
-	_rel_layer.draw.connect(_on_rel_layer_draw)
-	add_child(_rel_layer)
 
 	# 顶部功能栏 (高度 60)
 	_top_bar = _create_top_bar()
@@ -299,12 +218,6 @@ func _create_ui() -> void:
 	_center_panel.offset_right = -508
 	mid.add_child(_center_panel)
 
-	# 图谱模式：原列表五区（左线索库/右战场/中假设树/底进度栏）隐藏，仅保留顶部栏 + 图谱
-	_left_panel.visible = false
-	_right_panel.visible = false
-	_center_panel.visible = false
-	_bottom_bar.visible = false
-
 
 func _create_top_bar() -> Control:
 	var bar := Control.new()
@@ -316,140 +229,51 @@ func _create_top_bar() -> Control:
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bar.add_child(bg)
 
-	var row := HBoxContainer.new()
-	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = 12; row.offset_right = -12; row.offset_top = 8; row.offset_bottom = -8
-	row.add_theme_constant_override("separation", 8)
-	bar.add_child(row)
-
-	# 左：标题 + 难度
 	var title := Label.new()
 	title.text = "推理墙 — %s" % _case_name
-	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", COL_GOLD)
-	title.custom_minimum_size = Vector2(220, 40)
-	row.add_child(title)
+	title.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
+	title.offset_left = 20
+	title.offset_right = 320
+	bar.add_child(title)
 
 	var diff_lbl := Label.new()
 	diff_lbl.text = "难度：%s" % ["简单", "普通", "困难"][_difficulty]
-	diff_lbl.add_theme_font_size_override("font_size", 14)
+	diff_lbl.add_theme_font_size_override("font_size", 16)
 	diff_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
-	diff_lbl.custom_minimum_size = Vector2(80, 40)
-	row.add_child(diff_lbl)
+	diff_lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
+	diff_lbl.offset_left = 320
+	diff_lbl.offset_right = 480
+	bar.add_child(diff_lbl)
 
-	row.add_child(_mk_sep())
-
-	# 线型（确定性）：实线=已确认 / 虚线=存疑
-	var lt_lbl := Label.new()
-	lt_lbl.text = "线型"
-	lt_lbl.add_theme_font_size_override("font_size", 13)
-	lt_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
-	row.add_child(lt_lbl)
-	_pen_solid_btn = _mk_top_btn("实线", true)
-	_pen_solid_btn.pressed.connect(func(): _set_pen_dashed(false))
-	row.add_child(_pen_solid_btn)
-	_pen_dashed_btn = _mk_top_btn("虚线", false)
-	_pen_dashed_btn.add_theme_color_override("font_color", COL_GREY)
-	_pen_dashed_btn.pressed.connect(func(): _set_pen_dashed(true))
-	row.add_child(_pen_dashed_btn)
-
-	row.add_child(_mk_sep())
-
-	# 颜色（关系性质）：绿=支持 / 橙=矛盾存疑 / 红=反对 / 灰=弱关联
-	var col_lbl := Label.new()
-	col_lbl.text = "性质"
-	col_lbl.add_theme_font_size_override("font_size", 13)
-	col_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
-	row.add_child(col_lbl)
-	var ck := ["green", "orange", "red", "grey"]
-	var cl := ["支持", "矛盾存疑", "反对", "弱关联"]
-	for i in ck.size():
-		var b := _mk_top_btn(cl[i], i == 0)
-		b.add_theme_color_override("font_color", _gw_color(cl[i]))
-		var key: String = ck[i]
-		b.pressed.connect(func(): _set_pen_color(key))
-		_color_btns[key] = b
-		row.add_child(b)
-
-	row.add_child(_mk_sep())
-
-	# 视图模式：星型 / 链
-	_mode_c_btn = _mk_top_btn("● 人物星型", true)
-	_mode_c_btn.pressed.connect(_on_top_mode.bind(0))
-	row.add_child(_mode_c_btn)
-	_mode_b_btn = _mk_top_btn("推理链", false)
-	_mode_b_btn.pressed.connect(_on_top_mode.bind(1))
-	row.add_child(_mode_b_btn)
-
-	# 焦点下拉
-	_top_focus_sel = OptionButton.new()
-	_top_focus_sel.add_theme_font_size_override("font_size", 14)
-	_top_focus_sel.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	_top_focus_sel.custom_minimum_size = Vector2(140, 36)
-	_top_focus_sel.tooltip_text = "切换焦点人物（星型中心）"
-	_top_focus_sel.item_selected.connect(_on_top_focus_selected)
-	row.add_child(_top_focus_sel)
-
-	# 弹簧，把右侧按钮推到最右
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
-
-	# 撤销 / 重做
-	_top_undo_btn = _mk_top_btn("↶", false)
-	_top_undo_btn.tooltip_text = "撤销 (Ctrl+Z)"
-	_top_undo_btn.custom_minimum_size = Vector2(40, 38)
-	_top_undo_btn.pressed.connect(_on_top_undo)
-	row.add_child(_top_undo_btn)
-	_top_redo_btn = _mk_top_btn("↷", false)
-	_top_redo_btn.tooltip_text = "重做 (Ctrl+Y)"
-	_top_redo_btn.custom_minimum_size = Vector2(40, 38)
-	_top_redo_btn.pressed.connect(_on_top_redo)
-	row.add_child(_top_redo_btn)
-
-	var help_btn := _mk_top_btn("❓ 求助", false)
+	var help_btn := Button.new()
+	help_btn.text = "❓ 求助"
+	help_btn.add_theme_font_size_override("font_size", 16)
+	help_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	help_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	help_btn.offset_right = -130
+	help_btn.offset_left = -250
 	help_btn.pressed.connect(_on_help_pressed)
-	row.add_child(help_btn)
+	bar.add_child(help_btn)
 
-	var close_btn := _mk_top_btn("✕", false)
-	close_btn.add_theme_color_override("font_color", Color(0.85, 0.5, 0.5))
-	close_btn.custom_minimum_size = Vector2(40, 38)
+	var close_btn := Button.new()
+	close_btn.text = "✕"
+	close_btn.add_theme_font_size_override("font_size", 20)
+	close_btn.add_theme_color_override("font_color", Color(0.8, 0.5, 0.5))
+	close_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	close_btn.offset_right = -20
+	close_btn.offset_left = -110
 	close_btn.pressed.connect(_on_back_pressed)
-	row.add_child(close_btn)
+	bar.add_child(close_btn)
+
+	var line := ColorRect.new()
+	line.color = Color(0.45, 0.35, 0.15, 0.5)
+	line.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	line.offset_top = -2
+	bar.add_child(line)
 
 	return bar
-
-
-func _mk_sep() -> Control:
-	var s := VSeparator.new()
-	s.custom_minimum_size = Vector2(8, 30)
-	return s
-
-
-func _mk_top_btn(text: String, active: bool) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.toggle_mode = true
-	b.button_pressed = active
-	b.add_theme_font_size_override("font_size", 15)
-	b.add_theme_color_override("font_color", COL_GOLD if active else COL_GOLD_LIGHT)
-	b.custom_minimum_size = Vector2(96, 38)
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.30, 0.24, 0.14, 0.95) if active else Color(0.16, 0.13, 0.08, 0.95)
-	s.border_color = COL_GOLD if active else Color(0.45, 0.38, 0.20)
-	s.border_width_left = 1; s.border_width_right = 1; s.border_width_top = 1; s.border_width_bottom = 1
-	s.set_corner_radius_all(5)
-	b.add_theme_stylebox_override("normal", s)
-	return b
-
-
-func _gw_color(label: String) -> Color:
-	match label:
-		"支持": return COL_GREEN
-		"矛盾存疑": return Color(0.95, 0.55, 0.25)
-		"反对": return COL_RED
-		_: return COL_GREY
-
 
 
 func _create_bottom_bar() -> Control:
@@ -719,7 +543,7 @@ func _create_center_panel() -> Control:
 	vb.add_child(bottom_row)
 
 	_status_lbl = Label.new()
-	_status_lbl.text = "点击左侧线索推入关联面板，再次点击可移除；点右上「🔗连线」可拖拽线索/假设互建关系"
+	_status_lbl.text = "点击左侧线索推入关联面板，再次点击可移除"
 	_status_lbl.add_theme_font_size_override("font_size", 13)
 	_status_lbl.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
 	_status_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -731,208 +555,7 @@ func _create_center_panel() -> Control:
 	verify_btn.pressed.connect(_on_verify_pressed)
 	bottom_row.add_child(verify_btn)
 
-	# 阶段3：线索对比台固定在中央区底部，预留 ~150px 高度
-	margin.offset_bottom = -162
-	var desk := _build_comparison_desk()
-	desk.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	desk.offset_top = -150
-	desk.offset_bottom = -8
-	panel.add_child(desk)
-	_comparison_desk = desk
-
 	return panel
-
-
-# === 阶段3：线索对比台 + 矛盾疑点册 ===
-func _build_comparison_desk() -> Control:
-	var desk := PanelContainer.new()
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.09, 0.11, 0.09, 0.98)
-	s.border_color = Color(0.55, 0.65, 0.45, 0.7)
-	s.border_width_left = 1; s.border_width_right = 1
-	s.border_width_top = 1; s.border_width_bottom = 1
-	s.set_corner_radius_all(6)
-	desk.add_theme_stylebox_override("panel", s)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
-	vb.add_theme_constant_override("margin_left", 10)
-	vb.add_theme_constant_override("margin_top", 6)
-	vb.add_theme_constant_override("margin_right", 10)
-	vb.add_theme_constant_override("margin_bottom", 6)
-	desk.add_child(vb)
-
-	var hdr := HBoxContainer.new()
-	var title := Label.new()
-	title.text = "线索对比台（放入两条线索比对，发现矛盾即入疑点册）"
-	title.add_theme_font_size_override("font_size", 15)
-	title.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hdr.add_child(title)
-	var collapse_btn := Button.new()
-	collapse_btn.text = "▾"
-	collapse_btn.add_theme_font_size_override("font_size", 14)
-	collapse_btn.pressed.connect(_on_desk_collapse)
-	hdr.add_child(collapse_btn)
-	vb.add_child(hdr)
-
-	_desk_body = VBoxContainer.new()
-	_desk_body.add_theme_constant_override("separation", 6)
-	vb.add_child(_desk_body)
-
-	var rowA := HBoxContainer.new()
-	_slot_a_lbl = Label.new()
-	_slot_a_lbl.text = "槽A：空"
-	_slot_a_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_slot_a_lbl.add_theme_font_size_override("font_size", 14)
-	_slot_a_lbl.add_theme_color_override("font_color", Color(0.80, 0.78, 0.65))
-	rowA.add_child(_slot_a_lbl)
-	_desk_body.add_child(rowA)
-
-	var rowB := HBoxContainer.new()
-	_slot_b_lbl = Label.new()
-	_slot_b_lbl.text = "槽B：空"
-	_slot_b_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_slot_b_lbl.add_theme_font_size_override("font_size", 14)
-	_slot_b_lbl.add_theme_color_override("font_color", Color(0.80, 0.78, 0.65))
-	rowB.add_child(_slot_b_lbl)
-	_desk_body.add_child(rowB)
-
-	var cmp_row := HBoxContainer.new()
-	var cmp_btn := Button.new()
-	cmp_btn.text = "比对"
-	cmp_btn.add_theme_font_size_override("font_size", 15)
-	cmp_btn.add_theme_color_override("font_color", COL_GOLD)
-	cmp_btn.pressed.connect(_on_compare_pressed)
-	cmp_row.add_child(cmp_btn)
-	var clr_btn := Button.new()
-	clr_btn.text = "清空"
-	clr_btn.add_theme_font_size_override("font_size", 13)
-	clr_btn.pressed.connect(func(): _compare_slots = []; _refresh_desk())
-	cmp_row.add_child(clr_btn)
-	_desk_body.add_child(cmp_row)
-
-	_result_lbl = Label.new()
-	_result_lbl.text = "（把两条线索放入对比台，点击「比对」）"
-	_result_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_result_lbl.add_theme_font_size_override("font_size", 14)
-	_result_lbl.add_theme_color_override("font_color", Color(0.7, 0.75, 0.6))
-	_desk_body.add_child(_result_lbl)
-
-	_notebook_vb = VBoxContainer.new()
-	_notebook_vb.add_theme_constant_override("separation", 3)
-	_desk_body.add_child(_notebook_vb)
-
-	return desk
-
-
-func _on_desk_collapse() -> void:
-	if not _desk_body: return
-	_desk_body.visible = not _desk_body.visible
-
-
-func _find_clue(cid: String) -> Dictionary:
-	for c in _clues:
-		if c.get("id", "") == cid: return c
-	return {}
-
-
-func _clue_name(cid: String) -> String:
-	var c: Dictionary = _find_clue(cid)
-	if c.is_empty(): return cid
-	return c.get("name", cid)
-
-
-func _load_comparison(cid: String) -> void:
-	var clue: Dictionary = _find_clue(cid)
-	if clue.is_empty(): return
-	if _compare_slots.size() < 2:
-		for i in range(_compare_slots.size()):
-			if _compare_slots[i].get("id", "") == cid:
-				_compare_slots.remove_at(i)
-				break
-		_compare_slots.append(clue)
-	else:
-		_compare_slots.remove_at(0)
-		_compare_slots.append(clue)
-	_refresh_desk()
-
-
-func _refresh_desk() -> void:
-	if not _slot_a_lbl or not _slot_b_lbl: return
-	var a: String = "空"
-	var b: String = "空"
-	if _compare_slots.size() >= 1: a = _compare_slots[0].get("name", _compare_slots[0].get("id", "?"))
-	if _compare_slots.size() >= 2: b = _compare_slots[1].get("name", _compare_slots[1].get("id", "?"))
-	_slot_a_lbl.text = "槽A：" + a
-	_slot_b_lbl.text = "槽B：" + b
-	if _notebook_vb:
-		for c in _notebook_vb.get_children(): c.queue_free()
-		if _doubt_book.is_empty():
-			var empty := Label.new()
-			empty.text = "（疑点册为空）"
-			empty.add_theme_font_size_override("font_size", 12)
-			empty.add_theme_color_override("font_color", Color(0.5, 0.48, 0.40))
-			_notebook_vb.add_child(empty)
-		else:
-			for d in _doubt_book:
-				var lab := Label.new()
-				lab.text = "• %s  （%s ↔ %s）" % [_contradiction_title(d.get("cid", "")), _clue_name(d.get("a", "")), _clue_name(d.get("b", ""))]
-				lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				lab.add_theme_font_size_override("font_size", 13)
-				lab.add_theme_color_override("font_color", Color(0.9, 0.7, 0.5))
-				_notebook_vb.add_child(lab)
-
-
-func _contradiction_title(cid: String) -> String:
-	for c in _battle.get("contradictions", []):
-		if c.get("id", "") == cid: return c.get("text", cid)
-	return cid
-
-
-func _detect_contradiction(a: Dictionary, b: Dictionary) -> Array:
-	var ta: Array = a.get("relation_tags", [])
-	var tb: Array = b.get("relation_tags", [])
-	var ca: Array = []
-	var cb: Array = []
-	for t in ta:
-		if t.begins_with("C"): ca.append(t)
-	for t in tb:
-		if t.begins_with("C"): cb.append(t)
-	var out := []
-	for t in ca:
-		if cb.has(t) and not out.has(t):
-			out.append(t)
-	return out
-
-
-func _on_compare_pressed() -> void:
-	if _compare_slots.size() < 2:
-		if _result_lbl: _result_lbl.text = "请先放入两条线索再比对"
-		return
-	var a: Dictionary = _compare_slots[0]
-	var b: Dictionary = _compare_slots[1]
-	var hits: Array = _detect_contradiction(a, b)
-	if hits.is_empty():
-		if _result_lbl: _result_lbl.text = "暂未发现冲突（无矛盾，无任何惩罚）"
-		return
-	var names := []
-	for cid in hits:
-		names.append(_contradiction_title(cid))
-	if _result_lbl: _result_lbl.text = "发现疑点：" + ", ".join(names)
-	for cid in hits:
-		_add_doubt(cid, a.get("id", ""), b.get("id", ""))
-		_battle_contra_states[cid] = true   # 直接标记（键可能原不存在，幂等）
-	_refresh_battlefield_status_only()
-	_refresh_desk()
-	_persist_state()
-
-
-func _add_doubt(cid: String, a: String, b: String) -> void:
-	for d in _doubt_book:
-		if d.get("cid", "") == cid:
-			return
-	_doubt_book.append({"cid": cid, "a": a, "b": b})
 
 
 func _create_right_panel() -> Control:
@@ -1022,36 +645,16 @@ func _clue_state(clue: Dictionary) -> int:
 	return ClueState.COLLECTED
 
 
-# === 阶段2：证据属性标签 + 可信度（由 attribute_tags 派生）===
-func _attribute_label_of(clue: Dictionary) -> String:
-	var at: Array = clue.get("attribute_tags", [])
-	if at.is_empty(): return "其他"
-	return at[0]
-
-
-func _credibility_of(clue: Dictionary) -> String:
-	var at: Array = clue.get("attribute_tags", [])
-	if at.has("直接物证"): return "高"
-	if at.has("目击证词"): return "中"
-	if at.has("嫌疑人陈述"): return "中"
-	if at.has("二手传闻"): return "低"
-	return "中"
-
-
 func _make_clue_card(clue: Dictionary) -> Button:
 	var card := Button.new()
 	var name: String = clue.get("name", clue.get("label", clue.get("id", "")))
 	var state := _clue_state(clue)
 	var state_text: String = ["已收集", "已关联", "已验证", "已失效"][state]
-	var attr: String = _attribute_label_of(clue)
-	var cred: String = _credibility_of(clue)
 	card.text = name
 	if _difficulty != Diff.HARD:
 		card.text += "  [%s]" % state_text
-	card.text += "\n%s · 可信度:%s" % [attr, cred]
-	card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card.tooltip_text = clue.get("desc", "")
-	card.custom_minimum_size = Vector2(200, 72)
+	card.custom_minimum_size = Vector2(200, 56)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.add_theme_font_size_override("font_size", 15)
 
@@ -1076,8 +679,6 @@ func _make_clue_card(clue: Dictionary) -> Button:
 	card.add_theme_stylebox_override("normal", sn)
 	card.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	card.pressed.connect(_on_clue_card_pressed.bind(clue["id"]))
-	card.gui_input.connect(_on_node_gui.bind(clue["id"]))
-	card.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
 	return card
 
 
@@ -1177,21 +778,18 @@ func _make_hypothesis_node(h: Dictionary) -> Control:
 	evi_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	evi_lbl.custom_minimum_size = Vector2(160, 20)
 	vb.add_child(evi_lbl)
-	card.gui_input.connect(_on_node_gui.bind(id))
-	card.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
-	_hypo_nodes[id] = card
+
 	return card
 
 
 func _evidence_for_hypothesis(hid: String) -> Array:
 	var out := []
-	# 标签驱动（阶段1）：仅当线索「已关联」且其 relation_tags 含该假设节点 id 时，
-	# 才作为该节点的证据。替换原退化逻辑（relation_tags 为空则全量罗列），
-	# 实现「线索按标签自动匹配假设」——不同线索精确落到对应假设/矛盾节点。
+	# 简单策略：若线索有关联标记，且其 tags 含该假设 id，则视为证据。
+	#  scene1 当前数据未打 relation_tags，退化为：所有已关联线索都作为全局证据展示。
 	for c in _clues:
 		if c.get("associated", false):
 			var tags: Array = c.get("relation_tags", [])
-			if tags.has(hid):
+			if tags.is_empty() or tags.has(hid):
 				out.append(c.get("name", c.get("id", "")))
 	return out
 
@@ -1489,28 +1087,6 @@ func _show_clue_detail(clue: Dictionary) -> void:
 		tags.add_child(src_tag)
 		vb.add_child(tags)
 
-	# 阶段2：证据属性（人证/物证）与可信度
-	var ac_row := HBoxContainer.new()
-	var ac_lbl := Label.new()
-	ac_lbl.text = "证据属性: %s    可信度: %s" % [_attribute_label_of(clue), _credibility_of(clue)]
-	ac_lbl.add_theme_font_size_override("font_size", 14)
-	ac_lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.50))
-	ac_row.add_child(ac_lbl)
-	vb.add_child(ac_row)
-
-	# 阶段3：从详情弹窗把线索放入对比台
-	var desk_row := HBoxContainer.new()
-	var to_desk := Button.new()
-	to_desk.text = "→ 放入对比台"
-	to_desk.add_theme_font_size_override("font_size", 15)
-	to_desk.add_theme_color_override("font_color", COL_GOLD)
-	to_desk.pressed.connect(func():
-		_load_comparison(clue["id"])
-		_detail_popup.hide()
-	)
-	desk_row.add_child(to_desk)
-	vb.add_child(desk_row)
-
 	var btn_row := HBoxContainer.new()
 	var assoc_btn := Button.new()
 	var is_assoc: bool = clue.get("associated", false)
@@ -1529,10 +1105,7 @@ func _show_clue_detail(clue: Dictionary) -> void:
 
 # === 关联逻辑 ===
 func _on_clue_card_pressed(cid: String) -> void:
-	if _connect_mode: return   # 连线模式下点击不弹详情，由拖拽建立关系
-	var clue: Dictionary = _find_clue(cid)
-	if not clue.is_empty():
-		_show_clue_detail(clue)
+	_toggle_association(cid)
 
 
 func _toggle_association(cid: String) -> void:
@@ -1559,324 +1132,14 @@ func _toggle_association(cid: String) -> void:
 	_persist_state()
 
 
-# === 自由连线：各线索/假设之间拖拽相互关系 ===
-# 关系信号接入验证见 _contradiction_signals()/_support_signals()/get_verdict()。
-# 设计依据：docs/02_核心设计/06_推理墙运行机制.md §2.2（拖拽模式默认；自由连线模式 M2+ 线索↔线索）
-
-## 建立一条关系。kind="auto" 时（线索↔线索）自动跑矛盾检测：有矛盾→"contradict"，否则→"relate"。
-## 返回 false 表示无效或重复（不建立）。
-func connect_nodes(from_id: String, to_id: String, kind: String, color_key: String = "", dashed: bool = false) -> bool:
-	if from_id == "" or to_id == "" or from_id == to_id: return false
-	for r in _relations:
-		if r.from == from_id and r.to == to_id and r.kind == kind: return false
-	var resolved := kind
-	if kind == "auto":
-		var a := _find_clue(from_id); var b := _find_clue(to_id)
-		if not a.is_empty() and not b.is_empty() and not _detect_contradiction(a, b).is_empty():
-			resolved = "contradict"
-		else:
-			resolved = "relate"
-	var ck := color_key if color_key != "" else _kind_to_key(resolved)
-	_relations.append({"from": from_id, "to": to_id, "kind": resolved, "color_key": ck, "dashed": dashed})
-	_refresh_relations()
-	_persist_state()
-	return true
-
-
-func remove_relation(from_id: String, to_id: String) -> void:
-	var kept := []
-	for r in _relations:
-		if not (r.from == from_id and r.to == to_id):
-			kept.append(r)
-	_relations = kept
-	_refresh_relations()
-	_persist_state()
-
-
-func clear_relations() -> void:
-	_relations = []
-	_refresh_relations()
-	_persist_state()
-
-
-func get_relations() -> Array:
-	return _relations.duplicate()
-
-
-func set_connect_mode(on: bool) -> void:
-	_connect_mode = on
-
-
-func _on_connect_toggled() -> void:
-	_connect_mode = not _connect_mode
-	mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
-	if _connect_btn and is_instance_valid(_connect_btn):
-		_connect_btn.text = "🔗 连线：" + ("开" if _connect_mode else "关")
-		if _connect_mode:
-			_connect_btn.add_theme_color_override("font_color", COL_GREEN)
-		else:
-			_connect_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	for n in _card_btns.values():
-		if is_instance_valid(n): n.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
-	for n in _hypo_nodes.values():
-		if is_instance_valid(n): n.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
-	if _status_lbl:
-		_status_lbl.text = "连线模式：" + ("开（在节点上按住左键拖到另一节点建立关系；Shift=反对，否则支持）" if _connect_mode else "关（点击线索查看详情；点「🔗连线」可拖拽建立关系）")
-
-
-func _on_clear_relations() -> void:
-	clear_relations()
-	if _status_lbl:
-		_status_lbl.text = "已清除全部关系（%d 条）" % _relations.size()
-
-
-# ===================== 图谱视图（GraphViewController 叠加层） =====================
-## doc 09/10：在列表式推理墙之上叠加一个图视图（模式 C 星型 + 模式 B 链聚焦），
-## 读取同一份数据（_clues/_hypothesis/_relations/_state_store），通过回调回写，数据层零改动。
-
-func _on_open_graph_view() -> void:
-	if _graph_view and is_instance_valid(_graph_view):
-		return
-	var gv = load("res://scripts/clue/graph_view_controller.gd").new()
-	gv.name = "GraphView"
-	add_child(gv)
-	gv.z_index = 30
-	var persons := _derive_persons()
-	var focus: String = _state_store.get("graph_focus", "")
-	if focus == "" and not persons.is_empty():
-		focus = persons[0].get("id", "")
-	gv.build({
-		"clues": _clues, "hypo": _hypothesis, "relations": _relations,
-		"persons": persons, "focus_person": focus, "difficulty": _difficulty,
-		"editable": not _verified, "verdict": get_verdict(),
-		"state_store": _state_store,
-		"on_tag": Callable(self, "_gv_tag_person"),
-		"on_relations_changed": Callable(self, "_gv_relations_changed"),
-		"on_pen_changed": Callable(self, "_gv_pen_changed"),
-		"on_close": Callable(self, "_on_back_pressed")
-	})
-	_graph_view = gv
-	_sync_top_bar()
-
-
-func _derive_persons() -> Array:
-	var seen := {}
-	var out := []
-	for c in _clues:
-		for p in c.get("related_npcs", []):
-			if not seen.has(p):
-				seen[p] = true
-				out.append({"id": p, "name": p})
-	var extra: Array = _hypothesis.get("persons", [])
-	for p in extra:
-		var pid: String = p.get("id", "") if p is Dictionary else str(p)
-		if not seen.has(pid):
-			seen[pid] = true
-			out.append({"id": pid, "name": p.get("name", pid) if p is Dictionary else pid})
-	return out
-
-
-func _gv_tag_person(clue_id: String, person_id: String) -> void:
-	var clue: Dictionary = _find_clue(clue_id)
-	if clue.is_empty(): return
-	var rns: Array = clue.get("related_npcs", [])
-	if not rns.has(person_id):
-		rns.append(person_id)
-		clue["related_npcs"] = rns
-	_persist_state()
-	_update_all()
-
-
-func _gv_add_edge(from_id: String, to_id: String, kind: String, color_key: String = "", dashed: bool = false) -> void:
-	connect_nodes(from_id, to_id, kind, color_key, dashed)
-	_update_all()
-
-
-func _gv_remove_relation(from_id: String, to_id: String) -> void:
-	remove_relation(from_id, to_id)
-	_update_all()
-
-
-# === 统一顶栏：线型/颜色/视图/焦点 选择器驱动图谱 ===
-func _set_pen_dashed(d: bool) -> void:
-	if _graph_view and is_instance_valid(_graph_view):
-		_graph_view.set_pen(_graph_view._pen_color_key, d)
-	_sync_pen_buttons()
-
-
-func _set_pen_color(key: String) -> void:
-	if _graph_view and is_instance_valid(_graph_view):
-		_graph_view.set_pen(key, _graph_view._pen_dashed)
-	_sync_pen_buttons()
-
-
-func _sync_pen_buttons() -> void:
-	if not _graph_view or not is_instance_valid(_graph_view): return
-	_pen_solid_btn.button_pressed = not _graph_view._pen_dashed
-	_pen_dashed_btn.button_pressed = _graph_view._pen_dashed
-	for k in _color_btns.keys():
-		_color_btns[k].button_pressed = (k == _graph_view._pen_color_key)
-
-
-func _gv_pen_changed(color_key: String, dashed: bool) -> void:
-	_sync_pen_buttons()
-
-
-func _on_top_mode(m: int) -> void:
-	if _graph_view and is_instance_valid(_graph_view):
-		_graph_view.set_mode(m)
-	_mode_c_btn.button_pressed = (m == 0)
-	_mode_b_btn.button_pressed = (m == 1)
-
-
-func _on_top_focus_selected(idx: int) -> void:
-	if not _graph_view or not is_instance_valid(_graph_view): return
-	var pid: String = _top_focus_sel.get_item_metadata(idx)
-	_graph_view.set_focus(pid)
-
-
-func _on_top_undo() -> void:
-	if _graph_view and is_instance_valid(_graph_view):
-		_graph_view.undo()
-
-
-func _on_top_redo() -> void:
-	if _graph_view and is_instance_valid(_graph_view):
-		_graph_view.redo()
-
-
-func _gv_relations_changed(rels: Array) -> void:
-	_relations = rels
-	_persist_state()
-	_update_verdict_label()
-
-
-func _kind_to_key(kind: String) -> String:
-	match kind:
-		"support", "imply": return "green"
-		"contradict": return "orange"
-		"oppose": return "red"
-		_: return "grey"
-
-
-func _sync_top_bar() -> void:
-	if not _graph_view or not is_instance_valid(_graph_view): return
-	_sync_pen_buttons()
-	_mode_c_btn.button_pressed = (_graph_view._mode == 0)
-	_mode_b_btn.button_pressed = (_graph_view._mode == 1)
-	_top_focus_sel.clear()
-	var persons := _derive_persons()
-	for p in persons:
-		_top_focus_sel.add_item(p.get("name", p.get("id", "?")))
-		_top_focus_sel.set_item_metadata(_top_focus_sel.get_item_count() - 1, p.get("id", ""))
-	for i in _top_focus_sel.get_item_count():
-		if _top_focus_sel.get_item_metadata(i) == _graph_view._focus_person:
-			_top_focus_sel.select(i)
-
-
-## 节点 gui_input：连线模式下，左键按下即开始拖拽建立关系（Shift=反对，否则=支持）
-func _on_node_gui(event: InputEvent, id: String) -> void:
-	if not _connect_mode: return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		_start_link(id, event.shift_pressed)
-		get_viewport().set_input_as_handled()
-
-
-func _start_link(id: String, shift: bool) -> void:
-	_dragging_link = true
-	_link_src = id
-	_link_kind = "oppose" if shift else "support"
-	_link_preview = get_viewport().get_mouse_position()
-	if _rel_layer: _rel_layer.queue_redraw()
-
-
-## 松开时命中测试：返回光标下、且非源节点的线索/假设节点 id
-func _link_target_at(gp: Vector2) -> String:
-	for cid in _card_btns.keys():
-		var n: Control = _card_btns[cid]
-		if is_instance_valid(n) and n.get_global_rect().has_point(gp): return cid
-	for hid in _hypo_nodes.keys():
-		var n: Control = _hypo_nodes[hid]
-		if is_instance_valid(n) and n.get_global_rect().has_point(gp): return hid
-	return ""
-
-
-func _commit_link(src: String, dst: String) -> void:
-	var src_clue := _card_btns.has(src)
-	var dst_clue := _card_btns.has(dst)
-	var kind := "relate"
-	if src_clue and dst_clue:
-		kind = "auto"          # 线索↔线索：自动矛盾检测
-	elif src_clue != dst_clue:
-		kind = _link_kind      # 线索↔假设：支持/反对
-	connect_nodes(src, dst, kind)
-
-
-func _refresh_relations() -> void:
-	if _rel_layer: _rel_layer.queue_redraw()
-
-
-func _node_center(id: String) -> Vector2:
-	var node: Control = null
-	if _card_btns.has(id): node = _card_btns[id]
-	elif _hypo_nodes.has(id): node = _hypo_nodes[id]
-	if node == null or not is_instance_valid(node): return Vector2.ZERO
-	return _rel_layer.get_global_transform().affine_inverse() * (node.global_position + node.size * 0.5)
-
-
-func _rel_color(kind: String) -> Color:
-	var key := _kind_to_key(kind)
-	match key:
-		"green": return Color(0.4, 0.85, 0.4)
-		"orange": return Color(0.95, 0.55, 0.25)
-		"red": return Color(0.95, 0.3, 0.3)
-		_: return Color(0.55, 0.50, 0.42)
-
-
-func _draw_dashed_line(canvas: Control, a: Vector2, b: Vector2, col: Color) -> void:
-	var dist := a.distance_to(b)
-	var dash := 12.0; var gap := 8.0
-	var seg := dash + gap
-	if seg <= 0: return
-	var steps := int(dist / seg)
-	var dir := (b - a).normalized()
-	var pos := a
-	for i in steps:
-		var p2 := pos + dir * dash
-		if p2.distance_to(a) > dist: p2 = b
-		canvas.draw_line(pos, p2, col, 2)
-		pos = p2 + dir * gap
-	if pos.distance_to(b) > 1.0:
-		canvas.draw_line(pos, b, col, 2)
-
-
-func _on_rel_layer_draw() -> void:
-	if _relations.is_empty() and not _dragging_link:
-		return
-	for r in _relations:
-		var a := _node_center(r.from); var b := _node_center(r.to)
-		if a == Vector2.ZERO or b == Vector2.ZERO: continue
-		var col := _rel_color(r.get("color_key", _kind_to_key(r.kind)))
-		if r.get("dashed", false):
-			_draw_dashed_line(_rel_layer, a, b, col)
-		else:
-			_rel_layer.draw_line(a, b, col, 3)
-	if _dragging_link and _link_src != "":
-		var a := _node_center(_link_src)
-		if a != Vector2.ZERO:
-			_rel_layer.draw_line(a, _rel_layer.get_global_transform().affine_inverse() * _link_preview, _rel_color(_link_kind), 2)
-
-
 func _update_all() -> void:
 	_refresh_clue_list()
 	_refresh_hypothesis_tree()
 	_refresh_assoc_panel()
-	_refresh_desk()
 	_refresh_battlefield()
 	_update_verdict_label()
 	_update_milestone_ui()
 	_update_star_rating()
-	_refresh_relations()
 
 
 func _update_verdict_label() -> void:
@@ -2040,8 +1303,11 @@ func _on_verify_title_gui(event: InputEvent) -> void:
 func _compute_report(v: int) -> String:
 	var levels := {0: "矛盾冲突", 1: "证据不足", 2: "倾向成立", 3: "已获证实"}
 	var hypo_name: String = _hypothesis.get("title", "")
-	var support := _support_signals()
-	var contra := _contradiction_signals()
+	var support := 0; var misleading := 0
+	for c in _clues:
+		if c.get("associated", false):
+			if c.get("correct", true): support += 1
+			else: misleading += 1
 	if _difficulty == Diff.HARD:
 		return "假设：%s\n验证等级：%s" % [hypo_name, levels.get(v, "?")]
 	var report := "假设：%s\n验证等级：%s\n" % [hypo_name, levels.get(v, "?")]
@@ -2049,11 +1315,11 @@ func _compute_report(v: int) -> String:
 		Verdict.VERIFIED:
 			report += "支持依据：%d 条正确证据，证据链完整闭合\n行动建议：提交结论，推进结案" % support
 		Verdict.SUPPORTED:
-			report += "支持依据：%d 条证据倾向支持\n存疑点：%d 条矛盾/误导项待排除\n行动建议：深挖剩余疑点，寻找决定性证据完成闭环" % [support, contra]
+			report += "支持依据：%d 条证据倾向支持\n存疑点：%d 条误导项待排除\n行动建议：深挖剩余疑点，寻找决定性证据完成闭环" % [support, misleading]
 		Verdict.INSUFFICIENT:
 			report += "存疑点：证据不足（仅关联 %d 条）\n行动建议：补充更多相关证据，或转向其他假设调查" % _associated
 		Verdict.CONTRADICTORY:
-			report += "存疑点：存在 %d 条矛盾证据（含关系矛盾）\n行动建议：推翻该假设，或寻找证据解释矛盾" % contra
+			report += "存疑点：存在 %d 条矛盾证据\n行动建议：推翻该假设，或寻找证据解释矛盾" % _contradicting
 	return report
 
 
@@ -2087,8 +1353,7 @@ func _update_star_rating() -> void:
 	if not _star_lbl: return
 	# ---- v4.0 三维离散判定（§B-11.5 / 06 §4.1）----
 	# 1) 观察之星：按缺失条数（缺≥3→1⭐ / 缺1-2→2⭐ / 缺0→3⭐），不区分线索重要性
-	# 案件级大墙下，观察星按「本场景已收集条数」(_local_clue_count) 计，不受全案线索池扩大影响
-	var collected := _local_clue_count
+	var collected := _clues.size()
 	var missing := maxi(0, _expected_clues - collected)
 	var observe_stars := 3
 	if missing >= 3:
@@ -2380,21 +1645,6 @@ func _input(event: InputEvent) -> void:
 		if event is InputEventMouseMotion and _hist_win and is_instance_valid(_hist_win):
 			_hist_win.global_position = get_viewport().get_mouse_position() - _hist_drag_offset
 			return
-	# 自由连线拖拽中：鼠标移动实时预览，松开时在命中节点上建立关系
-	if _dragging_link:
-		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-			_dragging_link = false
-			var tgt := _link_target_at(get_viewport().get_mouse_position())
-			if tgt != "" and tgt != _link_src:
-				_commit_link(_link_src, tgt)
-			_link_src = ""
-			if _rel_layer: _rel_layer.queue_redraw()
-			return
-		if event is InputEventMouseMotion:
-			_link_preview = get_viewport().get_mouse_position()
-			if _rel_layer: _rel_layer.queue_redraw()
-			return
-
 	# 验证结果窗口拖动中
 	if _verify_drag:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
