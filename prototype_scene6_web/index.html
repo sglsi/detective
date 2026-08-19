@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>郝黎代旅馆 scene6 · 节点式多视角原型（验证用）</title>
+<style>
+  :root { --bg:#1c1b22; --panel:#26242e; --panel2:#2f2d3a; --line:#3c3a48; --txt:#e8e6ef; --mut:#9b98a8; --accent:#e0a44b; --hot:#5dc3a0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font-family:-apple-system,"Segoe UI",system-ui,"Microsoft YaHei",sans-serif; }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:16px; font-weight:600; }
+  header p { margin:4px 0 0; font-size:12px; color:var(--mut); }
+  main { display:flex; gap:16px; padding:16px 20px; align-items:flex-start; flex-wrap:wrap; }
+  #stageWrap { flex:1 1 620px; min-width:320px; }
+  #stage { position:relative; width:100%; aspect-ratio:16/9; background:#000; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  #bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:opacity .28s ease; }
+  #stage.fading #bg { opacity:0; }
+  #hotspots { position:absolute; inset:0; }
+  .hot { position:absolute; transform:translate(-50%,-50%); width:42px; height:42px; border-radius:50%;
+         border:2px solid var(--hot); background:rgba(93,195,160,.18); cursor:pointer; padding:0;
+         display:flex; align-items:center; justify-content:center; color:var(--hot); font-size:11px; }
+  .hot::after { content:""; position:absolute; inset:-6px; border-radius:50%; border:2px solid var(--hot); opacity:.5; animation:ping 1.8s ease-out infinite; }
+  .hot.active { background:var(--accent); border-color:var(--accent); color:#1c1b22; }
+  @keyframes ping { 0%{transform:scale(.8);opacity:.6} 100%{transform:scale(1.5);opacity:0} }
+  #angleTag { position:absolute; left:10px; top:10px; background:rgba(0,0,0,.55); color:#fff; font-size:12px; padding:4px 10px; border-radius:6px; }
+  aside { flex:0 0 300px; display:flex; flex-direction:column; gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .card h3 { margin:0 0 8px; font-size:13px; font-weight:600; color:var(--accent); }
+  #minimap { width:100%; height:auto; background:var(--panel2); border-radius:8px; }
+  .zone { fill:rgba(224,164,75,.12); stroke:var(--accent); stroke-width:1.5; cursor:pointer; }
+  .zone:hover { fill:rgba(224,164,75,.28); }
+  .zonelbl { fill:var(--mut); font-size:10px; pointer-events:none; }
+  #charDot { fill:var(--hot); stroke:#fff; stroke-width:1.5; transition:all .3s ease; }
+  #angleBtns { display:flex; flex-wrap:wrap; gap:8px; }
+  .abtn { flex:1 1 45%; background:var(--panel2); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:9px 8px; font-size:12px; cursor:pointer; }
+  .abtn:hover { border-color:var(--accent); }
+  .abtn.active { background:var(--accent); color:#1c1b22; border-color:var(--accent); font-weight:600; }
+  #clueText { font-size:13px; line-height:1.6; color:var(--txt); min-height:48px; }
+  footer { padding:10px 20px 22px; color:var(--mut); font-size:11px; }
+  code { background:var(--panel2); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>郝黎代旅馆 · scene6 节点式多视角原型</h1>
+  <p>验证路线3：角色走到不同区域 → 切换对应机位背景 + 热点按角度重绑。当前为独立原型，未改动游戏工程。</p>
+</header>
+<main>
+  <section id="stageWrap">
+    <div id="stage">
+      <img id="bg" alt="">
+      <div id="angleTag"></div>
+      <div id="hotspots"></div>
+    </div>
+  </section>
+  <aside>
+    <div class="card">
+      <h3>房间俯视 · 相机区</h3>
+      <svg id="minimap" viewBox="0 0 320 220" aria-label="房间俯视小地图"></svg>
+    </div>
+    <div class="card">
+      <h3>切换机位</h3>
+      <div id="angleBtns"></div>
+    </div>
+    <div class="card">
+      <h3>线索</h3>
+      <div id="clueText">点击场景中的高亮圈查看该机位可见的线索。</div>
+    </div>
+  </aside>
+</main>
+<footer>
+  原型说明：overview 用真实全景图；其余 3 个机位为程序生成的<strong>占位图</strong>（标注「占位·待替换真实机位渲染」），仅用于验证切换机制。
+  验证通过后，将 <code>main.js</code> 中每个机位的 <code>bg</code> 替换成真实 PNG、<code>hotspots</code> 换成实测绘点即可移植进 Godot 场景 6。
+</footer>
+<script src="main.js"></script>
+</body>
+</html>

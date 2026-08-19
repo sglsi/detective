@@ -1,0 +1,88 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[DialogueManager] 对话开始: scene2 (NORMAL模式)
+[DialogueManager] 对话开始: scene2 (NORMAL模式)
+[DialogueManager] 对话结束
+ERROR: [DialogueManager] 节点不存在: end
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _go_to_node (res://scripts/dialogue/dialogue_manager.gd:206)
+       [1] _go_to_node (res://scripts/dialogue/dialogue_manager.gd:222)
+       [2] advance (res://scripts/dialogue/dialogue_manager.gd:186)
+       [3] _advance_dialogue (res://tools/p12_scene2_to_scene3_e2e.gd:157)
+[DialogueManager] 对话结束
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] show_notification (res://scripts/ui/scene_framework.gd:240)
+       [1] _on_clue_recorded (res://scripts/scene/detective_scene.gd:196)
+       [2] _record (res://scripts/clue/clue_observer.gd:620)
+       [3] _initialize (res://tools/p12_scene2_to_scene3_e2e.gd:47)
+       [4] _advance_dialogue (res://tools/p12_scene2_to_scene3_e2e.gd:160)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] show_notification (res://scripts/ui/scene_framework.gd:240)
+       [1] _on_clue_recorded (res://scripts/scene/detective_scene.gd:196)
+       [2] _record (res://scripts/clue/clue_observer.gd:620)
+       [3] _initialize (res://tools/p12_scene2_to_scene3_e2e.gd:47)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] show_notification (res://scripts/ui/scene_framework.gd:240)
+       [1] _on_clue_recorded (res://scripts/scene/detective_scene.gd:196)
+       [2] _record (res://scripts/clue/clue_observer.gd:620)
+       [3] _initialize (res://tools/p12_scene2_to_scene3_e2e.gd:47)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] show_notification (res://scripts/ui/scene_framework.gd:240)
+       [1] _on_clue_recorded (res://scripts/scene/detective_scene.gd:196)
+       [2] _record (res://scripts/clue/clue_observer.gd:620)
+       [3] _initialize (res://tools/p12_scene2_to_scene3_e2e.gd:47)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] show_notification (res://scripts/ui/scene_framework.gd:240)
+       [1] _on_clue_recorded (res://scripts/scene/detective_scene.gd:196)
+       [2] _record (res://scripts/clue/clue_observer.gd:620)
+       [3] _initialize (res://tools/p12_scene2_to_scene3_e2e.gd:47)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] show_notification (res://scripts/ui/scene_framework.gd:240)
+       [1] _on_clue_recorded (res://scripts/scene/detective_scene.gd:196)
+       [2] _record (res://scripts/clue/clue_observer.gd:620)
+       [3] _initialize (res://tools/p12_scene2_to_scene3_e2e.gd:47)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] show_notification (res://scripts/ui/scene_framework.gd:240)
+       [1] _prompt_think (res://scripts/scene/detective_scene.gd:360)
+       [2] _enter_reasoning (res://scripts/scene/scene2.gd:188)
+       [3] _on_observe_complete (res://scripts/scene/scene2.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] show_notification (res://scripts/ui/scene_framework.gd:240)
+       [1] _default_wall_verify (res://scripts/scene/detective_scene.gd:435)
+       [2] _on_verify_confirm (res://scripts/clue/reasoning_wall.gd:1545)
+       [3] _initialize (res://tools/p12_scene2_to_scene3_e2e.gd:67)
+[DialogueManager] 对话开始: scene2 (NORMAL模式)
+[DialogueManager] 对话结束
+P12_FAIL 未切换到 scene3，current=<null> path=
+[P12]scene2 arrival 后 phase=2
+[P12]scene2 对话后 phase=2 (期望 2=OBSERVE)
+[P12]scene2 线索 local=6 cs=6
+[P12]scene2 phase=3 墙=true
+[P12]scene2 验证后 phase=4 (期望 4=TRANSITION)
+[P12]场景切换后 current_scene=<null>
+P12_E2E_FAIL

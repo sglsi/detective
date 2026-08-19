@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>福尔摩斯侧面拆分图 · 关节活动走跑跳预览</title>
+<style>
+  :root { --bg:#0e1116; --panel:#171c24; --line:#222a35; --txt:#e6ebf2; --muted:#8b97a8; --accent:#4aa3ff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--txt);
+    font-family: "PingFang SC","Microsoft YaHei",system-ui,sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 18px 16px 40px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 4px 0 2px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .stage { position: relative; border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden; background: linear-gradient(180deg,#f4f1ea 0%, #e9e4d8 100%); }
+  canvas { display:block; width:100%; height:auto; }
+  .hud { position:absolute; left:12px; top:12px; display:flex; gap:8px; align-items:center; }
+  .badge { background: rgba(20,26,34,.8); border:1px solid var(--line); border-radius: 999px;
+    padding:5px 12px; font-size:13px; backdrop-filter: blur(4px); }
+  .badge b { color: var(--accent); }
+  .controls { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; align-items:center; }
+  .keys { display:flex; gap:8px; flex-wrap:wrap; }
+  .key { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px; font-size:12px; color:var(--muted); min-width:64px; text-align:center; }
+  .key kbd { display:block; color:var(--txt); font-weight:600; font-size:13px; margin-bottom:3px;
+    background:#0c0f15; border:1px solid #2a3340; border-bottom-width:2px; border-radius:5px; padding:2px 0; }
+  .opts { margin-left:auto; display:flex; gap:16px; align-items:center; font-size:13px; color:var(--muted); }
+  .opts label { display:flex; gap:6px; align-items:center; cursor:pointer; }
+  .opts input[type=range]{ width:110px; }
+  .touch { display:flex; gap:10px; margin-top:14px; }
+  .btn { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--txt);
+    border-radius:10px; padding:12px 0; font-size:15px; font-weight:600; user-select:none;
+    touch-action:manipulation; }
+  .btn:active { background:#1e2632; border-color:var(--accent); }
+  .btn.run { color:#ffd27a; }
+  .btn.jump { color:#7affb0; }
+  @media (max-width:560px){ .opts{ margin-left:0; width:100%; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>福尔摩斯侧面拆分图 · 人体关节活动走跑跳预览</h1>
+  <div class="sub">复用 human-joint-rig 成熟运动逻辑；12 部位侧面贴图（小臂含手），默认朝左，按状态整体镜像。</div>
+
+  <div class="stage">
+    <canvas id="cv" width="960" height="800"></canvas>
+    <div class="hud">
+      <div class="badge">状态：<b id="state">站立</b></div>
+      <div class="badge" id="facing">朝向：左</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="keys">
+      <div class="key"><kbd>← →</kbd> / <kbd>S F</kbd>移动</div>
+      <div class="key"><kbd>Shift</kbd> + 方向 奔跑<br><span style="font-size:11px;color:var(--muted)">（需同时按住）</span></div>
+      <div class="key"><kbd>空格</kbd>跳跃</div>
+      <div class="key"><kbd>R</kbd>重置位置</div>
+    </div>
+    <div class="opts">
+      <label><input type="checkbox" id="showJoints" /> 显示关节锚点</label>
+      <label>速度 <input type="range" id="speed" min="0.3" max="2" step="0.1" value="1" /></label>
+    </div>
+  </div>
+
+  <div class="touch">
+    <div class="btn" id="bLeft">◀ 左</div>
+    <div class="btn run" id="bRun">奔跑 (Shift)</div>
+    <div class="btn jump" id="bJump">跳跃 (空格)</div>
+    <div class="btn" id="bRight">右 ▶</div>
+  </div>
+</div>
+
+<script>
+// 骨骼数据：human_body_spec.gd 同源（角度统一为【度】，fk 内转弧度）
+// 侧面约定：+Y 向下；局部角 0 = 向下；90 = 朝左（前）；180 = 向上。
+const PX = 70;
+// 长度由 analyze_sherlock_side.py 按 1 头高归一化后，左右取平均
+const L = { head:0.984, torso:2.741, upper_arm:1.131, fore_arm:1.562, thigh:1.495, shin:1.512, foot:0.888 };
+const W = { head:0.75, torso:1.20, upper_arm:0.18, fore_arm:0.16, thigh:0.22, shin:0.18, foot:0.24 };
+// 子段近端在父段局部坐标中的锚点（单位 u，以 neck 为 torso 原点）
+// 直接采用 analyze_sherlock_side.py 从原图计算的位置，让各部位回到拆分图中的真实布局。
+const ANCHORS = {
+  torso:[0,0],
+  // 原图计算头锚点 (-0.176,0.230) 会让头与躯干之间出现脖缝并后仰。
+  // 直接让头底端贴在躯干 neck 处，避免浮空。
+  head:[0,0],
+  upper_arm_L:[0.819,0.353], upper_arm_R:[-0.800,0.483],
+  fore_arm_L:[0,1.148], fore_arm_R:[0,1.114],
+  thigh_L:[0.178,2.492], thigh_R:[-0.440,2.477],
+  shin_L:[0,1.512], shin_R:[0,1.478],
+  foot_L:[0,1.530], foot_R:[0,1.478],
+};
+const PARENT = {
+  torso:null, head:"torso",
+  upper_arm_L:"torso", upper_arm_R:"torso",
+  fore_arm_L:"upper_arm_L", fore_arm_R:"upper_arm_R",
+  thigh_L:"torso", thigh_R:"torso",
+  shin_L:"thigh_L", shin_R:"thigh_R",
+  foot_L:"shin_L", foot_R:"shin_R",
+};
+// REST（度）：四肢自然下垂；头初始朝下（图片底端=脖子，再额外顺时针转180°）；脚水平朝左（前）
+const REST = { torso:0, head:0,
+  upper_arm_L:0, upper_arm_R:0, fore_arm_L:0, fore_arm_R:0,
+  thigh_L:0, thigh_R:0, shin_L:0, shin_R:0, foot_L:90, foot_R:90 };
+// ROM（度）：侧面走跑跳约束
+const ROM = {
+  head:[150,210],
+  upper_arm_L:[-110,110], upper_arm_R:[-110,110],
+  fore_arm_L:[0,150], fore_arm_R:[0,150],
+  thigh_L:[-110,110], thigh_R:[-110,110], shin_L:[0,150], shin_R:[0,150],
+  foot_L:[40,140], foot_R:[40,140], torso:[-15,15],
+};
+const COLOR = {
+  torso:[0.20,0.35,0.60], head:[0.95,0.80,0.70], upper_arm:[0.15,0.15,0.18],
+  fore_arm:[0.95,0.80,0.70], thigh:[0.15,0.15,0.18],
+  shin:[0.95,0.80,0.70], foot:[0.15,0.15,0.18],
+};
+const SHAPE = { head:"circle", torso:"capsule", upper_arm:"capsule", fore_arm:"capsule",
+  thigh:"capsule", shin:"capsule", foot:"capsule" };
+// 用户定制（2026-08-15）：头部额外顺时针旋转180°；部分肢体做屏幕空间平移
+const LOCAL_ROT = { head: Math.PI };
+const SCREEN_SHIFT = {
+  fore_arm_R:  1.5 * W.fore_arm * PX,   // 右小臂向右平移 1.5 个小臂宽度
+  fore_arm_L: -0.5 * W.fore_arm * PX,   // 左小臂向左平移 0.5 个小臂宽度
+  shin_L:     -0.5 * W.shin * PX,       // 左小腿向左平移 0.5 个小腿宽度
+  foot_L:     -1.0 * W.shin * PX,       // 左脚向左平移 1 个小腿宽度
+  foot_R:     -0.2 * W.shin * PX,       // 右脚向左平移 0.2 个小腿宽度
+};
+const ORDER = ["torso","head","upper_arm_L","upper_arm_R","fore_arm_L","fore_arm_R",
+  "thigh_L","thigh_R","shin_L","shin_R","foot_L","foot_R"];
+
+const BONES = {};
+for (const id of ORDER) {
+  const t = id.replace("_L","").replace("_R","");
+  BONES[id] = {
+    parent: PARENT[id],
+    anchor: [ANCHORS[id][0]*PX, ANCHORS[id][1]*PX],
+    length: L[t]*PX,
+    width:  W[t]*PX,
+    rest: REST[id],
+    rom: ROM[id],
+    color: COLOR[t],
+    shape: SHAPE[t],
+  };
+}
+
+// ---- 贴图加载 ----
+const TEX = {};
+const TEX_ORDER = ["torso","head","upper_arm_L","upper_arm_R","fore_arm_L","fore_arm_R",
+  "thigh_L","thigh_R","shin_L","shin_R","foot_L","foot_R"];
+// pad_ratio 由 analyze_sherlock_side.py 基于裁切后的图片计算
+const PARTS_META = {
+  "head":{"pad_ratio":0.117},"torso":{"pad_ratio":0.000},
+  "upper_arm_L":{"pad_ratio":0.000},"upper_arm_R":{"pad_ratio":0.000},
+  "fore_arm_L":{"pad_ratio":0.036},"fore_arm_R":{"pad_ratio":0.033},
+  "thigh_L":{"pad_ratio":0.000},"thigh_R":{"pad_ratio":0.000},
+  "shin_L":{"pad_ratio":0.029},"shin_R":{"pad_ratio":0.026},
+  "foot_L":{"pad_ratio":0.000},"foot_R":{"pad_ratio":0.000}
+};
+for (const id of TEX_ORDER) {
+  const img = new Image();
+  img.src = `../assets/sherlock_side_parts/cropped/${id}.png`;
+  TEX[id] = img;
+}
+
+// ---- 状态 ----
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let CW = cv.width, CH = cv.height;
+const dpr = Math.max(1, Math.min(2, window.devicePixelRatio||1));
+function fitCanvas(){
+  const cssW = cv.clientWidth || CW;
+  const scale = cssW / CW;
+  cv.width = Math.round(CW*dpr);
+  cv.height = Math.round(CH*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cv.style.height = (CH*scale) + "px";
+}
+fitCanvas();
+window.addEventListener("resize", fitCanvas);
+window.onerror = (msg, src, line) => {
+  if (typeof ctx !== "undefined") {
+    ctx.save(); ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle = "#000"; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.fillStyle = "#ff6b6b"; ctx.font = "16px sans-serif";
+    ctx.fillText("JS Error: " + msg + " @" + line, 20, 40);
+    ctx.restore();
+  }
+};
+
+const NECK_BASE_Y = 150;
+const LEG_PX = (L.torso + L.thigh + L.shin) * PX;
+const GROUND_Y = NECK_BASE_Y + LEG_PX;
+
+const state = {
+  x: 0, y: NECK_BASE_Y,
+  vy: 0, onGround: true,
+  facing: -1,  // -1 = 朝左（默认与切图一致），1 = 朝右
+  phase: 0, t: 0,
+  mode: "idle",
+  jumpStyle: 0,
+  showJoints: false,
+  speedMul: 1,
+};
+const input = { left:false, right:false, run:false };
+
+// ---- 输入 ----
+const keymap = { ArrowLeft:"left", KeyS:"left", ArrowRight:"right", KeyF:"right" };
+addEventListener("keydown", e=>{
+  if (keymap[e.code]) { input[keymap[e.code]] = true; e.preventDefault(); }
+  else if (e.code==="ShiftLeft"||e.code==="ShiftRight") input.run = true;
+  else if (e.code==="Space") { doJump(); e.preventDefault(); }
+  else if (e.code==="KeyR") { state.x = 0; }
+});
+addEventListener("keyup", e=>{
+  if (keymap[e.code]) input[keymap[e.code]] = false;
+  else if (e.code==="ShiftLeft"||e.code==="ShiftRight") input.run = false;
+});
+function doJump(){
+  if (state.onGround){
+    state.vy = -430;
+    state.onGround = false;
+    state.jumpStyle = Math.random() < 0.75 ? 0 : 1;
+  }
+}
+function bindHold(id, on, off){ const el=document.getElementById(id);
+  const s=e=>{e.preventDefault();on();}; const e2=e=>{e.preventDefault();off();};
+  el.addEventListener("touchstart",s,{passive:false}); el.addEventListener("touchend",e2);
+  el.addEventListener("mousedown",s); el.addEventListener("mouseup",e2); el.addEventListener("mouseleave",e2);
+}
+bindHold("bLeft", ()=>input.left=true, ()=>input.left=false);
+bindHold("bRight",()=>input.right=true,()=>input.right=false);
+bindHold("bRun",  ()=>input.run=true,  ()=>input.run=false);
+document.getElementById("bJump").addEventListener("click", e=>{e.preventDefault();doJump();});
+document.getElementById("showJoints").addEventListener("change", e=>state.showJoints=e.target.checked);
+document.getElementById("speed").addEventListener("input", e=>state.speedMul=parseFloat(e.target.value));
+
+// 自动演示模式（供 headless 截图/走查）：?auto=run / ?auto=walk
+const urlParams = new URLSearchParams(location.search);
+const autoMode = urlParams.get("auto");
+if (autoMode === "run") { input.right = true; input.run = true; }
+else if (autoMode === "walk") { input.right = true; }
+
+// ---- 姿态计算（侧面走/跑：四肢前后摆动；脚保持水平） ----
+function computePose(){
+  const off = {};
+  for (const id of ORDER) off[id] = 0;
+  const moving = input.left || input.right;
+  const running = input.run && moving;
+
+  if (!state.onGround) {
+    if (state.jumpStyle === 0) {
+      off.thigh_L = -60;  off.thigh_R = 55;
+      off.shin_L = 100;   off.shin_R = 35;
+      off.foot_L = 50;    off.foot_R = 90;
+      off.upper_arm_L = -160; off.upper_arm_R = 160;
+      off.fore_arm_L = -10;  off.fore_arm_R = 10;
+      off.torso = 2;
+    } else {
+      off.thigh_L = 35;  off.thigh_R = 35;
+      off.shin_L = 45;   off.shin_R = 45;
+      off.foot_L = -40;  off.foot_R = -40;
+      off.upper_arm_L = -130; off.upper_arm_R = 130;
+      off.fore_arm_L = 0;  off.fore_arm_R = 0;
+      off.torso = -10;
+    }
+    off.head = -off.torso;
+    state.headSway = 0;
+    return { off, mode:"jump" };
+  }
+  if (moving) {
+    const amp = running ? 55 : 28;
+    const armAmp = running ? 50 : 25;
+    const kneeBend = running ? 60 : 32;
+    const kneeBase = running ? 20 : 10;
+    const th = state.phase * Math.PI * 2;
+    // 腿：前后交替摆动
+    off.thigh_L = amp * Math.sin(th);
+    off.thigh_R = amp * Math.sin(th + Math.PI);
+    off.shin_L = kneeBase + kneeBend * Math.max(0, Math.sin(th + Math.PI));
+    off.shin_R = kneeBase + kneeBend * Math.max(0, Math.sin(th));
+    // 脚保持水平（抵消大腿+小腿角度）
+    off.foot_L = 90 - (off.thigh_L + off.shin_L);
+    off.foot_R = 90 - (off.thigh_R + off.shin_R);
+    // 手臂：与腿反相前后摆动
+    off.upper_arm_L = armAmp * Math.sin(th + Math.PI);
+    off.upper_arm_R = armAmp * Math.sin(th);
+    off.fore_arm_L = running ? -80 : -30;
+    off.fore_arm_R = running ? -80 : -30;
+    off.torso = running ? 8 : 2;
+    off.head = -off.torso;
+    state.headSway = 0;
+    return { off, mode: running ? "run" : "walk" };
+  }
+  const t = state.t;
+  off.torso = 1.5 * Math.sin(t*1.4);
+  off.head = -off.torso + 1.5 * Math.sin(t*1.1);
+  off.upper_arm_L = 2 * Math.sin(t*1.4);
+  off.upper_arm_R = 2 * Math.sin(t*1.4 + 0.6);
+  state.headSway = 0;
+  return { off, mode:"idle" };
+}
+
+// ---- 正向运动学（ROM 用弧度 clamp） ----
+function rotate(vx, vy, a){ const c=Math.cos(a), s=Math.sin(a); return [vx*c - vy*s, vx*s + vy*c]; }
+function fk(off){
+  const ang = {}; const world = {};
+  for (const id of ORDER){
+    let a = (BONES[id].rest + (off[id]||0)) * Math.PI/180;
+    const lo = BONES[id].rom[0] * Math.PI/180;
+    const hi = BONES[id].rom[1] * Math.PI/180;
+    a = Math.max(lo, Math.min(hi, a));
+    ang[id] = a;
+  }
+  for (const id of ORDER){
+    const b = BONES[id];
+    let px, py, pa;
+    if (b.parent === null){ px = state.x; py = state.y; pa = ang[id]; }
+    else {
+      const p = world[b.parent];
+      pa = p.a + ang[id];
+      const r = rotate(b.anchor[0], b.anchor[1], p.a);
+      px = p.x + r[0]; py = p.y + r[1];
+    }
+    const tip = rotate(0, b.length, pa);
+    world[id] = { x:px, y:py, a:pa, tx:px+tip[0], ty:py+tip[1] };
+  }
+  return world;
+}
+
+// ---- 渲染 ----
+function col(c, alpha){ return `rgba(${Math.round(c[0]*255)},${Math.round(c[1]*255)},${Math.round(c[2]*255)},${alpha==null?1:alpha})`; }
+// 世界坐标 -> 屏幕：以屏幕中心为对称轴，根据 facing 水平镜像
+function sx(wx){ return CW/2 + state.facing * (wx - state.x); }
+function sy(wy){ return wy; }
+
+function drawBoneImg(id, w){
+  const img = TEX[id];
+  if (!img || !img.complete || img.naturalWidth === 0) return false;
+  const X1 = sx(w.x), Y1 = sy(w.y);
+  const b = BONES[id];
+  const pr = (PARTS_META[id] && PARTS_META[id].pad_ratio) || 0;
+  const total = 1 + 2 * pr;
+  const eff = 1 / total;
+  // 头部以脖子为支点：图片底端对齐锚点（local y=0），再额外做局部旋转
+  const isHead = (id === "head");
+  const start = isHead ? 1 : pr / total;
+  const scale = b.length / (img.height * eff);
+  ctx.save();
+  const screenShiftX = SCREEN_SHIFT[id] || 0;
+  ctx.translate(X1 + screenShiftX, Y1);
+  // 整体水平镜像：贴图本身也要翻转，否则朝右时脸还是朝左
+  ctx.scale(state.facing, 1);
+  // 镜像后旋转方向要取反，才能保证肢体摆动方向正确
+  // 用户定制（2026-08-15）：头部额外顺时针旋转180°
+  const localRot = LOCAL_ROT[id] || 0;
+  ctx.rotate(-w.a * state.facing + localRot);
+  const drawW = img.width * scale;
+  const drawH = img.height * scale;
+  ctx.drawImage(img, -drawW / 2, -drawH * start, drawW, drawH);
+  // 侧面切图未在关节处留重叠肉，动起来膝盖/脚踝/肘/肩会露白缝。
+  // 在 limb 两端补极小的同色圆点遮盖接缝，半径很小避免变成粗胶囊。
+  if (b.shape === "capsule" && id !== "torso") {
+    const jr = Math.max(3.5, b.width * 0.32);
+    ctx.fillStyle = col(b.color, 0.92);
+    ctx.beginPath(); ctx.arc(0, 0, jr, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, b.length, jr, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+  return true;
+}
+
+function draw(){
+  ctx.clearRect(0,0,CW,CH);
+  const gy = sy(GROUND_Y);
+  // 天空已在 CSS 渐变中，这里只画地面
+  ctx.fillStyle = "#c9d2dc";
+  ctx.fillRect(0, gy, CW, CH-gy);
+  ctx.strokeStyle = "#5d6b7c"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(CW, gy); ctx.stroke();
+  ctx.strokeStyle = "#8b97a6"; ctx.lineWidth = 2;
+  const step = 80;
+  const start = Math.floor((state.x - CW/2)/step)*step;
+  for (let wx = start; wx < state.x + CW/2 + step; wx += step){
+    const X = sx(wx);
+    ctx.beginPath(); ctx.moveTo(X, gy); ctx.lineTo(X - 14 * state.facing, gy + 22); ctx.stroke();
+  }
+
+  const { off } = computePose();
+  const world = fk(off);
+
+  // 侧面绘制顺序：右侧（远侧/后侧）先画，左侧（近侧/前侧）后画；
+  // 整体镜像不改变身体前后关系，故顺序固定。
+  const drawOrder = ["thigh_R","shin_R","foot_R","upper_arm_R","fore_arm_R",
+                     "torso","head",
+                     "thigh_L","shin_L","foot_L","upper_arm_L","fore_arm_L"];
+
+  for (const id of drawOrder){
+    const b = BONES[id], w = world[id];
+    if (drawBoneImg(id, w)) continue;
+    const X1 = sx(w.x), Y1 = sy(w.y), X2 = sx(w.tx), Y2 = sy(w.ty);
+    ctx.strokeStyle = "#888";
+    ctx.lineWidth = Math.max(3, b.width * 0.3);
+    ctx.beginPath(); ctx.moveTo(X1,Y1); ctx.lineTo(X2,Y2); ctx.stroke();
+  }
+
+  if (state.showJoints){
+    for (const id of ORDER){
+      const w = world[id];
+      ctx.fillStyle = id==="torso" ? "#ffd24a" : "#7fd4ff";
+      ctx.beginPath(); ctx.arc(sx(w.x), sy(w.y), 3.2, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.lineWidth=1; ctx.stroke();
+    }
+  }
+}
+
+// ---- 主循环 ----
+let last = performance.now();
+function loop(now){
+  let dt = (now - last)/1000; last = now;
+  dt = Math.min(dt, 0.05);
+  state.t += dt;
+
+  const { off, mode } = computePose();
+  state.mode = mode;
+
+  const dir = (input.right?1:0) - (input.left?1:0);
+  if (dir !== 0){ state.facing = dir; }
+  const baseSpeed = (mode==="run") ? 230 : (mode==="walk") ? 150 : 0;
+  state.x += dir * baseSpeed * state.speedMul * dt;
+
+  if (!state.onGround){
+    state.vy += 1500 * dt;
+    state.y += state.vy * dt;
+    if (state.y >= NECK_BASE_Y){ state.y = NECK_BASE_Y; state.vy = 0; state.onGround = true; }
+  }
+  if (mode==="walk") state.phase += 1.6 * state.speedMul * dt;
+  else if (mode==="run") state.phase += 2.2 * state.speedMul * dt;
+
+  draw();
+
+  document.getElementById("state").textContent =
+    ({idle:"站立", walk:"行走", run:"奔跑", jump:"跳跃"})[mode];
+  document.getElementById("facing").textContent = "朝向：" + (state.facing>0 ? "右" : "左");
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
