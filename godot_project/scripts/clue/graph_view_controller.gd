@@ -1496,9 +1496,17 @@ func _handle_connect_click(id: String, kind: String) -> bool:
 		_connect_first_kind = ""
 		_redraw_all()
 		return true
-	# 节点 → 节点：建证据连线
+	# 节点 → 节点：建证据连线；若两节点间已有连线则反向删除（连线模式快捷取消，问题1 补充）
 	var kind_str: String = key_to_kind(_pen_color_key)
-	_add_edge(_connect_first_id, id, kind_str, _pen_color_key, _pen_dashed)
+	var existing: Array = _relations_between(_connect_first_id, id)
+	if existing.is_empty():
+		_add_edge(_connect_first_id, id, kind_str, _pen_color_key, _pen_dashed)
+	else:
+		var total: int = existing.size()
+		for r in existing:
+			_remove_edge(r.get("from", ""), r.get("to", ""), r.get("kind", "relate"))
+		_toast_msg("已删除 %s ↔ %s 之间的 %d 条连线（已有连线时点两节点=取消连线）" %
+			[_node_short_label(_connect_first_id), _node_short_label(id), total])
 	_connect_first_id = ""
 	_connect_first_kind = ""
 	_redraw_all()
@@ -1735,6 +1743,17 @@ func _rel_verb(kind: String) -> String:
 		"oppose": return VERB_OPPOSE
 		"contradict": return VERB_CONTRADICT
 		_: return VERB_RELATE
+
+
+## 两节点间已存在的玩家连线（不分方向，同对节点可能有多条不同 kind，如 support+contradict）
+func _relations_between(a: String, b: String) -> Array:
+	var out := []
+	for r in _relations:
+		var f: String = r.get("from", "")
+		var t: String = r.get("to", "")
+		if (f == a and t == b) or (f == b and t == a):
+			out.append(r)
+	return out
 
 
 ## 删除一条用户建立的连线（需求 2026-08-19：可取消误连；可撤销）

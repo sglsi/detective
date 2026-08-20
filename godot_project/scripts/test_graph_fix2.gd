@@ -114,6 +114,20 @@ func _run() -> void:
 		if r.get("from", "") == "c1" and r.get("to", "") == "H1": still = true
 	_chk(not still, "Fix1-G：c1→H1 连线已被删除")
 	_chk(gv._verdict_text() == "有点道理", "Fix1-H：删除后结论即时降级（与 Fix3-D 一致）")
+
+	# ================= 连线模式快捷 toggle（点两节点=有边删/无边建） =================
+	gv._add_edge("c1", "H1", "support", "green", false)
+	_chk(gv._relations_between("c1", "H1").size() == 1, "Fix1-I：c1↔H1 已有 1 条连线（准备测 toggle）")
+	gv.set_connect_mode(true)
+	gv._handle_connect_click("c1", "clue")
+	gv._handle_connect_click("H1", "hypo")
+	_chk(gv._relations_between("c1", "H1").is_empty(), "Fix1-J：连线模式点两已有连线节点=删除该连线")
+	_chk(gv._verdict_text() == "有点道理", "Fix1-K：删除后结论即时降级")
+	gv._handle_connect_click("c1", "clue")
+	gv._handle_connect_click("H1", "hypo")
+	_chk(gv._relations_between("c1", "H1").size() == 1, "Fix1-L：再点两次恢复建边")
+	_chk(gv._verdict_text() == "说得通", "Fix1-M：恢复建边后结论回升")
+	gv.set_connect_mode(false)
 	gv.queue_free()
 
 	# ================= 问题2：图谱内「提交验证」按钮 =================
