@@ -14,6 +14,7 @@ var _difficulty: int = Diff.NORMAL
 var _on_verify: Callable = Callable()
 var _on_close: Callable = Callable()
 var _on_continue: Callable = Callable()
+var _on_persist: Callable = Callable()
 var _verifying := false
 var _associated := 0
 var _contradicting := 0
@@ -89,6 +90,7 @@ var _mode_b_btn: Button = null
 var _top_focus_sel: OptionButton = null
 var _top_undo_btn: Button = null
 var _top_redo_btn: Button = null
+var _top_verify_btn: Button = null
 
 var _card_btns: Dictionary = {}              # clue_id -> Button
 
@@ -147,7 +149,7 @@ func _npc_display_name(id: String) -> String:
 	return _NPC_DISPLAY_NAMES.get(id, id)
 
 
-func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1) -> void:
+func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable()) -> void:
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
@@ -157,6 +159,7 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_state_store = state_store
 	_persist_enabled = persist
 	_on_advance = on_advance
+	_on_persist = on_persist
 	_battle = hypothesis.get("battlefield", {})
 	_case_name = hypothesis.get("case_name", _case_name)
 	_chain_id = hypothesis.get("chain_id", "")
@@ -484,6 +487,13 @@ func _create_top_bar() -> Control:
 	_top_redo_btn.custom_minimum_size = Vector2(40, 38)
 	_top_redo_btn.pressed.connect(_on_top_redo)
 	row.add_child(_top_redo_btn)
+
+	# 提交验证（问题2）：图谱为主视图时底部「提交验证」面板被隐藏，顶栏补一个等价入口
+	_top_verify_btn = _mk_top_btn("✓ 提交验证", false)
+	_top_verify_btn.tooltip_text = "提交当前推理，正式判定（可推进剧情）"
+	_top_verify_btn.custom_minimum_size = Vector2(130, 38)
+	_top_verify_btn.pressed.connect(_on_verify_pressed)
+	row.add_child(_top_verify_btn)
 
 	var help_btn := _mk_top_btn("❓ 求助", false)
 	help_btn.pressed.connect(_on_help_pressed)
@@ -1741,6 +1751,7 @@ func _on_open_graph_view() -> void:
 		"on_tag": Callable(self, "_gv_tag_person"),
 		"on_relations_changed": Callable(self, "_gv_relations_changed"),
 		"on_pen_changed": Callable(self, "_gv_pen_changed"),
+		"on_verify": Callable(self, "_on_verify_pressed"),
 		"on_close": Callable(self, "_on_back_pressed")
 	})
 	_graph_view = gv
@@ -1941,6 +1952,8 @@ func _sync_top_bar() -> void:
 	for i in _top_focus_sel.get_item_count():
 		if _top_focus_sel.get_item_metadata(i) == _graph_view._focus_person:
 			_top_focus_sel.select(i)
+	if _top_verify_btn:
+		_top_verify_btn.disabled = _verified
 
 
 ## 节点 gui_input：连线模式下，左键按下即开始拖拽建立关系（Shift=反对，否则=支持）
@@ -2060,6 +2073,7 @@ func _update_verdict_label() -> void:
 # === 验证 ===
 func _on_verify_pressed() -> void:
 	if _verifying: return
+	if _verified: return   # 已提交过验证的墙不允许重复提交（顶栏/图谱入口共用）
 	_verifying = true
 	var v := get_verdict()
 	_last_report = _compute_report(v)
@@ -2594,11 +2608,14 @@ func _on_back_pressed() -> void:
 		_close_history_panel()
 		return
 	_persist_state()
+	# 关墙即把最新图谱状态（节点位置/折叠/关系）落盘，避免「拖动位置没存、读档回默认」（Bug1）
+	if _on_persist.is_valid():
+		_on_persist.call()
 	# 已提交验证且本墙为「验证后自动推进」类型（推理阶段打开）：关墙即推进剧情，
 	# 解决「提交验证后用返回/X 关墙（而非点确定）导致卡在推理阶段」的问题。
 	if _verified and _on_advance.is_valid():
 		_on_advance.call()
-	if _on_continue.is_valid(): _on_continue.call()
+	elif _on_continue.is_valid(): _on_continue.call()
 	elif _on_close.is_valid(): _on_close.call()
 	queue_free()
 
