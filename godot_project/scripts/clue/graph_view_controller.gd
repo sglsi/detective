@@ -346,7 +346,7 @@ func _create_ui() -> void:
 	_toast.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	_toast.offset_top = -40
 	_toast.offset_left = 16; _toast.offset_right = -16
-	_toast.add_theme_font_size_override("font_size", 15)
+	_toast.add_theme_font_size_override("font_size", 28)
 	_toast.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	_toast.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -357,7 +357,7 @@ func _create_ui() -> void:
 func _create_toolbar() -> Control:
 	var bar := Control.new()
 	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	bar.offset_bottom = 60
+	bar.offset_bottom = 110
 	var bg := ColorRect.new()
 	bg.color = Color(0.08, 0.07, 0.10, 0.96)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -365,7 +365,7 @@ func _create_toolbar() -> Control:
 
 	var row := HBoxContainer.new()
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = 12; row.offset_right = -12; row.offset_top = 10; row.offset_bottom = -10
+	row.offset_left = 12; row.offset_right = -12; row.offset_top = 12; row.offset_bottom = -12
 	row.add_theme_constant_override("separation", 8)
 	bar.add_child(row)
 
@@ -385,9 +385,9 @@ func _create_toolbar() -> Control:
 
 	# 焦点下拉（仅模式 C 启用）
 	_focus_sel = OptionButton.new()
-	_focus_sel.add_theme_font_size_override("font_size", 14)
+	_focus_sel.add_theme_font_size_override("font_size", 26)
 	_focus_sel.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	_focus_sel.custom_minimum_size = Vector2(150, 34)
+	_focus_sel.custom_minimum_size = Vector2(220, 64)
 	_focus_sel.tooltip_text = "切换焦点人物（星型中心）"
 	for p in _persons:
 		_focus_sel.add_item(p.get("name", p.get("id", "?")))
@@ -402,7 +402,7 @@ func _create_toolbar() -> Control:
 	# 面包屑
 	var crumb := Label.new()
 	crumb.text = "  %s    %s" % [_hypo.get("case_name", "血字的研究"), _hypo.get("title", "")]
-	crumb.add_theme_font_size_override("font_size", 14)
+	crumb.add_theme_font_size_override("font_size", 26)
 	crumb.add_theme_color_override("font_color", COL_GREY)
 	crumb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	crumb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -419,8 +419,8 @@ func _create_toolbar() -> Control:
 
 	# 提交验证（问题2）：图谱内形成的连线可直接提交判定，确认后推理墙销毁并推进剧情
 	var verify := _mk_tool_btn("✓ 提交验证", "提交当前推理，正式判定（可推进剧情）")
-	verify.custom_minimum_size = Vector2(132, 38)
-	verify.add_theme_font_size_override("font_size", 15)
+	verify.custom_minimum_size = Vector2(240, 64)
+	verify.add_theme_font_size_override("font_size", 28)
 	verify.pressed.connect(_on_verify_pressed)
 	row.add_child(verify)
 	_verify_btn = verify
@@ -457,9 +457,9 @@ func _mk_tab(text: String, active: bool, greyed: bool = false) -> Button:
 	b.toggle_mode = true
 	b.button_pressed = active
 	b.disabled = greyed
-	b.add_theme_font_size_override("font_size", 15)
+	b.add_theme_font_size_override("font_size", 28)
 	b.add_theme_color_override("font_color", COL_GOLD if active else COL_GOLD_LIGHT)
-	b.custom_minimum_size = Vector2(120, 38)
+	b.custom_minimum_size = Vector2(220, 64)
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color(0.30, 0.24, 0.14, 0.95) if active else Color(0.16, 0.13, 0.08, 0.95)
 	s.border_color = COL_GOLD if active else Color(0.45, 0.38, 0.20)
@@ -474,9 +474,9 @@ func _mk_tool_btn(text: String, tip: String) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.tooltip_text = tip
-	b.add_theme_font_size_override("font_size", 18)
+	b.add_theme_font_size_override("font_size", 32)
 	b.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	b.custom_minimum_size = Vector2(42, 38)
+	b.custom_minimum_size = Vector2(84, 64)
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color(0.16, 0.13, 0.08, 0.95)
 	s.border_color = Color(0.45, 0.38, 0.20)
@@ -601,9 +601,12 @@ func _rebuild_graph() -> void:
 	var nodes := _node_list()
 	var pos := _compute_layout(nodes)
 	_node_center = pos
-	# 合并可见节点位置进全局缓存（隐藏节点的位置由 _all_positions 保留）
-	for id in pos:
-		_all_positions[id] = pos[id]
+	# 合并可见节点位置进全局缓存（隐藏节点的位置由 _all_positions 保留）。
+	# ⚠️ 仅模式 C 合并：模式 B 是垂直分层的临时聚焦视图，若写入会污染 _all_positions，
+	# 导致切回星型/重进时个别节点位置错乱回初始（问题2）。
+	if _mode == ViewMode.MODE_C:
+		for id in pos:
+			_all_positions[id] = pos[id]
 	for nd in nodes:
 		var v := _make_node(nd)
 		_node_views[nd.id] = v
@@ -805,9 +808,9 @@ func _node_radius_for_kind(kind: String) -> float:
 ## 创建连线出口折叠控件的「点击热区」（透明 Control，只接 gui_input；圆形由 _fold_layer 统一绘制）
 func _make_fold_control(id: String) -> Control:
 	var c := Control.new()
-	c.custom_minimum_size = Vector2(24, 24)
-	c.size = Vector2(24, 24)
-	c.position = _fold_control_pos(id) - Vector2(12, 12)
+	c.custom_minimum_size = Vector2(48, 48)
+	c.size = Vector2(48, 48)
+	c.position = _fold_control_pos(id) - Vector2(24, 24)
 	c.mouse_filter = Control.MOUSE_FILTER_STOP
 	c.z_index = 6
 	c.tooltip_text = "点击折叠/展开外层内容"
@@ -822,13 +825,13 @@ func _on_fold_draw() -> void:
 		var center := _fold_control_pos(id)
 		var folded := _folded_nodes.has(id)
 		# 圆底
-		_fold_layer.draw_circle(center, 11.0, Color(0.10, 0.08, 0.06, 0.96))
-		_fold_layer.draw_arc(center, 11.0, 0, TAU, 28, COL_GOLD, 2.0)
+		_fold_layer.draw_circle(center, 22.0, Color(0.10, 0.08, 0.06, 0.96))
+		_fold_layer.draw_arc(center, 22.0, 0, TAU, 28, COL_GOLD, 3.0)
 		# 字形
 		var f := ThemeDB.get_default_theme().default_font
 		if f == null: continue
 		var txt := _fold_glyph(id)
-		var fs := 13
+		var fs := 26
 		var sz := f.get_string_size(txt, HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
 		var p := Vector2(center.x - sz.x * 0.5, center.y + sz.y * 0.5)
 		_fold_layer.draw_string(f, p, txt, HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER, -1, fs,
@@ -1009,14 +1012,14 @@ func _compute_layout(nodes: Array) -> Dictionary:
 	return out
 
 
-## 按节点 kind 估算渲染宽度（用于自适应半径防重叠）
+## 按节点 kind 估算渲染宽度（用于自适应半径防重叠；与 _make_node 卡片尺寸×2 同步）
 func _node_width_for_kind(kind: String) -> float:
 	match kind:
-		"clue":       return 170.0
-		"hypo":       return 150.0
-		"conclusion": return 170.0
-		"chain":      return 130.0
-		_: return 150.0
+		"clue":       return 320.0
+		"hypo":       return 280.0
+		"conclusion": return 320.0
+		"chain":      return 250.0
+		_: return 300.0
 
 
 ## 把点钳制到对应 kind 的距离带内（保持「核心 < 结论 < 推断 < 线索」排序）
@@ -1038,6 +1041,9 @@ func _clamp_to_band(pos: Vector2, center: Vector2, kind: String) -> Vector2:
 ## 先用当前可见位置刷新缓存，再写入；隐藏节点位置由 _all_positions 保留（避免展开错位）。
 func _persist_node_positions() -> void:
 	if _state_store.is_empty(): return
+	# 仅模式 C 写盘：模式 B 布局（或用户在模式 B 的拖动）不持久化，
+	# 否则会覆盖模式 C 的存档位置 → 重进/切回星型时位置错乱（问题2）。
+	if _mode != ViewMode.MODE_C: return
 	for id in _node_center:
 		_all_positions[id] = _node_center[id]
 	var pos: Dictionary = {}
@@ -1067,17 +1073,17 @@ func _make_node(nd: Dictionary) -> Control:
 	var is_graph_card: bool = true
 	var gc = GraphCard.new()
 	card = gc
-	# 大小按类型给（中文文本可能变宽，故预留）
+	# 大小按类型给（中文文本可能变宽，故预留；字号已×2，尺寸同步放大）
 	if is_person:
-		card.custom_minimum_size = Vector2(190, 96); card.size = Vector2(190, 96)
+		card.custom_minimum_size = Vector2(360, 170); card.size = Vector2(360, 170)
 	elif is_concl:
-		card.custom_minimum_size = Vector2(170, 86); card.size = Vector2(170, 86)
+		card.custom_minimum_size = Vector2(320, 160); card.size = Vector2(320, 160)
 	elif is_chain:
-		card.custom_minimum_size = Vector2(130, 64); card.size = Vector2(130, 64)
+		card.custom_minimum_size = Vector2(250, 120); card.size = Vector2(250, 120)
 	elif is_hypo:
-		card.custom_minimum_size = Vector2(150, 70); card.size = Vector2(150, 70)
+		card.custom_minimum_size = Vector2(280, 130); card.size = Vector2(280, 130)
 	else:
-		card.custom_minimum_size = Vector2(170, 66); card.size = Vector2(170, 66)
+		card.custom_minimum_size = Vector2(320, 130); card.size = Vector2(320, 130)
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var style := StyleBoxFlat.new()
@@ -1197,7 +1203,7 @@ func _make_node(nd: Dictionary) -> Control:
 
 	var lab = Label.new()
 	lab.text = nd.get("label", "")
-	lab.add_theme_font_size_override("font_size", 15)
+	lab.add_theme_font_size_override("font_size", 28)
 	lab.add_theme_color_override("font_color", COL_TEXT_RED if text_red else COL_TEXT_DARK)
 	lab.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1205,7 +1211,7 @@ func _make_node(nd: Dictionary) -> Control:
 
 	var sub = Label.new()
 	sub.text = nd.get("sub", "")
-	sub.add_theme_font_size_override("font_size", 11)
+	sub.add_theme_font_size_override("font_size", 22)
 	sub.add_theme_color_override("font_color", COL_GREY)
 	sub.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(sub)
@@ -1621,7 +1627,7 @@ func _open_tag_menu(node_id: String, kind: String) -> void:
 		return
 	if kind != "clue": return
 	var menu := PopupMenu.new()
-	menu.add_theme_font_size_override("font_size", 15)
+	menu.add_theme_font_size_override("font_size", 28)
 	var others := _persons.filter(func(p): return p.get("id", "") != _focus_person)
 	if others.is_empty(): others = _persons
 	for p in others:
@@ -1643,7 +1649,7 @@ func _open_status_menu(clue_id: String) -> void:
 		_toast_msg("已封存，仅可浏览")
 		return
 	var menu := PopupMenu.new()
-	menu.add_theme_font_size_override("font_size", 15)
+	menu.add_theme_font_size_override("font_size", 28)
 	var cur := get_user_status(clue_id)
 	var mark_label := ("当前：已排除" if cur == "excluded" else ("当前：待查" if cur == "pending" else "当前：正常"))
 	menu.add_item(mark_label)
@@ -1984,7 +1990,7 @@ func _show_export_panel(text: String) -> void:
 	_export_panel.add_child(vb)
 	var title := Label.new()
 	title.text = "📤 导出（可复制）"
-	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_font_size_override("font_size", 32)
 	title.add_theme_color_override("font_color", COL_GOLD)
 	vb.add_child(title)
 	var edit := TextEdit.new()
@@ -2013,7 +2019,7 @@ func _create_clue_dock() -> void:
 	_dock.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
 	_dock.offset_top = 64
 	_dock.offset_bottom = -44
-	_dock.offset_right = 26 if _dock_collapsed else 180
+	_dock.offset_right = 26 if _dock_collapsed else 340
 	_dock.mouse_filter = Control.MOUSE_FILTER_STOP
 	_dock.z_index = 5
 	add_child(_dock)
@@ -2026,27 +2032,27 @@ func _create_clue_dock() -> void:
 
 	_dock_toggle_btn = Button.new()
 	_dock_toggle_btn.text = "›" if _dock_collapsed else "‹"
-	_dock_toggle_btn.add_theme_font_size_override("font_size", 16)
+	_dock_toggle_btn.add_theme_font_size_override("font_size", 30)
 	_dock_toggle_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	_dock_toggle_btn.custom_minimum_size = Vector2(24, 28)
+	_dock_toggle_btn.custom_minimum_size = Vector2(44, 48)
 	_dock_toggle_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_dock_toggle_btn.offset_right = -4; _dock_toggle_btn.offset_left = -28
+	_dock_toggle_btn.offset_right = -6; _dock_toggle_btn.offset_left = -52
 	_dock_toggle_btn.offset_top = 4; _dock_toggle_btn.offset_bottom = 32
 	_dock_toggle_btn.pressed.connect(_on_dock_toggle)
 	_dock.add_child(_dock_toggle_btn)
 
 	var title := Label.new()
 	title.text = "已收集线索"
-	title.add_theme_font_size_override("font_size", 16)
+	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", COL_GOLD)
 	title.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	title.offset_left = 10; title.offset_top = 8; title.offset_right = -34; title.offset_bottom = 36
+	title.offset_left = 10; title.offset_top = 8; title.offset_right = -44; title.offset_bottom = 58
 	title.visible = not _dock_collapsed
 	_dock.add_child(title)
 
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_top = 40; scroll.offset_bottom = -8; scroll.offset_left = 6; scroll.offset_right = -6
+	scroll.offset_top = 62; scroll.offset_bottom = -8; scroll.offset_left = 6; scroll.offset_right = -6
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.mouse_filter = Control.MOUSE_FILTER_STOP
 	scroll.visible = not _dock_collapsed
@@ -2073,7 +2079,7 @@ func _refresh_dock() -> void:
 
 func _make_dock_clue_card(clue: Dictionary) -> Control:
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(160, 56)
+	card.custom_minimum_size = Vector2(300, 100)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	var s := StyleBoxFlat.new()
@@ -2092,13 +2098,13 @@ func _make_dock_clue_card(clue: Dictionary) -> Control:
 	margin.add_child(vb)
 	var name := Label.new()
 	name.text = clue.get("name", clue.get("id", "?"))
-	name.add_theme_font_size_override("font_size", 13)
+	name.add_theme_font_size_override("font_size", 40)
 	name.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(name)
 	var sub := Label.new()
 	sub.text = "拖入图谱建立关系"
-	sub.add_theme_font_size_override("font_size", 10)
+	sub.add_theme_font_size_override("font_size", 20)
 	sub.add_theme_color_override("font_color", COL_GREY)
 	vb.add_child(sub)
 	var cid: String = clue.get("id", "")
@@ -2139,7 +2145,7 @@ func _make_dock_preview(cid: String) -> void:
 	_clear_dock_preview()
 	var clue: Dictionary = _find_clue(cid)
 	var prev := PanelContainer.new()
-	prev.custom_minimum_size = Vector2(160, 56)
+	prev.custom_minimum_size = Vector2(300, 100)
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color(0.10, 0.30, 0.10, 0.95)
 	s.border_color = COL_GOLD
@@ -2148,7 +2154,7 @@ func _make_dock_preview(cid: String) -> void:
 	prev.add_theme_stylebox_override("panel", s)
 	var lab := Label.new()
 	lab.text = clue.get("name", cid)
-	lab.add_theme_font_size_override("font_size", 13)
+	lab.add_theme_font_size_override("font_size", 40)
 	lab.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	prev.add_child(lab)
 	prev.z_index = 40
@@ -2173,7 +2179,7 @@ func _clear_dock_preview() -> void:
 func _on_dock_toggle() -> void:
 	_dock_collapsed = not _dock_collapsed
 	if _dock and is_instance_valid(_dock):
-		_dock.offset_right = 26 if _dock_collapsed else 180
+		_dock.offset_right = 26 if _dock_collapsed else 340
 	if _dock_toggle_btn and is_instance_valid(_dock_toggle_btn):
 		_dock_toggle_btn.text = "›" if _dock_collapsed else "‹"
 	var title_child: Array = _dock.get_children().filter(func(c): return c is Label)
@@ -2197,7 +2203,7 @@ func _open_link_suggestions(cid: String) -> void:
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	popup.add_child(overlay)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(440, 380)
+	panel.custom_minimum_size = Vector2(640, 560)
 	panel.position = (get_viewport_rect().size - Vector2(440, 380)) * 0.5
 	var ps := StyleBoxFlat.new()
 	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
@@ -2218,7 +2224,7 @@ func _open_link_suggestions(cid: String) -> void:
 
 	var t := Label.new()
 	t.text = "把线索「%s」连到：" % _find_clue(cid).get("name", cid)
-	t.add_theme_font_size_override("font_size", 17)
+	t.add_theme_font_size_override("font_size", 30)
 	t.add_theme_color_override("font_color", COL_GOLD)
 	vb.add_child(t)
 
@@ -2247,7 +2253,7 @@ func _open_link_suggestions(cid: String) -> void:
 	vb.add_child(sep)
 	var hint := Label.new()
 	hint.text = "选择要连接的目标："
-	hint.add_theme_font_size_override("font_size", 13)
+	hint.add_theme_font_size_override("font_size", 40)
 	hint.add_theme_color_override("font_color", COL_GREY)
 	vb.add_child(hint)
 
@@ -2266,7 +2272,7 @@ func _open_link_suggestions(cid: String) -> void:
 
 	var cancel := Button.new()
 	cancel.text = "取消"
-	cancel.add_theme_font_size_override("font_size", 14)
+	cancel.add_theme_font_size_override("font_size", 26)
 	cancel.pressed.connect(_close_link_popup)
 	vb.add_child(cancel)
 
@@ -2293,9 +2299,9 @@ func _confirm_link(cid: String, target_id: String, kind_hint: String) -> void:
 func _mk_pen_label(t: String) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_font_size_override("font_size", 40)
 	l.add_theme_color_override("font_color", COL_GREY)
-	l.custom_minimum_size = Vector2(40, 30)
+	l.custom_minimum_size = Vector2(60, 44)
 	return l
 
 
@@ -2304,7 +2310,7 @@ func _mk_pen_btn(t: String, active: bool, col: Color) -> Button:
 	b.text = t
 	b.toggle_mode = true
 	b.button_pressed = active
-	b.add_theme_font_size_override("font_size", 13)
+	b.add_theme_font_size_override("font_size", 40)
 	b.add_theme_color_override("font_color", col if active else COL_GOLD_LIGHT)
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color(0.25, 0.20, 0.12, 0.95) if active else Color(0.14, 0.12, 0.08, 0.95)
@@ -2312,7 +2318,7 @@ func _mk_pen_btn(t: String, active: bool, col: Color) -> Button:
 	s.border_width_left = 1; s.border_width_right = 1; s.border_width_top = 1; s.border_width_bottom = 1
 	s.set_corner_radius_all(4)
 	b.add_theme_stylebox_override("normal", s)
-	b.custom_minimum_size = Vector2(78, 30)
+	b.custom_minimum_size = Vector2(110, 44)
 	return b
 
 
@@ -2320,9 +2326,9 @@ func _mk_link_target(t: String) -> Button:
 	var b := Button.new()
 	b.text = t
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	b.add_theme_font_size_override("font_size", 14)
+	b.add_theme_font_size_override("font_size", 26)
 	b.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	b.custom_minimum_size = Vector2(400, 34)
+	b.custom_minimum_size = Vector2(560, 52)
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color(0.16, 0.13, 0.08, 0.95)
 	s.border_color = Color(0.45, 0.38, 0.20)
@@ -2400,8 +2406,11 @@ func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 func _switch_mode(m: int) -> void:
 	if m == ViewMode.MODE_A or m == ViewMode.MODE_D:
 		return
-	_mode = m
+	if m == _mode: return
+	# 先落盘「旧模式」状态再切换：_persist_node_positions 按旧 _mode 判定（仅 MODE_C 写盘），
+	# 避免把 MODE_B 的临时分层坐标覆盖进星型存档 → 切回/重进位置错乱（问题2）。
 	_persist_view()
+	_mode = m
 	_rebuild_graph()
 	_refresh_toolbar_state()
 
@@ -2433,7 +2442,7 @@ func _show_detail(id: String, kind: String) -> void:
 	if _detail_card and is_instance_valid(_detail_card):
 		_detail_card.queue_free()
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(360, 220)
+	card.custom_minimum_size = Vector2(520, 360)
 	card.z_index = 12
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color(0.10, 0.08, 0.06, 0.98)
@@ -2452,13 +2461,13 @@ func _show_detail(id: String, kind: String) -> void:
 	margin.add_child(vb)
 
 	var title := Label.new()
-	title.add_theme_font_size_override("font_size", 19)
+	title.add_theme_font_size_override("font_size", 34)
 	title.add_theme_color_override("font_color", COL_GOLD)
 	vb.add_child(title)
 	var body := Label.new()
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.custom_minimum_size = Vector2(320, 80)
-	body.add_theme_font_size_override("font_size", 14)
+	body.custom_minimum_size = Vector2(440, 150)
+	body.add_theme_font_size_override("font_size", 26)
 	body.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	vb.add_child(body)
 
@@ -2480,12 +2489,12 @@ func _show_detail(id: String, kind: String) -> void:
 			if _state == State.EDITABLE:
 				var tag_btn := Button.new()
 				tag_btn.text = "和谁有关 ▾"
-				tag_btn.add_theme_font_size_override("font_size", 14)
+				tag_btn.add_theme_font_size_override("font_size", 26)
 				tag_btn.pressed.connect(func(): _open_tag_menu(id, "clue"))
 				vb.add_child(tag_btn)
 				var status_btn := Button.new()
 				status_btn.text = "标记状态 ▾"
-				status_btn.add_theme_font_size_override("font_size", 14)
+				status_btn.add_theme_font_size_override("font_size", 26)
 				status_btn.pressed.connect(func(): _open_status_menu(id))
 				vb.add_child(status_btn)
 		"hypo":
@@ -2512,21 +2521,21 @@ func _show_detail(id: String, kind: String) -> void:
 		vb.add_child(sep)
 		var rel_lbl := Label.new()
 		rel_lbl.text = "删除连线（本节点参与）"
-		rel_lbl.add_theme_font_size_override("font_size", 13)
+		rel_lbl.add_theme_font_size_override("font_size", 40)
 		rel_lbl.add_theme_color_override("font_color", COL_GOLD)
 		vb.add_child(rel_lbl)
 		for r in rels:
 			var other: String = r.get("to", "") if r.get("from", "") == id else r.get("from", "")
 			var del_btn := Button.new()
 			del_btn.text = "✕ 删除：↔ %s（%s）" % [_node_short_label(other), _rel_verb(r.get("kind", "relate"))]
-			del_btn.add_theme_font_size_override("font_size", 13)
+			del_btn.add_theme_font_size_override("font_size", 40)
 			del_btn.pressed.connect(_on_detail_delete.bind(
 				r.get("from", ""), r.get("to", ""), r.get("kind", "relate"), card))
 			vb.add_child(del_btn)
 
 	var close := Button.new()
 	close.text = "关闭"
-	close.add_theme_font_size_override("font_size", 14)
+	close.add_theme_font_size_override("font_size", 26)
 	close.pressed.connect(func(): card.queue_free())
 	vb.add_child(close)
 
@@ -2552,7 +2561,7 @@ func _show_tutorial() -> void:
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_tutorial.add_child(overlay)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(560, 320)
+	panel.custom_minimum_size = Vector2(880, 520)
 	panel.position = (get_viewport_rect().size - Vector2(560, 320)) / 2
 	var ps := StyleBoxFlat.new()
 	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
@@ -2572,7 +2581,7 @@ func _show_tutorial() -> void:
 	margin.add_child(vb)
 	var t := Label.new()
 	t.text = "推理墙 · 图谱视图"
-	t.add_theme_font_size_override("font_size", 24)
+	t.add_theme_font_size_override("font_size", 40)
 	t.add_theme_color_override("font_color", COL_GOLD)
 	vb.add_child(t)
 	var lines := [
@@ -2587,13 +2596,13 @@ func _show_tutorial() -> void:
 	for l in lines:
 		var lb := Label.new()
 		lb.text = l
-		lb.add_theme_font_size_override("font_size", 15)
+		lb.add_theme_font_size_override("font_size", 28)
 		lb.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 		lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vb.add_child(lb)
 	var ok := Button.new()
 	ok.text = "明白了"
-	ok.add_theme_font_size_override("font_size", 16)
+	ok.add_theme_font_size_override("font_size", 30)
 	ok.add_theme_color_override("font_color", COL_GOLD)
 	ok.pressed.connect(_close_tutorial)
 	vb.add_child(ok)

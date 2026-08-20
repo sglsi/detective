@@ -339,7 +339,7 @@ func _create_ui() -> void:
 func _create_top_bar() -> Control:
 	var bar := Control.new()
 	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	bar.offset_bottom = 60
+	bar.offset_bottom = 76
 	# 顶栏 z_index 必须远高于 graph_view 叠加层（z=5），否则线型/颜色/视图按钮被全屏图谱拦截
 	bar.z_index = 100
 	bar.mouse_filter = Control.MOUSE_FILTER_STOP   # 显式 STOP，截停向下传播
@@ -360,16 +360,16 @@ func _create_top_bar() -> Control:
 	# 左：标题 + 难度
 	var title := Label.new()
 	title.text = "推理墙 — %s" % _case_name
-	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", COL_GOLD)
-	title.custom_minimum_size = Vector2(220, 40)
+	title.custom_minimum_size = Vector2(230, 54)
 	row.add_child(title)
 
 	var diff_lbl := Label.new()
 	diff_lbl.text = "难度：%s" % ["简单", "普通", "困难"][_difficulty]
-	diff_lbl.add_theme_font_size_override("font_size", 14)
+	diff_lbl.add_theme_font_size_override("font_size", 18)
 	diff_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
-	diff_lbl.custom_minimum_size = Vector2(80, 40)
+	diff_lbl.custom_minimum_size = Vector2(96, 54)
 	row.add_child(diff_lbl)
 
 	row.add_child(_mk_sep())
@@ -377,7 +377,7 @@ func _create_top_bar() -> Control:
 	# 线型（确定性）：实线=已确认 / 虚线=存疑
 	var lt_lbl := Label.new()
 	lt_lbl.text = "线型"
-	lt_lbl.add_theme_font_size_override("font_size", 13)
+	lt_lbl.add_theme_font_size_override("font_size", 18)
 	lt_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
 	row.add_child(lt_lbl)
 	_pen_solid_btn = _mk_top_btn("实线", true)
@@ -393,7 +393,7 @@ func _create_top_bar() -> Control:
 	# 颜色（关系性质）：绿=支持 / 橙=矛盾存疑 / 红=反对 / 灰=弱关联
 	var col_lbl := Label.new()
 	col_lbl.text = "性质"
-	col_lbl.add_theme_font_size_override("font_size", 13)
+	col_lbl.add_theme_font_size_override("font_size", 18)
 	col_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
 	row.add_child(col_lbl)
 	var ck := ["green", "orange", "red", "grey"]
@@ -466,7 +466,7 @@ func _create_top_bar() -> Control:
 	_top_focus_sel = OptionButton.new()
 	_top_focus_sel.add_theme_font_size_override("font_size", 14)
 	_top_focus_sel.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	_top_focus_sel.custom_minimum_size = Vector2(140, 36)
+	_top_focus_sel.custom_minimum_size = Vector2(150, 50)
 	_top_focus_sel.tooltip_text = "切换焦点人物（星型中心）"
 	_top_focus_sel.item_selected.connect(_on_top_focus_selected)
 	row.add_child(_top_focus_sel)
@@ -479,19 +479,19 @@ func _create_top_bar() -> Control:
 	# 撤销 / 重做
 	_top_undo_btn = _mk_top_btn("↶", false)
 	_top_undo_btn.tooltip_text = "撤销 (Ctrl+Z)"
-	_top_undo_btn.custom_minimum_size = Vector2(40, 38)
+	_top_undo_btn.custom_minimum_size = Vector2(52, 50)
 	_top_undo_btn.pressed.connect(_on_top_undo)
 	row.add_child(_top_undo_btn)
 	_top_redo_btn = _mk_top_btn("↷", false)
 	_top_redo_btn.tooltip_text = "重做 (Ctrl+Y)"
-	_top_redo_btn.custom_minimum_size = Vector2(40, 38)
+	_top_redo_btn.custom_minimum_size = Vector2(52, 50)
 	_top_redo_btn.pressed.connect(_on_top_redo)
 	row.add_child(_top_redo_btn)
 
 	# 提交验证（问题2）：图谱为主视图时底部「提交验证」面板被隐藏，顶栏补一个等价入口
 	_top_verify_btn = _mk_top_btn("✓ 提交验证", false)
 	_top_verify_btn.tooltip_text = "提交当前推理，正式判定（可推进剧情）"
-	_top_verify_btn.custom_minimum_size = Vector2(130, 38)
+	_top_verify_btn.custom_minimum_size = Vector2(150, 50)
 	_top_verify_btn.pressed.connect(_on_verify_pressed)
 	row.add_child(_top_verify_btn)
 
@@ -501,7 +501,7 @@ func _create_top_bar() -> Control:
 
 	var close_btn := _mk_top_btn("✕", false)
 	close_btn.add_theme_color_override("font_color", Color(0.85, 0.5, 0.5))
-	close_btn.custom_minimum_size = Vector2(40, 38)
+	close_btn.custom_minimum_size = Vector2(52, 50)
 	close_btn.pressed.connect(_on_back_pressed)
 	row.add_child(close_btn)
 
@@ -519,9 +519,9 @@ func _mk_top_btn(text: String, active: bool) -> Button:
 	b.text = text
 	b.toggle_mode = true
 	b.button_pressed = active
-	b.add_theme_font_size_override("font_size", 15)
+	b.add_theme_font_size_override("font_size", 20)
 	b.add_theme_color_override("font_color", COL_GOLD if active else COL_GOLD_LIGHT)
-	b.custom_minimum_size = Vector2(96, 38)
+	b.custom_minimum_size = Vector2(110, 50)
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color(0.30, 0.24, 0.14, 0.95) if active else Color(0.16, 0.13, 0.08, 0.95)
 	s.border_color = COL_GOLD if active else Color(0.45, 0.38, 0.20)
@@ -742,7 +742,7 @@ func _create_center_panel() -> Control:
 
 	var core_title := Label.new()
 	core_title.text = "核心问题：" + _hypothesis.get("title", "")
-	core_title.add_theme_font_size_override("font_size", 22)
+	core_title.add_theme_font_size_override("font_size", 26)
 	core_title.add_theme_color_override("font_color", COL_GOLD)
 	core_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	core_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2386,7 +2386,7 @@ func _show_history_panel() -> void:
 
 	var title := Label.new()
 	title.text = "📋 调查历史记录"
-	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", COL_GOLD)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
