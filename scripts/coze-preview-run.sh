@@ -36,4 +36,4 @@ cd "$PROJECT_DIR"
 echo "[coze-preview-run] 启动代理服务器 (端口 5000)..."
 
 # 使用代理服务器，将 /api/* 请求转发到后端
-exec python3 proxy_server.py --port 5000 --directory web_prototype
+exec python3 proxy_server.py --port 5000 --directory godot_project/web_build
