@@ -1,4 +1,4 @@
-class_name ClueData
+class_name ClueDataBackup
 extends Resource
 
 ## ClueData — 线索数据资源（15 字段标准化结构）

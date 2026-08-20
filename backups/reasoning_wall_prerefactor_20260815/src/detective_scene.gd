@@ -1,5 +1,5 @@
 extends Control
-class_name DetectiveScene
+class_name DetectiveSceneBackup
 
 const ClueAnchorCard = preload("res://scripts/ui/clue_anchor_card.gd")
 
