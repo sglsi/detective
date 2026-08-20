@@ -442,6 +442,7 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 	var popup := Control.new()
 	popup.name = "zoom_popup"
 	popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	popup.focus_mode = Control.FOCUS_ALL   # 允许 grab_focus 捕获键盘 Enter/Esc（否则每次打开刷 "can't grab focus" 警告）
 	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var dim := ColorRect.new()
 	dim.color = Color(0.02, 0.02, 0.03, 0.72)

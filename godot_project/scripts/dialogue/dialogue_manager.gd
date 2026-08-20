@@ -201,6 +201,11 @@ func select_choice(choice_id: String) -> void:
 ## select_choice 及场景脚本）均未 await，导致 Godot 4.7 编译失败。改为同步执行 +
 ## 一次性计时器延迟推进，既修复编译错误，又保留原 0.15s 自动推进节奏，且无需改动任何调用方。
 func _go_to_node(node_id: String, visited: Array = []) -> bool:
+	# 修根因（2026-08-19）：约定 "end" 表示「对话到此结束」（多个对话树 next_id 写 "end"，
+	# 是用户级约定，不是资源里的真实节点 ID）。命中即直接收尾，不报错。
+	if node_id == "end":
+		_end_dialogue()
+		return true
 	var node = dialogue_resource.find_node(node_id)
 	if not node:
 		push_error("[DialogueManager] 节点不存在: %s" % node_id)
@@ -372,4 +377,4 @@ func _difficulty_name() -> String:
 		0: return "EASY"
 		1: return "NORMAL"
 		2: return "HARD"
-	return "UNKNOWN"
+		_: return "UNKNOWN"  # 兜底：避免 match 非穷尽时编译器报"Not all code paths return a value"
