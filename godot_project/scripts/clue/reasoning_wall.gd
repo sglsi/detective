@@ -54,6 +54,9 @@ var _center_panel: Control = null
 var _right_panel: Control = null
 var _bottom_bar: Control = null
 var _search_edit: LineEdit = null
+var _filter_sel: OptionButton = null
+var _fold_btn: Button = null
+var _export_btn: Button = null
 var _filter_all: Button = null
 var _filter_assoc: Button = null
 var _filter_unassoc: Button = null
@@ -123,6 +126,25 @@ const COL_GREEN := Color(0.4, 0.85, 0.4)
 const COL_YELLOW := Color(0.95, 0.8, 0.2)
 const COL_RED := Color(0.95, 0.3, 0.3)
 const COL_GREY := Color(0.6, 0.6, 0.6)
+
+# 关系性质按钮 label 映射（_sync_pen_buttons 激活态字体颜色用）
+const _COLOR_LABELS := {"green": "支持", "orange": "矛盾存疑", "red": "反对", "grey": "弱关联"}
+
+# === NPC id → 中文名映射（与 graph_view_controller._NPC_DISPLAY_NAMES 镜像）===
+# 修根因（2026-08-19 v3 之后 v4）：_derive_persons 把 id 当 name 传出，导致中心节点显示"NPC_WT"。
+# graph_view 端三级 fallback（_persons.name → _NPC_DISPLAY_NAMES → 原 id）只在 _persons 的 name ≠ id
+# 时才走第二级。直接在这里把 name 填中文，中心永远显示真名，不再依赖下游 fallback。
+const _NPC_DISPLAY_NAMES := {
+	"NPC_WT": "华生",
+	"NPC_HOP": "霍普",
+	"NPC_DRE": "德雷伯",
+	"NPC_LUCY": "露西",
+	"NPC_STAN": "斯丹格森",
+	"NPC_LANCE": "兰斯",
+}
+
+func _npc_display_name(id: String) -> String:
+	return _NPC_DISPLAY_NAMES.get(id, id)
 
 
 func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1) -> void:
@@ -236,7 +258,12 @@ func _persist_state() -> void:
 		bf[h.get("id", "")] = _battle_hypo_states.get(h.get("id", ""), 0)
 	for c in _battle.get("contradictions", []):
 		bf[c.get("id", "")] = _battle_contra_states.get(c.get("id", ""), false)
-	_state_store.clear()
+	# ⚠️ 不要 _state_store.clear()！
+	# 图谱视图（GraphViewController）把「玩家移动节点位置 / 当前模式 / 焦点 / 引导是否看过」
+	# 也写进同一份 _state_store 引用（graph_node_positions / graph_view_mode /
+	# graph_focus / graph_seed / graph_tutorial_seen）。clear() 会把它们一起抹掉，
+	# 造成「关系能存档、节点位置读档后回到默认」的 Bug1。
+	# 这里只覆盖推理墙自身关心的键；图谱键原样保留（读取时各自 get 默认值即可）。
 	_state_store["associated"] = assoc
 	_state_store["milestones_lit"] = m_lit
 	_state_store["battlefield"] = bf
@@ -310,16 +337,21 @@ func _create_top_bar() -> Control:
 	var bar := Control.new()
 	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	bar.offset_bottom = 60
+	# 顶栏 z_index 必须远高于 graph_view 叠加层（z=5），否则线型/颜色/视图按钮被全屏图谱拦截
+	bar.z_index = 100
+	bar.mouse_filter = Control.MOUSE_FILTER_STOP   # 显式 STOP，截停向下传播
 
 	var bg := ColorRect.new()
 	bg.color = Color(0.08, 0.07, 0.10, 0.95)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar.add_child(bg)
 
 	var row := HBoxContainer.new()
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	row.offset_left = 12; row.offset_right = -12; row.offset_top = 8; row.offset_bottom = -8
 	row.add_theme_constant_override("separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_PASS
 	bar.add_child(row)
 
 	# 左：标题 + 难度
@@ -370,6 +402,52 @@ func _create_top_bar() -> Control:
 		b.pressed.connect(func(): _set_pen_color(key))
 		_color_btns[key] = b
 		row.add_child(b)
+
+	row.add_child(_mk_sep())
+
+	# 搜索（P0）：LineEdit + Enter 触发，匹配节点高亮+飞达
+	var search_edit := LineEdit.new()
+	search_edit.placeholder_text = "🔍 搜索线索/推断/人物..."
+	search_edit.add_theme_font_size_override("font_size", 14)
+	search_edit.custom_minimum_size = Vector2(180, 32)
+	search_edit.tooltip_text = "输入关键词，Enter 跳转"
+	search_edit.text_submitted.connect(func(t: String): _on_search_submitted(t))
+	row.add_child(search_edit)
+	_search_edit = search_edit
+
+	# 状态过滤（P0）：排除已排除/只看待查
+	var filter_sel := OptionButton.new()
+	filter_sel.add_theme_font_size_override("font_size", 14)
+	filter_sel.custom_minimum_size = Vector2(110, 32)
+	filter_sel.tooltip_text = "按标记过滤显示"
+	filter_sel.add_item("全部", 0)
+	filter_sel.add_item("已排除", 1)
+	filter_sel.add_item("待查", 2)
+	filter_sel.add_item("关键", 3)
+	filter_sel.item_selected.connect(_on_filter_selected)
+	row.add_child(filter_sel)
+	_filter_sel = filter_sel
+
+	# 折叠当前人物（P0）
+	var fold_btn := _mk_top_btn("🪗 折叠", true)
+	fold_btn.tooltip_text = "折叠/展开当前焦点人物的关联线索"
+	fold_btn.pressed.connect(_on_toggle_fold)
+	row.add_child(fold_btn)
+	_fold_btn = fold_btn
+
+	# 导出（P2）
+	var export_btn := _mk_top_btn("📤 导出", true)
+	export_btn.tooltip_text = "导出推理进度为 Markdown 文本"
+	export_btn.pressed.connect(_on_export_pressed)
+	row.add_child(export_btn)
+	_export_btn = export_btn
+
+	_connect_btn = _mk_top_btn("🔗 连线", false)
+	_connect_btn.tooltip_text = "开启后：依次点两个节点 = 建立证据连线（空地右键退出）"
+
+	row.add_child(_mk_sep())
+	_connect_btn.pressed.connect(_on_top_connect_toggle)
+	row.add_child(_connect_btn)
 
 	row.add_child(_mk_sep())
 
@@ -440,6 +518,15 @@ func _mk_top_btn(text: String, active: bool) -> Button:
 	s.border_width_left = 1; s.border_width_right = 1; s.border_width_top = 1; s.border_width_bottom = 1
 	s.set_corner_radius_all(5)
 	b.add_theme_stylebox_override("normal", s)
+	# 按下/悬停/聚焦视觉反馈（此前缺失 → 用户点按钮"无反应"）
+	var sp := StyleBoxFlat.new()
+	sp.bg_color = Color(0.52, 0.40, 0.20, 1.0)
+	sp.border_color = Color(1.0, 0.86, 0.50)
+	sp.border_width_left = 2; sp.border_width_right = 2; sp.border_width_top = 2; sp.border_width_bottom = 2
+	sp.set_corner_radius_all(5)
+	b.add_theme_stylebox_override("hover", sp)
+	b.add_theme_stylebox_override("pressed", sp)
+	b.add_theme_stylebox_override("focus", sp)
 	return b
 
 
@@ -1640,7 +1727,8 @@ func _on_open_graph_view() -> void:
 	var gv = load("res://scripts/clue/graph_view_controller.gd").new()
 	gv.name = "GraphView"
 	add_child(gv)
-	gv.z_index = 30
+	# z_index 远低于顶栏（z=100），确保顶栏按钮可点击
+	gv.z_index = 5
 	var persons := _derive_persons()
 	var focus: String = _state_store.get("graph_focus", "")
 	if focus == "" and not persons.is_empty():
@@ -1657,22 +1745,30 @@ func _on_open_graph_view() -> void:
 	})
 	_graph_view = gv
 	_sync_top_bar()
+	_sync_connect_btn()
 
 
 func _derive_persons() -> Array:
 	var seen := {}
 	var out := []
+	# 兜底（修根因 2026-08-19 v4）：如果调用方传入的 _clues 为空但 ClueSystem 实际有已收集线索，
+	# 实时拉一次（在 easy 模式下对话可能提前结束导致 _clues 没被填到；这层兜底保证人物中心至少能渲染）。
+	if _clues.is_empty() and ClueSystem and ClueSystem.has_method("get_collected"):
+		var live: Array = ClueSystem.get_collected("")
+		if not live.is_empty():
+			print("[reasoning_wall] 兜底从 ClueSystem.get_collected 拉取 %d 条线索" % live.size())
+			_clues = live
 	for c in _clues:
 		for p in c.get("related_npcs", []):
 			if not seen.has(p):
 				seen[p] = true
-				out.append({"id": p, "name": p})
+				out.append({"id": p, "name": _npc_display_name(p)})
 	var extra: Array = _hypothesis.get("persons", [])
 	for p in extra:
 		var pid: String = p.get("id", "") if p is Dictionary else str(p)
 		if not seen.has(pid):
 			seen[pid] = true
-			out.append({"id": pid, "name": p.get("name", pid) if p is Dictionary else pid})
+			out.append({"id": pid, "name": _npc_display_name(pid)})
 	return out
 
 
@@ -1699,14 +1795,22 @@ func _gv_remove_relation(from_id: String, to_id: String) -> void:
 
 # === 统一顶栏：线型/颜色/视图/焦点 选择器驱动图谱 ===
 func _set_pen_dashed(d: bool) -> void:
+	print("[topbar] _set_pen_dashed(%s) gv=%s _pen_color_key=%s" % [
+		d, "YES" if (_graph_view and is_instance_valid(_graph_view)) else "NULL",
+		_graph_view._pen_color_key if (_graph_view and is_instance_valid(_graph_view)) else "?"
+	])
 	if _graph_view and is_instance_valid(_graph_view):
 		_graph_view.set_pen(_graph_view._pen_color_key, d)
+		_graph_view._toast_msg("线型：%s" % ("虚线" if d else "实线"))
 	_sync_pen_buttons()
 
 
 func _set_pen_color(key: String) -> void:
+	var names := {"green": "支持", "orange": "矛盾存疑", "red": "反对", "grey": "弱关联"}
+	print("[topbar] _set_pen_color(%s) gv=%s" % [key, "YES" if (_graph_view and is_instance_valid(_graph_view)) else "NULL"])
 	if _graph_view and is_instance_valid(_graph_view):
 		_graph_view.set_pen(key, _graph_view._pen_dashed)
+		_graph_view._toast_msg("性质：%s" % names.get(key, key))
 	_sync_pen_buttons()
 
 
@@ -1714,12 +1818,50 @@ func _sync_pen_buttons() -> void:
 	if not _graph_view or not is_instance_valid(_graph_view): return
 	_pen_solid_btn.button_pressed = not _graph_view._pen_dashed
 	_pen_dashed_btn.button_pressed = _graph_view._pen_dashed
+	_pen_solid_btn.add_theme_color_override("font_color", COL_GOLD if not _graph_view._pen_dashed else COL_GOLD_LIGHT)
+	_pen_dashed_btn.add_theme_color_override("font_color", COL_GOLD if _graph_view._pen_dashed else COL_GOLD_LIGHT)
 	for k in _color_btns.keys():
-		_color_btns[k].button_pressed = (k == _graph_view._pen_color_key)
+		var active2: bool = (k == _graph_view._pen_color_key)
+		_color_btns[k].button_pressed = active2
+		_color_btns[k].add_theme_color_override("font_color", _gw_color(_COLOR_LABELS.get(k, "支持")) if active2 else COL_GREY)
 
 
 func _gv_pen_changed(color_key: String, dashed: bool) -> void:
 	_sync_pen_buttons()
+
+
+func _on_top_connect_toggle() -> void:
+	print("[topbar] _on_top_connect_toggle pressed=%s gv=%s" % [
+		_connect_btn.button_pressed if _connect_btn else "NULL_BTN",
+		"YES" if (_graph_view and is_instance_valid(_graph_view)) else "NULL"
+	])
+	if not _graph_view or not is_instance_valid(_graph_view):
+		_connect_btn.button_pressed = false
+		return
+	var want: bool = _connect_btn.button_pressed
+	# 已结案（verdict 已出）→ 禁止进入连线模式
+	if want and _graph_view._state != 0:   # State.EDITABLE
+		_connect_btn.button_pressed = false
+		if _status_lbl:
+			_status_lbl.text = "已结案，推理墙只读（不能新增连线）"
+		return
+	_graph_view.set_connect_mode(want)
+	_connect_btn.text = "🔗 连线：" + ("开" if want else "关")
+	_connect_btn.add_theme_color_override("font_color", COL_GREEN if want else COL_GOLD_LIGHT)
+	if want:
+		if _status_lbl:
+			_status_lbl.text = "连线模式：依次点两个节点建边（线型+性质决定连线颜色/虚实）；点「🔗 连线：关」退出"
+	else:
+		if _status_lbl:
+			_status_lbl.text = "连线模式已关：可拖动线索到推断上直接建立关系"
+
+
+func _sync_connect_btn() -> void:
+	if not _connect_btn or not _graph_view or not is_instance_valid(_graph_view): return
+	var on: bool = _graph_view.get_connect_mode()
+	_connect_btn.button_pressed = on
+	_connect_btn.text = "🔗 连线：" + ("开" if on else "关")
+	_connect_btn.add_theme_color_override("font_color", COL_GREEN if on else COL_GOLD_LIGHT)
 
 
 func _on_top_mode(m: int) -> void:
@@ -1743,6 +1885,33 @@ func _on_top_undo() -> void:
 func _on_top_redo() -> void:
 	if _graph_view and is_instance_valid(_graph_view):
 		_graph_view.redo()
+
+
+# === P0/P1/P2 新增：搜索 / 状态过滤 / 折叠 / 导出 ===
+func _on_search_submitted(text: String) -> void:
+	if _graph_view and is_instance_valid(_graph_view):
+		_graph_view.set_search_query(text)
+
+
+func _on_filter_selected(idx: int) -> void:
+	if _graph_view and not is_instance_valid(_graph_view): return
+	var labels := ["all", "excluded", "pending", "key"]
+	var key: String = labels[idx] if idx < labels.size() else "all"
+	_graph_view.set_status_filter(key)
+
+
+func _on_toggle_fold() -> void:
+	if _graph_view and is_instance_valid(_graph_view):
+		var folded: bool = _graph_view.toggle_fold_focus()
+		_fold_btn.text = "🪗 展开" if folded else "🪗 折叠"
+		if _status_lbl:
+			_status_lbl.text = ("已折叠焦点人物的关联线索" if folded else "已展开全部线索")
+
+
+func _on_export_pressed() -> void:
+	if _graph_view and is_instance_valid(_graph_view):
+		_graph_view.export_markdown()
+		# 导出结果由 graph_view 弹一个可复制面板
 
 
 func _gv_relations_changed(rels: Array) -> void:
