@@ -35,6 +35,7 @@ var _cb_tag: Callable = Callable()
 var _cb_add_edge: Callable = Callable()
 var _cb_remove_relation: Callable = Callable()
 var _cb_close: Callable = Callable()
+var _cb_verify: Callable = Callable()        # 提交验证（问题2：图谱内可直接提交，由推理墙 _on_verify_pressed 提供）
 
 # === 视图状态 ===
 var _mode: int = ViewMode.MODE_C
@@ -190,7 +191,8 @@ var _search_query: String = ""
 var _status_filter: String = "all"   # all/excluded/pending/key
 var _folded_nodes: Dictionary = {}       # node_id -> true：被折叠的"根"节点（XMind 式连线折叠）
 var _all_positions: Dictionary = {}      # node_id -> Vector2：全部节点位置缓存（含隐藏者），持久化用
-var _fold_controls: Dictionary = {}      # node_id -> Control：连线出口处的折叠圆形控件
+var _fold_controls: Dictionary = {}      # node_id -> Control：连线出口处的折叠点击控件（透明，只接 gui_input）
+var _fold_layer: Control = null          # 折叠圆形绘制图层（统一在 draw 回调里画，规避"绘制时机"报错）
 var _user_excluded := {}             # clue_id -> true（用户标"已排除"）
 var _user_pending := {}              # clue_id -> true（用户标"待查"）
 var _search_match_ids := []          # 当前搜索命中的节点 id 列表
@@ -206,12 +208,15 @@ func build(data: Dictionary) -> void:
 	_focus_person = data.get("focus_person", "")
 	_difficulty = data.get("difficulty", Diff.NORMAL)
 	_editable = data.get("editable", true)
-	_verdict = data.get("verdict", -1)
+	# 不再冻结墙侧 verdict 快照（问题3）：结论节点红/橙/黄/绿与文字始终按图内关系实时推算，
+	# 「关联正确后即时变色」，无需退出重进。LOCKED 墙关系不可变，实时推算与已定 verdict 一致。
+	_verdict = -1
 	_state_store = data.get("state_store", {})
 	_cb_tag = data.get("on_tag", Callable())
 	_cb_add_edge = data.get("on_add_edge", Callable())
 	_cb_remove_relation = data.get("on_remove_relation", Callable())
 	_cb_close = data.get("on_close", Callable())
+	_cb_verify = data.get("on_verify", Callable())
 	_cb_pen_changed = data.get("on_pen_changed", Callable())
 	_cb_relations_changed = data.get("on_relations_changed", Callable())
 	_show_toolbar = data.get("show_toolbar", false)
@@ -326,6 +331,13 @@ func _create_ui() -> void:
 	_edge_layer.draw.connect(_on_edge_draw)
 	_canvas.add_child(_edge_layer)
 
+	_fold_layer = Control.new()
+	_fold_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fold_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fold_layer.z_index = 3
+	_fold_layer.draw.connect(_on_fold_draw)
+	_canvas.add_child(_fold_layer)
+
 	if _show_toolbar:
 		_toolbar = _create_toolbar()
 		add_child(_toolbar)
@@ -405,6 +417,14 @@ func _create_toolbar() -> Control:
 	row.add_child(redo)
 	_undo_btn = undo; _redo_btn = redo
 
+	# 提交验证（问题2）：图谱内形成的连线可直接提交判定，确认后推理墙销毁并推进剧情
+	var verify := _mk_tool_btn("✓ 提交验证", "提交当前推理，正式判定（可推进剧情）")
+	verify.custom_minimum_size = Vector2(132, 38)
+	verify.add_theme_font_size_override("font_size", 15)
+	verify.pressed.connect(_on_verify_pressed)
+	row.add_child(verify)
+	_verify_btn = verify
+
 	var close := _mk_tool_btn("✕", "返回推理墙")
 	close.pressed.connect(_on_close_pressed)
 	row.add_child(close)
@@ -416,8 +436,19 @@ func _create_toolbar() -> Control:
 var _focus_sel: OptionButton = null
 var _undo_btn: Button = null
 var _redo_btn: Button = null
+var _verify_btn: Button = null
 var _tab_c_btn: Button = null
 var _tab_b_btn: Button = null
+
+
+## 提交验证（问题2）：转发给推理墙 _on_verify_pressed 弹验证结果窗；确认后墙被销毁并推进剧情。
+## 已封存（LOCKED）墙在工具栏构建时按钮即禁用，此处再兜底一次。
+func _on_verify_pressed() -> void:
+	if _state != State.EDITABLE:
+		_toast_msg("已封存，仅可浏览")
+		return
+	if _cb_verify.is_valid():
+		_cb_verify.call()
 
 
 func _mk_tab(text: String, active: bool, greyed: bool = false) -> Button:
@@ -468,6 +499,7 @@ func _refresh_toolbar_state() -> void:
 	var can_edit := _state == State.EDITABLE
 	if _undo_btn: _undo_btn.disabled = not can_edit
 	if _redo_btn: _redo_btn.disabled = not can_edit
+	if _verify_btn: _verify_btn.disabled = not can_edit
 
 
 # ===================== 数据派生 =====================
@@ -622,13 +654,11 @@ func _node_list() -> Array:
 		for h in hypos:
 			list.append({"id": h.get("id", ""), "kind": "hypo",
 				"label": h.get("text", ""), "sub": "推断", "color": COL_GOLD_LIGHT, "data": h})
-		# 第三圈：推理链 + 结论
+		# 第三圈：推理链 + 结论（结论统一在函数末尾追加一次，避免 MODE_C 下出现两个结论文本框，问题4）
 		var chain_id: String = _hypo.get("chain_id", "")
 		if chain_id != "":
 			list.append({"id": "chain:" + chain_id, "kind": "chain",
 				"label": "#" + str(chain_id), "sub": "推理链", "color": COL_GOLD, "data": {}})
-		list.append({"id": "conclusion", "kind": "conclusion",
-			"label": _verdict_text(), "sub": "结论", "color": _verdict_color(), "data": {}})
 	else:
 		# 模式 B：分层
 		var clues := _clues.filter(func(c): return c.get("associated", false))
@@ -772,7 +802,7 @@ func _node_radius_for_kind(kind: String) -> float:
 		"clue":       return 40.0
 		_:            return 40.0
 
-## 创建连线出口折叠控件（圆形 −/+N，mouse_filter=STOP，独立 gui_input）
+## 创建连线出口折叠控件的「点击热区」（透明 Control，只接 gui_input；圆形由 _fold_layer 统一绘制）
 func _make_fold_control(id: String) -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(24, 24)
@@ -782,27 +812,27 @@ func _make_fold_control(id: String) -> Control:
 	c.z_index = 6
 	c.tooltip_text = "点击折叠/展开外层内容"
 	c.gui_input.connect(_on_fold_control_gui.bind(id))
-	c.draw.connect(_draw_fold_control.bind(id))
 	return c
 
-## 绘制折叠控件圆形 + 字形（draw 信号连接在控件 c 上，须对 c 调用 draw_*）
-func _draw_fold_control(id: String) -> void:
-	var c: Control = _fold_controls.get(id)
-	if c == null or not is_instance_valid(c): return
-	var cx := 12.0; var cy := 12.0
-	var folded := _folded_nodes.has(id)
-	# 圆底
-	c.draw_circle(Vector2(cx, cy), 11.0, Color(0.10, 0.08, 0.06, 0.96))
-	c.draw_arc(Vector2(cx, cy), 11.0, 0, TAU, 28, COL_GOLD, 2.0)
-	# 字形
-	var f := ThemeDB.get_default_theme().default_font
-	if f == null: return
-	var txt := _fold_glyph(id)
-	var fs := 13
-	var sz := f.get_string_size(txt, HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
-	var p := Vector2(cx - sz.x * 0.5, cy + sz.y * 0.5)
-	c.draw_string(f, p, txt, HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER, -1, fs,
-		COL_GOLD_LIGHT if not folded else COL_GOLD)
+## 折叠圆形统一绘制（_fold_layer 的 draw 回调，绘制时机合法，规避"Drawing only allowed inside _draw"）
+func _on_fold_draw() -> void:
+	for id in _fold_controls:
+		var c: Control = _fold_controls.get(id)
+		if c == null or not is_instance_valid(c): continue
+		var center := _fold_control_pos(id)
+		var folded := _folded_nodes.has(id)
+		# 圆底
+		_fold_layer.draw_circle(center, 11.0, Color(0.10, 0.08, 0.06, 0.96))
+		_fold_layer.draw_arc(center, 11.0, 0, TAU, 28, COL_GOLD, 2.0)
+		# 字形
+		var f := ThemeDB.get_default_theme().default_font
+		if f == null: continue
+		var txt := _fold_glyph(id)
+		var fs := 13
+		var sz := f.get_string_size(txt, HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
+		var p := Vector2(center.x - sz.x * 0.5, center.y + sz.y * 0.5)
+		_fold_layer.draw_string(f, p, txt, HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER, -1, fs,
+			COL_GOLD_LIGHT if not folded else COL_GOLD)
 
 ## 点击折叠控件：toggle（不触发节点拖动/连线）
 func _on_fold_control_gui(event: InputEvent, id: String) -> void:
@@ -810,12 +840,13 @@ func _on_fold_control_gui(event: InputEvent, id: String) -> void:
 		toggle_fold(id)
 		get_viewport().set_input_as_handled()
 
-## 拖动节点时同步所有折叠控件位置
+## 拖动节点时同步所有折叠控件位置（点击热区 + 绘制图层都要刷新）
 func _sync_fold_controls_positions() -> void:
 	for id in _fold_controls:
 		var c = _fold_controls[id]
 		if not is_instance_valid(c): continue
 		c.position = _fold_control_pos(id) - Vector2(12, 12)
+	if _fold_layer and is_instance_valid(_fold_layer): _fold_layer.queue_redraw()
 
 ## 折叠根写回（供 UndoRedo 调用）
 func _set_folded(id: String, v: bool) -> void:
@@ -875,6 +906,7 @@ func _compute_verdict() -> int:
 		if c.get("associated", false) and not c.get("correct", true):
 			contra += 1
 	for r in _relations:
+		if r.get("dashed", false): continue   # 虚线（存疑）只显示不计入判定，与 get_verdict 同规则
 		if r.get("kind", "") in ["contradict", "oppose"]:
 			contra += 1
 	if contra > 0: return 0
@@ -883,6 +915,7 @@ func _compute_verdict() -> int:
 		if c.get("associated", false) and c.get("correct", true):
 			support += 1
 	for r in _relations:
+		if r.get("dashed", false): continue   # 同上：虚线支持连线不计入
 		if r.get("kind", "") == "support":
 			support += 1
 	if support >= 3: return 3
@@ -1218,6 +1251,7 @@ func _node_tooltip(nd: Dictionary) -> String:
 func _redraw_all() -> void:
 	if _hint_layer and is_instance_valid(_hint_layer): _hint_layer.queue_redraw()
 	if _edge_layer and is_instance_valid(_edge_layer): _edge_layer.queue_redraw()
+	if _fold_layer and is_instance_valid(_fold_layer): _fold_layer.queue_redraw()
 
 
 func _on_hint_draw() -> void:
@@ -1413,13 +1447,10 @@ func _on_node_gui(event: InputEvent, id: String, kind: String) -> void:
 				_drag_mode = "move"
 				_drag_offset = mouse_canvas - n.position
 				_drag_start = get_viewport().get_mouse_position()
-		else:
-			# 释放：在 _input 里 commit（覆盖 gui_input 边界问题）
-			pass
-	elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
-		# 任何节点都可右键：线索=打标签+删连线；推断/结论/人物=删连线
-		if kind in ["clue", "hypo", "conclusion", "chain", "person"]:
-			_open_tag_menu(id, kind)
+	else:
+		# 释放：在 _input 里 commit（覆盖 gui_input 边界问题）
+		pass
+	# 右键菜单已整体移除（问题1）：打标签/标记状态/删除连线全部改由节点详情卡按钮提供
 
 
 ## 连线模式：处理单次节点点击（已被 _on_node_gui 路由过来）
@@ -1573,62 +1604,55 @@ func _on_node_clicked(id: String, kind: String) -> void:
 	_show_detail(id, kind)
 
 
-# ---- 打标签（拖线索到人物 / 右键菜单）----
-## 右键菜单（需求 2026-08-19 扩展）：
-##   - 线索节点：打人物标签 + 连线管理（删除本节点参与的连线）
-##   - 推断/结论/人物节点：仅连线管理
+# ---- 打标签（拖线索到人物 / 详情卡按钮）----
+## 打人物标签菜单（问题1：取消右键后，由节点详情卡「和谁有关 ▾」按钮调用）。
+## 仅线索节点可用：列出其他人物，点选即打标签。
 func _open_tag_menu(node_id: String, kind: String) -> void:
+	if _state != State.EDITABLE:
+		_toast_msg("已封存，仅可浏览")
+		return
+	if kind != "clue": return
+	var menu := PopupMenu.new()
+	menu.add_theme_font_size_override("font_size", 15)
+	var others := _persons.filter(func(p): return p.get("id", "") != _focus_person)
+	if others.is_empty(): others = _persons
+	for p in others:
+		menu.add_item("和「%s」有关" % p.get("name", p.get("id", "?")))
+		menu.set_item_metadata(menu.get_item_count() - 1, p.get("id", ""))
+	menu.id_pressed.connect(func(idx: int):
+		var pid: String = menu.get_item_metadata(idx)
+		_tag_person(node_id, pid)
+		menu.queue_free()
+	)
+	add_child(menu)
+	menu.popup_centered()
+
+
+## 标记状态菜单（问题1：取消右键后，由节点详情卡「标记状态 ▾」按钮调用）。
+## 已排除（灰显）/ 待查（黄边）/ 恢复正常。
+func _open_status_menu(clue_id: String) -> void:
 	if _state != State.EDITABLE:
 		_toast_msg("已封存，仅可浏览")
 		return
 	var menu := PopupMenu.new()
 	menu.add_theme_font_size_override("font_size", 15)
-	if kind == "clue":
-		var others := _persons.filter(func(p): return p.get("id", "") != _focus_person)
-		if others.is_empty(): others = _persons
-		for p in others:
-			menu.add_item("和「%s」有关" % p.get("name", p.get("id", "?")))
-			menu.set_item_metadata(menu.get_item_count() - 1, p.get("id", ""))
-		# P0-2 标记状态子项
-		var cur := get_user_status(node_id)
-		menu.add_separator("标记状态")
-		var mark_label := ("当前：已排除" if cur == "excluded" else ("当前：待查" if cur == "pending" else "当前：正常"))
-		menu.add_item(mark_label)
-		menu.set_item_metadata(menu.get_item_count() - 1, {"__status": "info"})
-		menu.add_item("标为「已排除」（隐藏/灰显）")
-		menu.set_item_metadata(menu.get_item_count() - 1, {"__status": "excluded"})
-		menu.add_item("标为「待查」（黄边高亮）")
-		menu.set_item_metadata(menu.get_item_count() - 1, {"__status": "pending"})
-		if cur != "active":
-			menu.add_item("恢复正常")
-			menu.set_item_metadata(menu.get_item_count() - 1, {"__status": "active"})
-	# —— 连线管理：列出本节点的所有关系，点选即删除 ——
-	var rels := []
-	for r in _relations:
-		if r.get("from", "") == node_id or r.get("to", "") == node_id:
-			rels.append(r)
-	if not rels.is_empty():
-		if kind == "clue" and not _persons.is_empty():
-			menu.add_separator()
-		menu.add_separator("删除连线")
-		for r in rels:
-			var other: String = r.get("to", "") if r.get("from", "") == node_id else r.get("from", "")
-			menu.add_item("删除：↔ %s（%s）" % [_node_short_label(other), _rel_verb(r.get("kind", "relate"))])
-			menu.set_item_metadata(menu.get_item_count() - 1, {
-				"from": r.get("from", ""), "to": r.get("to", ""), "kind": r.get("kind", "relate")})
+	var cur := get_user_status(clue_id)
+	var mark_label := ("当前：已排除" if cur == "excluded" else ("当前：待查" if cur == "pending" else "当前：正常"))
+	menu.add_item(mark_label)
+	menu.set_item_metadata(0, {"__status": "info"})
+	menu.add_item("标为「已排除」（隐藏/灰显）")
+	menu.set_item_metadata(1, {"__status": "excluded"})
+	menu.add_item("标为「待查」（黄边高亮）")
+	menu.set_item_metadata(2, {"__status": "pending"})
+	if cur != "active":
+		menu.add_item("恢复正常")
+		menu.set_item_metadata(3, {"__status": "active"})
 	menu.id_pressed.connect(func(idx: int):
 		var md = menu.get_item_metadata(idx)
-		if md is Dictionary:
-			if md.has("__status"):
-				var st: String = md["__status"]
-				if st != "info":
-					mark_clue_status(node_id, st)
-					_toast_msg("已标记为「%s」" % {"excluded": "已排除", "pending": "待查", "active": "正常"}.get(st, st))
-			else:
-				_remove_edge(md.get("from", ""), md.get("to", ""), md.get("kind", ""))
-		else:
-			var pid: String = md
-			_tag_person(node_id, pid)
+		if md is Dictionary and md.has("__status") and md["__status"] != "info":
+			var st: String = md["__status"]
+			mark_clue_status(clue_id, st)
+			_toast_msg("已标记为「%s」" % {"excluded": "已排除", "pending": "待查", "active": "正常"}.get(st, st))
 		menu.queue_free()
 	)
 	add_child(menu)
@@ -2440,6 +2464,11 @@ func _show_detail(id: String, kind: String) -> void:
 				tag_btn.add_theme_font_size_override("font_size", 14)
 				tag_btn.pressed.connect(func(): _open_tag_menu(id, "clue"))
 				vb.add_child(tag_btn)
+				var status_btn := Button.new()
+				status_btn.text = "标记状态 ▾"
+				status_btn.add_theme_font_size_override("font_size", 14)
+				status_btn.pressed.connect(func(): _open_status_menu(id))
+				vb.add_child(status_btn)
 		"hypo":
 			var h: Dictionary = _node_data.get(id, {})
 			title.text = "推断：" + h.get("text", id)
@@ -2454,6 +2483,28 @@ func _show_detail(id: String, kind: String) -> void:
 			title.text = "推理链：" + _node_data.get(id, {}).get("label", id)
 			body.text = "点此切换到推理链聚焦视图。"
 
+	# —— 连线管理（问题1：取消右键后，删除连线改由此处）：列出本节点参与的全部关系，逐个可删 ——
+	var rels := []
+	for r in _relations:
+		if r.get("from", "") == id or r.get("to", "") == id:
+			rels.append(r)
+	if _state == State.EDITABLE and not rels.is_empty():
+		var sep := HSeparator.new()
+		vb.add_child(sep)
+		var rel_lbl := Label.new()
+		rel_lbl.text = "删除连线（本节点参与）"
+		rel_lbl.add_theme_font_size_override("font_size", 13)
+		rel_lbl.add_theme_color_override("font_color", COL_GOLD)
+		vb.add_child(rel_lbl)
+		for r in rels:
+			var other: String = r.get("to", "") if r.get("from", "") == id else r.get("from", "")
+			var del_btn := Button.new()
+			del_btn.text = "✕ 删除：↔ %s（%s）" % [_node_short_label(other), _rel_verb(r.get("kind", "relate"))]
+			del_btn.add_theme_font_size_override("font_size", 13)
+			del_btn.pressed.connect(_on_detail_delete.bind(
+				r.get("from", ""), r.get("to", ""), r.get("kind", "relate"), card))
+			vb.add_child(del_btn)
+
 	var close := Button.new()
 	close.text = "关闭"
 	close.add_theme_font_size_override("font_size", 14)
@@ -2463,6 +2514,12 @@ func _show_detail(id: String, kind: String) -> void:
 	card.position = Vector2(40, 80)
 	add_child(card)
 	_detail_card = card
+
+
+## 详情卡「删除连线」按钮回调（bind 传参，避免循环变量闭包歧义）
+func _on_detail_delete(from_id: String, to_id: String, rkind: String, card: Control) -> void:
+	_remove_edge(from_id, to_id, rkind)
+	if is_instance_valid(card): card.queue_free()
 
 
 # ===================== 首入引导 =====================
