@@ -36,16 +36,24 @@ func get_case_list() -> Array:
 	dir.list_dir_begin()
 	var fname = dir.get_next()
 	while fname != "":
-		if fname.ends_with(".tres") and not fname.begins_with("."):
-			var c = load("res://data/cases/" + fname)
+		if _is_tres_name(fname):
+			# pck 打包后目录里是 xxx.tres.remap（Godot 导出重映射），load 用原始名自动跟随
+			var real_name := fname.trim_suffix(".remap")
+			var c = load("res://data/cases/" + real_name)
 			if c != null:
 				cases.append({
-					"id": c.id if c is CaseData else fname.get_basename(),
-					"title": c.title if (c is CaseData and c.title != "") else fname.get_basename(),
+					"id": c.id if c is CaseData else real_name.get_basename(),
+					"title": c.title if (c is CaseData and c.title != "") else real_name.get_basename(),
 				})
 		fname = dir.get_next()
 	dir.list_dir_end()
 	return cases
+
+## pck 打包后 .tres 会以 .tres.remap 形式存在（Godot 4 导出重映射），两种后缀都识别
+func _is_tres_name(fname: String) -> bool:
+	if fname.begins_with("."):
+		return false
+	return fname.ends_with(".tres") or fname.ends_with(".tres.remap")
 
 func set_scene(scene_id: String) -> void:
 	GameManager.current_scene_id = scene_id

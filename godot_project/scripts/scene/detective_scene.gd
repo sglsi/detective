@@ -416,7 +416,7 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# _default_wall_verify / _on_back_pressed 中判定，避免开墙时刻的 _wall_auto
 	# 把「提前开的预览墙」永久锁死为不推进（场景二反复复现的卡死根因）。
 	var advance: Callable = Callable(self, "_advance_now")
-	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true, local_count)
+	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true, local_count, Callable(self, "_do_save"))
 
 ## 默认验证回调：展示判定结果；满足「推理阶段」或「线索已收满」则自动推进过渡。
 ## 三级反馈映射（06 §2.3 + 一致性报告 H-3）：已获证实+倾向成立→正确（绿）；

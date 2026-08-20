@@ -20,12 +20,18 @@ var clue_catalog: Dictionary = {}      # clue_id -> ClueData（全部线索定�
 var clue_count: int = 0
 
 func _ready() -> void:
+	# 修复根因调试 2026-08-19 v7：catalog=0 的根因是「pck 打包后 *.tres 变 *.tres.remap，
+	# _load_catalog/get_total_clues/load_clue 的 ends_with('.tres') 过滤全灭」——现已兼容 remap。
+	print("[ClueSystem] AUTOLOAD_READY v7 20260819-2035 catalog_will_load")
 	_load_catalog()
+	print("[ClueSystem] catalog loaded, size=%d" % clue_catalog.size())
 
 func load_clue(clue_id: String) -> ClueData:
 	if discovered_clues.has(clue_id):
 		return discovered_clues[clue_id]
 	var path = "res://data/clues/%s.tres" % clue_id
+	if not ResourceLoader.exists(path):
+		path = path + ".remap"  # ⚠️ pck 打包后 *.tres 以 *.tres.remap 存在（Godot 导出重映射），native 源码树无 remap
 	if not ResourceLoader.exists(path):
 		return null
 	var res = load(path)
@@ -69,7 +75,7 @@ func get_total_clues() -> int:
 	dir.list_dir_begin()
 	var fname = dir.get_next()
 	while fname != "":
-		if fname.ends_with(".tres") and not fname.begins_with("."):
+		if _is_tres_name(fname):
 			count += 1
 		fname = dir.get_next()
 	dir.list_dir_end()
@@ -93,13 +99,22 @@ func _load_catalog() -> void:
 	dir.list_dir_begin()
 	var fname = dir.get_next()
 	while fname != "":
-		if fname.ends_with(".tres") and not fname.begins_with("."):
-			var cd = load("res://data/clues/" + fname)
+		if _is_tres_name(fname):
+			# ⚠️ pck 打包后目录里是 xxx.tres.remap（Godot 导出重映射），
+			# load() 时用去掉 .remap 的原始名（资源系统会自动跟随重映射；native 无 remap 不受影响）
+			var real_name := fname.trim_suffix(".remap")
+			var cd = load("res://data/clues/" + real_name)
 			if cd is ClueData:
-				var key = cd.id if cd.id != "" else fname.get_basename()
+				var key = cd.id if cd.id != "" else real_name.get_basename()
 				clue_catalog[key] = cd
 		fname = dir.get_next()
 	dir.list_dir_end()
+
+## pck 打包后 .tres 会以 .tres.remap 形式存在（Godot 4 导出重映射），两种后缀都识别
+func _is_tres_name(fname: String) -> bool:
+	if fname.begins_with("."):
+		return false
+	return fname.ends_with(".tres") or fname.ends_with(".tres.remap")
 
 ## 存档：导出所有已发现线索的状态（clue_id -> ClueState 整数）
 func get_clue_states() -> Dictionary:
@@ -130,7 +145,8 @@ var collected_clues: Array = []
 ## 登记一条已收集线索（按 id 去重；已存在则更新字段）
 ## weight：线索分级权重（关键10/重要5/一般2/其他0，误导0）。tier 为其中文展示标签，
 ## 由 weight+correct 派生，仅供 UI/笔记展示，不参与计算。默认 0 兼容旧调用方（存/读档测试）。
-func collect_clue(id: String, name: String, desc: String, correct: bool, source: String = "", weight: int = 0, image: String = "", anchor: String = "", content_tags: Array = [], attribute_tags: Array = [], relation_tags: Array = []) -> void:
+## related_npcs：关联 NPC 列表（图谱视图人物聚焦依赖此字段；未传则空[]，兼容旧调用方）。
+func collect_clue(id: String, name: String, desc: String, correct: bool, source: String = "", weight: int = 0, image: String = "", anchor: String = "", content_tags: Array = [], attribute_tags: Array = [], relation_tags: Array = [], related_npcs: Array = []) -> void:
 	var tier := tier_label(weight, correct)
 	for c in collected_clues:
 		if c.get("id", "") == id:
@@ -145,11 +161,12 @@ func collect_clue(id: String, name: String, desc: String, correct: bool, source:
 			c["content_tags"] = content_tags
 			c["attribute_tags"] = attribute_tags
 			c["relation_tags"] = relation_tags
+			c["related_npcs"] = related_npcs
 			# 线索发现即重置停滞计数（设计 08 §3.5：停滞由「未发现线索的连续交互」驱动）
 			if DifficultyManager != null:
 				DifficultyManager.reset_stall_counter()
 			return
-	collected_clues.append({"id": id, "name": name, "desc": desc, "correct": correct, "source": source, "weight": weight, "tier": tier, "image": image, "anchor": anchor, "content_tags": content_tags, "attribute_tags": attribute_tags, "relation_tags": relation_tags})
+	collected_clues.append({"id": id, "name": name, "desc": desc, "correct": correct, "source": source, "weight": weight, "tier": tier, "image": image, "anchor": anchor, "content_tags": content_tags, "attribute_tags": attribute_tags, "relation_tags": relation_tags, "related_npcs": related_npcs})
 	if DifficultyManager != null:
 		DifficultyManager.reset_stall_counter()
 
@@ -158,19 +175,21 @@ func collect_clue(id: String, name: String, desc: String, correct: bool, source:
 ## 从而消除「场景内联 desc」与「.tres ClueData.desc」两处重复维护、易漂移的问题。
 ## 注意：correct 始终取自场景内联——它是游戏性判定标志（驱动推理墙 CONTRADICTORY），
 ## 不在 ClueData 15 字段模型中，故不覆盖，避免误改判定结果。
-func collect_clue_from_catalog(id: String, name: String, desc: String, correct: bool, source: String = "", inline_weight: int = -1, image: String = "", anchor: String = "", content_tags: Array = [], attribute_tags: Array = [], relation_tags: Array = []) -> void:
+func collect_clue_from_catalog(id: String, name: String, desc: String, correct: bool, source: String = "", inline_weight: int = -1, image: String = "", anchor: String = "", content_tags: Array = [], attribute_tags: Array = [], relation_tags: Array = [], related_npcs: Array = []) -> void:
 	var def = get_clue_definition(id)
 	var w := weight_of(id, correct, inline_weight)
 	# 三级标签：场景内联优先（阶段1/2 由 HOTSPOTS 指定），.tres 目录（ClueData）作为权威兜底
 	var ct: Array = content_tags if not content_tags.is_empty() else (def.content_tags if (def != null) else [])
 	var at: Array = attribute_tags if not attribute_tags.is_empty() else (def.attribute_tags if (def != null) else [])
 	var rt: Array = relation_tags if not relation_tags.is_empty() else (def.relation_tags if (def != null) else [])
+	# related_npcs：图谱视图人物聚焦依赖此字段，目录为权威（场景内联很少传），未传则空数组
+	var rn: Array = related_npcs if not related_npcs.is_empty() else (def.related_npcs if (def != null) else [])
 	if def != null:
 		var cn: String = def.name if def.name != "" else name
 		var cd: String = def.description if def.description != "" else desc
-		collect_clue(id, cn, cd, correct, source, w, image, anchor, ct, at, rt)
+		collect_clue(id, cn, cd, correct, source, w, image, anchor, ct, at, rt, rn)
 	else:
-		collect_clue(id, name, desc, correct, source, w, image, anchor, ct, at, rt)
+		collect_clue(id, name, desc, correct, source, w, image, anchor, ct, at, rt, rn)
 
 # ============ 线索分级权重（P3.1：把设计的「线索等级」在运行时落地）============
 # 设计依据：00_核心设计思路.md §2.2 权重表（关键10/重要5/一般2/其他0/误导0-不扣分）。
