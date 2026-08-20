@@ -40,6 +40,11 @@ func _restore_saved_state() -> bool:
 	if ss.is_empty(): return false
 	var saved_phase := int(ss.get("phase", 0))
 	var saved_ids: Array = ss.get("clue_ids", [])
+	# 修复（2026-08-19 思傅报）：恢复推理墙持久化状态（relations/节点位置/associated/milestones/verified 等）
+	# 此前 _do_save 未把 _wall_state 存进 data → 读档后关系与位置全部丢失。
+	var saved_wall_state: Dictionary = ss.get("wall_state", {})
+	if not saved_wall_state.is_empty():
+		_wall_state = saved_wall_state
 	# 兼容旧存档：华生左肩线索早期 id 为 "arm"，现统一为 "shoulder"（与观察器/锚点表一致）。
 	# 只做读取时的就地映射，绝不改写或删除玩家存档文件。
 	for i in range(saved_ids.size()):
@@ -324,7 +329,7 @@ func _do_save(slot: int = -1) -> void:
 		_create_notification("游客模式不支持存档 — 请返回主菜单注册/登录")
 		return
 	# 以本场景两个观察器的已记录线索为权威（不读全局 ClueSystem，避免跨轮累计污染存档）
-	var data := {"clue_ids": [], "watson_recorded": 0, "messenger_recorded": 0}
+	var data := {"clue_ids": [], "watson_recorded": 0, "messenger_recorded": 0, "wall_state": _wall_state.duplicate(true)}
 	var ids: Array = []
 	for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
 	for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
@@ -541,20 +546,38 @@ func _messenger_hypotheses() -> Array:
 ## 这里据此还原回对应的 *_OBSERVE 阶段，重新显示人物与可点击热点。
 func _resume_observe() -> void:
 	_wall_auto = false
-	if _ui: _ui.set_camera_enabled(true)   # 回到观察：启用摄像机
 	if _phase == Phase.WATSON_REASONING:
+		if _watson_obs.get_recorded() >= _watson_obs.needs_count():
+			# 线索已收满：回观察界面会卡死（线索都标记过、无再入推理入口），直接重开推理墙继续推理
+			_show_watson_reasoning_wall()
+			return
 		_phase = Phase.OBSERVE_WATSON
 		if _portrait_ctrl: _portrait_ctrl.visible = true
 		_watson_obs.show()
 		_ui.set_dialogue("提示", "已回到华生观察 — " + _resume_suffix() + "（" + str(_watson_obs.get_recorded()) + "/4）")
 		_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
 	elif _phase == Phase.MESSENGER_REASONING:
+		if _messenger_obs.get_recorded() >= _messenger_obs.needs_count():
+			# 同上：信使线索收满 → 重开信使推理墙
+			_show_messenger_reasoning_wall()
+			return
 		_phase = Phase.MESSENGER_OBSERVE
 		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = true
 		_messenger_obs.show()
 		_ui.set_dialogue("提示", "已回到信使观察 — " + _resume_suffix() + "（" + str(_messenger_obs.get_recorded()) + "/6）")
 		_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
+	if _ui: _ui.set_camera_enabled(true)
 	if _toolbar: _toolbar.show_toolbar()
+
+## 推理墙验证提交后的阶段推进（修复「退出推理墙后回到华生界面、无下一阶段」卡死，问题4）。
+## 仅 verified 墙经 _advance_now → _enter_transition 调到此；按当前 *_REASONING 阶段分流到下一阶段。
+func _enter_transition() -> void:
+	if _phase == Phase.WATSON_REASONING:
+		_start_messenger_phase()                 # 华生推理通过 → 信使到访（赫德森「让不让进」对话）
+	elif _phase == Phase.MESSENGER_REASONING:
+		_show_commission_letter_dialogue()       # 信使推理通过 → 解锁委托信 + 双钩子 → 进入 scene2
+	else:
+		_resume_observe()                        # 兜底：非推理阶段（预览墙不应到这）回观察
 
 func _calc_stars() -> void:
 	_stars_observe = 2 if _watson_obs.get_recorded() >= _watson_obs.needs_count() and _messenger_obs.get_recorded() >= _messenger_obs.needs_count() else 1
