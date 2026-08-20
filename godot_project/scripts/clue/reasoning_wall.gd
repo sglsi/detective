@@ -446,7 +446,7 @@ func _create_top_bar() -> Control:
 	_export_btn = export_btn
 
 	_connect_btn = _mk_top_btn("🔗 连线", false)
-	_connect_btn.tooltip_text = "开启后：依次点两个节点 = 建立证据连线（空地右键退出）"
+	_connect_btn.tooltip_text = "开启后：依次点两个节点 = 建立连线；两节点已有连线时再点两次 = 取消该连线"
 
 	row.add_child(_mk_sep())
 	_connect_btn.pressed.connect(_on_top_connect_toggle)
