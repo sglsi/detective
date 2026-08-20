@@ -71,7 +71,15 @@ var _dragging := false
 var _drag_id := ""
 var _drag_from := Vector2.ZERO
 var _drag_kind := ""
+var _drag_mode := ""              # "move" 或 "edge"（_drag_kind 是关系 kind support/oppose）
+var _drag_offset := Vector2.ZERO   # move 模式专用，鼠标按下时在画布内相对节点 top-left 的偏移
+var _drag_start := Vector2.ZERO    # 鼠标按下的全局位置（move 抖动阈值用）
 var _drag_preview: Control = null
+
+# === 连线模式（顶栏 toggle 控制；开启后左键点击两节点 = 建边）===
+var _connect_mode := false         # 是否处于「连线模式」
+var _connect_first_id := ""        # 第一次选中的节点 id
+var _connect_first_kind := ""      # 第一次选中节点的 kind，用于提示
 
 const COL_GOLD := Color(0.92, 0.84, 0.55)
 const COL_GOLD_LIGHT := Color(0.95, 0.90, 0.78)
@@ -83,6 +91,38 @@ const COL_ORANGE := Color(0.95, 0.55, 0.25)
 const COL_RED := Color(0.95, 0.3, 0.3)
 const COL_GREY := Color(0.55, 0.50, 0.42)
 const COL_PERSON := Color(0.78, 0.72, 0.55)
+
+# === 节点配色（按需求：白=线索 / 灰=推断 / 原色=链&结论）===
+const COL_CLUE_BG := Color(0.96, 0.94, 0.88, 0.98)         # 线索底色（暖白）
+const COL_CLUE_BG_DIM := Color(0.93, 0.86, 0.80, 0.96)     # 干扰项线索底色
+const COL_CLUE_BORDER := Color(0.42, 0.34, 0.18)           # 线索默认边框（暗金，未关联=虚线）
+const COL_CLUE_BORDER_ASSOC := Color(0.20, 0.55, 0.20)     # 已关联=绿
+const COL_CLUE_BORDER_DISTRACT := Color(0.85, 0.30, 0.30)  # 干扰项=红
+const COL_HYPO_BG := Color(0.72, 0.68, 0.60, 0.98)         # 推断底色（暖灰）
+const COL_HYPO_BG_DIM := Color(0.68, 0.58, 0.52, 0.96)     # 干扰项推断底色
+const COL_HYPO_BORDER := Color(0.30, 0.26, 0.20)           # 推断边框（未关联=虚线）
+const COL_TEXT_DARK := Color(0.16, 0.13, 0.10)             # 深字
+const COL_TEXT_RED := Color(0.86, 0.22, 0.22)             # 红字（干扰项）
+
+# === NPC ID → 中文显示名（目录里只有 id，没有中文名；中心焦点显示用）===
+const _NPC_DISPLAY_NAMES := {
+	"NPC_WT": "华生",
+	"NPC_HOP": "霍普",
+	"NPC_DRE": "德雷伯",
+	"NPC_LUCY": "露西",
+	"NPC_STAN": "斯丹格森",
+	"NPC_LANCE": "兰斯",
+}
+
+# === 圈层距离带（自由拖动 + 排序约束）===
+# 单位像素（画布坐标）。约束：核心 < 结论/链 < 推断 < 线索（递增距离）。
+# 节点拖动时钳制在对应 band 内，永不越层。
+const _RING_BANDS := {
+	"conclusion": {"min": 130.0, "max": 270.0, "default": 200.0},
+	"chain":      {"min": 130.0, "max": 270.0, "default": 200.0},
+	"hypo":       {"min": 290.0, "max": 430.0, "default": 360.0},
+	"clue":       {"min": 450.0, "max": 640.0, "default": 540.0},
+}
 
 # 玩家视角文案（doc 10 v1.1）
 const VERB_SUPPORT := "证据指向"
@@ -145,6 +185,17 @@ var _link_popup_clue_id: String = ""
 var _drag_color_key: String = "green"
 var _drag_dashed: bool = false
 
+# === P0/P1/P2 新增状态（搜索/状态标记/折叠/导出）===
+var _search_query: String = ""
+var _status_filter: String = "all"   # all/excluded/pending/key
+var _folded_nodes: Dictionary = {}       # node_id -> true：被折叠的"根"节点（XMind 式连线折叠）
+var _all_positions: Dictionary = {}      # node_id -> Vector2：全部节点位置缓存（含隐藏者），持久化用
+var _fold_controls: Dictionary = {}      # node_id -> Control：连线出口处的折叠圆形控件
+var _user_excluded := {}             # clue_id -> true（用户标"已排除"）
+var _user_pending := {}              # clue_id -> true（用户标"待查"）
+var _search_match_ids := []          # 当前搜索命中的节点 id 列表
+var _export_panel: Control = null    # 导出结果面板
+
 
 ## 唯一入口：推理墙调用本方构建图谱视图。data 字段见文件头。
 func build(data: Dictionary) -> void:
@@ -168,15 +219,53 @@ func build(data: Dictionary) -> void:
 	# 视图记忆恢复（09 R-3）：读 SaveGame/state_store
 	_mode = _state_store.get("graph_view_mode", ViewMode.MODE_C)
 	_focus_person = _state_store.get("graph_focus", _focus_person)
+
+	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
+	# 实时从 Autoload 拉并组装一次（避免 reasoning_wall 提前 _derive 之后又被另一层兜底覆盖，
+	# 此处是最后一道）。
+	if _persons.is_empty() and ClueSystem and ClueSystem.has_method("get_collected"):
+		var live: Array = ClueSystem.get_collected("")
+		if not live.is_empty():
+			var seen := {}
+			var out := []
+			for c in live:
+				for p in c.get("related_npcs", []):
+					if not seen.has(p):
+						seen[p] = true
+						out.append({"id": p, "name": _NPC_DISPLAY_NAMES.get(p, p)})
+			if not out.is_empty():
+				print("[graph_view] build 时 _persons 兜底拉取 persons.size=%d" % out.size())
+				_persons = out
 	_layout_seed = _state_store.get("graph_seed", 1)
 
-	# 焦点缺省：取第一人物；若无人则造一个「本案核心」中心
+	# 折叠状态恢复（图谱折叠功能）：
+	# 新键 graph_folded_nodes（任意节点可折叠）；兼容旧键 graph_folded_persons（仅焦点人物）并入。
+	_folded_nodes = _state_store.get("graph_folded_nodes", {})
+	var _old_fp: Dictionary = _state_store.get("graph_folded_persons", {})
+	for _pid in _old_fp:
+		_folded_nodes[_pid] = true
+	_all_positions = {}
+
+	# 升级兜底聚焦（修根因 2026-08-19 v3）：缓存里残留的 "__case__" 一律强制重置为空，
+	# 不论 _persons 是否为空。这样可以让下面的缺省逻辑（如果用户实际有 NPC 线索）落到 NPC 真名。
+	if _focus_person == "__case__":
+		_focus_person = ""
+	# 焦点缺省：取第一人物；若无人则造一个「未知人物」中心
+	# （任一案只有唯一一个中心，命名规范：人物用真名；无人物兜底用「未知人物」，
+	#   严禁出现「本案核心」之类的元叙事表述）
 	if _focus_person == "" and not _persons.is_empty():
 		_focus_person = _persons[0].get("id", "")
 	if _focus_person == "":
 		_focus_person = "__case__"
 		if _persons.is_empty():
-			_persons = [{"id": "__case__", "name": "本案核心"}]
+			_persons = [{"id": "__case__", "name": "未知人物"}]
+
+	# debug log：让 console 里能直接看到节点数 + 真实焦点
+	print("[graph_view] _persons.size=%d focus='%s' first='%s'" % [
+		_persons.size(),
+		_focus_person,
+		(_persons[0].get("name", "?") if not _persons.is_empty() else "EMPTY")
+	])
 
 	_state = State.LOCKED if not _editable else State.EDITABLE
 	if _state == State.LOCKED:
@@ -193,7 +282,12 @@ func build(data: Dictionary) -> void:
 # ===================== UI 构建 =====================
 func _create_ui() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	# ⚠️ 关键：本控制器本体必须是 IGNORE，绝不能 STOP。
+	# 它是全屏叠加层（覆盖 0~底部），若 STOP 会在「输入派发不按 z_index」的边界情况下
+	# 把顶部栏（reasoning_wall 顶栏 z=100）的点击吞掉，导致「顶部按钮无反应」（Bug2）。
+	# 真正的交互都由子节点承担：_canvas(平移/滚轮,STOP) / 节点(STOP) / _dock(STOP)。
+	# self.IGNORE 后：顶部栏区域点击穿透到顶栏；图谱区点击落到 _canvas；`_input` 全局仍照常触发。
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var bg := ColorRect.new()
 	bg.color = COL_BG
@@ -377,9 +471,18 @@ func _refresh_toolbar_state() -> void:
 
 
 # ===================== 数据派生 =====================
+## 人物显示名查找（按 优先顺序）：
+##   1) _persons 列表里登记的 name（场景传入的别名）
+##   2) NPC ID → 中文名静态映射（_NPC_DISPLAY_NAMES，目录里只有 id 没有中文名时的兜底）
+##   3) 原 id 字符串
 func _person_name(id: String) -> String:
 	for p in _persons:
-		if p.get("id", "") == id: return p.get("name", id)
+		if p.get("id", "") == id:
+			var nm: String = p.get("name", "")
+			if nm != "" and nm != id:
+				return nm
+	if _NPC_DISPLAY_NAMES.has(id):
+		return _NPC_DISPLAY_NAMES[id]
 	return id
 
 
@@ -422,7 +525,8 @@ func _derive_edges() -> void:
 
 	for r in _relations:
 		var k: String = r.get("kind", "relate")
-		add.call(r.get("from", ""), r.get("to", ""), k, false, r.get("color_key", ""), r.get("dashed", false))
+		# 用户手动建立的关系常显（需求 2026-08-19：连线建立后一直显示，不依赖悬停/模式）
+		add.call(r.get("from", ""), r.get("to", ""), k, true, r.get("color_key", ""), r.get("dashed", false))
 
 	# 自动推断：线索 relation_tags 命中某推断节点 → 证据指向
 	var hypo_ids := []
@@ -433,9 +537,9 @@ func _derive_edges() -> void:
 			if hypo_ids.has(tag):
 				add.call(c.get("id", ""), tag, "support", false, "", false)
 
-	# 自动推断：所有推断 → 结论（传导）
+	# 自动推断：所有推断 → 结论（传导）— 这些结构性边始终显示（不依赖悬停）
 	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
-		add.call(h.get("id", ""), "conclusion", "imply", false, "", false)
+		add.call(h.get("id", ""), "conclusion", "imply", true, "", false)
 
 
 func _rel_color(kind: String) -> Color:
@@ -446,15 +550,28 @@ func _rel_color(kind: String) -> Color:
 func _rebuild_graph() -> void:
 	_compute_common_clues()
 	_derive_edges()
-	# 清旧节点
+	# 清旧节点 + 旧折叠控件
 	for n in _node_views.values():
 		if is_instance_valid(n): n.queue_free()
+	for c in _fold_controls.values():
+		if is_instance_valid(c): c.queue_free()
 	_node_views = {}; _node_center = {}; _node_kind = {}; _node_data = {}
+	_fold_controls = {}
 	_clear_drag_preview()
+
+	# 载入已知节点位置（含隐藏者），保证展开后位置稳定（避免展开错位，见设计 §6）
+	var _saved: Dictionary = _state_store.get("graph_node_positions", {})
+	for _k in _saved:
+		var _v: Vector2 = _saved.get(_k, Vector2.ZERO)
+		if not _all_positions.has(_k):
+			_all_positions[_k] = _v
 
 	var nodes := _node_list()
 	var pos := _compute_layout(nodes)
 	_node_center = pos
+	# 合并可见节点位置进全局缓存（隐藏节点的位置由 _all_positions 保留）
+	for id in pos:
+		_all_positions[id] = pos[id]
 	for nd in nodes:
 		var v := _make_node(nd)
 		_node_views[nd.id] = v
@@ -462,6 +579,13 @@ func _rebuild_graph() -> void:
 		v.position = pos.get(nd.id, Vector2.ZERO) - v.size * 0.5
 		_node_kind[nd.id] = nd.kind
 		_node_data[nd.id] = nd.data
+	# 创建连线出口折叠控件（XMind 式 −/+N）
+	for nd in nodes:
+		if _is_leaf(nd.id): continue
+		if _direct_outer_neighbors(nd.id).is_empty(): continue
+		var fc := _make_fold_control(nd.id)
+		_fold_controls[nd.id] = fc
+		_canvas.add_child(fc)
 	_redraw_all()
 
 
@@ -475,8 +599,16 @@ func _node_list() -> Array:
 	if _mode == ViewMode.MODE_C:
 		# 第一圈：线索
 		var clues := _clues_for_person(_focus_person)
+		# P0-2 状态过滤
+		if _status_filter != "all" and not clues.is_empty():
+			var sf := _status_filter
+			clues = clues.filter(func(c): return _clue_matches_filter(c, sf))
 		if clues.is_empty():
 			clues = _clues
+			# 同样应用状态过滤
+			if _status_filter != "all":
+				var sf2 := _status_filter
+				clues = clues.filter(func(c): return _clue_matches_filter(c, sf2))
 		for c in clues:
 			var cid: String = c.get("id", "")
 			var common: bool = _common_clues.has(cid)
@@ -517,16 +649,205 @@ func _node_list() -> Array:
 		if chain_id2 != "":
 			list.append({"id": "chain:" + chain_id2, "kind": "chain",
 				"label": "#" + str(chain_id2), "sub": "推理链", "color": COL_GOLD, "data": {}})
-		list.append({"id": "conclusion", "kind": "conclusion",
-			"label": _verdict_text(), "sub": "结论", "color": _verdict_color(), "data": {}})
+	list.append({"id": "conclusion", "kind": "conclusion",
+		"label": _verdict_text(), "sub": "结论", "color": _verdict_color(), "data": {}})
+
+	# 图谱折叠：过滤掉被折叠根收起的"外层子树"（XMind 式）
+	var hidden := _compute_hidden()
+	if not hidden.is_empty():
+		var kept := []
+		for nd in list:
+			if hidden.has(nd.id): continue
+			kept.append(nd)
+		list = kept
 	return list
+
+
+# ===================== 图谱折叠（XMind 式连线折叠） =====================
+## 圈层深度：结论/人物/链=0（最内，可折叠外层）；推断=1；线索=2（最外，叶子不可折叠）。
+## 与布局 _RING_BANDS 解耦——仅用于折叠方向判定（设计 §1.1）。
+func _ring_depth(kind: String) -> int:
+	match kind:
+		"conclusion": return 0
+		"person":     return 0
+		"chain":      return 0
+		"hypo":       return 1
+		"clue":       return 2
+		_:            return 2
+
+## 任意节点 id 的 kind（不依赖可见性——隐藏节点也需判定圈层）
+func _kind_of(id: String) -> String:
+	if id == _focus_person: return "person"
+	if id == "conclusion": return "conclusion"
+	if id.begins_with("chain:"): return "chain"
+	if _node_kind.has(id): return _node_kind[id]
+	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
+		if h.get("id", "") == id: return "hypo"
+	for c in _clues:
+		if c.get("id", "") == id: return "clue"
+	return "clue"
+
+## 叶子节点（线索）不可折叠
+func _is_leaf(id: String) -> bool:
+	return _ring_depth(_kind_of(id)) >= 2
+
+## 无向邻接表（折叠遍历用）：玩家关系 + 数据边 + 模式C人物↔线索元数据边
+func _build_adjacency() -> Dictionary:
+	var adj := {}
+	var link := func(a: String, b: String) -> void:
+		if a == "" or b == "": return
+		if not adj.has(a): adj[a] = []
+		if not adj.has(b): adj[b] = []
+		if not (b in adj[a]): adj[a].append(b)
+		if not (a in adj[b]): adj[b].append(a)
+	for e in _edge_list:
+		link.call(e.from, e.to)
+	for r in _relations:
+		link.call(r.get("from", ""), r.get("to", ""))
+	if _mode == ViewMode.MODE_C:
+		for c in _clues:
+			if _focus_person in c.get("related_npcs", []):
+				link.call(_focus_person, c.get("id", ""))
+	return adj
+
+## 节点的直接外层邻居（圈层深度严格更大的相连节点）——用于折叠控件数量与朝向
+func _direct_outer_neighbors(id: String) -> Array:
+	var out := []
+	var rd := _ring_depth(_kind_of(id))
+	for nb in _build_adjacency().get(id, []):
+		if _ring_depth(_kind_of(nb)) > rd:
+			out.append(nb)
+	return out
+
+## 折叠隐藏集合：从各折叠根 BFS，收起所有圈层更深且可达的外层节点（设计 §4.1）
+func _compute_hidden() -> Dictionary:
+	var hidden := {}
+	var adj := _build_adjacency()
+	for root in _folded_nodes:
+		var root_rd := _ring_depth(_kind_of(root))
+		var stack := [root]
+		while not stack.is_empty():
+			var cur: String = stack.pop_back()
+			for nb in adj.get(cur, []):
+				if hidden.has(nb): continue
+				if _ring_depth(_kind_of(nb)) <= root_rd: continue
+				hidden[nb] = true
+				stack.append(nb)
+	return hidden
+
+## 折叠控件上的计数：直接外层邻居数（设计 §4.3 / §9.4）
+func _fold_count(id: String) -> int:
+	return _direct_outer_neighbors(id).size()
+
+## 折叠控件上的字形：展开=−，折叠=+N
+func _fold_glyph(id: String) -> String:
+	if _folded_nodes.has(id):
+		return "+%d" % _fold_count(id)
+	return "-"
+
+## 折叠控件位置：节点外缘、朝向外层邻居簇重心方向
+func _fold_control_pos(id: String) -> Vector2:
+	var center: Vector2 = _node_center.get(id, Vector2.ZERO)
+	if center == Vector2.ZERO: return center
+	var neighbors := _direct_outer_neighbors(id)
+	if neighbors.is_empty(): return center
+	var dir := Vector2.ZERO
+	for nb in neighbors:
+		var nc: Vector2 = _node_center.get(nb, center)
+		if nc != center:
+			dir += (nc - center).normalized()
+	if dir == Vector2.ZERO:
+		dir = Vector2(0, 1)
+	dir = dir.normalized()
+	var radius: float = _node_radius_for_kind(_kind_of(id))
+	return center + dir * (radius + 14)
+
+## 节点半径（用于控件外移距离）
+func _node_radius_for_kind(kind: String) -> float:
+	match kind:
+		"person":     return 52.0
+		"conclusion": return 46.0
+		"chain":      return 36.0
+		"hypo":       return 40.0
+		"clue":       return 40.0
+		_:            return 40.0
+
+## 创建连线出口折叠控件（圆形 −/+N，mouse_filter=STOP，独立 gui_input）
+func _make_fold_control(id: String) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(24, 24)
+	c.size = Vector2(24, 24)
+	c.position = _fold_control_pos(id) - Vector2(12, 12)
+	c.mouse_filter = Control.MOUSE_FILTER_STOP
+	c.z_index = 6
+	c.tooltip_text = "点击折叠/展开外层内容"
+	c.gui_input.connect(_on_fold_control_gui.bind(id))
+	c.draw.connect(_draw_fold_control.bind(id))
+	return c
+
+## 绘制折叠控件圆形 + 字形（draw 信号连接在控件 c 上，须对 c 调用 draw_*）
+func _draw_fold_control(id: String) -> void:
+	var c: Control = _fold_controls.get(id)
+	if c == null or not is_instance_valid(c): return
+	var cx := 12.0; var cy := 12.0
+	var folded := _folded_nodes.has(id)
+	# 圆底
+	c.draw_circle(Vector2(cx, cy), 11.0, Color(0.10, 0.08, 0.06, 0.96))
+	c.draw_arc(Vector2(cx, cy), 11.0, 0, TAU, 28, COL_GOLD, 2.0)
+	# 字形
+	var f := ThemeDB.get_default_theme().default_font
+	if f == null: return
+	var txt := _fold_glyph(id)
+	var fs := 13
+	var sz := f.get_string_size(txt, HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
+	var p := Vector2(cx - sz.x * 0.5, cy + sz.y * 0.5)
+	c.draw_string(f, p, txt, HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER, -1, fs,
+		COL_GOLD_LIGHT if not folded else COL_GOLD)
+
+## 点击折叠控件：toggle（不触发节点拖动/连线）
+func _on_fold_control_gui(event: InputEvent, id: String) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		toggle_fold(id)
+		get_viewport().set_input_as_handled()
+
+## 拖动节点时同步所有折叠控件位置
+func _sync_fold_controls_positions() -> void:
+	for id in _fold_controls:
+		var c = _fold_controls[id]
+		if not is_instance_valid(c): continue
+		c.position = _fold_control_pos(id) - Vector2(12, 12)
+
+## 折叠根写回（供 UndoRedo 调用）
+func _set_folded(id: String, v: bool) -> void:
+	if v:
+		_folded_nodes[id] = true
+	else:
+		_folded_nodes.erase(id)
+	_rebuild_graph()
 
 
 func _clue_sub(c: Dictionary) -> String:
 	var correct: bool = c.get("correct", true)
 	var st := "已关联" if c.get("associated", false) else "未关联"
 	if not correct: st = "干扰项"
+	# P0-2 用户标记状态覆盖
+	var uid: String = c.get("id", "")
+	if _user_excluded.has(uid): st = "已排除"
+	elif _user_pending.has(uid): st = "待查"
 	return st
+
+
+# P0-2 状态过滤辅助：判断线索是否匹配当前过滤
+func _clue_matches_filter(c: Dictionary, filter: String) -> bool:
+	var uid: String = c.get("id", "")
+	match filter:
+		"excluded": return _user_excluded.has(uid)
+		"pending": return _user_pending.has(uid)
+		"key":
+			# 关键：correct=true 且 importance >= 5（"重要"+"关键"）且未排除
+			if _user_excluded.has(uid): return false
+			return c.get("correct", true) and int(c.get("importance", 0)) >= 5
+	return true
 
 
 func _clue_color(c: Dictionary) -> Color:
@@ -569,43 +890,85 @@ func _compute_verdict() -> int:
 	return 1
 
 
+## 布局算法（按需求1/6）：
+##   - 每节点按 kind 分配「距离带 [min, max]」（_RING_BANDS）：核心<结论<链<推断<线索
+##   - 节点可在带内自由拖动，distance 钳制到带内 → 永远维持排序
+##   - 自适应半径：节点多时往外推到 max，保证总弧长 ≥ 节点宽 × 节点数（消除初始重叠）
+##   - 手动位置持久化到 state_store（graph_node_positions）
 func _compute_layout(nodes: Array) -> Dictionary:
 	var center := _canvas.size * 0.5
+	if _canvas.size.x <= 0 or _canvas.size.y <= 0:
+		# headless / 未布局时兜底（test_graph_view 会强制设 1280x720，但兜底仍必要）
+		center = Vector2(960, 540)
 	var out := {}
+
+	# 加载已持久化位置
+	var saved_pos: Dictionary = _state_store.get("graph_node_positions", {})
+
 	if _mode == ViewMode.MODE_C:
+		# 中心焦点：固定在画布中心
 		out[_focus_person] = center
-		# 按圈分层
-		var rings := {1: [], 2: [], 3: []}
+
+		# 按 kind 分组（仅含本视图实际展示的节点）
+		var groups := {"conclusion": [], "chain": [], "hypo": [], "clue": []}
 		for nd in nodes:
 			if nd.id == _focus_person: continue
-			if nd.kind == "clue": rings[1].append(nd.id)
-			elif nd.kind == "hypo": rings[2].append(nd.id)
-			else: rings[3].append(nd.id)
-		var radii := {1: 200.0, 2: 320.0, 3: 440.0}
-		for ring in [1, 2, 3]:
-			var ids: Array = rings[ring]
-			var n := ids.size()
+			if groups.has(nd.kind):
+				groups[nd.kind].append(nd.id)
+
+		# 逐组计算自适应半径
+		var band_radii := {}
+		for k in groups.keys():
+			var ids: Array = groups[k]
+			var n: int = ids.size()
+			if n == 0:
+				band_radii[k] = _RING_BANDS[k].default
+				continue
+			var band: Dictionary = _RING_BANDS[k]
+			var node_w: float = _node_width_for_kind(k)
+			# 最小半径：保证总弧长 ≥ 节点宽 × 节点数 + 20px 余量
+			var min_r_for_fit: float = (node_w * float(n)) / TAU + 20.0
+			var r: float = max(band.default, min_r_for_fit)
+			r = clamp(r, band.min, band.max)
+			band_radii[k] = r
+
+		# 放置
+		for k in groups.keys():
+			var ids: Array = groups[k]
+			var n: int = ids.size()
+			if n == 0: continue
+			var r: float = band_radii[k]
 			for i in n:
-				var ang := (float(i) / maxi(n, 1)) * TAU - PI * 0.5
-				if n == 1: ang = -PI * 0.5
-				out[ids[i]] = center + Vector2(cos(ang), sin(ang)) * radii[ring]
+				var id: String = ids[i]
+				var saved_v: Variant = saved_pos.get(id, null)
+				var pos: Vector2
+				if saved_v is Vector2:
+					# 玩家手动位置：钳制到当前 band（防止 mode 切换或节点数变化导致越层）
+					pos = _clamp_to_band(saved_v, center, k)
+				else:
+					# 默认位置：均分圆周，从正上方开始
+					var ang: float = (float(i) / maxi(n, 1)) * TAU - PI * 0.5
+					if n == 1: ang = -PI * 0.5
+					pos = center + Vector2(cos(ang), sin(ang)) * r
+				out[id] = pos
 	else:
-		# 模式 B：垂直三层
-		var y_top := _clip.offset_top + 110.0
-		var y_mid := _canvas.size.y * 0.5
-		var y_bot := _canvas.size.y - 110.0
-		var tops := []; var mids := []; var bots := []
+		# 模式 B：保留垂直分层（链式聚焦）
+		out[_focus_person] = center
+		var y_top: float = center.y - 220.0
+		var y_mid: float = center.y
+		var y_bot: float = center.y + 220.0
+		var tops: Array = []; var mids: Array = []; var bots: Array = []
 		for nd in nodes:
 			if nd.id == _focus_person: continue
 			if nd.kind == "clue": tops.append(nd.id)
 			elif nd.kind == "hypo": mids.append(nd.id)
 			else: bots.append(nd.id)
+		var span: float = _canvas.size.x - 200.0 if _canvas.size.x > 200 else 1080.0
 		var place := func(arr: Array, y: float) -> void:
-			var n := arr.size()
-			var span := _canvas.size.x - 200.0
+			var n: int = arr.size()
 			for i in n:
-				var x := 100.0 + (float(i) / maxi(n, 1)) * span
-				if n == 1: x = _canvas.size.x * 0.5
+				var x: float = 100.0 + (float(i) / maxi(n, 1)) * span
+				if n == 1: x = _canvas.size.x * 0.5 if _canvas.size.x > 0 else 540.0
 				out[arr[i]] = Vector2(x, y)
 		place.call(tops, y_top)
 		place.call(mids, y_mid)
@@ -613,44 +976,201 @@ func _compute_layout(nodes: Array) -> Dictionary:
 	return out
 
 
+## 按节点 kind 估算渲染宽度（用于自适应半径防重叠）
+func _node_width_for_kind(kind: String) -> float:
+	match kind:
+		"clue":       return 170.0
+		"hypo":       return 150.0
+		"conclusion": return 170.0
+		"chain":      return 130.0
+		_: return 150.0
+
+
+## 把点钳制到对应 kind 的距离带内（保持「核心 < 结论 < 推断 < 线索」排序）
+func _clamp_to_band(pos: Vector2, center: Vector2, kind: String) -> Vector2:
+	var band: Dictionary = _RING_BANDS.get(kind, _RING_BANDS["clue"])
+	var diff: Vector2 = pos - center
+	var dist: float = diff.length()
+	if dist < 0.01:
+		# 落在中心点附近，给个默认方向（正上）以免角度无定义
+		return center + Vector2(0.0, -band.default)
+	if dist < band.min:
+		return center + diff / dist * band.min
+	if dist > band.max:
+		return center + diff / dist * band.max
+	return pos
+
+
+## 把当前所有节点位置写入 state_store（持久化手动布局，含隐藏节点——见设计 §6）
+## 先用当前可见位置刷新缓存，再写入；隐藏节点位置由 _all_positions 保留（避免展开错位）。
+func _persist_node_positions() -> void:
+	if _state_store.is_empty(): return
+	for id in _node_center:
+		_all_positions[id] = _node_center[id]
+	var pos: Dictionary = {}
+	for id in _all_positions:
+		var p = _all_positions[id]
+		if id == _focus_person: continue   # 中心永远画布中央，不存
+		if p is Vector2:
+			pos[id] = p
+	_state_store["graph_node_positions"] = pos
+
+
 # ===================== 节点视图 =====================
+## 节点配色规则（用户需求）：
+##   - 线索：底=白；已关联=实线绿边；未关联=虚线暗金边；干扰项(correct=false)=实线红边 + 红字
+##   - 推断：底=灰；有关联=实线暗边；无关联=虚线暗边；干扰项=实线红边 + 红字
+##   - 推理链/结论：维持当前（结论按 verdict 红/橙/黄/绿，链=金边）
+##   - 中心人物：金边 + 暖金底
 func _make_node(nd: Dictionary) -> Control:
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(120, 64)
-	card.size = Vector2(120, 64)
+	var kind: String = nd.kind
+	var is_person: bool = kind == "person"
+	var is_concl: bool = kind == "conclusion"
+	var is_chain: bool = kind == "chain"
+	var is_hypo: bool = kind == "hypo"
+	var is_clue: bool = kind == "clue"
+
+	var card: PanelContainer
+	var is_graph_card: bool = true
+	var gc = GraphCard.new()
+	card = gc
+	# 大小按类型给（中文文本可能变宽，故预留）
+	if is_person:
+		card.custom_minimum_size = Vector2(190, 96); card.size = Vector2(190, 96)
+	elif is_concl:
+		card.custom_minimum_size = Vector2(170, 86); card.size = Vector2(170, 86)
+	elif is_chain:
+		card.custom_minimum_size = Vector2(130, 64); card.size = Vector2(130, 64)
+	elif is_hypo:
+		card.custom_minimum_size = Vector2(150, 70); card.size = Vector2(150, 70)
+	else:
+		card.custom_minimum_size = Vector2(170, 66); card.size = Vector2(170, 66)
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var style := StyleBoxFlat.new()
-	var col: Color = nd.get("color", COL_GOLD_LIGHT)
-	style.bg_color = Color(col.r * 0.25 + 0.05, col.g * 0.25 + 0.04, col.b * 0.25 + 0.03, 0.96)
-	style.border_color = col
-	style.border_width_left = 2; style.border_width_right = 2; style.border_width_top = 2; style.border_width_bottom = 2
+	var default_border_w: int = 2
+	style.border_width_left = default_border_w; style.border_width_right = default_border_w
+	style.border_width_top = default_border_w; style.border_width_bottom = default_border_w
 	style.set_corner_radius_all(8)
-	if nd.get("common", false):
+
+	var text_red := false
+	var dashed: bool = false
+	var dashed_col: Color = COL_CLUE_BORDER
+	var dashed_w: float = 2.0
+
+	if is_clue:
+		var c: Dictionary = nd.data
+		var correct: bool = c.get("correct", true)
+		var assoc: bool = c.get("associated", false)
+		# P0-2 用户标记覆盖
+		var cid: String = c.get("id", "")
+		var excluded: bool = _user_excluded.has(cid)
+		var pending: bool = _user_pending.has(cid)
+		if excluded:
+			# 已排除：灰底 + 暗边
+			style.bg_color = Color(0.20, 0.18, 0.16, 0.85)
+			style.border_color = Color(0.40, 0.38, 0.35)
+			style.border_width_left = 1; style.border_width_right = 1
+			style.border_width_top = 1; style.border_width_bottom = 1
+			text_red = false
+		elif not correct:
+			# 干扰项：白底 + 实线红边 + 红字
+			style.bg_color = COL_CLUE_BG_DIM
+			style.border_color = COL_CLUE_BORDER_DISTRACT
+			text_red = true
+		else:
+			style.bg_color = COL_CLUE_BG
+			if assoc:
+				style.border_color = COL_CLUE_BORDER_ASSOC
+			else:
+				# 未关联：虚线暗金边
+				style.border_color = COL_CLUE_BG   # 把 stylebox 边框调成 bg 色，避免与手动虚线重影
+				style.border_width_left = 0; style.border_width_right = 0
+				style.border_width_top = 0; style.border_width_bottom = 0
+				dashed = true
+				dashed_col = COL_CLUE_BORDER
+				dashed_w = 2.0
+		# P0-2 待查标记：黄边覆盖
+		if pending and not excluded:
+			style.border_color = Color(0.95, 0.80, 0.25)
+			style.border_width_left = 3; style.border_width_right = 3
+			style.border_width_top = 3; style.border_width_bottom = 3
+			dashed = false
+		# 共同线索（关联≥2人物）金边覆盖
+		if nd.get("common", false):
+			style.border_color = COL_GOLD
+			style.border_width_left = 3; style.border_width_right = 3
+			style.border_width_top = 3; style.border_width_bottom = 3
+			dashed = false
+		# P0-3 搜索匹配高亮：金色加粗外框
+		if not _search_query.is_empty() and _search_match_ids.has(cid):
+			style.border_color = Color(1.0, 0.90, 0.30)
+			style.border_width_left = 4; style.border_width_right = 4
+			style.border_width_top = 4; style.border_width_bottom = 4
+	elif is_hypo:
+		var h: Dictionary = nd.data
+		var correct: bool = h.get("correct", true)
+		if not correct:
+			style.bg_color = COL_HYPO_BG_DIM
+			style.border_color = COL_CLUE_BORDER_DISTRACT
+			text_red = true
+		else:
+			style.bg_color = COL_HYPO_BG
+			if _node_has_user_relation(nd.id):
+				style.border_color = COL_HYPO_BORDER
+			else:
+				# 未关联推断：虚线暗边
+				style.border_color = COL_HYPO_BG   # 同上，把 stylebox 边框调成 bg 色
+				style.border_width_left = 0; style.border_width_right = 0
+				style.border_width_top = 0; style.border_width_bottom = 0
+				dashed = true
+				dashed_col = COL_HYPO_BORDER
+				dashed_w = 2.0
+	elif is_chain:
+		style.bg_color = Color(0.16, 0.13, 0.08, 0.95)
 		style.border_color = COL_GOLD
-		style.border_width_left = 3; style.border_width_right = 3; style.border_width_top = 3; style.border_width_bottom = 3
+	elif is_concl:
+		var vc: Color = _verdict_color()
+		style.bg_color = Color(vc.r * 0.4 + 0.05, vc.g * 0.4 + 0.05, vc.b * 0.4 + 0.05, 0.95)
+		style.border_color = vc
+		style.border_width_left = 3; style.border_width_right = 3
+		style.border_width_top = 3; style.border_width_bottom = 3
+	elif is_person:
+		style.bg_color = Color(0.78 * 0.30, 0.72 * 0.30, 0.55 * 0.30, 0.98)
+		style.border_color = COL_GOLD
+		style.border_width_left = 3; style.border_width_right = 3
+		style.border_width_top = 3; style.border_width_bottom = 3
+
 	card.add_theme_stylebox_override("panel", style)
 
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_top", 5)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_bottom", 5)
+	# 折叠根：暗金虚线描边（提示"此节点下有收起内容"，见设计 §2.3）
+	if _folded_nodes.has(nd.id):
+		(card as GraphCard).setup_dashed(true, COL_GOLD, 2)
+
+	# 启用虚线（需要 GraphCard）
+	if is_graph_card and dashed:
+		(card as GraphCard).setup_dashed(true, dashed_col, dashed_w)
+
+	var margin = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 9)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_right", 9)
+	margin.add_theme_constant_override("margin_bottom", 6)
 	card.add_child(margin)
 
-	var vb := VBoxContainer.new()
+	var vb = VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 2)
 	margin.add_child(vb)
 
-	var lab := Label.new()
+	var lab = Label.new()
 	lab.text = nd.get("label", "")
 	lab.add_theme_font_size_override("font_size", 15)
-	lab.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	lab.add_theme_color_override("font_color", COL_TEXT_RED if text_red else COL_TEXT_DARK)
 	lab.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(lab)
 
-	var sub := Label.new()
+	var sub = Label.new()
 	sub.text = nd.get("sub", "")
 	sub.add_theme_font_size_override("font_size", 11)
 	sub.add_theme_color_override("font_color", COL_GREY)
@@ -658,12 +1178,20 @@ func _make_node(nd: Dictionary) -> Control:
 	vb.add_child(sub)
 
 	var id: String = nd.id
-	var kind: String = nd.kind
-	card.gui_input.connect(_on_node_gui.bind(id, kind))
+	var kind2: String = nd.kind
+	card.gui_input.connect(_on_node_gui.bind(id, kind2))
 	card.mouse_entered.connect(_on_node_hover.bind(id, true))
 	card.mouse_exited.connect(_on_node_hover.bind(id, false))
 	card.tooltip_text = _node_tooltip(nd)
 	return card
+
+
+## 节点是否有「玩家手动建立的关系」（仅玩家关系，不含自动推断边）
+func _node_has_user_relation(id: String) -> bool:
+	for r in _relations:
+		if r.get("from", "") == id or r.get("to", "") == id:
+			return true
+	return false
 
 
 func _node_tooltip(nd: Dictionary) -> String:
@@ -702,8 +1230,16 @@ func _on_hint_draw() -> void:
 		var kind: String = _node_kind.get(id, "")
 		if kind in ["clue", "person"]:
 			_hint_layer.draw_arc(c, 46, 0, TAU, 32, Color(COL_GOLD.r, COL_GOLD.g, COL_GOLD.b, 0.35), 2)
+	# 连线模式选中节点：更显眼的金圈
+	if _connect_first_id != "":
+		var sel_center: Vector2 = _node_center.get(_connect_first_id, Vector2.ZERO)
+		if sel_center != Vector2.ZERO:
+			_hint_layer.draw_arc(sel_center, 56, 0, TAU, 36, COL_GOLD, 4)
+			_hint_layer.draw_arc(sel_center, 64, 0, TAU, 36, Color(COL_GOLD.r, COL_GOLD.g, COL_GOLD.b, 0.4), 2)
 
 
+## 边缘绘制（按需求5：连线用弧线代替直线）
+## 用二次贝塞尔（控制点偏移路径中点垂直方向）实现自然弧度；虚线沿弧线采样。
 func _on_edge_draw() -> void:
 	for e in _edge_list:
 		var a: Vector2 = _node_center.get(e.from, Vector2.ZERO)
@@ -718,40 +1254,101 @@ func _on_edge_draw() -> void:
 			show = true
 		if not show:
 			continue
-		var col: Color = e.color
-		# 高亮态强调，非高亮态在模式 C 默认下不绘制（仅人物元数据连线单独画）
-		if e.kind == "relate" or e.kind == "imply" or e.kind == "support" or e.kind == "oppose" or e.kind == "contradict":
+		if e.kind in ["relate", "imply", "support", "oppose", "contradict"]:
 			if e.dashed:
-				_draw_dashed(a, b, col, 2)
+				_draw_arc_dashed(a, b, e.color, 2)
 			else:
-				_edge_layer.draw_line(a, b, col, 3)
+				_draw_arc_line(a, b, e.color, 3)
 
-	# 人物元数据连线（仅模式 C，常显，灰，实线）
+	# 人物元数据连线（仅模式 C，常显，灰，细弧线）
 	if _mode == ViewMode.MODE_C:
 		for c in _clues:
 			var cid: String = c.get("id", "")
 			if _focus_person in c.get("related_npcs", []):
-				var a: Vector2 = _node_center.get(cid, Vector2.ZERO)
-				var b: Vector2 = _node_center.get(_focus_person, Vector2.ZERO)
-				if a != Vector2.ZERO and b != Vector2.ZERO:
-					_edge_layer.draw_line(a, b, COL_GREY, 1.5)
+				var a2: Vector2 = _node_center.get(cid, Vector2.ZERO)
+				var b2: Vector2 = _node_center.get(_focus_person, Vector2.ZERO)
+				if a2 != Vector2.ZERO and b2 != Vector2.ZERO:
+					_draw_arc_line(a2, b2, COL_GREY, 1.5, 30.0)
 
-	# 拖拽预览线
+	# 拖拽预览线（弧线）
 	if _dragging and _drag_id != "":
-		var a: Vector2 = _node_center.get(_drag_id, Vector2.ZERO)
-		if a != Vector2.ZERO:
-			_edge_layer.draw_line(a, _drag_preview_pos(), _rel_color(_drag_kind), 2)
+		var a3: Vector2 = _node_center.get(_drag_id, Vector2.ZERO)
+		if a3 != Vector2.ZERO:
+			if _drag_mode == "edge":
+				_draw_arc_line(a3, _drag_preview_pos(), _rel_color(_drag_kind), 2, 40.0)
+			elif _drag_mode == "move":
+				# move 模式不画预览线
+				pass
 
 
+## 沿 a→b 画一条二次贝塞尔弧线（控制点偏移中点垂直方向 curvature）
+func _draw_arc_line(a: Vector2, b: Vector2, col: Color, w: float, curvature: float = 50.0, segments: int = 24) -> void:
+	if (a - b).length() < 0.5:
+		return
+	var mid: Vector2 = (a + b) * 0.5
+	var dir: Vector2 = (b - a).normalized()
+	var perp: Vector2 = Vector2(-dir.y, dir.x) * curvature
+	var ctrl: Vector2 = mid + perp
+	var pts := PackedVector2Array()
+	for i in segments + 1:
+		var t: float = float(i) / float(segments)
+		var omt: float = 1.0 - t
+		var p: Vector2 = a * omt * omt + ctrl * 2.0 * omt * t + b * t * t
+		pts.append(p)
+	_edge_layer.draw_polyline(pts, col, w, true)
+
+
+## 沿 a→b 画虚线弧线（沿贝塞尔采样，按 dash 长度切段）
+func _draw_arc_dashed(a: Vector2, b: Vector2, col: Color, w: float, curvature: float = 50.0, segments: int = 48, dash_len: float = 8.0, gap_len: float = 6.0) -> void:
+	if (a - b).length() < 0.5:
+		return
+	var mid: Vector2 = (a + b) * 0.5
+	var dir: Vector2 = (b - a).normalized()
+	var perp: Vector2 = Vector2(-dir.y, dir.x) * curvature
+	var ctrl: Vector2 = mid + perp
+	# 先采样出所有曲线点
+	var pts := PackedVector2Array()
+	for i in segments + 1:
+		var t: float = float(i) / float(segments)
+		var omt: float = 1.0 - t
+		var p: Vector2 = a * omt * omt + ctrl * 2.0 * omt * t + b * t * t
+		pts.append(p)
+	# 沿线段累积长度，按 dash/gap 切段画
+	var traveled: float = 0.0
+	var next_break: float = dash_len
+	var drawing := true
+	for i in range(1, pts.size()):
+		var p0: Vector2 = pts[i - 1]
+		var p1: Vector2 = pts[i]
+		var seg_len: float = p0.distance_to(p1)
+		var t0: float = traveled
+		var t1: float = traveled + seg_len
+		while t1 >= next_break:
+			if drawing:
+				var k: float = (next_break - t0) / seg_len
+				_edge_layer.draw_line(p0.lerp(p1, clamp(k, 0.0, 1.0)), p1, col, w)
+				t0 = next_break
+				drawing = false
+				next_break += gap_len
+			else:
+				t0 = next_break
+				drawing = true
+				next_break += dash_len
+		if drawing and i + 1 < pts.size():
+			_edge_layer.draw_line(p0.lerp(p1, clamp((t1 - t0) / seg_len, 0.0, 1.0)), p0.lerp(p1, 1.0), col, w)
+		traveled = t1
+
+
+## 旧的直线虚线（保留兼容，未再使用）
 func _draw_dashed(a: Vector2, b: Vector2, col: Color, w: float) -> void:
-	var dist := a.distance_to(b)
-	var dash := 10.0; var gap := 7.0; var seg := dash + gap
+	var dist: float = a.distance_to(b)
+	var dash: float = 10.0; var gap: float = 7.0; var seg: float = dash + gap
 	if seg <= 0: return
-	var steps := int(dist / seg)
-	var dir := (b - a).normalized()
-	var pos := a
+	var steps: int = int(dist / seg)
+	var dir: Vector2 = (b - a).normalized()
+	var pos: Vector2 = a
 	for i in steps:
-		var p2 := pos + dir * dash
+		var p2: Vector2 = pos + dir * dash
 		if p2.distance_to(a) > dist: p2 = b
 		_edge_layer.draw_line(pos, p2, col, w)
 		pos = p2 + dir * gap
@@ -759,17 +1356,7 @@ func _draw_dashed(a: Vector2, b: Vector2, col: Color, w: float) -> void:
 		_edge_layer.draw_line(pos, b, col, w)
 
 
-func _draw_dotted(a: Vector2, b: Vector2, col: Color, w: float) -> void:
-	var dist := a.distance_to(b)
-	var dot := 3.0; var gap := 6.0; var seg := dot + gap
-	if seg <= 0: return
-	var steps := int(dist / seg)
-	var dir := (b - a).normalized()
-	var pos := a
-	for i in steps:
-		var p2 := pos + dir * dot
-		_edge_layer.draw_line(pos, p2, col, w)
-		pos = p2 + dir * gap
+## 沿 a→b 画虚线弧线（沿贝塞尔采样，按 dash 长度切段）
 
 
 func _drag_preview_pos() -> Vector2:
@@ -787,36 +1374,172 @@ func _on_node_hover(id: String, entered: bool) -> void:
 	_redraw_all()
 
 
+## 节点交互：
+##   - 默认：左键拖动=移动节点；Shift+左键=建证据连线；右键=标签菜单
+##   - 连线模式（顶栏 toggle 控制）：左键点击节点=选择/建边；两节点依次点击=建边
+##   - 移动节点：distance 实时钳制到 kind 距离带（保持核心<结论<推断<线索 排序）
+##   - 建边：玩家按住 Shift 后拖到另一节点上松开，触发 _add_edge（沿用原笔色/线型）
+##   - 注意：move 拖动期间 MouseMotion 必须在 _input 里处理（gui_input 在鼠标离开节点后停发）
 func _on_node_gui(event: InputEvent, id: String, kind: String) -> void:
-	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			if event.pressed:
-				if _state == State.EDITABLE and kind in ["clue", "hypo", "conclusion"]:
-					_dragging = true
-					_drag_id = id
-					_drag_from = get_viewport().get_mouse_position()
-					_drag_kind = key_to_kind(_pen_color_key)
-					_drag_color_key = _pen_color_key
-					_drag_dashed = _pen_dashed
+	if not (event is InputEventMouseButton): return
+	var mb := event as InputEventMouseButton
+	if mb.button_index == MOUSE_BUTTON_LEFT:
+		if mb.pressed:
+			# === 连线模式：单击两节点建边 ===
+			if _connect_mode:
+				if _state != State.EDITABLE:
+					_toast_msg("已封存，仅可浏览")
+					return
+				if _handle_connect_click(id, kind):
+					return
+				# 命中节点且未建边（自环），不继续后续处理
+				return
+			if _state != State.EDITABLE: return
+			if not (kind in ["clue", "hypo", "conclusion", "chain"]): return
+			var n: Control = _node_views.get(id)
+			if not (n and is_instance_valid(n)): return
+			var mouse_canvas: Vector2 = _canvas.get_global_transform().affine_inverse() * mb.global_position
+			_dragging = true
+			_drag_id = id
+			if mb.shift_pressed:
+				# Shift+左键拖动 = 建边
+				_drag_mode = "edge"
+				_drag_kind = key_to_kind(_pen_color_key)
+				_drag_color_key = _pen_color_key
+				_drag_dashed = _pen_dashed
+				_drag_from = get_viewport().get_mouse_position()
 			else:
-				if _dragging and _drag_id == id:
-					_commit_drag(id)
-		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-			if kind == "clue":
-				_open_tag_menu(id)
-	elif event is InputEventMouseMotion and _dragging and _drag_id == id:
-		if get_viewport().get_mouse_position().distance_to(_drag_from) > 6:
-			_redraw_all()
+				# 纯左键拖动 = 移动节点
+				_drag_mode = "move"
+				_drag_offset = mouse_canvas - n.position
+				_drag_start = get_viewport().get_mouse_position()
+		else:
+			# 释放：在 _input 里 commit（覆盖 gui_input 边界问题）
+			pass
+	elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
+		# 任何节点都可右键：线索=打标签+删连线；推断/结论/人物=删连线
+		if kind in ["clue", "hypo", "conclusion", "chain", "person"]:
+			_open_tag_menu(id, kind)
 
 
-func _commit_drag(id: String) -> void:
-	var gp := get_viewport().get_mouse_position()
-	var drop := _node_at(gp)
+## 连线模式：处理单次节点点击（已被 _on_node_gui 路由过来）
+## 第一次点击：选中该节点；第二次点击（不同节点）：建边；空地点击：取消选择
+func _handle_connect_click(id: String, kind: String) -> bool:
+	if not (kind in ["clue", "hypo", "conclusion", "person"]):
+		return false
+	if _connect_first_id == "":
+		# 第一次选
+		_connect_first_id = id
+		_connect_first_kind = kind
+		_toast_msg("已选中%s；再点一个目标即建边（空地右键连线模式退出）" %
+			["线索", "线索", "推断", "结论", "人物"][(["clue", "hypo", "conclusion", "person", "?"].find(kind) if kind in ["clue", "hypo", "conclusion", "person"] else 0)])
+		_redraw_all()
+		return true
+	# 第二次选
+	if id == _connect_first_id:
+		# 点同一个节点 → 取消
+		_connect_first_id = ""
+		_connect_first_kind = ""
+		_toast_msg("已取消选择")
+		_redraw_all()
+		return true
+	var first_kind: String = _connect_first_kind
+	# 人物目标：仅线索 → 人物时建 tag，其他组合无意义则提示取消
+	if kind == "person":
+		if first_kind == "clue":
+			_tag_person(_connect_first_id, id)
+			_toast_msg("已为线索打上人物标签")
+		else:
+			_toast_msg("只能把线索拖到人物头像建关联")
+		_connect_first_id = ""
+		_connect_first_kind = ""
+		_redraw_all()
+		return true
+	if first_kind == "person":
+		if kind == "clue":
+			_tag_person(id, _connect_first_id)
+			_toast_msg("已为线索打上人物标签")
+		else:
+			_toast_msg("只能把线索拖到人物头像建关联")
+		_connect_first_id = ""
+		_connect_first_kind = ""
+		_redraw_all()
+		return true
+	# 节点 → 节点：建证据连线
+	var kind_str: String = key_to_kind(_pen_color_key)
+	_add_edge(_connect_first_id, id, kind_str, _pen_color_key, _pen_dashed)
+	_connect_first_id = ""
+	_connect_first_kind = ""
+	_redraw_all()
+	return true
+
+
+## 提交移动节点（含拖动语义，2026-08-19 重构）：
+##   - 单击（位移 <8px）→ 弹详情
+##   - 拖到另一节点上松开 → 建证据连线（线索↔推断/线索↔线索；线索→人物=打标签），用当前笔色/线型
+##   - 拖到空地松开 → 移动节点位置（钳制到 kind 距离带）
+func _commit_move(id: String) -> void:
+	var gp: Vector2 = get_viewport().get_mouse_position()
+	var moved := gp.distance_to(_drag_start) > 8.0
+	if moved and _state == State.EDITABLE:
+		var drop: String = _drop_node_except(gp, id)
+		if drop == "":
+			# 容错：未精确落在目标框内时，找 48px 内最近的节点（差几个像素也要能建边）
+			drop = _nearest_node_except(gp, id, 48.0)
+		if drop != "":
+			var drop_kind: String = _node_kind.get(drop, "")
+			if drop_kind == "person":
+				_tag_person(id, drop)
+			elif drop_kind in ["hypo", "clue", "conclusion"]:
+				_add_edge(id, drop, key_to_kind(_pen_color_key), _pen_color_key, _pen_dashed)
+	elif not moved:
+		_on_node_clicked(id, _node_kind.get(id, ""))
+	_persist_node_positions()
 	_dragging = false
 	_drag_id = ""
+	_drag_mode = ""
+	_sync_fold_controls_positions()
+	_redraw_all()
+
+
+## 查找 gp 处命中的节点，排除 exclude_id（拖动中被拖节点自身可能压住目标）
+func _drop_node_except(gp: Vector2, exclude_id: String) -> String:
+	var local := _canvas.get_global_transform().affine_inverse() * gp
+	for id in _node_views:
+		if id == exclude_id: continue
+		var n: Control = _node_views[id]
+		if not is_instance_valid(n): continue
+		if Rect2(n.position, n.size).has_point(local):
+			return id
+	return ""
+
+
+## 找距离 gp 最近且不超过 max_dist 的节点（排除 exclude_id）
+func _nearest_node_except(gp: Vector2, exclude_id: String, max_dist: float) -> String:
+	var local := _canvas.get_global_transform().affine_inverse() * gp
+	var best := ""
+	var best_d := max_dist
+	for id in _node_views:
+		if id == exclude_id: continue
+		var n: Control = _node_views[id]
+		if not is_instance_valid(n): continue
+		var c := n.position + n.size * 0.5
+		var d := c.distance_to(local)
+		if d < best_d:
+			best_d = d
+			best = id
+	return best
+
+
+## 提交建边（拖到另一节点上 = 加证据连线；落空 = 取消）
+func _commit_drag(id: String) -> void:
+	var gp: Vector2 = get_viewport().get_mouse_position()
+	var drop: String = _node_at(gp)
+	_dragging = false
+	_drag_id = ""
+	_drag_mode = ""
 	_redraw_all()
 	if drop == "" or drop == id:
-		# 落在自己 → 视为点选（非自环）
 		if drop == id:
 			_on_node_clicked(id, _node_kind.get(id, ""))
 		return
@@ -851,24 +1574,76 @@ func _on_node_clicked(id: String, kind: String) -> void:
 
 
 # ---- 打标签（拖线索到人物 / 右键菜单）----
-func _open_tag_menu(clue_id: String) -> void:
+## 右键菜单（需求 2026-08-19 扩展）：
+##   - 线索节点：打人物标签 + 连线管理（删除本节点参与的连线）
+##   - 推断/结论/人物节点：仅连线管理
+func _open_tag_menu(node_id: String, kind: String) -> void:
 	if _state != State.EDITABLE:
 		_toast_msg("已封存，仅可浏览")
 		return
 	var menu := PopupMenu.new()
 	menu.add_theme_font_size_override("font_size", 15)
-	var others := _persons.filter(func(p): return p.get("id", "") != _focus_person)
-	if others.is_empty(): others = _persons
-	for p in others:
-		menu.add_item("和「%s」有关" % p.get("name", p.get("id", "?")))
-		menu.set_item_metadata(menu.get_item_count() - 1, p.get("id", ""))
+	if kind == "clue":
+		var others := _persons.filter(func(p): return p.get("id", "") != _focus_person)
+		if others.is_empty(): others = _persons
+		for p in others:
+			menu.add_item("和「%s」有关" % p.get("name", p.get("id", "?")))
+			menu.set_item_metadata(menu.get_item_count() - 1, p.get("id", ""))
+		# P0-2 标记状态子项
+		var cur := get_user_status(node_id)
+		menu.add_separator("标记状态")
+		var mark_label := ("当前：已排除" if cur == "excluded" else ("当前：待查" if cur == "pending" else "当前：正常"))
+		menu.add_item(mark_label)
+		menu.set_item_metadata(menu.get_item_count() - 1, {"__status": "info"})
+		menu.add_item("标为「已排除」（隐藏/灰显）")
+		menu.set_item_metadata(menu.get_item_count() - 1, {"__status": "excluded"})
+		menu.add_item("标为「待查」（黄边高亮）")
+		menu.set_item_metadata(menu.get_item_count() - 1, {"__status": "pending"})
+		if cur != "active":
+			menu.add_item("恢复正常")
+			menu.set_item_metadata(menu.get_item_count() - 1, {"__status": "active"})
+	# —— 连线管理：列出本节点的所有关系，点选即删除 ——
+	var rels := []
+	for r in _relations:
+		if r.get("from", "") == node_id or r.get("to", "") == node_id:
+			rels.append(r)
+	if not rels.is_empty():
+		if kind == "clue" and not _persons.is_empty():
+			menu.add_separator()
+		menu.add_separator("删除连线")
+		for r in rels:
+			var other: String = r.get("to", "") if r.get("from", "") == node_id else r.get("from", "")
+			menu.add_item("删除：↔ %s（%s）" % [_node_short_label(other), _rel_verb(r.get("kind", "relate"))])
+			menu.set_item_metadata(menu.get_item_count() - 1, {
+				"from": r.get("from", ""), "to": r.get("to", ""), "kind": r.get("kind", "relate")})
 	menu.id_pressed.connect(func(idx: int):
-		var pid: String = menu.get_item_metadata(idx)
-		_tag_person(clue_id, pid)
+		var md = menu.get_item_metadata(idx)
+		if md is Dictionary:
+			if md.has("__status"):
+				var st: String = md["__status"]
+				if st != "info":
+					mark_clue_status(node_id, st)
+					_toast_msg("已标记为「%s」" % {"excluded": "已排除", "pending": "待查", "active": "正常"}.get(st, st))
+			else:
+				_remove_edge(md.get("from", ""), md.get("to", ""), md.get("kind", ""))
+		else:
+			var pid: String = md
+			_tag_person(node_id, pid)
 		menu.queue_free()
 	)
 	add_child(menu)
 	menu.popup_centered()
+
+
+## 节点短名（连线删除菜单用）：人物→中文名；推断→截断文本；线索→名称；其余→id
+func _node_short_label(id: String) -> String:
+	if _node_kind.get(id, "") == "person":
+		return _person_name(id)
+	var nd: Dictionary = _node_data.get(id, {})
+	var lab: String = nd.get("label", "")
+	if lab != "":
+		return lab if lab.length() <= 8 else lab.substr(0, 8) + "…"
+	return id
 
 
 func _tag_person(clue_id: String, person_id: String) -> void:
@@ -938,6 +1713,32 @@ func _rel_verb(kind: String) -> String:
 		_: return VERB_RELATE
 
 
+## 删除一条用户建立的连线（需求 2026-08-19：可取消误连；可撤销）
+func _remove_edge(from: String, to: String, kind: String) -> void:
+	if _state != State.EDITABLE:
+		_toast_msg("已封存，仅可浏览")
+		return
+	var target := {}
+	for r in _relations:
+		if r.get("from", "") == from and r.get("to", "") == to and r.get("kind", "") == kind:
+			target = r
+			break
+	if target.is_empty():
+		_toast_msg("没有这条连线")
+		return
+	var ck: String = target.get("color_key", "")
+	var ds: bool = target.get("dashed", false)
+	_undo.create_action("remove_edge")
+	_undo.add_do_method(_do_edge.bind(from, to, kind, ck, ds, false))
+	_undo.add_undo_method(_do_edge.bind(from, to, kind, ck, ds, true))
+	_undo.commit_action()
+	if _cb_relations_changed.is_valid():
+		_cb_relations_changed.call(_relations.duplicate())
+	_persist_view()
+	_rebuild_graph()
+	_toast_msg("已删除%s的连线（Ctrl+Z 可恢复）" % _rel_verb(kind))
+
+
 func _do_edge(from: String, to: String, kind: String, color_key: String, dashed: bool, add: bool) -> void:
 	var kept := []
 	for r in _relations:
@@ -981,11 +1782,178 @@ func set_mode(m: int) -> void:
 	_switch_mode(m)
 
 
+func set_connect_mode(enabled: bool) -> void:
+	_connect_mode = enabled
+	_connect_first_id = ""
+	_connect_first_kind = ""
+	if not enabled:
+		_toast_msg("已退连线模式")
+	_redraw_all()
+
+
+func get_connect_mode() -> bool:
+	return _connect_mode
+
+
 func set_focus(pid: String) -> void:
 	if pid == "": return
 	_focus_person = pid
 	_persist_view()
 	_rebuild_graph()
+
+
+# === P0/P2 公共方法 ===
+func set_search_query(q: String) -> void:
+	_search_query = q.strip_edges()
+	_recompute_search_matches()
+	_rebuild_graph()
+	# 飞达第一个匹配
+	if not _search_match_ids.is_empty():
+		_fly_to_node(_search_match_ids[0])
+
+
+func set_status_filter(f: String) -> void:
+	_status_filter = f
+	_rebuild_graph()
+
+
+## 折叠/展开某个节点（XMind 式通用入口）。id 为空或叶子（线索）返回 false。
+## EDITABLE 态走 UndoRedo（与移动/连线同栈，支持 Ctrl+Z/Y）；LOCKED 态直接生效（浏览用）。
+func toggle_fold(id: String) -> bool:
+	if id == "" or _is_leaf(id): return false
+	var label: String = _node_short_label(id)
+	var will_fold := not _folded_nodes.has(id)
+	if _state == State.EDITABLE:
+		_undo.create_action("折叠 %s" % label)
+		_undo.add_do_method(_set_folded.bind(id, will_fold))
+		_undo.add_undo_method(_set_folded.bind(id, not will_fold))
+		_undo.commit_action()
+	else:
+		_set_folded(id, will_fold)
+	_persist_view()
+	if will_fold:
+		_toast_msg("已折叠「%s」的外层内容（%d 项）" % [label, _fold_count(id)])
+	else:
+		_toast_msg("已展开「%s」" % label)
+	return will_fold
+
+## 顶部 🪗 按钮：折叠当前悬停/高亮节点（非叶子则优先），否则折叠焦点人物（保留旧行为）
+func toggle_fold_focus() -> bool:
+	if _focus_person == "": return false
+	var id: String = _focus_person
+	if _highlight_id != "" and not _is_leaf(_highlight_id):
+		id = _highlight_id
+	return toggle_fold(id)
+
+
+func mark_clue_status(clue_id: String, status: String) -> void:
+	# status: "excluded" / "pending" / "active"
+	_user_excluded.erase(clue_id)
+	_user_pending.erase(clue_id)
+	if status == "excluded":
+		_user_excluded[clue_id] = true
+	elif status == "pending":
+		_user_pending[clue_id] = true
+	_rebuild_graph()
+
+
+func get_user_status(clue_id: String) -> String:
+	if _user_excluded.has(clue_id): return "excluded"
+	if _user_pending.has(clue_id): return "pending"
+	return "active"
+
+
+func _recompute_search_matches() -> void:
+	_search_match_ids = []
+	if _search_query == "": return
+	var q: String = _search_query.to_lower()
+	for nd in _node_list_all():
+		var text: String = str(nd.get("label", "")) + " " + str(nd.get("sub", ""))
+		if q in text:
+			_search_match_ids.append(nd.id)
+
+
+# 完整节点列表（不过滤，用于搜索匹配）
+func _node_list_all() -> Array:
+	# 复用 _node_list 的逻辑：复制它之前不做过滤的版本
+	# 这里简化：直接调用 _node_list 内部 raw 重建
+	return _node_list_raw() if _node_list_raw != null else []
+
+
+# === 飞达节点（镜头平滑移动 + 缩放到合适尺寸）===
+func _fly_to_node(node_id: String) -> void:
+	var n: Control = _node_views.get(node_id)
+	if not n or not is_instance_valid(n): return
+	# 触发 SceneFramework 的 reset_camera 行为：传节点中心，让相机移到那里
+	# 简化：直接调用 _show_detail 让节点入视口
+	_toast_msg("已跳转：%s" % _node_short_label(node_id))
+	_highlight_id = node_id
+	_redraw_all()
+	# 如果有 SceneFramework 暴露 fly_to API，调用之
+	if get_parent() and get_parent().has_method("fly_to_world_point"):
+		get_parent().call("fly_to_world_point", n.position + n.size * 0.5)
+
+
+# === 节点列表原始版（不过滤）===
+func _node_list_raw() -> Array:
+	return _node_list()
+
+
+# === P2 导出为 Markdown ===
+func export_markdown() -> void:
+	var md := "# 推理墙 — 案件进度\n\n"
+	md += "- 焦点人物：%s\n" % _person_name(_focus_person)
+	md += "- 已排除线索：%d\n" % _user_excluded.size()
+	md += "- 待查线索：%d\n" % _user_pending.size()
+	md += "- 玩家关系：%d\n\n" % _relations.size()
+	md += "## 线索\n"
+	for c in _clues:
+		var st: String = get_user_status(str(c.get("id", "")))
+		var st_str: String = {"excluded": "（已排除）", "pending": "（待查）", "active": ""}.get(st, "")
+		md += "- **%s**%s — %s\n" % [c.get("name", ""), st_str, c.get("desc", "")]
+	md += "\n## 推断\n"
+	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
+		md += "- %s\n" % h.get("text", h.get("id", ""))
+	md += "\n## 关系\n"
+	for r in _relations:
+		md += "- %s → %s（%s）\n" % [r.get("from", ""), r.get("to", ""), r.get("kind", "")]
+	_show_export_panel(md)
+
+
+func _show_export_panel(text: String) -> void:
+	if _export_panel and is_instance_valid(_export_panel):
+		_export_panel.queue_free()
+	_export_panel = Panel.new()
+	_export_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_export_panel.size = Vector2(800, 500)
+	_export_panel.position = Vector2(240, 110)
+	_export_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.07, 0.10, 0.98)
+	sb.border_color = COL_GOLD
+	sb.border_width_left = 2; sb.border_width_right = 2; sb.border_width_top = 2; sb.border_width_bottom = 2
+	sb.set_corner_radius_all(8)
+	_export_panel.add_theme_stylebox_override("panel", sb)
+	add_child(_export_panel)
+	var vb := VBoxContainer.new()
+	vb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vb.offset_left = 12; vb.offset_right = -12; vb.offset_top = 12; vb.offset_bottom = -12
+	_export_panel.add_child(vb)
+	var title := Label.new()
+	title.text = "📤 导出（可复制）"
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", COL_GOLD)
+	vb.add_child(title)
+	var edit := TextEdit.new()
+	edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	edit.text = text
+	edit.wrap_enabled = true
+	edit.select_all()
+	vb.add_child(edit)
+	var close_btn := Button.new()
+	close_btn.text = "关闭"
+	close_btn.pressed.connect(func(): _export_panel.queue_free(); _export_panel = null)
+	vb.add_child(close_btn)
 
 
 func undo() -> void:
@@ -1106,6 +2074,9 @@ func _on_dock_card_gui(event: InputEvent, cid: String) -> void:
 		_dock_moved = false
 		_dock_start = get_viewport().get_mouse_position()
 		_make_dock_preview(cid)
+		# 声明吃掉这次按下：防止 dock 所在 ScrollContainer 把按下当成滚动起点而抢走后续拖动，
+		# 否则「左侧线索拖不进图谱」（Bug3）。
+		get_viewport().set_input_as_handled()
 
 
 func _on_dock_drop() -> void:
@@ -1138,6 +2109,8 @@ func _make_dock_preview(cid: String) -> void:
 	lab.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	prev.add_child(lab)
 	prev.z_index = 40
+	# 纯视觉预览：设为 IGNORE，绝不作为命中控件拦截松开事件（否则拖到图谱上松手可能被预览本身吃掉）
+	prev.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(prev)
 	_dock_preview = prev
 	_move_dock_preview(get_viewport().get_mouse_position())
@@ -1348,11 +2321,23 @@ func _on_canvas_gui(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
 			_zoom_at(get_viewport().get_mouse_position(), 0.9)
 		elif event.button_index == MOUSE_BUTTON_LEFT:
+			# 连线模式下：空白处左键点击 = 取消选中（不进入拖动）
+			if event.pressed and _connect_mode and _connect_first_id != "":
+				_connect_first_id = ""
+				_connect_first_kind = ""
+				_toast_msg("已取消选中")
+				_redraw_all()
+				return
 			if event.pressed:
 				_panning = true
 				_pan_last = get_viewport().get_mouse_position()
 			else:
 				_panning = false
+		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+			# 连线模式下：右键点击空白 = 退出连线模式
+			if _connect_mode:
+				set_connect_mode(false)
+				return
 	elif event is InputEventMouseMotion and _panning:
 		var gp := get_viewport().get_mouse_position()
 		_canvas.position += gp - _pan_last
@@ -1391,6 +2376,9 @@ func _on_focus_selected(idx: int) -> void:
 
 
 func _on_close_pressed() -> void:
+	# 关闭前先把最新的节点位置/模式/焦点写回共享 state_store，
+	# 避免「关系存了、位置没存」的读数落差（Bug1 兜底）。
+	_persist_view()
 	if _cb_close.is_valid():
 		_cb_close.call()
 	else:
@@ -1450,7 +2438,7 @@ func _show_detail(id: String, kind: String) -> void:
 				var tag_btn := Button.new()
 				tag_btn.text = "和谁有关 ▾"
 				tag_btn.add_theme_font_size_override("font_size", 14)
-				tag_btn.pressed.connect(func(): _open_tag_menu(id))
+				tag_btn.pressed.connect(func(): _open_tag_menu(id, "clue"))
 				vb.add_child(tag_btn)
 		"hypo":
 			var h: Dictionary = _node_data.get(id, {})
@@ -1513,9 +2501,10 @@ func _show_tutorial() -> void:
 	vb.add_child(t)
 	var lines := [
 		"· 中心头像 = 当前焦点人物（认知锚点）",
-		"· 圈层由近及远：线索 → 推断 → 推理链 → 结论",
-		"· 把线索拖到人物头像 = 标注它和谁有关",
-		"· 把线索拖到推断/线索 = 建立证据连线",
+		"· 距离核心由近及远：结论 → 推理链 → 推断 → 线索",
+		"· 拖动节点 = 自由调整位置（距离自动维持排序）",
+		"· 按住 Shift + 拖到另一节点 = 建立证据连线",
+		"· 把线索拖到人物头像（或右键线索）= 标注它和谁有关",
 		"· 顶部可切换「人物星型 / 推理链」两种视图",
 		"· 所有操作都可一键撤销，放心试",
 	]
@@ -1558,6 +2547,8 @@ func _persist_view() -> void:
 	_state_store["graph_view_mode"] = _mode
 	_state_store["graph_focus"] = _focus_person
 	_state_store["graph_seed"] = _layout_seed
+	_state_store["graph_folded_nodes"] = _folded_nodes
+	_persist_node_positions()
 
 
 func _clear_drag_preview() -> void:
@@ -1566,20 +2557,60 @@ func _clear_drag_preview() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# === 节点拖动（move / edge）— 必须在 dock 拖动前处理 ===
+	if _dragging and _drag_id != "":
+		if event is InputEventMouseMotion:
+			if _drag_mode == "move":
+				# 节点移动：实时更新位置，distance 钳制到 kind 距离带
+				var n: Control = _node_views.get(_drag_id)
+				if n and is_instance_valid(n):
+					var mouse_canvas: Vector2 = _canvas.get_global_transform().affine_inverse() * get_viewport().get_mouse_position()
+					var new_pos: Vector2 = mouse_canvas - _drag_offset
+					var new_center: Vector2 = new_pos + n.size * 0.5
+					var center: Vector2 = _canvas.size * 0.5
+					var kind: String = _node_kind.get(_drag_id, "clue")
+					var clamped: Vector2 = _clamp_to_band(new_center, center, kind)
+					n.position = clamped - n.size * 0.5
+					_node_center[_drag_id] = clamped
+					_sync_fold_controls_positions()
+					_redraw_all()
+					get_viewport().set_input_as_handled()
+			elif _drag_mode == "edge":
+				# 建边：拖拽过程中画弧线预览
+				if get_viewport().get_mouse_position().distance_to(_drag_from) > 6:
+					_redraw_all()
+			return
+		elif event is InputEventMouseButton and not event.pressed:
+			if event.button_index == MOUSE_BUTTON_LEFT and _drag_mode == "move":
+				_commit_move(_drag_id)
+				return
+			if event.button_index == MOUSE_BUTTON_LEFT and _drag_mode == "edge":
+				_commit_drag(_drag_id)
+				return
+			if event.button_index == MOUSE_BUTTON_RIGHT and _drag_mode == "edge":
+				_commit_drag(_drag_id)
+				return
+	# === dock 拖动（原有） ===
 	if _dock_dragging and event is InputEventMouseMotion:
-		var gp := get_viewport().get_mouse_position()
-		if gp.distance_to(_dock_start) > 6:
+		var gp2: Vector2 = get_viewport().get_mouse_position()
+		if gp2.distance_to(_dock_start) > 6:
 			_dock_moved = true
-		_move_dock_preview(gp)
+		_move_dock_preview(gp2)
+		# 声明吃掉移动：避免 dock 的 ScrollContainer 在拖动过程中抢去事件去滚动列表
+		get_viewport().set_input_as_handled()
 		return
 	if _dock_dragging and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		_on_dock_drop()
 		return
+	# === 键 ===
+	# ⚠️ 2026-08-19 修复：elif 分支曾无类型守卫直接访问 event.keycode，
+	# 导致每一次鼠标/触摸事件都抛 "Invalid access to property 'keycode'" SCRIPT ERROR，
+	# 并中断事件链 → 顶栏按钮/节点点击全部"无反应"。
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_Z and event.ctrl_pressed:
 			_on_undo()
 		elif event.keycode == KEY_Y and event.ctrl_pressed:
 			_on_redo()
-	elif event.keycode == KEY_ESCAPE:
-		get_viewport().set_input_as_handled()
-		_on_close_pressed()
+		elif event.keycode == KEY_ESCAPE:
+			get_viewport().set_input_as_handled()
+			_on_close_pressed()
