@@ -308,3 +308,16 @@ NO other objects, isolated, game asset
 # 导出 Web 版本
 & "D:\AI\godot\Godot_v4.7-stable_win64\Godot_v4.7-stable_win64.exe" --headless --export-release "Web"
 ```
+
+### 沙箱（Coze/Linux）Godot 工具链
+- **Godot 编辑器**：`/workspace/tools/godot/editor_extract/Godot_v4.7.1-stable_linux.x86_64`
+- **Web 导出模板**：`~/.local/share/godot/export_templates/4.7.1.stable/web_nothreads_release.zip`（联网下载慢，优先用 `gh.ddlc.top` 代理 + 分片 Range 并行下载，文件落 `/workspace/tools/godot/`，该目录持久的）
+- **沙箱导出命令**：`cd godot_project && GODOT --headless --path . --export-release "Web"`（产物写 `web_build/`，预览即 proxy 上 5000 服务 `web_build/`）
+- **脚本语法校验**：`GODOT --headless --path . -s <脚本>.gd`（项目把 Variant 推断等 GDScript 警告当作错误，新增脚本必须显式类型标注）
+- **封存后不可预览时**：推理墙图谱改动在 `godot_project/scripts/clue/`，改完必须重新导出 Web 才生效，仅改源码不重新导出会造成"预览仍是旧版"。
+
+## 推理墙图谱（graph_view_controller.gd）交互能力
+- **ESC 关闭修复**：关闭处理用 `call_deferred("_on_close_pressed")`，避免在 `_input()` 里销毁节点卡死。
+- **提交验证按钮**：由 reasoning_wall 的常驻顶部栏（z=100，始终盖在图谱之上）提供，图谱自身工具栏默认 `_show_toolbar=false`，避免重复工具栏。
+- **连线交互**：点击连线命中检测（采样二次贝塞尔曲线 ×0.01 步长，容差 16px）弹出浮动菜单，支持删除连线 / 线型(dashed)切换 / 关系性质切换（relate→support→oppose→contradict）。关系变更统一走 `_undo` + `_do_*` → `_cb_relations_changed` → `_persist_view` → `_rebuild_graph()` 模式（`_redraw_all()` 不会重建 `_edge_list`）。
+- **约束**：GDScript 只要关系字典就用 `r.get(...)`/`r["..."]`；`_relations` 元素是 Dictionary，可用 `e.dashed` 点读、写用 `e["dashed"]=...` 更稳妥。
