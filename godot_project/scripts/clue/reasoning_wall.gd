@@ -306,7 +306,7 @@ func _create_ui() -> void:
 	# 剩余中间区域：左右中三栏
 	var mid := Control.new()
 	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	mid.offset_top = 66
+	mid.offset_top = 110
 	mid.offset_bottom = -240   # 收拢到底部对话栏(y=850~1080)之上，避免三栏内容被对话栏遮挡（mid 底≈840）
 	add_child(mid)
 
@@ -339,7 +339,7 @@ func _create_ui() -> void:
 func _create_top_bar() -> Control:
 	var bar := Control.new()
 	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	bar.offset_bottom = 76
+	bar.offset_bottom = 110
 	# 顶栏 z_index 必须远高于 graph_view 叠加层（z=5），否则线型/颜色/视图按钮被全屏图谱拦截
 	bar.z_index = 100
 	bar.mouse_filter = Control.MOUSE_FILTER_STOP   # 显式 STOP，截停向下传播
@@ -350,167 +350,176 @@ func _create_top_bar() -> Control:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar.add_child(bg)
 
-	var row := HBoxContainer.new()
-	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = 12; row.offset_right = -12; row.offset_top = 8; row.offset_bottom = -8
-	row.add_theme_constant_override("separation", 8)
-	row.mouse_filter = Control.MOUSE_FILTER_PASS
-	bar.add_child(row)
+	var col := VBoxContainer.new()
+	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	col.offset_left = 12
+	col.offset_right = -12
+	col.offset_top = 6
+	col.offset_bottom = -6
+	col.add_theme_constant_override("separation", 4)
+	col.mouse_filter = Control.MOUSE_FILTER_PASS
+	bar.add_child(col)
 
-	# 左：标题 + 难度
+	var row1 := HBoxContainer.new()
+	row1.add_theme_constant_override("separation", 5)
+	row1.mouse_filter = Control.MOUSE_FILTER_PASS
+	col.add_child(row1)
+
+	var row2 := HBoxContainer.new()
+	row2.add_theme_constant_override("separation", 5)
+	row2.mouse_filter = Control.MOUSE_FILTER_PASS
+	col.add_child(row2)
+
+	# ===== 第一行：标题 + 难度 + 线型 + 性质 + 右上关键操作（人物星型/推理链/焦点/撤销/重做/提交验证/求助/关闭）=====
 	var title := Label.new()
 	title.text = "推理墙 — %s" % _case_name
 	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", COL_GOLD)
-	title.custom_minimum_size = Vector2(230, 54)
-	row.add_child(title)
+	title.custom_minimum_size = Vector2(196, 46)
+	row1.add_child(title)
 
 	var diff_lbl := Label.new()
 	diff_lbl.text = "难度：%s" % ["简单", "普通", "困难"][_difficulty]
-	diff_lbl.add_theme_font_size_override("font_size", 18)
+	diff_lbl.add_theme_font_size_override("font_size", 16)
 	diff_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
-	diff_lbl.custom_minimum_size = Vector2(96, 54)
-	row.add_child(diff_lbl)
+	diff_lbl.custom_minimum_size = Vector2(72, 46)
+	row1.add_child(diff_lbl)
 
-	row.add_child(_mk_sep())
+	row1.add_child(_mk_sep())
 
-	# 线型（确定性）：实线=已确认 / 虚线=存疑
 	var lt_lbl := Label.new()
 	lt_lbl.text = "线型"
-	lt_lbl.add_theme_font_size_override("font_size", 18)
+	lt_lbl.add_theme_font_size_override("font_size", 16)
 	lt_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
-	row.add_child(lt_lbl)
+	lt_lbl.custom_minimum_size = Vector2(28, 46)
+	row1.add_child(lt_lbl)
 	_pen_solid_btn = _mk_top_btn("实线", true)
 	_pen_solid_btn.pressed.connect(func(): _set_pen_dashed(false))
-	row.add_child(_pen_solid_btn)
+	row1.add_child(_pen_solid_btn)
 	_pen_dashed_btn = _mk_top_btn("虚线", false)
 	_pen_dashed_btn.add_theme_color_override("font_color", COL_GREY)
 	_pen_dashed_btn.pressed.connect(func(): _set_pen_dashed(true))
-	row.add_child(_pen_dashed_btn)
+	row1.add_child(_pen_dashed_btn)
 
-	row.add_child(_mk_sep())
+	row1.add_child(_mk_sep())
 
-	# 颜色（关系性质）：绿=支持 / 橙=矛盾存疑 / 红=反对 / 灰=弱关联
 	var col_lbl := Label.new()
 	col_lbl.text = "性质"
-	col_lbl.add_theme_font_size_override("font_size", 18)
+	col_lbl.add_theme_font_size_override("font_size", 16)
 	col_lbl.add_theme_color_override("font_color", Color(0.65, 0.60, 0.50))
-	row.add_child(col_lbl)
+	col_lbl.custom_minimum_size = Vector2(28, 46)
+	row1.add_child(col_lbl)
 	var ck := ["green", "orange", "red", "grey"]
 	var cl := ["支持", "矛盾存疑", "反对", "弱关联"]
 	for i in ck.size():
 		var b := _mk_top_btn(cl[i], i == 0)
-		b.add_theme_color_override("font_color", _gw_color(cl[i]))
+		b.add_theme_color_override("font_color", _gw_color(ck[i]))
 		var key: String = ck[i]
 		b.pressed.connect(func(): _set_pen_color(key))
 		_color_btns[key] = b
-		row.add_child(b)
+		row1.add_child(b)
 
-	row.add_child(_mk_sep())
+	row1.add_child(_mk_sep())
 
-	# 搜索（P0）：LineEdit + Enter 触发，匹配节点高亮+飞达
+	# 弹簧把右侧关键操作推右，窗口变宽时仍保持可见
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row1.add_child(spacer)
+
+	# 视图模式（右上可见）
+	_mode_c_btn = _mk_top_btn("● 人物星型", true)
+	_mode_c_btn.pressed.connect(_on_top_mode.bind(0))
+	row1.add_child(_mode_c_btn)
+	_mode_b_btn = _mk_top_btn("推理链", false)
+	_mode_b_btn.pressed.connect(_on_top_mode.bind(1))
+	row1.add_child(_mode_b_btn)
+
+	# 焦点人物下拉
+	_top_focus_sel = OptionButton.new()
+	_top_focus_sel.add_theme_font_size_override("font_size", 14)
+	_top_focus_sel.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	_top_focus_sel.custom_minimum_size = Vector2(120, 44)
+	_top_focus_sel.tooltip_text = "切换焦点人物（星型中心）"
+	_top_focus_sel.item_selected.connect(_on_top_focus_selected)
+	row1.add_child(_top_focus_sel)
+
+	_top_undo_btn = _mk_top_btn("↶", false)
+	_top_undo_btn.tooltip_text = "撤销 (Ctrl+Z)"
+	_top_undo_btn.custom_minimum_size = Vector2(44, 44)
+	_top_undo_btn.pressed.connect(_on_top_undo)
+	row1.add_child(_top_undo_btn)
+	_top_redo_btn = _mk_top_btn("↷", false)
+	_top_redo_btn.tooltip_text = "重做 (Ctrl+Y)"
+	_top_redo_btn.custom_minimum_size = Vector2(44, 44)
+	_top_redo_btn.pressed.connect(_on_top_redo)
+	row1.add_child(_top_redo_btn)
+
+	# 提交验证（右上关键按钮）
+	_top_verify_btn = _mk_top_btn("✓ 提交验证", false)
+	_top_verify_btn.tooltip_text = "提交当前推理，正式判定（可推进剧情）"
+	_top_verify_btn.custom_minimum_size = Vector2(130, 44)
+	_top_verify_btn.pressed.connect(_on_verify_pressed)
+	row1.add_child(_top_verify_btn)
+
+	var help_btn := _mk_top_btn("❓ 求助", false)
+	help_btn.pressed.connect(_on_help_pressed)
+	row1.add_child(help_btn)
+
+	var close_btn := _mk_top_btn("✕", false)
+	close_btn.add_theme_color_override("font_color", Color(0.85, 0.5, 0.5))
+	close_btn.custom_minimum_size = Vector2(44, 44)
+	close_btn.pressed.connect(_on_back_pressed)
+	row1.add_child(close_btn)
+
+	# ===== 第二行：搜索 + 过滤 + 折叠 + 导出 + 连线 =====
 	var search_edit := LineEdit.new()
 	search_edit.placeholder_text = "🔍 搜索线索/推断/人物..."
 	search_edit.add_theme_font_size_override("font_size", 14)
-	search_edit.custom_minimum_size = Vector2(180, 32)
+	search_edit.custom_minimum_size = Vector2(180, 40)
 	search_edit.tooltip_text = "输入关键词，Enter 跳转"
 	search_edit.text_submitted.connect(func(t: String): _on_search_submitted(t))
-	row.add_child(search_edit)
+	row2.add_child(search_edit)
 	_search_edit = search_edit
 
-	# 状态过滤（P0）：排除已排除/只看待查
 	var filter_sel := OptionButton.new()
 	filter_sel.add_theme_font_size_override("font_size", 14)
-	filter_sel.custom_minimum_size = Vector2(110, 32)
+	filter_sel.custom_minimum_size = Vector2(100, 40)
 	filter_sel.tooltip_text = "按标记过滤显示"
 	filter_sel.add_item("全部", 0)
 	filter_sel.add_item("已排除", 1)
 	filter_sel.add_item("待查", 2)
 	filter_sel.add_item("关键", 3)
 	filter_sel.item_selected.connect(_on_filter_selected)
-	row.add_child(filter_sel)
+	row2.add_child(filter_sel)
 	_filter_sel = filter_sel
 
-	# 折叠当前人物（P0）
 	var fold_btn := _mk_top_btn("🪗 折叠", true)
 	fold_btn.tooltip_text = "折叠/展开当前焦点人物的关联线索"
 	fold_btn.pressed.connect(_on_toggle_fold)
-	row.add_child(fold_btn)
+	row2.add_child(fold_btn)
 	_fold_btn = fold_btn
 
-	# 导出（P2）
 	var export_btn := _mk_top_btn("📤 导出", true)
 	export_btn.tooltip_text = "导出推理进度为 Markdown 文本"
 	export_btn.pressed.connect(_on_export_pressed)
-	row.add_child(export_btn)
+	row2.add_child(export_btn)
 	_export_btn = export_btn
+
+	row2.add_child(_mk_sep())
 
 	_connect_btn = _mk_top_btn("🔗 连线", false)
 	_connect_btn.tooltip_text = "开启后：依次点两个节点 = 建立连线；两节点已有连线时再点两次 = 取消该连线"
-
-	row.add_child(_mk_sep())
 	_connect_btn.pressed.connect(_on_top_connect_toggle)
-	row.add_child(_connect_btn)
+	row2.add_child(_connect_btn)
 
-	row.add_child(_mk_sep())
-
-	# 视图模式：星型 / 链
-	_mode_c_btn = _mk_top_btn("● 人物星型", true)
-	_mode_c_btn.pressed.connect(_on_top_mode.bind(0))
-	row.add_child(_mode_c_btn)
-	_mode_b_btn = _mk_top_btn("推理链", false)
-	_mode_b_btn.pressed.connect(_on_top_mode.bind(1))
-	row.add_child(_mode_b_btn)
-
-	# 焦点下拉
-	_top_focus_sel = OptionButton.new()
-	_top_focus_sel.add_theme_font_size_override("font_size", 14)
-	_top_focus_sel.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	_top_focus_sel.custom_minimum_size = Vector2(150, 50)
-	_top_focus_sel.tooltip_text = "切换焦点人物（星型中心）"
-	_top_focus_sel.item_selected.connect(_on_top_focus_selected)
-	row.add_child(_top_focus_sel)
-
-	# 弹簧，把右侧按钮推到最右
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
-
-	# 撤销 / 重做
-	_top_undo_btn = _mk_top_btn("↶", false)
-	_top_undo_btn.tooltip_text = "撤销 (Ctrl+Z)"
-	_top_undo_btn.custom_minimum_size = Vector2(52, 50)
-	_top_undo_btn.pressed.connect(_on_top_undo)
-	row.add_child(_top_undo_btn)
-	_top_redo_btn = _mk_top_btn("↷", false)
-	_top_redo_btn.tooltip_text = "重做 (Ctrl+Y)"
-	_top_redo_btn.custom_minimum_size = Vector2(52, 50)
-	_top_redo_btn.pressed.connect(_on_top_redo)
-	row.add_child(_top_redo_btn)
-
-	# 提交验证（问题2）：图谱为主视图时底部「提交验证」面板被隐藏，顶栏补一个等价入口
-	_top_verify_btn = _mk_top_btn("✓ 提交验证", false)
-	_top_verify_btn.tooltip_text = "提交当前推理，正式判定（可推进剧情）"
-	_top_verify_btn.custom_minimum_size = Vector2(150, 50)
-	_top_verify_btn.pressed.connect(_on_verify_pressed)
-	row.add_child(_top_verify_btn)
-
-	var help_btn := _mk_top_btn("❓ 求助", false)
-	help_btn.pressed.connect(_on_help_pressed)
-	row.add_child(help_btn)
-
-	var close_btn := _mk_top_btn("✕", false)
-	close_btn.add_theme_color_override("font_color", Color(0.85, 0.5, 0.5))
-	close_btn.custom_minimum_size = Vector2(52, 50)
-	close_btn.pressed.connect(_on_back_pressed)
-	row.add_child(close_btn)
+	_sync_top_bar()
 
 	return bar
 
 
 func _mk_sep() -> Control:
 	var s := VSeparator.new()
-	s.custom_minimum_size = Vector2(8, 30)
+	s.custom_minimum_size = Vector2(6, 40)
 	return s
 
 
@@ -519,9 +528,9 @@ func _mk_top_btn(text: String, active: bool) -> Button:
 	b.text = text
 	b.toggle_mode = true
 	b.button_pressed = active
-	b.add_theme_font_size_override("font_size", 20)
+	b.add_theme_font_size_override("font_size", 16)
 	b.add_theme_color_override("font_color", COL_GOLD if active else COL_GOLD_LIGHT)
-	b.custom_minimum_size = Vector2(110, 50)
+	b.custom_minimum_size = Vector2(64, 42)
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color(0.30, 0.24, 0.14, 0.95) if active else Color(0.16, 0.13, 0.08, 0.95)
 	s.border_color = COL_GOLD if active else Color(0.45, 0.38, 0.20)
@@ -817,7 +826,7 @@ func _create_center_panel() -> Control:
 
 	_status_lbl = Label.new()
 	_status_lbl.text = "点击左侧线索推入关联面板，再次点击可移除；点右上「🔗连线」可拖拽线索/假设互建关系"
-	_status_lbl.add_theme_font_size_override("font_size", 13)
+	_status_lbl.add_theme_font_size_override("font_size", 16)
 	_status_lbl.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
 	_status_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1150,7 +1159,7 @@ func _make_clue_card(clue: Dictionary) -> Button:
 	card.tooltip_text = clue.get("desc", "")
 	card.custom_minimum_size = Vector2(200, 72)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.add_theme_font_size_override("font_size", 15)
+	card.add_theme_font_size_override("font_size", 18)
 
 	var sn := StyleBoxFlat.new()
 	match state:

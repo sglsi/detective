@@ -321,3 +321,7 @@ NO other objects, isolated, game asset
 - **提交验证按钮**：由 reasoning_wall 的常驻顶部栏（z=100，始终盖在图谱之上）提供，图谱自身工具栏默认 `_show_toolbar=false`，避免重复工具栏。
 - **连线交互**：点击连线命中检测（采样二次贝塞尔曲线 ×0.01 步长，容差 16px）弹出浮动菜单，支持删除连线 / 线型(dashed)切换 / 关系性质切换（relate→support→oppose→contradict）。关系变更统一走 `_undo` + `_do_*` → `_cb_relations_changed` → `_persist_view` → `_rebuild_graph()` 模式（`_redraw_all()` 不会重建 `_edge_list`）。
 - **约束**：GDScript 只要关系字典就用 `r.get(...)`/`r["..."]`；`_relations` 元素是 Dictionary，可用 `e.dashed` 点读、写用 `e["dashed"]=...` 更稳妥。
+- **响应式顶栏**：`reasoning_wall._create_top_bar` 用 VBoxContainer(col) 拆两行——row1 关键控件（标题/难度/线型/性质/人物星型/推理链/焦点/撤销/重做/提交验证/求助/关闭）、row2 次要工具（搜索/过滤/折叠/导出/连线）。顶栏 `offset_bottom=110`，图谱 `mid.offset_top=110`；`_mk_top_btn` 字号 16/最小 64x42，`_mk_sep`=6x40。此前单条 HBox 合计约 2450px 超出窗口导致「人物星型/推理链/提交验证」被挤出屏幕。
+- **字号统一**：顶栏按钮 16、左栏“已收集线索”线索卡 18、连线说明 16；图谱节点 name≈40/sub≈20 为展示级字号，未改。「推理墙-血字的研究」标题保持原样（38）。
+- **已知缺口（左栏拖入图谱）**：图谱为默认主视图且是全屏 FULL_RECT 覆盖层，打开即 `_left_panel.visible=false`，故左栏“已收集线索”在图谱模式下不可见、无法拖入。要支持拖入需给图谱留出左侧区域并缩放其内部坐标（图谱节点位置按全窗口持久化，缩小会溢出），属结构性改动且无法 headless 可视验证，暂未实现。
+- **验证命令**：`GODOT --headless --path . --script res://tools/test_wall_interact.gd`（顶栏按钮）与 `res://tools/test_wall_relations.gd`（边/关系链路）均 PASS；`test_wall_drag.gd` 在 headless 下因卡片重叠存在环境性失败。
