@@ -186,6 +186,12 @@ var _link_popup_clue_id: String = ""
 var _drag_color_key: String = "green"
 var _drag_dashed: bool = false
 
+# === 连线选中/编辑（点击连线弹出右键菜单）===
+var _selected_edge: int = -1      # _edge_list 中被点击选中的连线下标；-1 表示未选中
+var _edge_menu: Control = null    # 连线右键浮动菜单
+var _press_pos: Vector2 = Vector2.ZERO   # 画布左键按下时的视口坐标
+var _press_moved: bool = false           # 按下后是否发生拖拽（用于区分点击与拖拽平移）
+
 # === P0/P1/P2 新增状态（搜索/状态标记/折叠/导出）===
 var _search_query: String = ""
 var _status_filter: String = "all"   # all/excluded/pending/key
@@ -2379,9 +2385,13 @@ func _on_canvas_gui(event: InputEvent) -> void:
 				return
 			if event.pressed:
 				_panning = true
-				_pan_last = get_viewport().get_mouse_position()
+				_press_pos = get_viewport().get_mouse_position()
+				_pan_last = _press_pos
+				_press_moved = false
 			else:
 				_panning = false
+				if not _press_moved:
+					_on_canvas_left_click(get_viewport().get_mouse_position())
 		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			# 连线模式下：右键点击空白 = 退出连线模式
 			if _connect_mode:
@@ -2389,9 +2399,171 @@ func _on_canvas_gui(event: InputEvent) -> void:
 				return
 	elif event is InputEventMouseMotion and _panning:
 		var gp := get_viewport().get_mouse_position()
+		if _press_pos.distance_to(gp) > 5.0:
+			_press_moved = true
 		_canvas.position += gp - _pan_last
 		_pan_last = gp
 
+
+func _on_canvas_left_click(viewport_pos: Vector2) -> void:
+	if _connect_mode:
+		return
+	var lp := (viewport_pos - _canvas.position) / _canvas.scale
+	var ei := _edge_hit_test(lp)
+	if ei >= 0:
+		_select_edge(ei, viewport_pos)
+	else:
+		_selected_edge = -1
+		_close_edge_menu()
+	_redraw_all()
+
+func _bezier(a: Vector2, ctrl: Vector2, b: Vector2, t: float) -> Vector2:
+	var u := 1.0 - t
+	return a * u * u + ctrl * 2.0 * u * t + b * t * t
+
+func _edge_hit_test(lp: Vector2) -> int:
+	var best := -1
+	var best_d := 16.0
+	for ei in _edge_list.size():
+		var e: Dictionary = _edge_list[ei]
+		var a: Vector2 = _node_center.get(e.get("from", ""), Vector2(-1e6, -1e6))
+		var b: Vector2 = _node_center.get(e.get("to", ""), Vector2(-1e6, -1e6))
+		if a.x < -1e5 or b.x < -1e5:
+			continue
+		var mid := (a + b) / 2.0
+		var delta := b - a
+		var perp := Vector2(-delta.y, delta.x).normalized() * 50.0
+		var ctrl := mid + perp
+		var dmin := 1e9
+		var t := 0.0
+		while t <= 1.0:
+			var p := _bezier(a, ctrl, b, t)
+			var d := lp.distance_to(p)
+			if d < dmin:
+				dmin = d
+			t += 0.01
+		if dmin < best_d:
+			best_d = dmin
+			best = ei
+	return best
+
+func _select_edge(ei: int, viewport_pos: Vector2) -> void:
+	_selected_edge = ei
+	_show_edge_menu(viewport_pos, _edge_list[ei])
+	_toast_msg("已选中连线")
+
+func _show_edge_menu(viewport_pos: Vector2, e: Dictionary) -> void:
+	_close_edge_menu()
+	var panel := PanelContainer.new()
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	var lab := Label.new()
+	lab.text = "连线：%s → %s（%s）" % [e.get("from", ""), e.get("to", ""), _rel_verb(e.get("kind", ""))]
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(lab)
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
+	var b_del := _mk_menu_btn("✕  删除连线")
+	b_del.pressed.connect(func() -> void: _edge_delete(e))
+	vbox.add_child(b_del)
+	var b_dash := _mk_menu_btn("⊸  线型切换")
+	b_dash.pressed.connect(func() -> void: _edge_toggle_dashed(e))
+	vbox.add_child(b_dash)
+	var b_kind := _mk_menu_btn("↻  性质切换")
+	b_kind.pressed.connect(func() -> void: _edge_cycle_kind(e))
+	vbox.add_child(b_kind)
+	panel.add_child(vbox)
+	panel.position = viewport_pos + Vector2(8, 8)
+	add_child(panel)
+	panel.gui_input.connect(func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			var lp := (get_global_mouse_position() - _canvas.position) / _canvas.scale
+			if _edge_hit_test(lp) != _selected_edge:
+				_selected_edge = -1
+				_close_edge_menu()
+			_redraw_all()
+	)
+	_edge_menu = panel
+
+func _mk_menu_btn(txt: String) -> Button:
+	var b := Button.new()
+	b.text = txt
+	b.custom_minimum_size = Vector2(180, 30)
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	return b
+
+func _close_edge_menu() -> void:
+	if _edge_menu and is_instance_valid(_edge_menu):
+		_edge_menu.queue_free()
+	_edge_menu = null
+
+func _edge_delete(e: Dictionary) -> void:
+	if _state != State.EDITABLE:
+		_toast_msg("已封存，仅可浏览")
+		return
+	_remove_edge(e.get("from", ""), e.get("to", ""), e.get("kind", ""))
+	_close_edge_menu()
+	_selected_edge = -1
+	_toast_msg("连线已删除")
+
+func _edge_toggle_dashed(e: Dictionary) -> void:
+	if _state != State.EDITABLE:
+		_toast_msg("已封存，仅可浏览")
+		return
+	var from: String = e.get("from", "")
+	var to: String = e.get("to", "")
+	var kind: String = e.get("kind", "")
+	var new_dash: bool = not bool(e.get("dashed", false))
+	_undo.create_action("toggle_edge_dashed")
+	_undo.add_do_method(_do_set_dashed.bind(from, to, kind, new_dash))
+	_undo.add_undo_method(_do_set_dashed.bind(from, to, kind, not new_dash))
+	_undo.commit_action()
+	_close_edge_menu()
+	if _cb_relations_changed.is_valid():
+		_cb_relations_changed.call(_relations.duplicate())
+	_persist_view()
+	_rebuild_graph()
+	_toast_msg("线型已切换")
+
+func _do_set_dashed(from: String, to: String, kind: String, dashed: bool) -> void:
+	for r in _relations:
+		if r.from == from and r.to == to and r.kind == kind:
+			r["dashed"] = dashed
+			break
+
+func _edge_cycle_kind(e: Dictionary) -> void:
+	if _state != State.EDITABLE:
+		_toast_msg("已封存，仅可浏览")
+		return
+	var KINDS: Array[String] = ["relate", "support", "oppose", "contradict"]
+	var from: String = e.get("from", "")
+	var to: String = e.get("to", "")
+	var old_kind: String = e.get("kind", "relate")
+	var idx: int = KINDS.find(old_kind)
+	var new_kind: String = KINDS[(idx + 1) % KINDS.size()]
+	var dashed: bool = e.get("dashed", false)
+	_undo.create_action("change_edge_kind")
+	_undo.add_do_method(_do_change_edge_kind.bind(from, to, old_kind, dashed, new_kind))
+	_undo.add_undo_method(_do_change_edge_kind.bind(from, to, new_kind, dashed, old_kind))
+	_undo.commit_action()
+	_close_edge_menu()
+	if _cb_relations_changed.is_valid():
+		_cb_relations_changed.call(_relations.duplicate())
+	_persist_view()
+	_rebuild_graph()
+	_toast_msg("连线性质已切换为 %s" % _rel_verb(new_kind))
+
+func _do_change_edge_kind(from: String, to: String, old_kind: String, dashed: bool, new_kind: String) -> void:
+	var changed := false
+	for r in _relations:
+		if r.from == from and r.to == to and r.kind == old_kind:
+			r["kind"] = new_kind
+			r["dashed"] = dashed
+			r["color_key"] = kind_to_key(new_kind)
+			changed = true
+			break
+	if not changed:
+		_relations.append({"from": from, "to": to, "kind": new_kind, "color_key": kind_to_key(new_kind), "dashed": dashed})
 
 func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 	var old_scale := _zoom
@@ -2698,4 +2870,5 @@ func _input(event: InputEvent) -> void:
 			_on_redo()
 		elif event.keycode == KEY_ESCAPE:
 			get_viewport().set_input_as_handled()
-			_on_close_pressed()
+			# 延迟到帧末，避免在 _input 内直接销毁节点导致卡死（Web导出易复现）
+			call_deferred("_on_close_pressed")
