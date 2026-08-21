@@ -56,3 +56,7 @@ godot_project/tools/models/_*.png
 # ===== ÊÖ¶¯²âÊÔ²úÉúµÄÀ¬»ø£¨ËûÈË±¾µØ½ØÍ¼/´íÎóÈÕÖ¾/Â¼ÆÁÄ¿Â¼£¬·ÇÔ´Âë£©=====
 godot_project/tools/ck_*
 godot_project/tools/shots/
+
+# Godot æŒä¹…åŒ–å·¥å…·é“¾ï¼ˆå¤§ä½“ç§¯ï¼Œä¸å…¥åº“ï¼‰
+/tools/godot/
+/godot_project/web_build/
