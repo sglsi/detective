@@ -310,8 +310,16 @@ NO other objects, isolated, game asset
 ```
 
 ### 沙箱（Coze/Linux）Godot 工具链
-- **Godot 编辑器**：`/workspace/tools/godot/editor_extract/Godot_v4.7.1-stable_linux.x86_64`
-- **Web 导出模板**：`~/.local/share/godot/export_templates/4.7.1.stable/web_nothreads_release.zip`（联网下载慢，优先用 `gh.ddlc.top` 代理 + 分片 Range 并行下载，文件落 `/workspace/tools/godot/`，该目录持久的）
+
+> ⚠️ **持久化位置 = `/workspace/projects/tools/godot/`（项目工作区内）。** `/workspace/tools`、`/root`、`/tmp` 都是**非持久**的（沙箱周期性回收容器 overlay 可写层，只对受托管的项目工作区做快照），不要再把工具链装到这些地方。
+> **首次（或工具被清后）只需重新播种一次：** 从 `gh.ddlc.top` 代理下载 Godot 编辑器 zip + 导出模板 tpz（分片 Range 并行），把**编辑器 zip + 4 个 Web 模板 zip**（`web_release/web_nothreads_release/web_nothreads_debug/web_debug`）存到 `tools/godot/`，tpz 用完即删（约 1.3GB，勿入库）。此后运行 `bash tools/godot/setup_godot.sh` 幂等解压编辑器、软链模板到运行路径，**不再联网**。
+
+- **持久存档**：`/workspace/projects/tools/godot/`（含 `godot_editor.zip`、4 个 Web 模板 zip、`setup_godot.sh`；已 `/tools/godot/` 加入 `.gitignore`）
+- **bootstrap（每次会话若工具缺失先跑一次）**：`bash /workspace/projects/tools/godot/setup_godot.sh`
+  - 解压编辑器到 `tools/godot/editor_extract/`
+  - 把 `web_*.zip` 软链到 `~/.local/share/godot/export_templates/4.7.1.stable/`
+- **Godot 编辑器**：`/workspace/projects/tools/godot/editor_extract/Godot_v4.7.1-stable_linux.x86_64`
+- **Web 导出模板（运行路径）**：`~/.local/share/godot/export_templates/4.7.1.stable/web_nothreads_release.zip`（软链自持久区的同名 zip；持久源在 `tools/godot/`）
 - **沙箱导出命令**：`cd godot_project && GODOT --headless --path . --export-release "Web"`（产物写 `web_build/`，预览即 proxy 上 5000 服务 `web_build/`）
 - **脚本语法校验**：`GODOT --headless --path . -s <脚本>.gd`（项目把 Variant 推断等 GDScript 警告当作错误，新增脚本必须显式类型标注）
 - **封存后不可预览时**：推理墙图谱改动在 `godot_project/scripts/clue/`，改完必须重新导出 Web 才生效，仅改源码不重新导出会造成"预览仍是旧版"。
