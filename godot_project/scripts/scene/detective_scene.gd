@@ -375,7 +375,15 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var src := source if not use_case_wide else clue_source()
 	var pool: Array = _clues
 	if ClueSystem != null:
-		pool = ClueSystem.get_collected("") if use_case_wide else ClueSystem.get_collected(src)
+		var _collected := ClueSystem.get_collected("" if use_case_wide else src)
+		# #3 教学示范（华生/信使）线索不进入真正案件的「全案池」——场景一的示范观察不属于真实案件
+		if use_case_wide:
+			pool = []
+			for _c in _collected:
+				if ["watson", "messenger"].has(_c.get("source", "")): continue
+				pool.append(_c)
+		else:
+			pool = _collected
 	if (ClueSystem and ClueSystem.count_collected("") == 0) and _clues.is_empty():
 		_ui.show_notification("推理墙需要至少一条线索才能打开。"); return
 	# REASONING 阶段打开的墙（自动弹出或手动重开）验证后必须推进过渡；
