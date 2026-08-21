@@ -325,3 +325,7 @@ NO other objects, isolated, game asset
 - **字号统一**：顶栏按钮 16、左栏“已收集线索”线索卡 18、连线说明 16；图谱节点 name≈40/sub≈20 为展示级字号，未改。「推理墙-血字的研究」标题保持原样（38）。
 - **已知缺口（左栏拖入图谱）**：图谱为默认主视图且是全屏 FULL_RECT 覆盖层，打开即 `_left_panel.visible=false`，故左栏“已收集线索”在图谱模式下不可见、无法拖入。要支持拖入需给图谱留出左侧区域并缩放其内部坐标（图谱节点位置按全窗口持久化，缩小会溢出），属结构性改动且无法 headless 可视验证，暂未实现。
 - **验证命令**：`GODOT --headless --path . --script res://tools/test_wall_interact.gd`（顶栏按钮）与 `res://tools/test_wall_relations.gd`（边/关系链路）均 PASS；`test_wall_drag.gd` 在 headless 下因卡片重叠存在环境性失败。
+- **节点卡片自适应（#1）**：`graph_view_controller._make_node` 不再用固定尺寸，据 `label` 长度自适应卡片宽（约 28px/字，封顶 480）并按换行数扩高；位置由 620 行 `position=center-size*0.5` 重新居中，边/菜单锚 `_node_center` 不受影响。name 标签加了 `autowrap_mode=WORD_SMART`。
+- **教学线索不进入真实案件（#3）**：场景一示范为 source `watson`/`messenger`，`detective_scene._open_wall` 在 `use_case_wide`（场景二后全案池）时过滤掉这两个 source，避免华生/信使教学线索混入后续案件图谱。
+- **每堵墙独立验证（#2）**：scene1 的华生与信使墙共享 `_wall_state`，华生墙验证后 `verified=true` 会泄漏进信使墙导致图谱锁定不可拖动；`_show_messenger_reasoning_wall` 打开前重置 `_wall_state["verified"]=false`。
+- **双级存储（#4）**：`reasoning_wall._on_back_pressed` 退出墙只调 `_persist_state()`（内存态 `_state_store`，即临时存储），不再调用 `_on_persist`（落盘）。长期存储（写档）只由 ①手动存档（side_panel）②场景结束自动存档（`_save_and_transition`/`_save_and_continue`）触发，二者会快照当前内存态。场景二后的基类 `_do_save` 目前只写 `clue_ids`，wall 布局只在 scene1 的 `_do_save` 写入存档。

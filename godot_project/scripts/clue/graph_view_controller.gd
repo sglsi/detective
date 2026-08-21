@@ -1080,16 +1080,21 @@ func _make_node(nd: Dictionary) -> Control:
 	var gc = GraphCard.new()
 	card = gc
 	# 大小按类型给（中文文本可能变宽，故预留；字号已×2，尺寸同步放大）
-	if is_person:
-		card.custom_minimum_size = Vector2(360, 170); card.size = Vector2(360, 170)
-	elif is_concl:
-		card.custom_minimum_size = Vector2(320, 160); card.size = Vector2(320, 160)
-	elif is_chain:
-		card.custom_minimum_size = Vector2(250, 120); card.size = Vector2(250, 120)
-	elif is_hypo:
-		card.custom_minimum_size = Vector2(280, 130); card.size = Vector2(280, 130)
-	else:
-		card.custom_minimum_size = Vector2(320, 130); card.size = Vector2(320, 130)
+	# #1 自适应：卡片尺寸随姓名文字长度增长（约 28px/字，字号28），封顶 480 后自动换行扩高
+	# 位置由调用方按 _node_center - size*0.5 重新居中，边/菜单以中心为锚，连线不受影响
+	var _base_w: float = 360.0; var _base_h: float = 150.0
+	if is_person: _base_w = 360.0; _base_h = 170.0
+	elif is_concl: _base_w = 320.0; _base_h = 160.0
+	elif is_chain: _base_w = 250.0; _base_h = 120.0
+	elif is_hypo: _base_w = 280.0; _base_h = 130.0
+	else: _base_w = 320.0; _base_h = 130.0
+	var _name_len := str(nd.get("label", "")).length()
+	var _est_w: float = 30.0 + float(_name_len) * 28.0
+	var _nw := clampf(maxf(_base_w, _est_w), _base_w, 480.0)
+	var _per_line := maxi(3, int((_nw - 24.0) / 28.0))
+	var _lines := maxi(1, int(ceil(float(_name_len) / float(_per_line))))
+	var _nh := _base_h + (_lines - 1) * 34
+	card.custom_minimum_size = Vector2(_nw, _nh); card.size = Vector2(_nw, _nh)
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var style := StyleBoxFlat.new()
@@ -1209,6 +1214,7 @@ func _make_node(nd: Dictionary) -> Control:
 
 	var lab = Label.new()
 	lab.text = nd.get("label", "")
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART  # #1 宽度封顶时换行，避免长文本截断
 	lab.add_theme_font_size_override("font_size", 28)
 	lab.add_theme_color_override("font_color", COL_TEXT_RED if text_red else COL_TEXT_DARK)
 	lab.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER

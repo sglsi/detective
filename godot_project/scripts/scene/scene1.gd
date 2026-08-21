@@ -523,6 +523,9 @@ func _show_messenger_reasoning_wall() -> void:
 			{"id":"MM-3","text":"袖口磨损/跛行为干扰项，非身份证据"},
 		],
 	}
+	# #2 修复：信使(教学示范)墙与华生墙共享 _wall_state，华生墙验证后 verified=true 泄漏，
+	# 使信使墙以「已提交」锁定态打开→图谱节点全部不可拖动。每堵墙独立验证，故重置 verified。
+	_wall_state["verified"] = false
 	_open_wall("messenger", hypo, func(v: int):
 		_messenger_v = v
 		_calc_stars(); _show_commission_letter_dialogue()

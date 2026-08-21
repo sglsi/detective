@@ -2617,9 +2617,9 @@ func _on_back_pressed() -> void:
 		_close_history_panel()
 		return
 	_persist_state()
-	# 关墙即把最新图谱状态（节点位置/折叠/关系）落盘，避免「拖动位置没存、读档回默认」（Bug1）
-	if _on_persist.is_valid():
-		_on_persist.call()
+	# #4 双级存储：退出推理墙仅作「临时存储」——把图谱状态写进内存态 _state_store（随当前会话存活），
+	# 不写入游戏存档。长期存储(写档)只由手动存档、场景结束自动存档触发（各场景 _do_save / _save_and_transition）。
+	# 故原「关墙即 _on_persist（落盘）」已移除，实现「退出推理墙=临时存储」的需求。
 	# 已提交验证且本墙为「验证后自动推进」类型（推理阶段打开）：关墙即推进剧情，
 	# 解决「提交验证后用返回/X 关墙（而非点确定）导致卡在推理阶段」的问题。
 	if _verified and _on_advance.is_valid():
