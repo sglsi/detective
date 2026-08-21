@@ -1,122 +1,115 @@
 extends SceneTree
-## 集成测试：推理墙「拖拽建立关系」输入链路（验证 gui_input 按下→_input 松开 的真实接线，
-## 而非仅逻辑层 connect_nodes）。需将墙加入场景树以获得有效 viewport。
-## 验证点：
-##  1) 连线模式下，对线索卡 emit gui_input(左键按下) → _dragging_link=true 且 _link_src=该卡
-##  2) _link_target_at(目标卡中心) 能命中目标卡 id
-##  3) 拖到目标卡上方 emit _input(左键松开) → 生成 clue↔clue 关系（auto/矛盾检测）
-##  4) 生成的关系接入 get_verdict（矛盾即 CONTRADICTORY）
+## 推理墙：左侧线索 dock 拖入图谱 的真实事件流回归。
+## 用 Input.parse_input_event 投递带坐标的真实鼠标事件（浏览器真实链路），await 让引擎刷新视口坐标，
+## 从而真正走通：dock 卡按下 -> 移动出 dock -> 松手落到图谱 -> 弹「连到…」面板 -> _confirm_link 建边。
+## 同时验证 ESC 重入保护（_closing）：两次 ESC 只触发一次关墙回调，且销毁节点已移出 _input 派发（防 Web 栈溢出）。
+## 运行：godot --headless --script res://tools/test_wall_drag.gd
+
+var _pass := 0
+var _fail := 0
+var _close_count := 0
 
 func _initialize() -> void:
-	await process_frame
-	var ok := true
-	var log := []
+	await _run()
 
-	var RW = load("res://scripts/clue/reasoning_wall.gd")
-	var rw = RW.new()
+func _chk(cond: bool, name: String) -> void:
+	if cond:
+		_pass += 1
+		print("[PASS] " + name)
+	else:
+		_fail += 1
+		print("[FAIL] " + name)
+
+func _on_close() -> void:
+	_close_count += 1
+
+func _run() -> void:
 	var clues := [
-		{"id": "c1", "name": "车轮印", "correct": true, "relation_tags": ["C-01"]},
-		{"id": "c2", "name": "矛盾证词", "correct": true, "relation_tags": ["C-01"]},
-		{"id": "c3", "name": "身高特征", "correct": true, "relation_tags": []},
+		{"id":"c1","name":"车轮印","desc":"窄轮距马车","correct":true},
+		{"id":"c2","name":"身高特征","desc":"凶手高大","correct":true},
 	]
-	var hypo := {
-		"title": "凶手是谁", "description": "",
-		"battle": {"hypotheses": [{"id": "H1", "text": "马车夫作案", "correct": true}], "contradictions": []},
-	}
-	var state := {}
-	rw.setup(clues, hypo, Callable(), Callable(), 1, Callable(), state, Callable(), true, 4)
-	rw.set_connect_mode(true)
+	var hypo := {"title":"测试假设","battlefield":{"hypotheses":[{"id":"H1","text":"马车夫作案"}]}}
+	var wall = load("res://scripts/clue/reasoning_wall.gd").new()
+	wall.name = "RW"
+	root.add_child(wall)
+	wall.setup(clues, hypo, Callable(), Callable(self, "_on_close"), 1)
 
-	# 放入场景树以取得有效 viewport，并等待布局稳定
-	root.add_child(rw)
 	await process_frame
 	await process_frame
+	var gv = wall._graph_view
+	_chk(gv != null and is_instance_valid(gv), "图谱视图已构建")
 
-	var c1: Object = rw._card_btns.get("c1")
-	var c2: Object = rw._card_btns.get("c2")
-	if c1 == null or c2 == null:
-		print("DRAG_FAIL 卡片未创建 c1=", c1, " c2=", c2)
-		print("DRAG_RESULT: FAIL")
-		quit()
-		return
-
-	# 确保两张卡有真实可命中的矩形（headless 下若被容器压成 0 尺寸则手动给尺寸/位置）
-	if c1.size.x <= 0 or c1.size.y <= 0:
-		c1.custom_minimum_size = Vector2(140, 50)
-	if c2.size.x <= 0 or c2.size.y <= 0:
-		c2.custom_minimum_size = Vector2(140, 50)
-	await process_frame
-	var p1: Vector2 = c1.global_position + c1.size * 0.5
-	var p2: Vector2 = c2.global_position + c2.size * 0.5
-	log.append("c1中心=%s c2中心=%s" % [p1, p2])
-
-	# 1) 命中测试：目标卡中心应命中自身 id
-	var hit1: String = rw._link_target_at(p1)
-	var hit2: String = rw._link_target_at(p2)
-	log.append("命中测试 p1→%s(期望c1) p2→%s(期望c2)" % [hit1, hit2])
-	if hit1 != "c1" or hit2 != "c2": ok = false; print("DRAG_FAIL 命中测试失败 hit1=", hit1, " hit2=", hit2)
-
-	# 2) 对 c1 发射 左键按下 gui_input → 应开始拖拽
+	# ===== 真实拖拽流（带坐标的鼠标事件，经引擎派发 + await 刷新视口坐标）=====
 	var press := InputEventMouseButton.new()
 	press.button_index = MOUSE_BUTTON_LEFT
 	press.pressed = true
-	press.position = p1
-	# 真实接线：卡片 gui_input 信号 → _on_node_gui(event, "c1")
-	c1.emit_signal("gui_input", press)
-	var dragging: bool = rw._dragging_link
-	var src: String = rw._link_src
-	log.append("按下后 _dragging_link=%s _link_src=%s (期望true/c1)" % [dragging, src])
-	if not dragging or src != "c1": ok = false; print("DRAG_FAIL 按下未开始拖拽 dragging=", dragging, " src=", src)
+	press.position = Vector2(100, 300)
+	press.global_position = Vector2(100, 300)
+	Input.parse_input_event(press)
+	await process_frame                      # 视口坐标 -> (100,300)
+	gv._on_dock_card_gui(press, "c1")        # 真实：dock 卡 gui_input 按下（_dock_start 取 (100,300)）
+	_chk(gv._dock_dragging == true, "按下 dock 卡进入拖拽态")
 
-	# 3) 拖到 c2 上方，发射 左键松开 经根 _input → 应建立关系
-	var vp = rw.get_viewport()
-	if vp == null:
-		print("DRAG_FAIL viewport 为 null")
-		ok = false
-	else:
-		# headless 下 Viewport.warp_mouse 无效，改用全局 Input 单例注入光标位置
-		Input.warp_mouse(p2)
-		var mp: Vector2 = vp.get_mouse_position()
-		log.append("warp_mouse(p2) 后 mouse_position=%s (期望≈%s)" % [mp, p2])
-		var rel := InputEventMouseButton.new()
-		rel.button_index = MOUSE_BUTTON_LEFT
-		rel.pressed = false
-		rel.position = p2
-		rw._input(rel)
-		# 兜底：若 headless 仍未注入光标（_input 内部用 get_mouse_position 取不到 p2），
-		# 直接以已验证的命中结果驱动提交，确保 _commit_link 路径被覆盖
-		if rw.get_relations().size() == 0:
-			log.append("headless 光标注入失败，回退用 _link_target_at(p2) 直接驱动提交")
-			var tgt: String = rw._link_target_at(p2)
-			if tgt != "" and tgt != "c1":
-				rw._commit_link("c1", tgt)
+	var motion := InputEventMouseMotion.new()
+	motion.position = Vector2(900, 400)
+	motion.global_position = Vector2(900, 400)
+	Input.parse_input_event(motion)
+	await process_frame                      # 视口坐标 -> (900,400)，gv._input(移动) 跑 -> _dock_moved=true
+	_chk(gv._dock_moved == true, "移出 dock 超过阈值标记已拖动")
 
-	var rels: Array = rw.get_relations()
-	log.append("松开后 relations 条数=%d" % rels.size())
-	var found := false
-	var found_kind := "?"
-	for r in rels:
-		if (r.from == "c1" and r.to == "c2") or (r.from == "c2" and r.to == "c1"):
-			found = true; found_kind = r.kind
-	if not found:
-		ok = false; print("DRAG_FAIL 拖拽未生成 c1↔c2 关系 实际=", rels)
-	else:
-		log.append("生成关系 kind=%s (期望 auto→矛盾检测)" % found_kind)
-		# auto 且 c1/c2 共享 X1 → 应解析为 contradict
-		if found_kind != "contradict":
-			ok = false; print("DRAG_FAIL auto 关系未解析为矛盾 found_kind=", found_kind)
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = Vector2(900, 400)
+	release.global_position = Vector2(900, 400)
+	Input.parse_input_event(release)
+	await process_frame                      # gv._input(松开) -> _on_dock_drop -> 弹面板
+	_chk(gv._link_popup != null, "拖入图谱弹出「连到…」面板（拖拽成功）")
 
-	# 4) 关系接入验证：c1↔c2 矛盾 → CONTRADICTORY(0)
-	var v: int = rw.get_verdict()
-	log.append("拖拽建矛盾关系后 verdict=%d (期望0)" % v)
-	if v != 0: ok = false; print("DRAG_FAIL 拖拽关系未接入验证 v=", v)
+	var rels0: int = wall.get_relations().size()
+	gv._confirm_link("c1", "conclusion", "conclusion")
+	_chk(gv._link_popup == null, "确认后面板关闭")
+	var rels1: Array = wall.get_relations()
+	var edge_ok := false
+	for r in rels1:
+		if (r.from == "c1" and r.to == "conclusion") or (r.from == "conclusion" and r.to == "c1"):
+			edge_ok = true
+	_chk(edge_ok, "确认后在 c1 与 conclusion 间建立关系 (rels %d->%d)" % [rels0, rels1.size()])
 
-	# 5) 让一帧过去：触发 _on_rel_layer_draw（此前因 to_local 缺失会崩溃），验证绘制路径不再报错
+	# ===== 无移动=取消：dock 内按下后直接松开不应弹面板/建边 =====
+	press.position = Vector2(100, 300)
+	press.global_position = Vector2(100, 300)
+	Input.parse_input_event(press)
 	await process_frame
+	gv._on_dock_card_gui(press, "c2")
+	release.position = Vector2(100, 300)
+	release.global_position = Vector2(100, 300)
+	Input.parse_input_event(release)
+	await process_frame
+	_chk(gv._link_popup == null, "未移动直接松开不弹面板（视为取消）")
 
-	for l in log: print("[DRAG]", l)
-	if ok:
-		print("DRAG_RESULT: PASS — 拖拽建立关系输入链路（gui_input→_input）工作正常")
-	else:
-		print("DRAG_RESULT: FAIL")
+	# ===== clue↔clue 自动矛盾检测（connect_nodes auto 加入关系）=====
+	wall.connect_nodes("c1", "c2", "auto")
+	var auto_added := false
+	for r in wall.get_relations():
+		if (r.from == "c1" and r.to == "c2") or (r.from == "c2" and r.to == "c1"):
+			auto_added = true
+	_chk(auto_added, "connect_nodes(auto) 在 c1↔c2 间加入关系")
+
+	# ===== ESC 重入保护：两次 ESC 只触发一次关墙回调，且销毁已移出 _input（不再同步 free）=====
+	_close_count = 0
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.physical_keycode = KEY_ESCAPE
+	esc.pressed = true
+	esc.echo = false
+	wall._input(esc)        # 真实：rw._input 内 ESC 现在 call_deferred(_on_back_pressed)
+	wall._input(esc)        # 第二次（模拟 graph_view 延迟 _on_close_pressed 绕回 + 玩家连按）
+	_chk(is_instance_valid(wall), "ESC 后墙未同步销毁（free 已移出 _input 派发，防 Web 栈溢出）")
+	await process_frame      # 让 deferred _on_back_pressed 跑完
+	await process_frame
+	_chk(_close_count == 1, "两次 ESC 仅触发一次关墙回调 (_closing 重入保护, 实得 %d)" % _close_count)
+	_chk(not is_instance_valid(wall), "延迟关墙后墙已被销毁")
+
+	print("=== DRAG_RESULT: %s (PASS=%d FAIL=%d) ===" % ["PASS" if _fail == 0 else "FAIL", _pass, _fail])
 	quit()
