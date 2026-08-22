@@ -959,51 +959,10 @@ func _compute_layout(nodes: Array) -> Dictionary:
 	var saved_pos: Dictionary = _state_store.get("graph_node_positions", {})
 
 	if _mode == ViewMode.MODE_C:
-		# 中心焦点：固定在画布中心
-		out[_focus_person] = center
-
-		# 按 kind 分组（仅含本视图实际展示的节点）
-		var groups := {"conclusion": [], "chain": [], "hypo": [], "clue": []}
-		for nd in nodes:
-			if nd.id == _focus_person: continue
-			if groups.has(nd.kind):
-				groups[nd.kind].append(nd.id)
-
-		# 逐组计算自适应半径
-		var band_radii := {}
-		for k in groups.keys():
-			var ids: Array = groups[k]
-			var n: int = ids.size()
-			if n == 0:
-				band_radii[k] = _RING_BANDS[k].default
-				continue
-			var band: Dictionary = _RING_BANDS[k]
-			var node_w: float = _node_width_for_kind(k)
-			# 最小半径：保证总弧长 ≥ 节点宽 × 节点数 + 20px 余量
-			var min_r_for_fit: float = (node_w * float(n)) / TAU + 20.0
-			var r: float = max(band.default, min_r_for_fit)
-			r = clamp(r, band.min, band.max)
-			band_radii[k] = r
-
-		# 放置
-		for k in groups.keys():
-			var ids: Array = groups[k]
-			var n: int = ids.size()
-			if n == 0: continue
-			var r: float = band_radii[k]
-			for i in n:
-				var id: String = ids[i]
-				var saved_v: Variant = saved_pos.get(id, null)
-				var pos: Vector2
-				if saved_v is Vector2:
-					# 玩家手动位置：钳制到当前 band（防止 mode 切换或节点数变化导致越层）
-					pos = _clamp_to_band(saved_v, center, k)
-				else:
-					# 默认位置：均分圆周，从正上方开始
-					var ang: float = (float(i) / maxi(n, 1)) * TAU - PI * 0.5
-					if n == 1: ang = -PI * 0.5
-					pos = center + Vector2(cos(ang), sin(ang)) * r
-				out[id] = pos
+		# XMind 式自由辐射：中心人物为根，推断/结论/推理链主分支均匀扇出；
+		# 线索沿其佐证分支向外剖列并轻微横向扇出，无佐证线索在外围散布。
+		# 玩家手动拖动过的位置直接沿用（不再按 kind 钳回同心圆 band，见 _clamp_to_canvas）。
+		_xmind_layout(nodes, center, saved_pos, out)
 	else:
 		# 模式 B：保留垂直分层（链式聚焦）
 		out[_focus_person] = center
@@ -1041,6 +1000,83 @@ func _node_width_for_kind(kind: String) -> float:
 
 
 ## 把点钳制到对应 kind 的距离带内（保持「核心 < 结论 < 推断 < 线索」排序）
+# XMind 式布局：以焦点人物为中心，主分支（推断/结论/推理链）扇出，
+# 线索沿其佐证分支向外剖列、轻微横向扇出；无佐证线索在外围柔性散布。
+# 不再按 kind 分层成同心圆；已保存位置直接采用（自由排布，不钳回 ring）。
+func _xmind_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
+	out[_focus_person] = center
+	var mains: Array[String] = []
+	for nd in nodes:
+		var i: String = nd.id
+		if i != _focus_person and (nd.kind == "hypo" or nd.kind == "conclusion" or nd.kind == "chain"):
+			mains.append(i)
+	var n := mains.size()
+	if n == 0:
+		var others: Array[String] = []
+		for nd in nodes:
+			if nd.id != _focus_person:
+				others.append(nd.id)
+		for i2 in others.size():
+			var a2: float = (float(i2) / maxf(float(others.size()), 1.0)) * TAU - PI * 0.5
+			out[others[i2]] = center + Vector2(cos(a2), sin(a2)) * 260.0
+	else:
+		var ang_of := {}
+		for i3 in n:
+			ang_of[mains[i3]] = (float(i3) / float(n)) * TAU - PI * 0.5
+		var r_base: float = clampf(min(_canvas.size.x, _canvas.size.y), 320.0, 900.0) * 0.24
+		if r_base < 140.0:
+			r_base = 140.0
+		for nd2 in nodes:
+			var id2: String = nd2.id
+			if id2 == _focus_person:
+				continue
+			var sv: Variant = saved_pos.get(id2, null)
+			if sv is Vector2:
+				out[id2] = sv
+		var host_cnt := {}
+		for i4 in n:
+			var mid: String = mains[i4]
+			if out.has(mid):
+				continue
+			var a4: float = ang_of[mid]
+			var rr: float = r_base + float(i4 % 3) * 34.0
+			out[mid] = center + Vector2(cos(a4), sin(a4)) * rr
+		var free := 0
+		for cnd in nodes:
+			if cnd.kind != "clue":
+				continue
+			var cid2: String = cnd.id
+			if out.has(cid2):
+				continue
+			var tags: Array = cnd.data.get("relation_tags", []) as Array
+			var host2 := ""
+			for tg in tags:
+				if mains.has(tg):
+					host2 = tg
+					break
+			if host2 == "" and ang_of.has(cnd.data.get("related_to", "")):
+				host2 = cnd.data.get("related_to", "")
+			if host2 != "" and ang_of.has(host2):
+				var a5: float = ang_of[host2]
+				var k5: int = host_cnt.get(host2, 0)
+				host_cnt[host2] = k5 + 1
+				var dir5: Vector2 = Vector2(cos(a5), sin(a5))
+				var perp5: Vector2 = Vector2(-dir5.y, dir5.x)
+				out[cid2] = center + dir5 * (r_base + 185.0 + float(k5) * 74.0) + perp5 * ((float(k5 % 2) * 2.0 - 1.0) * 52.0)
+			else:
+				var a6: float = (float(free) / float(maxi(n, 1))) * TAU + 0.93
+				var rr6: float = r_base * 1.7 + float(free % 3) * 52.0
+				out[cid2] = center + Vector2(cos(a6), sin(a6)) * rr6
+				free += 1
+
+# 灵活布局辅助：仅把节点限制在画布内（XMind 式自由排布，允许任意位置）
+func _clamp_to_canvas(p: Vector2) -> Vector2:
+	var m: float = 60.0
+	var cv: Vector2 = _canvas.size
+	var ox: float = clampf(p.x, m, maxf(cv.x - m, m))
+	var oy: float = clampf(p.y, m, maxf(cv.y - m, m))
+	return Vector2(ox, oy)
+
 func _clamp_to_band(pos: Vector2, center: Vector2, kind: String) -> Vector2:
 	var band: Dictionary = _RING_BANDS.get(kind, _RING_BANDS["clue"])
 	var diff: Vector2 = pos - center
@@ -2893,9 +2929,7 @@ func _input(event: InputEvent) -> void:
 					var mouse_canvas: Vector2 = _canvas.get_global_transform().affine_inverse() * get_viewport().get_mouse_position()
 					var new_pos: Vector2 = mouse_canvas - _drag_offset
 					var new_center: Vector2 = new_pos + n.size * 0.5
-					var center: Vector2 = _canvas.size * 0.5
-					var kind: String = _node_kind.get(_drag_id, "clue")
-					var clamped: Vector2 = _clamp_to_band(new_center, center, kind)
+					var clamped: Vector2 = _clamp_to_canvas(new_center)
 					n.position = clamped - n.size * 0.5
 					_node_center[_drag_id] = clamped
 					_sync_fold_controls_positions()
