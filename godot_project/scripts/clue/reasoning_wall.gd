@@ -119,6 +119,9 @@ var _hypo_nodes: Dictionary = {}              # 假设节点 id -> Control（用
 var _dragging_link: bool = false
 var _link_src: String = ""
 var _link_kind: String = "support"
+var _drag_src: String = ""                # 左栏拖入图谱：当前拖动的线索 id（"" = 未拖动）
+var _drag_origin := Vector2(-1, -1)       # 按下时的鼠标位置，用于判定「是否真拖拽」
+var _drag_ghost: Control = null           # 拖拽跟随的幽灵标签
 var _link_preview: Vector2 = Vector2.ZERO
 
 # === 常量 ===
@@ -313,11 +316,16 @@ func _create_ui() -> void:
 	mid.offset_bottom = -240   # 收拢到底部对话栏(y=850~1080)之上，避免三栏内容被对话栏遮挡（mid 底≈840）
 	add_child(mid)
 
-	# 左侧面板 (线索库) 28%
+	# 左侧「已收集线索」面板（线索库，宽 540）
+	# 常驻图谱模式左侧上方层：z=20（> 图谱 z=5、< 顶栏 z=100），置于画布之上而非被图谱遮挡，
+	# 作为「从左栏把线索拖入图谱」的入口载体（需求3）。
 	_left_panel = _create_left_panel()
+	_left_panel.z_index = 20
+	add_child(_left_panel)
 	_left_panel.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
 	_left_panel.offset_right = 540  # 1920*0.28 ≈ 538
-	mid.add_child(_left_panel)
+	_left_panel.offset_top = 110    # 对齐中部区域（顶栏之下）
+	_left_panel.offset_bottom = -240
 
 	# 右侧面板 (扩展/战场) 26%
 	_right_panel = _create_right_panel()
@@ -332,8 +340,7 @@ func _create_ui() -> void:
 	_center_panel.offset_right = -508
 	mid.add_child(_center_panel)
 
-	# 图谱模式：原列表五区（左线索库/右战场/中假设树/底进度栏）隐藏，仅保留顶部栏 + 图谱
-	_left_panel.visible = false
+	# 图谱模式：左侧已收集线索栏保留（已在画布之上）；右/中/底隐藏
 	_right_panel.visible = false
 	_center_panel.visible = false
 	_bottom_bar.visible = false
@@ -1190,6 +1197,7 @@ func _make_clue_card(clue: Dictionary) -> Button:
 	card.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	card.pressed.connect(_on_clue_card_pressed.bind(clue["id"]))
 	card.gui_input.connect(_on_node_gui.bind(clue["id"]))
+	card.gui_input.connect(_on_clue_drag.bind(clue["id"]))
 	card.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
 	return card
 
@@ -1980,6 +1988,71 @@ func _on_node_gui(event: InputEvent, id: String) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		_start_link(id, event.shift_pressed)
 		get_viewport().set_input_as_handled()
+
+
+## 左栏「已收集线索」卡拖入图谱：把线索拖到图谱画布区（左栏之外）即放入图谱为节点。
+## 仅在推理墙打开图谱时生效；不构成拖拽的普通点击仍归卡片自身处理。
+func _on_clue_drag(event: InputEvent, cid: String) -> void:
+	if not _graph_view or not is_instance_valid(_graph_view):
+		return
+	if _state_store.get("graph_placed_clues", []).has(cid):
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			if _drag_src == "":
+				_drag_src = cid
+				_drag_origin = get_viewport().get_mouse_position()
+		else:
+			var was: String = _drag_src
+			_drag_src = ""
+			_clear_drag_ghost()
+			if was == cid and _drag_origin != Vector2(-1, -1):
+				_finish_clue_drag(cid)
+	elif event is InputEventMouseMotion and _drag_src == cid and _drag_origin != Vector2(-1, -1):
+		var mp := get_viewport().get_mouse_position()
+		if mp.distance_to(_drag_origin) > 12:
+			_ensure_drag_ghost(cid)
+			if _drag_ghost and is_instance_valid(_drag_ghost):
+				_drag_ghost.global_position = mp - _drag_ghost.size * 0.5
+
+
+func _ensure_drag_ghost(cid: String) -> void:
+	if _drag_ghost and is_instance_valid(_drag_ghost):
+		return
+	var label := Label.new()
+	var clue := _find_clue(cid)
+	label.text = clue.get("name", cid)
+	label.add_theme_font_size_override("font_size", 16)
+	label.modulate = Color(1, 1, 1, 0.9)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.2, 0.3, 0.2, 0.9)
+	sb.border_color = Color(0.4, 0.9, 0.4)
+	sb.border_width_left = 2; sb.border_width_right = 2
+	sb.border_width_top = 2; sb.border_width_bottom = 2
+	sb.set_corner_radius_all(6)
+	label.add_theme_stylebox_override("normal", sb)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.z_index = 30
+	add_child(label)
+	_drag_ghost = label
+
+
+func _clear_drag_ghost() -> void:
+	if _drag_ghost and is_instance_valid(_drag_ghost):
+		_drag_ghost.queue_free()
+	_drag_ghost = null
+
+
+func _finish_clue_drag(cid: String) -> void:
+	var gp := get_viewport().get_mouse_position()
+	# 只有放到图谱画布上（左栏矩形之外）才算「拖入图谱」；丢回左栏内则取消。
+	var inside_panel := _left_panel and is_instance_valid(_left_panel) and _left_panel.get_global_rect().has_point(gp)
+	if not inside_panel and _graph_view and is_instance_valid(_graph_view):
+		_graph_view.place_clue(cid)
+		_persist_state()
+		_refresh_clue_list()
+	else:
+		_ui_show_toast("把线索拖到右侧图谱画布上即可放入图谱")
 
 
 func _start_link(id: String, shift: bool) -> void:

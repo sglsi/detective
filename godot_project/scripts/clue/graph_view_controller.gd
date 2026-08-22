@@ -1918,6 +1918,18 @@ func _unmark_clue_placed(cid: String) -> void:
 	if not _state_store.is_empty():
 		_state_store["graph_placed_clues"] = _placed_clues.duplicate()
 
+## 左栏拖入图谱时的公开入口：把一条尚未放置的线索放入图谱（很可能成为孤立节点）。
+func place_clue(cid: String) -> void:
+	if _state != State.EDITABLE:
+		_toast_msg("已封存，仅可浏览")
+		return
+	if _clue_placed(cid):
+		return
+	_mark_clue_placed(cid)
+	_persist_view()
+	_rebuild_graph()
+	_toast_msg("线索已放入图谱（详情卡可移除归还）")
+
 func _unplace_clue_from_graph(cid: String, card: Control) -> void:
 	if _state != State.EDITABLE:
 		return
@@ -1932,6 +1944,9 @@ func _unplace_clue_from_graph(cid: String, card: Control) -> void:
 		card.queue_free()
 	if _state_store.has("graph_placed_clues"):
 		_state_store["graph_placed_clues"] = _placed_clues.duplicate()
+	# 让左栏「已收集线索」即时恢复该线索（孤立线索无关系边时也需刷新）
+	if _cb_relations_changed.is_valid():
+		_cb_relations_changed.call(_relations.duplicate())
 	_persist_view()
 	_rebuild_graph()
 	_toast_msg("已将该线索从图谱移除，归还到「已收集线索」")
