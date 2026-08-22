@@ -31,6 +31,8 @@ var _difficulty: int = Diff.NORMAL
 var _editable: bool = true
 var _verdict: int = -1              # -1 表示由本视图自行推算
 var _state_store: Dictionary = {}
+var _placed_clues: Array = []
+var _auto_fold: bool = false
 var _cb_tag: Callable = Callable()
 var _cb_add_edge: Callable = Callable()
 var _cb_remove_relation: Callable = Callable()
@@ -226,9 +228,11 @@ func build(data: Dictionary) -> void:
 	_cb_pen_changed = data.get("on_pen_changed", Callable())
 	_cb_relations_changed = data.get("on_relations_changed", Callable())
 	_show_toolbar = data.get("show_toolbar", false)
+	_auto_fold = data.get("auto_fold", false)
 
 	# 视图记忆恢复（09 R-3）：读 SaveGame/state_store
 	_mode = _state_store.get("graph_view_mode", ViewMode.MODE_C)
+	_placed_clues = (_state_store.get("graph_placed_clues", []) as Array).duplicate()
 	_focus_person = _state_store.get("graph_focus", _focus_person)
 
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
@@ -255,6 +259,19 @@ func build(data: Dictionary) -> void:
 	var _old_fp: Dictionary = _state_store.get("graph_folded_persons", {})
 	for _pid in _old_fp:
 		_folded_nodes[_pid] = true
+	# 需求2：进入新场景（案件级大墙 reuse）时若已建立关系，自动折叠内层已确立的推理主干，
+	# 聚焦最新线索与推断。仅当玩家尚未主动折叠过（_folded_nodes 为空）才播种，玩家展开/折叠会覆盖。
+	if _auto_fold and _folded_nodes.is_empty() and not _relations.is_empty():
+		var _inner_roots: Array = []
+		for _rf in _relations:
+			for _eid in [_rf.get("from", ""), _rf.get("to", "")]:
+				if _eid == "": continue
+				if _ring_depth(_kind_of(_eid)) == 0 and not (_eid in _inner_roots):
+					_inner_roots.append(_eid)
+		for _eid in _inner_roots:
+			_folded_nodes[_eid] = true
+		_state_store["graph_folded_nodes"] = _folded_nodes
+		_persist_view()
 	_all_positions = {}
 
 	# 升级兜底聚焦（修根因 2026-08-19 v3）：缓存里残留的 "__case__" 一律强制重置为空，
@@ -667,6 +684,17 @@ func _node_list() -> Array:
 				list.append({"id": _cid2, "kind": "clue",
 					"label": c2.get("name", _cid2), "sub": _clue_sub(c2),
 					"color": _clue_color(c2), "data": c2, "common": _common_clues.has(_cid2)})
+			# 已放置线索（可能为孤立，如删除关系后）：始终保留为图谱节点
+			for _p_cid in _placed_clues:
+				if _in_list.has(_p_cid):
+					continue
+				var _p_c: Dictionary = _clue_by_id(_p_cid)
+				if _p_c.is_empty():
+					continue
+				list.append({"id": _p_cid, "kind": "clue",
+					"label": _p_c.get("name", _p_cid), "sub": _clue_sub(_p_c),
+					"color": _clue_color(_p_c), "data": _p_c, "common": _common_clues.has(_p_cid)})
+				_in_list[_p_cid] = true
 		# 第二圈：推断
 		var hypos: Array = _hypo.get("battlefield", {}).get("hypotheses", [])
 		if hypos.is_empty():
@@ -1820,6 +1848,10 @@ func _add_edge(from: String, to: String, kind: String, color_key: String = "", d
 	_undo.add_do_method(_do_edge.bind(from, to, kind, color_key, dashed, true))
 	_undo.add_undo_method(_do_edge.bind(from, to, kind, color_key, dashed, false))
 	_undo.commit_action()
+	if _id_is_clue(from):
+		_mark_clue_placed(from)
+	if _id_is_clue(to):
+		_mark_clue_placed(to)
 	if _cb_relations_changed.is_valid():
 		_cb_relations_changed.call(_relations.duplicate())
 	_persist_view()
@@ -1851,6 +1883,58 @@ func _clue_has_relation(cid: String) -> bool:
 		if r.get("from", "") == cid or r.get("to", "") == cid:
 			return true
 	return false
+
+
+func _id_is_clue(cid: String) -> bool:
+	for c in _clues:
+		if c.get("id", "") == cid:
+			return true
+	return false
+
+
+func _clue_by_id(cid: String) -> Dictionary:
+	for c in _clues:
+		if c.get("id", "") == cid:
+			return c
+	return {}
+
+
+func _clue_placed(cid: String) -> bool:
+	return cid in _placed_clues
+
+
+func _mark_clue_placed(cid: String) -> void:
+	if cid in _placed_clues:
+		return
+	_placed_clues.append(cid)
+	if not _state_store.is_empty():
+		_state_store["graph_placed_clues"] = _placed_clues.duplicate()
+
+
+func _unmark_clue_placed(cid: String) -> void:
+	if cid not in _placed_clues:
+		return
+	_placed_clues.erase(cid)
+	if not _state_store.is_empty():
+		_state_store["graph_placed_clues"] = _placed_clues.duplicate()
+
+func _unplace_clue_from_graph(cid: String, card: Control) -> void:
+	if _state != State.EDITABLE:
+		return
+	var doomed: Array[Dictionary] = []
+	for r in _relations:
+		if r.get("from", "") == cid or r.get("to", "") == cid:
+			doomed.append(r)
+	_unmark_clue_placed(cid)
+	for r in doomed:
+		_remove_edge(r.get("from", ""), r.get("to", ""), r.get("kind", "relate"))
+	if is_instance_valid(card):
+		card.queue_free()
+	if _state_store.has("graph_placed_clues"):
+		_state_store["graph_placed_clues"] = _placed_clues.duplicate()
+	_persist_view()
+	_rebuild_graph()
+	_toast_msg("已将该线索从图谱移除，归还到「已收集线索」")
 
 ## 同步线索 associated 标记：参与任意玩家连线 → 实线绿边（已关联视觉反馈）；无连线 → 复位
 func _sync_clue_associated() -> void:
@@ -2769,6 +2853,12 @@ func _show_detail(id: String, kind: String) -> void:
 				status_btn.add_theme_font_size_override("font_size", 26)
 				status_btn.pressed.connect(func(): _open_status_menu(id))
 				vb.add_child(status_btn)
+				if _clue_placed(id):
+					var rmv_btn := Button.new()
+					rmv_btn.text = "从图谱移除（归还线索）"
+					rmv_btn.add_theme_font_size_override("font_size", 26)
+					rmv_btn.pressed.connect(_unplace_clue_from_graph.bind(id, card))
+					vb.add_child(rmv_btn)
 		"hypo":
 			var h: Dictionary = _node_data.get(id, {})
 			title.text = "推断：" + h.get("text", id)
@@ -2902,6 +2992,7 @@ func _toast_msg(text: String) -> void:
 func _persist_view() -> void:
 	if _state_store.is_empty(): return
 	_state_store["graph_view_mode"] = _mode
+	_state_store["graph_placed_clues"] = _placed_clues.duplicate()
 	_state_store["graph_focus"] = _focus_person
 	_state_store["graph_seed"] = _layout_seed
 	_state_store["graph_folded_nodes"] = _folded_nodes
