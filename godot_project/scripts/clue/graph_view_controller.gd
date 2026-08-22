@@ -1005,6 +1005,7 @@ func _node_width_for_kind(kind: String) -> float:
 # 不再按 kind 分层成同心圆；已保存位置直接采用（自由排布，不钳回 ring）。
 func _xmind_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
 	out[_focus_person] = center
+	# 主分支：结论 + 推断 + 推理链（不含焦点人物）
 	var mains: Array[String] = []
 	for nd in nodes:
 		var i: String = nd.id
@@ -1018,14 +1019,31 @@ func _xmind_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Di
 				others.append(nd.id)
 		for i2 in others.size():
 			var a2: float = (float(i2) / maxf(float(others.size()), 1.0)) * TAU - PI * 0.5
-			out[others[i2]] = center + Vector2(cos(a2), sin(a2)) * 260.0
+			out[others[i2]] = _clamp_to_canvas(center + Vector2(cos(a2), sin(a2)) * 240.0)
 	else:
+		# 分支角度：结论固定正上方，其余主分支在两侧/下方均匀分布，避免与结论重叠
 		var ang_of := {}
-		for i3 in n:
-			ang_of[mains[i3]] = (float(i3) / float(n)) * TAU - PI * 0.5
-		var r_base: float = clampf(min(_canvas.size.x, _canvas.size.y), 320.0, 900.0) * 0.24
-		if r_base < 140.0:
-			r_base = 140.0
+		var base_ang: float = -PI * 0.5
+		var cc := -1
+		for k in n:
+			if mains[k] == "conclusion":
+				cc = k
+				break
+		if cc != -1:
+			for k in n:
+				if k == cc:
+					ang_of[mains[k]] = base_ang
+				else:
+					var slot: int = k if k < cc else k - 1
+					ang_of[mains[k]] = base_ang + (float(slot + 1) / float(n)) * TAU
+		else:
+			for k in n:
+				ang_of[mains[k]] = base_ang + (float(k) / float(n)) * TAU
+		# 主分支半径统一（同层扇出）
+		var r_main: float = clampf(min(_canvas.size.x, _canvas.size.y), 360.0, 900.0) * 0.2
+		if r_main < 150.0:
+			r_main = 150.0
+		# 已保存位置优先（尊重玩家拖动），其余走默认 XMind 位置
 		for nd2 in nodes:
 			var id2: String = nd2.id
 			if id2 == _focus_person:
@@ -1039,8 +1057,8 @@ func _xmind_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Di
 			if out.has(mid):
 				continue
 			var a4: float = ang_of[mid]
-			var rr: float = r_base + float(i4 % 3) * 34.0
-			out[mid] = center + Vector2(cos(a4), sin(a4)) * rr
+			out[mid] = center + Vector2(cos(a4), sin(a4)) * r_main
+		# 子主题（线索）：挂在其佐证主分支外侧，沿杆向外延伸并轻微交替横摆
 		var free := 0
 		for cnd in nodes:
 			if cnd.kind != "clue":
@@ -1062,13 +1080,16 @@ func _xmind_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Di
 				host_cnt[host2] = k5 + 1
 				var dir5: Vector2 = Vector2(cos(a5), sin(a5))
 				var perp5: Vector2 = Vector2(-dir5.y, dir5.x)
-				out[cid2] = center + dir5 * (r_base + 185.0 + float(k5) * 74.0) + perp5 * ((float(k5 % 2) * 2.0 - 1.0) * 52.0)
+				out[cid2] = center + dir5 * (r_main + 160.0 + float(k5) * 92.0) + perp5 * ((float(k5 % 2) * 2.0 - 1.0) * 58.0)
 			else:
+				# 自由主题：最外层柔性散布，独立于主分支
 				var a6: float = (float(free) / float(maxi(n, 1))) * TAU + 0.93
-				var rr6: float = r_base * 1.7 + float(free % 3) * 52.0
+				var rr6: float = r_main * 1.9 + float(free % 3) * 56.0
 				out[cid2] = center + Vector2(cos(a6), sin(a6)) * rr6
 				free += 1
-
+	# 布局收尾：全部钳制到画布内，防止默认布局把文本节点挤出可视区
+	for idf in out:
+		out[idf] = _clamp_to_canvas(out[idf])
 # 灵活布局辅助：仅把节点限制在画布内（XMind 式自由排布，允许任意位置）
 func _clamp_to_canvas(p: Vector2) -> Vector2:
 	var m: float = 60.0
