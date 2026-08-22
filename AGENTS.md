@@ -342,3 +342,4 @@ NO other objects, isolated, game asset
   - **按类型分层（离人物距离）**：conclusion=1（结论离人物最近）、chain/hypo=2（推断中层）、clue=3（线索最外层）。同层同列一列排布，列 x=人物x ± layer*250，方向 `dirv` 由人物 x 是否过半自适应（偏右向左铺开、偏左向右铺开，避免树伸出画布）；列内按 92px 步长垂直均匀堆叠（多结论/多推断同侧时整齐排列），列高基于人物 y 居中、`clampf` 在画布内。
   - 玩家拖动过的非人物节点从 `saved_pos` 直接沿用；布局收尾对所有节点 `_clamp_to_canvas`（margin 60）防止文本框挤出可视区。拖拽落下走 `_clamp_to_canvas(new_center)`。`_xmind_layout` 用 `else` 包裹/末尾 `for idf in out` 钳制，避免裸 `return`（项目把 void 函数返回当错误）。
   - 坑：match 的类型分支写字符串 pattern 时**勿加多余冒号**（曾写成 `":conclusion":` 导致结论落入默认层 4）。可复用 `tools/test_xmind_diag.gd` 校验该结构（覆盖默认/人物在左/人物在右三态）。
+  - **节点卡配色（对照华生示范）**：人物=红框+浅色字（`font_col`/`sub_col` 置浅色）、结论=浅棕（`Color(0.82,0.68,0.42)`+棕金边，不再用 `_verdict_color()` 染色）、推断(hypo)=浅蓝、线索=浅绿（常量 `COL_CLUE_*`/`COL_HYPO_*`，注释标“对照示范”）。sub 标签用 `sub_col` 而非固定 `COL_GREY`。
