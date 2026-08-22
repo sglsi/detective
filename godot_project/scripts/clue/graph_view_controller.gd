@@ -1004,89 +1004,60 @@ func _node_width_for_kind(kind: String) -> float:
 # 线索沿其佐证分支向外剖列、轻微横向扇出；无佐证线索在外围柔性散布。
 # 不再按 kind 分层成同心圆；已保存位置直接采用（自由排布，不钳回 ring）。
 func _xmind_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
-	out[_focus_person] = center
-	# 主分支：结论 + 推断 + 推理链（不含焦点人物）
-	var mains: Array[String] = []
-	for nd in nodes:
-		var i: String = nd.id
-		if i != _focus_person and (nd.kind == "hypo" or nd.kind == "conclusion" or nd.kind == "chain"):
-			mains.append(i)
-	var n := mains.size()
-	if n == 0:
-		var others: Array[String] = []
-		for nd in nodes:
-			if nd.id != _focus_person:
-				others.append(nd.id)
-		for i2 in others.size():
-			var a2: float = (float(i2) / maxf(float(others.size()), 1.0)) * TAU - PI * 0.5
-			out[others[i2]] = _clamp_to_canvas(center + Vector2(cos(a2), sin(a2)) * 240.0)
+	# 人物锚点：沿用已保存位置（人物可自由拖动/画布可有多个人物）；
+	# 无保存时默认放在水平约 72% 处，给推理树留出向左铺开的空间。
+	var person_pos: Vector2 = center
+	var sp: Variant = saved_pos.get(_focus_person, null)
+	if sp is Vector2:
+		person_pos = sp
 	else:
-		# 分支角度：结论固定正上方，其余主分支在两侧/下方均匀分布，避免与结论重叠
-		var ang_of := {}
-		var base_ang: float = -PI * 0.5
-		var cc := -1
-		for k in n:
-			if mains[k] == "conclusion":
-				cc = k
-				break
-		if cc != -1:
-			for k in n:
-				if k == cc:
-					ang_of[mains[k]] = base_ang
-				else:
-					var slot: int = k if k < cc else k - 1
-					ang_of[mains[k]] = base_ang + (float(slot + 1) / float(n)) * TAU
+		person_pos = _clamp_to_canvas(Vector2(_canvas.size.x * 0.72, _canvas.size.y * 0.5))
+	out[_focus_person] = person_pos
+	# 层深：结论离人物最近(1)，推断/推理链中层(2)，线索最外层(3)
+	var layer_of := {}
+	for nd in nodes:
+		match nd.kind:
+			"conclusion":
+				layer_of[nd.id] = 1
+			"chain":
+				layer_of[nd.id] = 2
+			"hypo":
+				layer_of[nd.id] = 2
+			"clue":
+				layer_of[nd.id] = 3
+			_:
+				layer_of[nd.id] = 4
+	# 生长方向：人物偏右则向左铺开，偏左则向右铺开，避免树伸出画布
+	var dirv := 1.0
+	if person_pos.x >= _canvas.size.x * 0.5:
+		dirv = -1.0
+	var col_gap: float = 250.0
+	# 按层分列；已保存位置直接沿用（尊重玩家拖动）
+	var by_layer := {}
+	var max_layer := 0
+	for nd in nodes:
+		if nd.id == _focus_person:
+			continue
+		var saved_v: Variant = saved_pos.get(nd.id, null)
+		if saved_v is Vector2:
+			out[nd.id] = saved_v
 		else:
-			for k in n:
-				ang_of[mains[k]] = base_ang + (float(k) / float(n)) * TAU
-		# 主分支半径统一（同层扇出）
-		var r_main: float = clampf(min(_canvas.size.x, _canvas.size.y), 360.0, 900.0) * 0.2
-		if r_main < 150.0:
-			r_main = 150.0
-		# 已保存位置优先（尊重玩家拖动），其余走默认 XMind 位置
-		for nd2 in nodes:
-			var id2: String = nd2.id
-			if id2 == _focus_person:
-				continue
-			var sv: Variant = saved_pos.get(id2, null)
-			if sv is Vector2:
-				out[id2] = sv
-		var host_cnt := {}
-		for i4 in n:
-			var mid: String = mains[i4]
-			if out.has(mid):
-				continue
-			var a4: float = ang_of[mid]
-			out[mid] = center + Vector2(cos(a4), sin(a4)) * r_main
-		# 子主题（线索）：挂在其佐证主分支外侧，沿杆向外延伸并轻微交替横摆
-		var free := 0
-		for cnd in nodes:
-			if cnd.kind != "clue":
-				continue
-			var cid2: String = cnd.id
-			if out.has(cid2):
-				continue
-			var tags: Array = cnd.data.get("relation_tags", []) as Array
-			var host2 := ""
-			for tg in tags:
-				if mains.has(tg):
-					host2 = tg
-					break
-			if host2 == "" and ang_of.has(cnd.data.get("related_to", "")):
-				host2 = cnd.data.get("related_to", "")
-			if host2 != "" and ang_of.has(host2):
-				var a5: float = ang_of[host2]
-				var k5: int = host_cnt.get(host2, 0)
-				host_cnt[host2] = k5 + 1
-				var dir5: Vector2 = Vector2(cos(a5), sin(a5))
-				var perp5: Vector2 = Vector2(-dir5.y, dir5.x)
-				out[cid2] = center + dir5 * (r_main + 160.0 + float(k5) * 92.0) + perp5 * ((float(k5 % 2) * 2.0 - 1.0) * 58.0)
-			else:
-				# 自由主题：最外层柔性散布，独立于主分支
-				var a6: float = (float(free) / float(maxi(n, 1))) * TAU + 0.93
-				var rr6: float = r_main * 1.9 + float(free % 3) * 56.0
-				out[cid2] = center + Vector2(cos(a6), sin(a6)) * rr6
-				free += 1
+			var lv: int = layer_of.get(nd.id, 4)
+			if not by_layer.has(lv):
+				by_layer[lv] = []
+			by_layer[lv].append(nd.id)
+			if lv > max_layer:
+				max_layer = lv
+	# 同层同列：列 x 随层距人物递增，列内按高度均匀堆叠（多结论/多推断同侧时整齐排列）
+	for lv in by_layer.keys():
+		var ids: Array = by_layer[lv]
+		var col_x: float = person_pos.x + dirv * (float(lv) * col_gap)
+		var n := ids.size()
+		var step: float = 92.0
+		var total_h: float = float(maxi(n - 1, 0)) * step
+		var top: float = clampf(person_pos.y - total_h * 0.5, 60.0, _canvas.size.y - 60.0)
+		for j in n:
+			out[ids[j]] = _clamp_to_canvas(Vector2(col_x, top + float(j) * step))
 	# 布局收尾：全部钳制到画布内，防止默认布局把文本节点挤出可视区
 	for idf in out:
 		out[idf] = _clamp_to_canvas(out[idf])
