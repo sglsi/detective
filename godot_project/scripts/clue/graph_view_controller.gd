@@ -656,6 +656,17 @@ func _node_list() -> Array:
 			list.append({"id": cid, "kind": "clue",
 				"label": c.get("name", cid), "sub": _clue_sub(c),
 				"color": _clue_color(c), "data": c, "common": common})
+		# 关联线索：被拖拽连到推断/结论/人物但本身未挂焦点人物的线索，也纳入星型视图，
+		# 使其显示为节点并把连线画出来（修复「拖线索后线索不显示、不知是否关联」）。
+		var _in_list := {}
+		for _n in list: _in_list[_n.id] = true
+		for c2 in _clues:
+			var _cid2: String = c2.get("id", "")
+			if _in_list.has(_cid2): continue
+			if _clue_has_relation(_cid2):
+				list.append({"id": _cid2, "kind": "clue",
+					"label": c2.get("name", _cid2), "sub": _clue_sub(c2),
+					"color": _clue_color(c2), "data": c2, "common": _common_clues.has(_cid2)})
 		# 第二圈：推断
 		var hypos: Array = _hypo.get("battlefield", {}).get("hypotheses", [])
 		if hypos.is_empty():
@@ -1020,12 +1031,13 @@ func _compute_layout(nodes: Array) -> Dictionary:
 
 ## 按节点 kind 估算渲染宽度（用于自适应半径防重叠；与 _make_node 卡片尺寸×2 同步）
 func _node_width_for_kind(kind: String) -> float:
+	# 2026-08-21：宽度整体减半（配合文本框自适应窄化，环径估算同步收紧）
 	match kind:
-		"clue":       return 320.0
-		"hypo":       return 280.0
-		"conclusion": return 320.0
-		"chain":      return 250.0
-		_: return 300.0
+		"clue":       return 160.0
+		"hypo":       return 140.0
+		"conclusion": return 160.0
+		"chain":      return 125.0
+		_: return 150.0
 
 
 ## 把点钳制到对应 kind 的距离带内（保持「核心 < 结论 < 推断 < 线索」排序）
@@ -1082,19 +1094,14 @@ func _make_node(nd: Dictionary) -> Control:
 	# 大小按类型给（中文文本可能变宽，故预留；字号已×2，尺寸同步放大）
 	# #1 自适应：卡片尺寸随姓名文字长度增长（约 28px/字，字号28），封顶 480 后自动换行扩高
 	# 位置由调用方按 _node_center - size*0.5 重新居中，边/菜单以中心为锚，连线不受影响
-	var _base_w: float = 360.0; var _base_h: float = 150.0
-	if is_person: _base_w = 360.0; _base_h = 170.0
-	elif is_concl: _base_w = 320.0; _base_h = 160.0
-	elif is_chain: _base_w = 250.0; _base_h = 120.0
-	elif is_hypo: _base_w = 280.0; _base_h = 130.0
-	else: _base_w = 320.0; _base_h = 130.0
-	var _name_len := str(nd.get("label", "")).length()
-	var _est_w: float = 30.0 + float(_name_len) * 28.0
-	var _nw := clampf(maxf(_base_w, _est_w), _base_w, 480.0)
-	var _per_line := maxi(3, int((_nw - 24.0) / 28.0))
-	var _lines := maxi(1, int(ceil(float(_name_len) / float(_per_line))))
-	var _nh := _base_h + (_lines - 1) * 34
-	card.custom_minimum_size = Vector2(_nw, _nh); card.size = Vector2(_nw, _nh)
+	var _base_w: float = 180.0; var _base_h: float = 150.0
+	if is_person: _base_w = 180.0; _base_h = 170.0
+	elif is_concl: _base_w = 160.0; _base_h = 160.0
+	elif is_chain: _base_w = 125.0; _base_h = 120.0
+	elif is_hypo: _base_w = 140.0; _base_h = 130.0
+	else: _base_w = 160.0; _base_h = 130.0
+	# 卡片尺寸在标签建立后按真实文字测量（见文末 _size_card_to_text 调用）
+
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var style := StyleBoxFlat.new()
@@ -1228,6 +1235,32 @@ func _make_node(nd: Dictionary) -> Control:
 	sub.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(sub)
 
+	# #1 真实自适应：宽度按文字自然宽度（上限 230=原 460 的一半），高度按换行后真实行数
+	var _MAX_W: float = 230.0
+	# 自然宽度：autowrap 下 get_minimum_size 只返回换行约束宽（460→230），须临时关 autowrap 量单行真实宽
+	var _prev_wrap: TextServer.AutowrapMode = lab.autowrap_mode
+	lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var _nat := lab.get_minimum_size()
+	lab.autowrap_mode = _prev_wrap
+	var _sm := sub.get_minimum_size()
+	var _wrap_w := clampf(maxf(_nat.x, _sm.x), 0.0, _MAX_W)
+	lab.custom_minimum_size = Vector2(_wrap_w, 0)   # 设定换行宽度，高度自适应
+	var _lm := lab.get_minimum_size()
+	var _inner_w: float
+	var _inner_h: float
+	if _lm.y > 1.0:
+		_inner_w = maxf(_wrap_w, _sm.x)
+		_inner_h = _lm.y + _sm.y + 2.0
+	else:
+		# 字体未就绪（极少见，如 headless 首帧）回退字符估算
+		var _nl := float(str(nd.get("label", "")).length())
+		_inner_w = clampf(maxf(_base_w, 30.0 + _nl * 28.0), _base_w, _MAX_W)
+		_inner_h = _base_h
+	var _nw := clampf(_inner_w + 18.0, _base_w, _MAX_W + 18.0)
+	var _nh := _inner_h + 12.0
+	card.custom_minimum_size = Vector2(_nw, _nh)
+	card.size = Vector2(_nw, _nh)
+
 	var id: String = nd.id
 	var kind2: String = nd.kind
 	card.gui_input.connect(_on_node_gui.bind(id, kind2))
@@ -1331,6 +1364,14 @@ func _on_edge_draw() -> void:
 			elif _drag_mode == "move":
 				# move 模式不画预览线
 				pass
+
+	# 选中边高亮（点击连线后明显的视觉反馈，覆盖在普通边之上）
+	if _selected_edge >= 0 and _selected_edge < _edge_list.size():
+		var se: Dictionary = _edge_list[_selected_edge]
+		var sa: Vector2 = _node_center.get(se.get("from", ""), Vector2.ZERO)
+		var sb: Vector2 = _node_center.get(se.get("to", ""), Vector2.ZERO)
+		if sa != Vector2.ZERO and sb != Vector2.ZERO:
+			_draw_arc_line(sa, sb, COL_GOLD, 7, 55.0)
 
 
 ## 沿 a→b 画一条二次贝塞尔弧线（控制点偏移中点垂直方向 curvature）
@@ -1773,6 +1814,24 @@ func _relations_between(a: String, b: String) -> Array:
 			out.append(r)
 	return out
 
+## 线索是否参与了任意玩家连线（用于把被拖拽关联、但本身未挂焦点人物的线索也纳入星型视图）
+func _clue_has_relation(cid: String) -> bool:
+	for r in _relations:
+		if r.get("from", "") == cid or r.get("to", "") == cid:
+			return true
+	return false
+
+## 同步线索 associated 标记：参与任意玩家连线 → 实线绿边（已关联视觉反馈）；无连线 → 复位
+func _sync_clue_associated() -> void:
+	for c in _clues:
+		var cid: String = c.get("id", "")
+		var has: bool = false
+		for r in _relations:
+			if r.get("from", "") == cid or r.get("to", "") == cid:
+				has = true
+				break
+		c["associated"] = has
+
 
 ## 删除一条用户建立的连线（需求 2026-08-19：可取消误连；可撤销）
 func _remove_edge(from: String, to: String, kind: String) -> void:
@@ -1808,6 +1867,8 @@ func _do_edge(from: String, to: String, kind: String, color_key: String, dashed:
 	if add:
 		kept.append({"from": from, "to": to, "kind": kind, "color_key": color_key, "dashed": dashed})
 	_relations = kept
+	# 同步线索 associated 标记 → 节点实线绿边（已关联视觉反馈），无连线则复位
+	_sync_clue_associated()
 
 
 func _on_undo() -> void:
@@ -2414,7 +2475,8 @@ func _on_canvas_gui(event: InputEvent) -> void:
 func _on_canvas_left_click(viewport_pos: Vector2) -> void:
 	if _connect_mode:
 		return
-	var lp := (viewport_pos - _canvas.position) / _canvas.scale
+	# 全局坐标 → 画布本地：必须用全局变换逆，不能用 _canvas.position（那是父级局部坐标，漏算 _clip 的 64px 偏移）
+	var lp := _canvas.get_global_transform().affine_inverse() * viewport_pos
 	var ei := _edge_hit_test(lp)
 	if ei >= 0:
 		_select_edge(ei, viewport_pos)
@@ -2574,7 +2636,8 @@ func _do_change_edge_kind(from: String, to: String, old_kind: String, dashed: bo
 func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 	var old_scale := _zoom
 	var ns: float = clamp(old_scale * factor, 0.4, 2.5)
-	var lp := (mouse_pos - _canvas.position) / old_scale
+	# 全局坐标 → 画布本地（含 _clip 偏移），与 _on_canvas_left_click 一致
+	var lp := _canvas.get_global_transform().affine_inverse() * mouse_pos
 	_canvas.scale = Vector2(ns, ns)
 	_canvas.position = mouse_pos - lp * ns
 	_zoom = ns
