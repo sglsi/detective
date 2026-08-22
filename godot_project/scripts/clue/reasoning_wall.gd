@@ -47,6 +47,7 @@ var _persist_enabled: bool = false           # 是否启用跨重开持久化（
 var _verified: bool = false                  # 本次/历史是否已提交过验证（拿到判定）
 var _verified_verdict: int = -1              # 最近一次提交得到的判定
 var _on_advance: Callable = Callable()       # 验证后关墙时推进剧情的回调（仅推理阶段有效）
+var _closing: bool = false                    # 关墙重入保护：ESC/返回/X 只触发一次真正销毁（防 Web 同步 free 栈溢出 + 双触发）
 
 # === UI 引用 ===
 var _top_bar: Control = null
@@ -2599,7 +2600,8 @@ func _input(event: InputEvent) -> void:
 	if _verify_win and is_instance_valid(_verify_win):
 		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
 			get_viewport().set_input_as_handled()
-			_on_verify_confirm(_verify_v)
+			# 同样把销毁墙移出 _input 派发（_on_verify_confirm 内 queue_free 整棵墙），防 wasm 栈溢出
+			call_deferred("_on_verify_confirm", _verify_v)
 		return
 	if _verifying: return
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -2608,11 +2610,15 @@ func _input(event: InputEvent) -> void:
 			if _history_panel and is_instance_valid(_history_panel):
 				_close_history_panel()
 			else:
-				_on_back_pressed()
+				# 与 graph_view 的 ESC 修复同款：把"销毁墙节点"移出 _input 派发，
+				# 否则 wasm(浏览器) 在 _input 内同步 queue_free 整棵墙会栈溢出（Maximum call stack size exceeded）。
+				call_deferred("_on_back_pressed")
 
 
 func _on_back_pressed() -> void:
+	if _closing: return            # 重入保护：graph_view 延迟的 _on_close_pressed->_cb_close 也会调到这里，避免二次销毁
 	if _verifying: return
+	_closing = true
 	if _history_panel and is_instance_valid(_history_panel):
 		_close_history_panel()
 		return
