@@ -94,14 +94,14 @@ const COL_GREY := Color(0.55, 0.50, 0.42)
 const COL_PERSON := Color(0.78, 0.72, 0.55)
 
 # === 节点配色（按需求：白=线索 / 灰=推断 / 原色=链&结论）===
-const COL_CLUE_BG := Color(0.96, 0.94, 0.88, 0.98)         # 线索底色（暖白）
-const COL_CLUE_BG_DIM := Color(0.93, 0.86, 0.80, 0.96)     # 干扰项线索底色
-const COL_CLUE_BORDER := Color(0.42, 0.34, 0.18)           # 线索默认边框（暗金，未关联=虚线）
-const COL_CLUE_BORDER_ASSOC := Color(0.20, 0.55, 0.20)     # 已关联=绿
+const COL_CLUE_BG := Color(0.72, 0.84, 0.70, 0.98)         # 线索底色（浅绿，对照华生示范）
+const COL_CLUE_BG_DIM := Color(0.68, 0.80, 0.66, 0.96)     # 干扰项线索底色（浅绿偏暗）
+const COL_CLUE_BORDER := Color(0.32, 0.52, 0.30)           # 线索默认边框（绿，未关联=虚线）
+const COL_CLUE_BORDER_ASSOC := Color(0.13, 0.42, 0.15)     # 已关联=深绿
 const COL_CLUE_BORDER_DISTRACT := Color(0.85, 0.30, 0.30)  # 干扰项=红
-const COL_HYPO_BG := Color(0.72, 0.68, 0.60, 0.98)         # 推断底色（暖灰）
-const COL_HYPO_BG_DIM := Color(0.68, 0.58, 0.52, 0.96)     # 干扰项推断底色
-const COL_HYPO_BORDER := Color(0.30, 0.26, 0.20)           # 推断边框（未关联=虚线）
+const COL_HYPO_BG := Color(0.72, 0.80, 0.92, 0.98)         # 推断底色（浅蓝，对照华生示范）
+const COL_HYPO_BG_DIM := Color(0.68, 0.77, 0.89, 0.96)     # 干扰项推断底色（浅蓝偏暗）
+const COL_HYPO_BORDER := Color(0.32, 0.48, 0.70)           # 推断边框（蓝，未关联=虚线）
 const COL_TEXT_DARK := Color(0.16, 0.13, 0.10)             # 深字
 const COL_TEXT_RED := Color(0.86, 0.22, 0.22)             # 红字（干扰项）
 
@@ -1142,6 +1142,8 @@ func _make_node(nd: Dictionary) -> Control:
 	var dashed: bool = false
 	var dashed_col: Color = COL_CLUE_BORDER
 	var dashed_w: float = 2.0
+	var font_col: Color = COL_TEXT_DARK   # 默认深色字；人物红框改用浅色字
+	var sub_col: Color = COL_GREY
 
 	if is_clue:
 		var c: Dictionary = nd.data
@@ -1215,16 +1217,17 @@ func _make_node(nd: Dictionary) -> Control:
 		style.bg_color = Color(0.16, 0.13, 0.08, 0.95)
 		style.border_color = COL_GOLD
 	elif is_concl:
-		var vc: Color = _verdict_color()
-		style.bg_color = Color(vc.r * 0.4 + 0.05, vc.g * 0.4 + 0.05, vc.b * 0.4 + 0.05, 0.95)
-		style.border_color = vc
+		style.bg_color = Color(0.84, 0.74, 0.56, 0.96)   # 结论=浅棕（对照华生示范）
+		style.border_color = Color(0.58, 0.44, 0.20)
 		style.border_width_left = 3; style.border_width_right = 3
 		style.border_width_top = 3; style.border_width_bottom = 3
 	elif is_person:
-		style.bg_color = Color(0.78 * 0.30, 0.72 * 0.30, 0.55 * 0.30, 0.98)
-		style.border_color = COL_GOLD
+		style.bg_color = Color(0.66, 0.20, 0.16, 0.97)   # 人物=红框（对照华生示范）
+		style.border_color = Color(0.96, 0.44, 0.34)
 		style.border_width_left = 3; style.border_width_right = 3
 		style.border_width_top = 3; style.border_width_bottom = 3
+		font_col = Color(0.99, 0.95, 0.92)
+		sub_col = Color(0.92, 0.88, 0.85)
 
 	card.add_theme_stylebox_override("panel", style)
 
@@ -1251,7 +1254,7 @@ func _make_node(nd: Dictionary) -> Control:
 	lab.text = nd.get("label", "")
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART  # #1 宽度封顶时换行，避免长文本截断
 	lab.add_theme_font_size_override("font_size", 28)
-	lab.add_theme_color_override("font_color", COL_TEXT_RED if text_red else COL_TEXT_DARK)
+	lab.add_theme_color_override("font_color", COL_TEXT_RED if text_red else font_col)
 	lab.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(lab)
@@ -1259,7 +1262,7 @@ func _make_node(nd: Dictionary) -> Control:
 	var sub = Label.new()
 	sub.text = nd.get("sub", "")
 	sub.add_theme_font_size_override("font_size", 22)
-	sub.add_theme_color_override("font_color", COL_GREY)
+	sub.add_theme_color_override("font_color", sub_col)
 	sub.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(sub)
 
