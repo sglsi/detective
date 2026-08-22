@@ -343,3 +343,11 @@ NO other objects, isolated, game asset
   - 玩家拖动过的非人物节点从 `saved_pos` 直接沿用；布局收尾对所有节点 `_clamp_to_canvas`（margin 60）防止文本框挤出可视区。拖拽落下走 `_clamp_to_canvas(new_center)`。`_xmind_layout` 用 `else` 包裹/末尾 `for idf in out` 钳制，避免裸 `return`（项目把 void 函数返回当错误）。
   - 坑：match 的类型分支写字符串 pattern 时**勿加多余冒号**（曾写成 `":conclusion":` 导致结论落入默认层 4）。可复用 `tools/test_xmind_diag.gd` 校验该结构（覆盖默认/人物在左/人物在右三态）。
   - **节点卡配色（对照华生示范）**：人物=红框+浅色字（`font_col`/`sub_col` 置浅色）、结论=浅棕（`Color(0.82,0.68,0.42)`+棕金边，不再用 `_verdict_color()` 染色）、推断(hypo)=浅蓝、线索=浅绿（常量 `COL_CLUE_*`/`COL_HYPO_*`，注释标“对照示范”）。sub 标签用 `sub_col` 而非固定 `COL_GREY`。
+  - **线索放置唯一性（placed-clue 模型）**：线索在两个锚点间存在唯一性——左侧「已收集线索」栏与图谱节点互斥。落地：
+    - `_placed_clues: Array`（图谱成员）经 `_state_store["graph_placed_clues"]` 持久化，`build`/`_persist_view` 加载与写回（共享 `_state_store`，reasoning_wall 直接读该键判断）。
+    - 放置时机：`_add_edge` 在端点是线索时调用 `_mark_clue_placed`（关系创建即视为“放入图谱”）。`_remove_edge`（删除关系）**不**解放置——满足「删除线索-推断关系不回收线索」。
+    - **孤立线索保留（需求1）**：`_node_list` MODE_C 除关系线索外，另把 `_placed_clues` 中未进列表的线索追加为节点，即便无人物关联、无关系也显示为孤立节点。
+    - **唯一解放置路径**：详情卡「从图谱移除（归还线索）」→ `_unplace_clue_from_graph(cid, card)`：删全部涉及该线索的关系边、`_unmark_clue_placed`、归还左栏、`_persist_view`+重建+toast。按钮显示门控 `_clue_placed(id)`。
+    - **左栏过滤（需求3）**：`reasoning_wall._refresh_clue_list` 跳过 `_state_store.get("graph_placed_clues",[])` 中的线索；`_gv_relations_changed` 回调末尾补 `_refresh_clue_list()` 使放置即时反映到左栏。初始全在左栏、由玩家拖入图谱。
+    - 详情「线索」分支按钮必须在 `if _state == State.EDITABLE:` 块内按正确缩进追加（曾因 g1 补丁缩进错位导致 `rmv_btn`/`cid` 未声明解析错误）。
+  - **场景切换自动折叠（需求2）**：`setup(... , auto_fold: bool)` 尾部新参、`build` 收 `auto_fold`；`detective_scene._open_wall` 传 `use_case_wide`（场景二+ 案件级大墙=自动折叠，场景一教学墙不折叠）。`graph build` 在折叠状态恢复后，若 `auto_fold` 且 `_folded_nodes` 为空且已有 `_relations`，把关系端点中深度0的根（conclusion/person/chain）批量写入 `_folded_nodes` 并 `_persist_view`——收起已确立的推理主干，聚焦最新线索/推断；玩家手动展开/折叠会覆盖，重开不再重复播种。

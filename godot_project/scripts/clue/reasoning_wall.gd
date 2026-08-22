@@ -44,6 +44,7 @@ var _battle_contra_btns: Dictionary = {}
 # 使「提交验证后关墙再重开」能恢复到已提交状态，且验证后关墙可推进剧情。
 var _state_store: Dictionary = {}            # 外部传入的持久化字典引用（场景持有）
 var _persist_enabled: bool = false           # 是否启用跨重开持久化（由调用方 setup 时开启）
+var _auto_fold: bool = false                 # 场景切换进入已建立关系的墙时自动折叠既有推理主干
 var _verified: bool = false                  # 本次/历史是否已提交过验证（拿到判定）
 var _verified_verdict: int = -1              # 最近一次提交得到的判定
 var _on_advance: Callable = Callable()       # 验证后关墙时推进剧情的回调（仅推理阶段有效）
@@ -150,7 +151,7 @@ func _npc_display_name(id: String) -> String:
 	return _NPC_DISPLAY_NAMES.get(id, id)
 
 
-func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable()) -> void:
+func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable(), auto_fold: bool = false) -> void:
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
@@ -161,6 +162,7 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_persist_enabled = persist
 	_on_advance = on_advance
 	_on_persist = on_persist
+	_auto_fold = auto_fold
 	_battle = hypothesis.get("battlefield", {})
 	_case_name = hypothesis.get("case_name", _case_name)
 	_chain_id = hypothesis.get("chain_id", "")
@@ -1104,8 +1106,12 @@ func _refresh_clue_list() -> void:
 	var term := _search_edit.text.strip_edges().to_lower()
 	var filter := _current_filter()
 
+	var placed: Array = _state_store.get("graph_placed_clues", []) as Array
 	for clue in _clues:
-		var name: String = clue.get("name", clue.get("label", clue.get("id", "")))
+		var cid: String = clue.get("id", "")
+		if placed.has(cid):
+			continue
+		var name: String = clue.get("name", clue.get("label", cid))
 		var state := _clue_state(clue)
 		if filter != -1 and state != filter:
 			continue
@@ -1758,6 +1764,7 @@ func _on_open_graph_view() -> void:
 		"persons": persons, "focus_person": focus, "difficulty": _difficulty,
 		"editable": not _verified, "verdict": get_verdict(),
 		"state_store": _state_store,
+		"auto_fold": _auto_fold,
 		"on_tag": Callable(self, "_gv_tag_person"),
 		"on_relations_changed": Callable(self, "_gv_relations_changed"),
 		"on_pen_changed": Callable(self, "_gv_pen_changed"),
@@ -1939,6 +1946,7 @@ func _gv_relations_changed(rels: Array) -> void:
 	_relations = rels
 	_persist_state()
 	_update_verdict_label()
+	_refresh_clue_list()
 
 
 func _kind_to_key(kind: String) -> String:
