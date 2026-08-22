@@ -987,32 +987,38 @@ func _compute_layout(nodes: Array) -> Dictionary:
 	var saved_pos: Dictionary = _state_store.get("graph_node_positions", {})
 
 	if _mode == ViewMode.MODE_C:
-		# XMind 式自由辐射：中心人物为根，推断/结论/推理链主分支均匀扇出；
-		# 线索沿其佐证分支向外剖列并轻微横向扇出，无佐证线索在外围散布。
-		# 玩家手动拖动过的位置直接沿用（不再按 kind 钳回同心圆 band，见 _clamp_to_canvas）。
-		_xmind_layout(nodes, center, saved_pos, out)
+		# 按关系驱动的横向阶梯树（华生示范对齐）：人物→结论→推断→线索 逐列向左/右阶梯铺开，
+		# 人物偏左树向右、偏右树向左（方向不硬性统一）；多人物各成一棵独立子树水平错开不交叉。
+		# 每次增删关系都会经 _rebuild_graph 重排本布局（玩家手动拖动仅即时生效、下次增删复位）。
+		_relation_tree_layout(nodes, center, saved_pos, out)
 	else:
-		# 模式 B：保留垂直分层（链式聚焦）
+		# 模式 B：推理链纵向自上而下（人物在最上，结论→推断/链→线索依次向下逐行排开）
 		out[_focus_person] = center
-		var y_top: float = center.y - 220.0
-		var y_mid: float = center.y
-		var y_bot: float = center.y + 220.0
-		var tops: Array = []; var mids: Array = []; var bots: Array = []
+		var rows := {}
 		for nd in nodes:
 			if nd.id == _focus_person: continue
-			if nd.kind == "clue": tops.append(nd.id)
-			elif nd.kind == "hypo": mids.append(nd.id)
-			else: bots.append(nd.id)
-		var span: float = _canvas.size.x - 200.0 if _canvas.size.x > 200 else 1080.0
-		var place := func(arr: Array, y: float) -> void:
-			var n: int = arr.size()
-			for i in n:
-				var x: float = 100.0 + (float(i) / maxi(n, 1)) * span
-				if n == 1: x = _canvas.size.x * 0.5 if _canvas.size.x > 0 else 540.0
+			var d: int = 4
+			match nd.kind:
+				"conclusion": d = 1
+				"hypo", "chain": d = 2
+				"clue": d = 3
+			if not rows.has(d): rows[d] = []
+			rows[d].append(nd.id)
+		var depth_keys := rows.keys()
+		depth_keys.sort()
+		var span2: float = _canvas.size.x - 200.0 if _canvas.size.x > 200 else 1080.0
+		var y0: float = center.y - 100.0
+		var row_gap2 := 130.0
+		var rr := 0
+		for d in depth_keys:
+			var arr: Array = rows[d]
+			var n2: int = arr.size()
+			var y: float = y0 + float(rr) * row_gap2
+			for i in n2:
+				var x: float = 100.0 + (float(i) / maxi(n2, 1)) * span2
+				if n2 == 1: x = _canvas.size.x * 0.5 if _canvas.size.x > 0 else 540.0
 				out[arr[i]] = Vector2(x, y)
-		place.call(tops, y_top)
-		place.call(mids, y_mid)
-		place.call(bots, y_bot)
+			rr += 1
 	return out
 
 
@@ -1089,6 +1095,149 @@ func _xmind_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Di
 	# 布局收尾：全部钳制到画布内，防止默认布局把文本节点挤出可视区
 	for idf in out:
 		out[idf] = _clamp_to_canvas(out[idf])
+
+
+# ===================== 按关系驱动的横向阶梯树（华生示范对齐） =====================
+## 思想：不再按 kind 一次性横排，而是把「整条推理链」作为一棵以人物为根的关系树：
+##   人物(col0) → 结论(col1) → 推断/推理链(col2) → 线索(col3) 逐列向右阶梯铺开。
+##  - 排列起自人物为根的 BFS 树（邻居层更深者作子），同父子树归组、父居子带中央；
+##  - 多结论/多推断/多线索同列垂直整齐堆叠，不出现跨侧分叉（避免连线交叉）；
+##  - direction 不硬性统一：人物偏右则树向左生长、偏左则向右，人物可自由摆放（保存位优先）；
+##  - 孤立（未接入树）线索在外围散布；多人物每人一棵独立子树、水平错开不交叉。
+func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
+	# 性质层：决定节点所在纵向阶梯列（人物最内、线索最外）
+	var depth_of := {}
+	for nd in nodes:
+		match nd.get("kind", ""):
+			"person": depth_of[nd.id] = 0
+			"conclusion": depth_of[nd.id] = 1
+			"hypo", "chain": depth_of[nd.id] = 2
+			"clue": depth_of[nd.id] = 3
+			_: depth_of[nd.id] = 4
+	# 根集合 = 人物节点（当前单焦点人物；算法支持多人物各成一树）
+	var roots: Array = []
+	for nd in nodes:
+		if nd.get("kind", "") == "person" and not (nd.id in roots):
+			roots.append(nd.id)
+	if roots.is_empty() and not nodes.is_empty():
+		roots = [nodes[0].id]
+	var adj := _build_adjacency()
+	# 构建父子关系树：从根 BFS，邻居"性质层更深"者作子，每节点只承接一次（防环）
+	var child_map := {}
+	var assigned := {}
+	var q: Array = []
+	for r in roots:
+		if assigned.has(r): continue
+		assigned[r] = true
+		q.append(r)
+		child_map[r] = []
+	while q.size() > 0:
+		var rest: Array = []
+		for u in q:
+			for nb in adj.get(u, []):
+				if assigned.has(nb): continue
+				if not (depth_of.get(nb, 4) > depth_of.get(u, 4)):
+					continue
+				assigned[nb] = true
+				if not child_map.has(u): child_map[u] = []
+				child_map[u].append(nb)
+				child_map[nb] = []
+				rest.append(nb)
+		q = rest
+	# 子树叶子高：内部 = Σ 子叶子高，用于垂直带划分
+	var high := {}
+	for r in roots:
+		high[r] = 1
+	for u in assigned:
+		high[u] = 1
+	_collect_high(roots, child_map, high)
+	# 人物定位：保存位优先（人物可自由拖动）；多人物水平错开
+	var col_gap: float = 240.0
+	var row_gap: float = 68.0
+	var root_default_x: float = center.x
+	var _rd: Variant = saved_pos.get(_focus_person, null) if _focus_person != "" else null
+	if _rd is Vector2:
+		root_default_x = _rd.x
+	for r in roots:
+		var _sv: Variant = saved_pos.get(r, null)
+		var rx: float = _sv.x if (_sv is Vector2) else root_default_x
+		var ry: float = _sv.y if (_sv is Vector2) else center.y
+		out[r] = Vector2(rx, ry)
+	# direction：人物偏右→向左生长，偏左→向右（方向不硬性统一）
+	var dirv := 1.0
+	if root_default_x >= _canvas.size.x * 0.5:
+		dirv = -1.0
+	for r in roots:
+		var _sv2: Variant = saved_pos.get(r, null)
+		var rx2: float = _sv2.x if (_sv2 is Vector2) else root_default_x
+		var ry2: float = _sv2.y if (_sv2 is Vector2) else center.y
+		var top2: float = ry2 - float(high.get(r, 1)) * row_gap * 0.5
+		var bot2: float = ry2 + float(high.get(r, 1)) * row_gap * 0.5
+		_assign_subtree(r, child_map, high, out, top2, bot2, rx2, dirv, col_gap)
+	# 孤立（未接入树）节点：外围散布（保存位优先），保持可见
+	var spare_i := 0
+	var out_keys := {}
+	for k in out: out_keys[k] = true
+	for nd in nodes:
+		if out_keys.has(nd.id): continue
+		var sv: Variant = saved_pos.get(nd.id, null)
+		if sv is Vector2:
+			out[nd.id] = sv
+			continue
+		out[nd.id] = Vector2(root_default_x + dirv * (5.0 + float(spare_i) * 0.6) * col_gap,
+			center.y - 220.0 + float(spare_i) * 120.0)
+		spare_i += 1
+	for idf in out:
+		out[idf] = _clamp_to_canvas(out[idf])
+
+
+## 后续遍历收集拓扑序，据此自底向上算子树叶子高
+func _collect_high(roots: Array, child_map: Dictionary, high: Dictionary) -> void:
+	var order := []
+	var stack: Array = []
+	for r in roots:
+		stack.append(Array([r, false]))
+	while stack.size() > 0:
+		var pair: Array = stack.pop_back()
+		var u: String = pair[0]
+		var visited: bool = pair[1]
+		if visited:
+			order.append(u)
+		else:
+			stack.append(Array([u, true]))
+			var ch: Array = child_map.get(u, [])
+			var closed := {}
+			for c in ch:
+				if closed.has(c): continue
+				closed[c] = true
+				stack.append(Array([c, false]))
+	for u in order:
+		var ch2: Array = child_map.get(u, [])
+		if ch2.is_empty(): continue
+		var s: int = 0
+		for c in ch2:
+			s += high.get(c, 1)
+		high[u] = s
+
+
+## 递归布点：父居其子带中央；子带按各自叶子高切分到下一列
+func _assign_subtree(u: String, child_map: Dictionary, high: Dictionary, out: Dictionary, top: float, bot: float, pxx: float, dirv: float, col_gap: float) -> void:
+	var mid_y: float = (top + bot) * 0.5
+	if out.has(u):
+		out[u] = Vector2(out[u].x, mid_y)
+	else:
+		out[u] = Vector2(pxx, mid_y)
+	var ch: Array = child_map.get(u, [])
+	if ch.is_empty():
+		return
+	var total: int = maxi(int(high.get(u, 1)), 1)
+	var cur: float = top
+	for c in ch:
+		var seg: float = (bot - top) * float(high.get(c, 1)) / float(total)
+		_assign_subtree(c, child_map, high, out, cur, cur + seg, pxx + dirv * col_gap, dirv, col_gap)
+		cur += seg
+
+
 # 灵活布局辅助：仅把节点限制在画布内（XMind 式自由排布，允许任意位置）
 func _clamp_to_canvas(p: Vector2) -> Vector2:
 	var m: float = 60.0
@@ -1517,6 +1666,45 @@ func _drag_preview_pos() -> Vector2:
 	return Vector2.ZERO
 
 
+## 拖动带子树的节点时先折叠子树（先折叠后移动）：移动只带该节点本身，避免整棵子树跟移。
+func _fold_subtree_for_drag(id: String) -> void:
+	if _state != State.EDITABLE: return
+	var subs := _subtree_ids(id)
+	if subs.is_empty() and not _folded_nodes.has(id):
+		return
+	call_deferred("_apply_fold_subtree", id, subs)
+
+
+## BFS 沿连接收集本节点（kind 更深）的整棵子树 id（不含 id 自身），与 _relation_tree_layout 同款方向判据。
+func _subtree_ids(id: String) -> Array:
+	var res: Array = []
+	var adj := _build_adjacency()
+	var d0: int = _ring_depth(_kind_of(id))
+	var q: Array = [id]
+	var seen := {id: true}
+	while q.size() > 0:
+		var u: String = q.pop_front()
+		for nb in adj.get(u, []):
+			if seen.has(nb): continue
+			var d1: int = _ring_depth(_kind_of(nb))
+			if d1 <= d0: continue
+			seen[nb] = true
+			res.append(nb)
+			q.append(nb)
+	return res
+
+
+## deferred：折叠子树（含本体），重排后拖动只体现该节点本身；可经节点折叠控件展开。
+func _apply_fold_subtree(id: String, subs: Array) -> void:
+	if not is_inside_tree(): return
+	if not _folded_nodes.has(id): _folded_nodes[id] = true
+	for s in subs:
+		_folded_nodes[s] = true
+	_state_store["graph_folded_nodes"] = _folded_nodes
+	_persist_view()
+	_rebuild_graph()
+
+
 # ===================== 交互 =====================
 func _on_node_hover(id: String, entered: bool) -> void:
 	if entered:
@@ -1565,6 +1753,7 @@ func _on_node_gui(event: InputEvent, id: String, kind: String) -> void:
 				_drag_mode = "move"
 				_drag_offset = mouse_canvas - n.position
 				_drag_start = get_viewport().get_mouse_position()
+				_fold_subtree_for_drag(id)
 	else:
 		# 释放：在 _input 里 commit（覆盖 gui_input 边界问题）
 		pass

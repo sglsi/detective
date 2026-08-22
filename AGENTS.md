@@ -337,10 +337,14 @@ NO other objects, isolated, game asset
 - **教学线索不进入真实案件（#3）**：场景一示范为 source `watson`/`messenger`，`detective_scene._open_wall` 在 `use_case_wide`（场景二后全案池）时过滤掉这两个 source，避免华生/信使教学线索混入后续案件图谱。
 - **每堵墙独立验证（#2）**：scene1 的华生与信使墙共享 `_wall_state`，华生墙验证后 `verified=true` 会泄漏进信使墙导致图谱锁定不可拖动；`_show_messenger_reasoning_wall` 打开前重置 `_wall_state["verified"]=false`。
 - **双级存储（#4）**：`reasoning_wall._on_back_pressed` 退出墙只调 `_persist_state()`（内存态 `_state_store`，即临时存储），不再调用 `_on_persist`（落盘）。长期存储（写档）只由 ①手动存档（side_panel）②场景结束自动存档（`_save_and_transition`/`_save_and_continue`）触发，二者会快照当前内存态。场景二后的基类 `_do_save` 目前只写 `clue_ids`，wall 布局只在 scene1 的 `_do_save` 写入存档。
-- **人物锚定分层树布局**（`_compute_layout` 的 MODE_C 调 `_xmind_layout`，同心圆/放射逻辑移除）。核心语义（对照用户 华生示范：人物→结论→推断→线索 阶梯推理树）：
-  - **人物可自由移动**，不强制居中（画布可能有多个人物）；`_xmind_layout` 优先沿用 `saved_pos[_focus_person]`，无保存时默认放在水平约 72%（`cacvas...*0.72`）给推理树留出铺开空间。人物拖拽后位置随 `_persist_node_positions` 持久化，再次布局沿用。
-  - **按类型分层（离人物距离）**：conclusion=1（结论离人物最近）、chain/hypo=2（推断中层）、clue=3（线索最外层）。同层同列一列排布，列 x=人物x ± layer*250，方向 `dirv` 由人物 x 是否过半自适应（偏右向左铺开、偏左向右铺开，避免树伸出画布）；列内按 92px 步长垂直均匀堆叠（多结论/多推断同侧时整齐排列），列高基于人物 y 居中、`clampf` 在画布内。
-  - 玩家拖动过的非人物节点从 `saved_pos` 直接沿用；布局收尾对所有节点 `_clamp_to_canvas`（margin 60）防止文本框挤出可视区。拖拽落下走 `_clamp_to_canvas(new_center)`。`_xmind_layout` 用 `else` 包裹/末尾 `for idf in out` 钳制，避免裸 `return`（项目把 void 函数返回当错误）。
+- **按关系驱动的横向阶梯树布局**（`_compute_layout` 的 MODE_C 调 `_relation_tree_layout`，它是当前启用的布局；旧 `_xmind_layout` 仅作参考保留，不再调用）。核心语义（对照用户 华生示范：人物→结论→推断→线索 整条推理链阶梯树）：
+  - **以关系（`_relations`/`_edge_list`/人物-线索元数据边）为驱动建树**，不再按 kind 一次性横排：`_build_adjacency` 取邻居，人物=根(col0)，从根 BFS，邻居"性质层更深者"作子（conclusion→1、chain/hypo→2、clue→3，person→0），每节点只承接一次防环；同父子树归组（`_collect_high` 靠后序统计子带高 `high`），父居中于其子树纵向带（`_assign_subtree` 叶子累计、`top2/bot2` 分配）。
+  - **方向不硬性统一**：人物居中/偏右/偏左时树自动朝画布空余侧生长（`dirv` 由 `saved_pos` 与空余空间决定）；人物可自由移动、位置保存位优先；多人物各自一棵独立子树、纵向带独立互不交叉。
+  - **每次增删关系自动重排**：`_rebuild_graph`→`_compute_layout` 每次对整棵树重排（非根节点不用 `saved_pos` 沿用），孤儿/孤立线索留在外围按 `saved_pos` 鼻孔放置。
+  - **拖动时先折叠子树再移动**：`_on_node_gui` move 分支调 `_fold_subtree_for_drag(id)`，对带子树的节点用 `_subtree_ids`（沿邻接按性质层更深 BFS）收集后代 → `_apply_fold_subtree` 把本体+后代写入 `_folded_nodes` 并 `_persist_view`+`_rebuild_graph`（`call_deferred` 避免拖拽中重建卡死），移动只带该节点、子树折叠成摘要。
+  - **MODE_B 推理链视图为纵向自上而下**：根在上、row2 向下，每行树子树紧凑排布。
+  - 布局收尾对所有节点 `_clamp_to_canvas`（margin 60）防止文本框挤出可视区。拖拽落下走 `_clamp_to_canvas(new_center)`。函数用 `else` 包裹/末尾 `for idf in out` 钳制，避免裸 `return`（项目把 void 函数返回当错误）。
+  - **结构断言**：`tools/test_xmind_diag.gd` 现改为校验启用的 `_relation_tree_layout`（XMIND_DIAG3）——注入多链 `_relations`，断言整链沿树向外逐列外扩(列x单调)、同列不重叠(≥30)、树完整、全在画布内、方向随人物自适应。旧 `_xmind_layout` 单测已废弃。
   - 坑：match 的类型分支写字符串 pattern 时**勿加多余冒号**（曾写成 `":conclusion":` 导致结论落入默认层 4）。可复用 `tools/test_xmind_diag.gd` 校验该结构（覆盖默认/人物在左/人物在右三态）。
   - **节点卡配色（对照华生示范）**：人物=红框+浅色字（`font_col`/`sub_col` 置浅色）、结论=浅棕（`Color(0.82,0.68,0.42)`+棕金边，不再用 `_verdict_color()` 染色）、推断(hypo)=浅蓝、线索=浅绿（常量 `COL_CLUE_*`/`COL_HYPO_*`，注释标“对照示范”）。sub 标签用 `sub_col` 而非固定 `COL_GREY`。
   - **线索放置唯一性（placed-clue 模型）**：线索在两个锚点间存在唯一性——左侧「已收集线索」栏与图谱节点互斥。落地：
