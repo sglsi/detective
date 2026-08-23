@@ -33,6 +33,7 @@ var _verdict: int = -1              # -1 表示由本视图自行推算
 var _state_store: Dictionary = {}
 var _placed_clues: Array = []
 var _auto_fold: bool = false
+var _manual_nodes: Array = []
 var _cb_tag: Callable = Callable()
 var _cb_add_edge: Callable = Callable()
 var _cb_remove_relation: Callable = Callable()
@@ -233,6 +234,7 @@ func build(data: Dictionary) -> void:
 	# 视图记忆恢复（09 R-3）：读 SaveGame/state_store
 	_mode = _state_store.get("graph_view_mode", ViewMode.MODE_C)
 	_placed_clues = (_state_store.get("graph_placed_clues", []) as Array).duplicate()
+	_manual_nodes = (Array(_state_store.get("graph_manual_nodes", [])) as Array).duplicate()
 	_focus_person = _state_store.get("graph_focus", _focus_person)
 
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
@@ -784,10 +786,9 @@ func _build_adjacency() -> Dictionary:
 		link.call(e.from, e.to)
 	for r in _relations:
 		link.call(r.get("from", ""), r.get("to", ""))
-	if _mode == ViewMode.MODE_C:
-		for c in _clues:
-			if _focus_person in c.get("related_npcs", []):
-				link.call(_focus_person, c.get("id", ""))
+	if _mode == ViewMode.MODE_C and _focus_person != "":
+		# 结论节点 id 恒为 "conclusion"，直接锚定（避免在 _build_adjacency 内调 _node_list 造成递归）
+		link.call(_focus_person, "conclusion")
 	return adj
 
 ## 节点的直接外层邻居（圈层深度严格更大的相连节点）——用于折叠控件数量与朝向
@@ -1189,6 +1190,11 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		out[nd.id] = Vector2(root_default_x + dirv * (5.0 + float(spare_i) * 0.6) * col_gap,
 			center.y - 220.0 + float(spare_i) * 120.0)
 		spare_i += 1
+	# 手动拖动过的节点保持原位，不被自动布局覆盖（保证每个人物/结论/推断/线索都能自由移动）
+	for mid2 in _manual_nodes:
+		var _sv3: Variant = saved_pos.get(mid2, null)
+		if _sv3 is Vector2 and out.has(mid2):
+			out[mid2] = _sv3
 	for idf in out:
 		out[idf] = _clamp_to_canvas(out[idf])
 
@@ -1555,16 +1561,6 @@ func _on_edge_draw() -> void:
 			else:
 				_draw_arc_line(a, b, e.color, 3)
 
-	# 人物元数据连线（仅模式 C，常显，灰，细弧线）
-	if _mode == ViewMode.MODE_C:
-		for c in _clues:
-			var cid: String = c.get("id", "")
-			if _focus_person in c.get("related_npcs", []):
-				var a2: Vector2 = _node_center.get(cid, Vector2.ZERO)
-				var b2: Vector2 = _node_center.get(_focus_person, Vector2.ZERO)
-				if a2 != Vector2.ZERO and b2 != Vector2.ZERO:
-					_draw_arc_line(a2, b2, COL_GREY, 1.5, 30.0)
-
 	# 拖拽预览线（弧线）
 	if _dragging and _drag_id != "":
 		var a3: Vector2 = _node_center.get(_drag_id, Vector2.ZERO)
@@ -1839,6 +1835,10 @@ func _commit_move(id: String) -> void:
 				_tag_person(id, drop)
 			elif drop_kind in ["hypo", "clue", "conclusion"]:
 				_add_edge(id, drop, key_to_kind(_pen_color_key), _pen_color_key, _pen_dashed)
+		if moved:
+			if not _manual_nodes.has(id):
+				_manual_nodes.append(id)
+			_state_store["graph_manual_nodes"] = _manual_nodes
 	elif not moved:
 		_on_node_clicked(id, _node_kind.get(id, ""))
 	_persist_node_positions()
@@ -3200,6 +3200,7 @@ func _persist_view() -> void:
 	_state_store["graph_placed_clues"] = _placed_clues.duplicate()
 	_state_store["graph_focus"] = _focus_person
 	_state_store["graph_seed"] = _layout_seed
+	_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
 	_state_store["graph_folded_nodes"] = _folded_nodes
 	_persist_node_positions()
 
