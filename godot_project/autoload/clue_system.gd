@@ -142,6 +142,13 @@ func restore_clue_states(states: Dictionary) -> void:
 
 var collected_clues: Array = []
 
+## 案件级推理墙持久化状态（跨场景共享单一真相源）。
+## 场景二~八的「全案大墙」以它为 state_store（reasoning_wall 的 _state_store 引用），
+## 墙内关系/节点位置/折叠/放置等图谱状态在此跨场景驻留：前一场景建立的推理内容
+## 会原样带到下一场景，并在新墙打开时按 _auto_fold 折叠已确立的推理主干。
+## 随 SaveManager snapshot 一并存/读档（见 save_manager.gd）。
+var case_wall_state: Dictionary = {}
+
 ## 登记一条已收集线索（按 id 去重；已存在则更新字段）
 ## weight：线索分级权重（关键10/重要5/一般2/其他0，误导0）。tier 为其中文展示标签，
 ## 由 weight+correct 派生，仅供 UI/笔记展示，不参与计算。默认 0 兼容旧调用方（存/读档测试）。
@@ -260,6 +267,7 @@ func count_collected(source: String = "") -> int:
 ## 清空（新游戏时调用）
 func clear_collected() -> void:
 	collected_clues.clear()
+	case_wall_state = {}
 
 ## 清空指定 source 的已收集线索（读档恢复前调用，避免全局累计导致「两层皮」）
 ## source 用于区分不同轮次/场景（"watson"/"messenger"/"garden"/"indoor"），
