@@ -606,6 +606,52 @@ func _rel_color(kind: String) -> Color:
 
 
 # ===================== 图重建 =====================
+## 节点卡片真实高度：视图已测量用视图，否则回退字符估算
+func _view_height(id: String) -> float:
+	var v: Variant = _node_views.get(id)
+	if v != null:
+		var _sz: Vector2 = v.size
+		if _sz.y > 1.0:
+			return _sz.y
+	return _est_node_h({})
+
+## 同列纵向去重叠：同一列（x 相邻）节点按真实卡片高度，保证相邻卡片上下边距 ≥15px，并把整列回居中避免整体下沉堆出画布
+func _apply_column_overlap_fix() -> void:
+	var cols: Dictionary = {}
+	for id in _node_center:
+		var x: float = (round(_node_center[id].x / 8.0) * 8.0)
+		if not cols.has(x):
+			cols[x] = []
+		cols[x].append(id)
+	for x in cols:
+		var arr: Array = cols[x]
+		if arr.size() < 2:
+			continue
+		arr.sort_custom(func(a, b): return _node_center[a].y < _node_center[b].y)
+		var _cy_before: float = 0.0
+		for i in arr.size():
+			_cy_before += _node_center[arr[i]].y
+		_cy_before /= float(arr.size())
+		for i in range(1, arr.size()):
+			var _ha: float = _view_height(arr[i - 1])
+			var _hb: float = _view_height(arr[i])
+			var _min_cy: float = _node_center[arr[i - 1]].y + (_ha + _hb) * 0.5 + 15.0
+			if _node_center[arr[i]].y < _min_cy:
+				_node_center[arr[i]] = Vector2(_node_center[arr[i]].x, _min_cy)
+		var _cy_after: float = 0.0
+		for i in arr.size():
+			_cy_after += _node_center[arr[i]].y
+		_cy_after /= float(arr.size())
+		var _shift: float = _cy_before - _cy_after
+		for i in arr.size():
+			var id2: String = arr[i]
+			_node_center[id2] = Vector2(_node_center[id2].x, _node_center[id2].y + _shift)
+			var vv: Variant = _node_views.get(id2)
+			if vv != null:
+				vv.position = _node_center[id2] - vv.size * 0.5
+	return
+
+
 func _rebuild_graph() -> void:
 	_compute_common_clues()
 	_derive_edges()
@@ -645,6 +691,8 @@ func _rebuild_graph() -> void:
 		v.position = pos.get(nd.id, Vector2.ZERO) - v.size * 0.5
 		_node_kind[nd.id] = nd.kind
 		_node_data[nd.id] = nd.data
+	# 同列纵向去重叠：按真实卡片高度硬保证相邻卡片上下边距 ≥15px（不依赖布局/估算，避免任何覆盖）
+	_apply_column_overlap_fix()
 	# 创建连线出口折叠控件（XMind 式 −/+N）
 	for nd in nodes:
 		if _is_leaf(nd.id): continue
