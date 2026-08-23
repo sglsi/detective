@@ -118,6 +118,15 @@ const _NPC_DISPLAY_NAMES := {
 	"NPC_LANCE": "兰斯",
 }
 
+# === 身份揭示门控（需求2）：某些 NPC 在「揭示名字的证据」被收集前，不得作为已知人物
+# 出现在推理墙人物中心，避免现场线索 related_npcs 提前把未揭示身份的嫌疑人名带上墙。
+# > 霍普的名字只在收到从美国来的电报（C_SOTCB_501 马车公司信息 / C_SOTCB_502 霍普身份，
+#   均为场景五之后）才揭晓；此前现场勘查（c203/204/205/206 等）虽真实关联他，但推理墙
+#   人物中心不得提前显示「霍普」。
+const _IDENTITY_REVEAL_GATES := {
+	"NPC_HOP": ["C_SOTCB_501", "C_SOTCB_502"],
+}
+
 # === 圈层距离带（自由拖动 + 排序约束）===
 # 单位像素（画布坐标）。约束：核心 < 结论/链 < 推断 < 线索（递增距离）。
 # 节点拖动时钳制在对应 band 内，永不越层。
@@ -247,7 +256,7 @@ func build(data: Dictionary) -> void:
 			var out := []
 			for c in live:
 				for p in c.get("related_npcs", []):
-					if not seen.has(p):
+					if not seen.has(p) and _identity_revealed(p, live):
 						seen[p] = true
 						out.append({"id": p, "name": _NPC_DISPLAY_NAMES.get(p, p)})
 			if not out.is_empty():
@@ -309,6 +318,19 @@ func build(data: Dictionary) -> void:
 
 	if not _state_store.get("graph_tutorial_seen", false):
 		_show_tutorial()
+
+
+## 身份揭示门控（需求2）：判定某 NPC 是否应以"已知人物"出现在人物中心。
+## 仅当已收集线索中存在其"揭示名字的证据"时才揭示；收集线索集合由 live（已收集线索）承载。
+func _identity_revealed(pid: String, live: Array) -> bool:
+	var gates: Array = _IDENTITY_REVEAL_GATES.get(pid, [])
+	if gates.is_empty():
+		return true
+	for g in gates:
+		for c in live:
+			if c.get("id", "") == g:
+				return true
+	return false
 
 
 # ===================== UI 构建 =====================
@@ -3095,7 +3117,10 @@ func _show_detail(id: String, kind: String) -> void:
 		_detail_card.queue_free()
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(520, 360)
-	card.z_index = 12
+	# 需求1：详情弹窗必须盖过左侧「已收集线索」栏（reasoning_wall 顶层 z=20）。
+	# graph_view 整树 z=5，任何子节点都无法超过左栏；故把卡挂到 graph_view 的父
+	# （reasoning_wall 顶层），并设 z=30（低于顶栏 100，顶栏仍可点）。
+	card.z_index = 30
 	var s := StyleBoxFlat.new()
 	s.bg_color = Color(0.10, 0.08, 0.06, 0.98)
 	s.border_color = COL_GOLD
@@ -3198,7 +3223,13 @@ func _show_detail(id: String, kind: String) -> void:
 	vb.add_child(close)
 
 	card.position = Vector2(40, 80)
-	add_child(card)
+	# 需求1：挂载到 graph_view 的父（reasoning_wall 顶层），脱离 graph_view z=5 的层级锁，
+	# 否则卡内任何子节点都盖不过左栏（z=20）。父容器让卡与左栏成为兄弟，凭 z=30 盖左栏。
+	var host: Node = get_parent()
+	if host and is_instance_valid(host) and host is Control:
+		host.add_child(card)
+	else:
+		add_child(card)
 	_detail_card = card
 
 

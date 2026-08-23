@@ -151,8 +151,27 @@ const _NPC_DISPLAY_NAMES := {
 	"NPC_LANCE": "兰斯",
 }
 
+# === 身份揭示门控（需求2）：某些 NPC 在「揭示名字的证据」被收集前，不得作为已知人物
+# 出现在推理墙人物中心。霍普的名字只在收到从美国来的电报（C_SOTCB_501/502，场景五后）
+# 才揭晓；此前现场线索（c203-206 等）虽真实关联他，但不得提前显示「霍普」。
+const _IDENTITY_REVEAL_GATES := {
+	"NPC_HOP": ["C_SOTCB_501", "C_SOTCB_502"],
+}
+
 func _npc_display_name(id: String) -> String:
 	return _NPC_DISPLAY_NAMES.get(id, id)
+
+
+## 身份揭示门控（需求2）：判定某 NPC 是否应以"已知人物"出现。live 为当前已收集线索。
+func _identity_revealed(pid: String, live: Array) -> bool:
+	var gates: Array = _IDENTITY_REVEAL_GATES.get(pid, [])
+	if gates.is_empty():
+		return true
+	for g in gates:
+		for c in live:
+			if c.get("id", "") == g:
+				return true
+	return false
 
 
 func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable(), auto_fold: bool = false) -> void:
@@ -1800,7 +1819,7 @@ func _derive_persons() -> Array:
 			_clues = live
 	for c in _clues:
 		for p in c.get("related_npcs", []):
-			if not seen.has(p):
+			if not seen.has(p) and _identity_revealed(p, _clues):
 				seen[p] = true
 				out.append({"id": p, "name": _npc_display_name(p)})
 	var extra: Array = _hypothesis.get("persons", [])
