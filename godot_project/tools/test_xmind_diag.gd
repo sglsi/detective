@@ -16,6 +16,11 @@ func _check(g, nodes, saved_pos, relations, label: String) -> int:
 	var out := {}
 	var center: Vector2 = g._canvas.size * 0.5
 	g._relation_tree_layout(nodes, center, saved_pos, out)
+	# 应用真实同列去重叠（保证卡片垂直边缘间距 ≥15px）
+	g._node_center = out.duplicate()
+	g._node_views = {}
+	g._apply_column_overlap_fix()
+	out = g._node_center.duplicate()
 	var person: Vector2 = out.get("NPC_HOLMES", Vector2(-9999, -9999))
 	print(label, " person=", person, " 可布局=", out.size(), " 节点=", nodes.size())
 	# 1) 树完整：每个节点都有布局
@@ -48,7 +53,7 @@ func _check(g, nodes, saved_pos, relations, label: String) -> int:
 		var ds: float = (out[shallower].x - person.x) * dir
 		if da < ds - 1.0:
 			print("FAIL 链未向外 %s(depth=%s) 应大于 %s(depth=%s)  da=%f ds=%f dir=%f" % [deeper, _ring(nd_kind(nodes, deeper)), shallower, _ring(nd_kind(nodes, shallower)), da, ds, dir]); fail += 1
-	# 4) 同列不重叠（同一列x上的节点 y 间隔不小于 30）
+	# 4) 同列不重叠（同一列x上的节点 中心 y 间隔不小于 30）
 	var col_rows := {}
 	for id in out:
 		var kx: int = int(round(out[id].x))
@@ -60,7 +65,32 @@ func _check(g, nodes, saved_pos, relations, label: String) -> int:
 		for i in range(1, ys.size()):
 			if ys[i] - ys[i-1] < 30.0:
 				print("FAIL 同列重叠 x=%d y=%s" % [kx, ys]); fail += 1; break
+	# 4') 同列卡片垂直边缘间距 ≥15（避免相互覆盖，真实需求）
+	var edge_rows := {}
+	for id in out:
+		var kx2: int = int(round(out[id].x))
+		if not edge_rows.has(kx2): edge_rows[kx2] = []
+		edge_rows[kx2].append({"id": id, "y": out[id].y})
+	for kx2 in edge_rows:
+		if edge_rows[kx2].size() < 2: continue
+		var ew: Array = edge_rows[kx2]
+		ew.sort_custom(func(a, b): return a.y < b.y)
+		for i in range(1, ew.size()):
+			var ndA = _find_nd(nodes, ew[i-1].id)
+			var ndB = _find_nd(nodes, ew[i].id)
+			if ndA == null or ndB == null: continue
+			var hp: float = g._est_node_h(ndA)
+			var hc: float = g._est_node_h(ndB)
+			var edge: float = (ew[i].y - ew[i-1].y) - (hp + hc) * 0.5
+			if edge < 14.99:
+				print("FAIL 同列卡片间距<15 x=%d %s↔%s edge=%.1f y=[%s,%s]" % [kx2, ew[i-1].id, ew[i].id, edge, ew[i-1].y, ew[i].y]); fail += 1
 	return fail
+
+
+func _find_nd(nodes: Array, id: String):
+	for nd in nodes:
+		if nd.id == id: return nd
+	return null
 
 func nd_kind(nodes: Array, id: String) -> String:
 	for nd in nodes:
