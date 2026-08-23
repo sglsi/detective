@@ -424,6 +424,13 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# _default_wall_verify / _on_back_pressed 中判定，避免开墙时刻的 _wall_auto
 	# 把「提前开的预览墙」永久锁死为不推进（场景二反复复现的卡死根因）。
 	var advance: Callable = Callable(self, "_advance_now")
+	# 全案大墙（source==""，含场景二~八）用 ClueSystem.case_wall_state 作为跨场景共享的
+	# state_store：前一场景建立的推理图谱（关系/节点位置/折叠/放置）在此驻留，场景切换后
+	# 原样带到下一场景并自动折叠已确立主干。场景一教学墙（source="watson"/"messenger"）
+	# 仍用本实例 _wall_state（双墙各自独立，不污染案件共享态）。
+	# _wall_state 同步指向共享引用：scene 侧 _do_save 存档 _wall_state 时即共享的最新图谱。
+	if use_case_wide and ClueSystem != null:
+		_wall_state = ClueSystem.case_wall_state
 	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true, local_count, Callable(self, "_do_save"), use_case_wide)
 
 ## 默认验证回调：展示判定结果；满足「推理阶段」或「线索已收满」则自动推进过渡。

@@ -193,6 +193,7 @@ func _build_save_data() -> void:
 		"star_chains": StarRatingSystem.chains.duplicate(),   # v4.0 逐链三维星级（读档恢复用）
 		"scene_state": GameManager.scene_state.duplicate(),   # 场景内运行状态（phase, clue_ids）
 		"collected_clues": _get_collected_clues(),             # 通用已收集线索（场景无关单一真相源）
+		"case_wall_state": _get_case_wall_state(),             # 案件级推理墙图谱状态（跨场景共享，场景二~八）
 		"is_guest": GameManager.is_guest,
 		"game_time": 0,  # TODO: 游戏内计时器
 		"dialogue_progress": _get_dialogue_progress(),
@@ -358,6 +359,8 @@ func _restore_from_dict(data: Dictionary) -> void:
 	if data.has("collected_clues") and ClueSystem:
 		ClueSystem.restore_collected_clues(data["collected_clues"])
 		print("[SaveManager] collected_clues 已恢复: ", ClueSystem.count_collected())
+	if data.has("case_wall_state") and ClueSystem:
+		ClueSystem.case_wall_state = data["case_wall_state"].duplicate(true)
 	if data.has("badges") and BadgeSystem:
 		BadgeSystem.restore_badges(data["badges"])
 	if data.has("endings") and EndingSystem:
@@ -423,6 +426,11 @@ func _get_collected_clues() -> Array:
 	if ClueSystem:
 		return ClueSystem.get_collected_clues_snapshot()
 	return []
+
+func _get_case_wall_state() -> Dictionary:
+	if ClueSystem:
+		return ClueSystem.case_wall_state.duplicate(true)
+	return {}
 
 func _get_settings_snapshot() -> Dictionary:
 	if SettingsManager:
