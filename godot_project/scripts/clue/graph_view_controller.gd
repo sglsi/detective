@@ -1737,7 +1737,7 @@ func _on_node_gui(event: InputEvent, id: String, kind: String) -> void:
 				# 命中节点且未建边（自环），不继续后续处理
 				return
 			if _state != State.EDITABLE: return
-			if not (kind in ["clue", "hypo", "conclusion", "chain"]): return
+			if not (kind in ["clue", "hypo", "conclusion", "chain", "person"]): return
 			var n: Control = _node_views.get(id)
 			if not (n and is_instance_valid(n)): return
 			var mouse_canvas: Vector2 = _canvas.get_global_transform().affine_inverse() * mb.global_position
@@ -1755,7 +1755,6 @@ func _on_node_gui(event: InputEvent, id: String, kind: String) -> void:
 				_drag_mode = "move"
 				_drag_offset = mouse_canvas - n.position
 				_drag_start = get_viewport().get_mouse_position()
-				_fold_subtree_for_drag(id)
 	else:
 		# 释放：在 _input 里 commit（覆盖 gui_input 边界问题）
 		pass
