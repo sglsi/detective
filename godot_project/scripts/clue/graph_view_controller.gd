@@ -301,7 +301,9 @@ func build(data: Dictionary) -> void:
 
 	_create_ui()
 	_rebuild_graph()
-	_create_clue_dock()
+	# 已收集线索栏唯一入口：reasoning_wall 左栏（挂顶层 z=20，显示+选择+拖入放置+放置后消失）。
+	# 这里不再创建图谱自带的第二套 dock（System B），避免"两套已收集线索"冗余。
+	# _create_clue_dock()
 
 	if not _state_store.get("graph_tutorial_seen", false):
 		_show_tutorial()
