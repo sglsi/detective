@@ -143,6 +143,7 @@ const _COLOR_LABELS := {"green": "支持", "orange": "矛盾存疑", "red": "反
 # 时才走第二级。直接在这里把 name 填中文，中心永远显示真名，不再依赖下游 fallback。
 const _NPC_DISPLAY_NAMES := {
 	"NPC_WT": "华生",
+		"NPC_MSG": "信使",
 	"NPC_HOP": "霍普",
 	"NPC_DRE": "德雷伯",
 	"NPC_LUCY": "露西",
@@ -1765,8 +1766,11 @@ func _on_open_graph_view() -> void:
 	gv.z_index = 5
 	var persons := _derive_persons()
 	var focus: String = _state_store.get("graph_focus", "")
-	if focus == "" and not persons.is_empty():
-		focus = persons[0].get("id", "")
+	# 防串位守卫：持久化的 graph_focus 若不属于当前墙的人物集合（多墙共享 wall_state 时
+	# 会从上一墙残留焦点，造成信使墙误显示华生），回退到本墙人物首项并写回，杜绝张冠李戴。
+	if focus == "" or not _persons_contain(persons, focus):
+		focus = persons[0].get("id", "") if not persons.is_empty() else ""
+		_state_store["graph_focus"] = focus
 	gv.build({
 		"clues": _clues, "hypo": _hypothesis, "relations": _relations,
 		"persons": persons, "focus_person": focus, "difficulty": _difficulty,
@@ -1806,6 +1810,13 @@ func _derive_persons() -> Array:
 			seen[pid] = true
 			out.append({"id": pid, "name": _npc_display_name(pid)})
 	return out
+
+
+func _persons_contain(persons: Array, pid: String) -> bool:
+	for p in persons:
+		if p.get("id", "") == pid:
+			return true
+	return false
 
 
 func _gv_tag_person(clue_id: String, person_id: String) -> void:

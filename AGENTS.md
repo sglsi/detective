@@ -356,3 +356,8 @@ NO other objects, isolated, game asset
     - **左栏过滤（需求3）**：`reasoning_wall._refresh_clue_list` 跳过 `_state_store.get("graph_placed_clues",[])` 中的线索；`_gv_relations_changed` 回调末尾补 `_refresh_clue_list()` 使放置即时反映到左栏。初始全在左栏、由玩家拖入图谱。
     - 详情「线索」分支按钮必须在 `if _state == State.EDITABLE:` 块内按正确缩进追加（曾因 g1 补丁缩进错位导致 `rmv_btn`/`cid` 未声明解析错误）。
   - **场景切换自动折叠（需求2）**：`setup(... , auto_fold: bool)` 尾部新参、`build` 收 `auto_fold`；`detective_scene._open_wall` 传 `use_case_wide`（场景二+ 案件级大墙=自动折叠，场景一教学墙不折叠）。`graph build` 在折叠状态恢复后，若 `auto_fold` 且 `_folded_nodes` 为空且已有 `_relations`，把关系端点中深度0的根（conclusion/person/chain）批量写入 `_folded_nodes` 并 `_persist_view`——收起已确立的推理主干，聚焦最新线索/推断；玩家手动展开/折叠会覆盖，重开不再重复播种。
+  - **折叠隐藏连线（需求4批）**：`_on_edge_draw` 顶部 `_fh = _compute_hidden()`，任一端点在折叠集合的边一律 `continue` 不绘制——彻底避免“折叠后连线残留”。折叠盒本身经 `_node_list` 过滤隐藏节点后在画布上消失，此守卫兜住可能的残留中心（如拖动/持久化带回）。
+  - **垂直 15px 间距与自适应宽度（需求4批）**：
+    - 节点卡宽度上限 `_MAX_W = 420 = 15×font28`，单行最多 15 汉字，超出换行（自适应宽度取 `max(natural, 420)`）。
+    - 布局按**子树所需垂直带长（span）**分配，不再按节点估高 `seg` 切分（旧法：父带过窄时子带 `seg < _req` 钳制到 `_req` 会溢出进邻子树，导致两链推断同列同 y 重叠，如 `test_xmind_diag` XMIND_DIAG3 曾 FAIL）。落地：`_subtree_span_est()` 后序算 `span(u)=max(est_h[u], Σspan(child)+15×(n-1))`；根带高 `= span(root)`；`_assign_subtree` 按 `span(child)` 精确切子带、`cur += span+15`、剩余空间居中，保证兄弟/后代不交叠、上下≥15px。
+  - **人物焦点不串墙（需求4批）**：`reasoning_wall._on_open_graph_view` 里 focus 取 `_state_store["graph_focus"]` 后，若为空或**不在本墙 persons 集合**（`_persons_contain`），回退到 `persons[0]` 并写回 `_state_store["graph_focus"]`——杜绝共享 `_wall_state` 里上一墙残留焦点污染下一墙（如信使墙显示成华生）。场景一华生/信使 hypo 各自声明 `persons`（watson→`NPC_WT`，messenger→`NPC_MSG`），`_NPC_DISPLAY_NAMES` 新增 `"NPC_MSG": "信使"`。
