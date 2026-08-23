@@ -2078,7 +2078,8 @@ func _finish_clue_drag(cid: String) -> void:
 	# 只有放到图谱画布上（左栏矩形之外）才算「拖入图谱」；丢回左栏内则取消。
 	var inside_panel := _left_panel and is_instance_valid(_left_panel) and _left_panel.get_global_rect().has_point(gp)
 	if not inside_panel and _graph_view and is_instance_valid(_graph_view):
-		_graph_view.place_clue(cid)
+		# 落点若命中图上一个节点，place_clue 会在放置线索同时自动建绿实线支持关系
+		_graph_view.place_clue(cid, gp)
 		_persist_state()
 		_refresh_clue_list()
 	else:
