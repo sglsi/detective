@@ -1159,9 +1159,15 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 	for u in assigned:
 		high[u] = 1
 	_collect_high(roots, child_map, high)
+	# 节点估算高度（文字行数×行高 + 副标题 + 内边距），用于垂直带切分保证兄弟间 ≥15px
+	var est_h := {}
+	for nd in nodes:
+		est_h[nd.id] = _est_node_h(nd)
+	var memo := {}
+	for _nd in nodes:
+		_subtree_span_est(_nd.id, child_map, est_h, memo)
 	# 人物定位：保存位优先（人物可自由拖动）；多人物水平错开
-	var col_gap: float = 240.0
-	var row_gap: float = 68.0
+	var col_gap: float = 300.0
 	var root_default_x: float = center.x
 	var _rd: Variant = saved_pos.get(_focus_person, null) if _focus_person != "" else null
 	if _rd is Vector2:
@@ -1179,9 +1185,10 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		var _sv2: Variant = saved_pos.get(r, null)
 		var rx2: float = _sv2.x if (_sv2 is Vector2) else root_default_x
 		var ry2: float = _sv2.y if (_sv2 is Vector2) else center.y
-		var top2: float = ry2 - float(high.get(r, 1)) * row_gap * 0.5
-		var bot2: float = ry2 + float(high.get(r, 1)) * row_gap * 0.5
-		_assign_subtree(r, child_map, high, out, top2, bot2, rx2, dirv, col_gap)
+		var _half3: float = maxf(memo.get(r, 130.0) * 0.5, 60.0)
+		var top2: float = ry2 - _half3
+		var bot2: float = ry2 + _half3
+		_assign_subtree(r, child_map, memo, est_h, out, top2, bot2, rx2, dirv, col_gap)
 	# 孤立（未接入树）节点：外围散布（保存位优先），保持可见
 	var spare_i := 0
 	var out_keys := {}
@@ -1233,8 +1240,23 @@ func _collect_high(roots: Array, child_map: Dictionary, high: Dictionary) -> voi
 		high[u] = s
 
 
-## 递归布点：父居其子带中央；子带按各自叶子高切分到下一列
-func _assign_subtree(u: String, child_map: Dictionary, high: Dictionary, out: Dictionary, top: float, bot: float, pxx: float, dirv: float, col_gap: float) -> void:
+## 子树所需垂直带长（递归）：父带 ≥ max(自身估高, Σ子带长 + 兄弟间隙15)，保证后代不溢出、兄弟不交叠
+func _subtree_span_est(u: String, child_map: Dictionary, est_h: Dictionary, memo: Dictionary) -> float:
+	if memo.has(u):
+		return memo[u]
+	var ch: Array = child_map.get(u, [])
+	var s: float = est_h.get(u, 130.0) as float
+	if not ch.is_empty():
+		var sub: float = 0.0
+		for _c in ch:
+			sub += _subtree_span_est(_c, child_map, est_h, memo)
+		s = maxf(s, sub + 15.0 * (float(ch.size()) - 1.0))
+	memo[u] = s
+	return s
+
+
+## 递归布点：父居其子带中央；子带按各自子树带长精确切分（不足则居中留白），兄弟带间保证 ≥15px，绝不溢出交叠
+func _assign_subtree(u: String, child_map: Dictionary, sp: Dictionary, est_h: Dictionary, out: Dictionary, top: float, bot: float, pxx: float, dirv: float, col_gap: float) -> void:
 	var mid_y: float = (top + bot) * 0.5
 	if out.has(u):
 		out[u] = Vector2(out[u].x, mid_y)
@@ -1243,12 +1265,26 @@ func _assign_subtree(u: String, child_map: Dictionary, high: Dictionary, out: Di
 	var ch: Array = child_map.get(u, [])
 	if ch.is_empty():
 		return
-	var total: int = maxi(int(high.get(u, 1)), 1)
-	var cur: float = top
+	var totalSpan: float = 0.0
+	for _c in ch:
+		totalSpan += sp.get(_c, 130.0) as float
+	totalSpan += 15.0 * (float(ch.size()) - 1.0)
+	var cur: float = top + maxf(0.0, ((bot - top) - totalSpan) * 0.5)
 	for c in ch:
-		var seg: float = (bot - top) * float(high.get(c, 1)) / float(total)
-		_assign_subtree(c, child_map, high, out, cur, cur + seg, pxx + dirv * col_gap, dirv, col_gap)
-		cur += seg
+		var _h: float = sp.get(c, 130.0) as float
+		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + _h, pxx + dirv * col_gap, dirv, col_gap)
+		cur += _h + 15.0
+
+
+## 估算节点卡片高度（与 _make_node 尺寸逻辑一致）：行数=ceil(文本宽/420)，行数×行高＋副标题＋内边距
+func _est_node_h(nd: Dictionary) -> float:
+	var fs: float = 28.0
+	var line_h: float = fs * 1.35
+	var sub_h: float = 22.0 * 1.35
+	var txt: String = str(nd.get("label", ""))
+	var natural: float = maxf(float(txt.length()) * fs, 1.0)
+	var nlines: float = maxf(1.0, ceil(natural / 420.0))
+	return nlines * line_h + sub_h + 2.0 + 12.0
 
 
 # 灵活布局辅助：仅把节点限制在画布内（XMind 式自由排布，允许任意位置）
@@ -1456,8 +1492,8 @@ func _make_node(nd: Dictionary) -> Control:
 	sub.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(sub)
 
-	# #1 真实自适应：宽度按文字自然宽度（上限 230=原 460 的一半），高度按换行后真实行数
-	var _MAX_W: float = 230.0
+	# #1 真实自适应：宽度按文字自然宽度（上限 420=15 汉字×28 字号），高度按换行后真实行数；超过15字才换行
+	var _MAX_W: float = 420.0
 	# 自然宽度：autowrap 下 get_minimum_size 只返回换行约束宽（460→230），须临时关 autowrap 量单行真实宽
 	var _prev_wrap: TextServer.AutowrapMode = lab.autowrap_mode
 	lab.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -1547,10 +1583,12 @@ func _on_hint_draw() -> void:
 ## 边缘绘制（按需求5：连线用弧线代替直线）
 ## 用二次贝塞尔（控制点偏移路径中点垂直方向）实现自然弧度；虚线沿弧线采样。
 func _on_edge_draw() -> void:
+	var _fh: Dictionary = _compute_hidden()
 	for e in _edge_list:
 		var a: Vector2 = _node_center.get(e.from, Vector2.ZERO)
 		var b: Vector2 = _node_center.get(e.to, Vector2.ZERO)
 		if a == Vector2.ZERO or b == Vector2.ZERO: continue
+		if _fh.has(e.from) or _fh.has(e.to): continue
 		var show := false
 		if e.always:
 			show = true

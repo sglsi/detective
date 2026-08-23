@@ -432,7 +432,7 @@ func _show_watson_reasoning_wall() -> void:
 	if _portrait_ctrl: _portrait_ctrl.visible = false
 	_phase = Phase.WATSON_REASONING
 	if _ui: _ui.set_camera_enabled(false)   # 推理墙：禁用摄像机
-	var hypo := {"title": "华生刚从阿富汗回来？", "description": "从华生身上的痕迹（手腕肤色分界、左臂旧伤、面色憔悴、军人站姿）推断其身份与经历。",
+	var hypo := {"title": "华生刚从阿富汗回来？", "persons": [{"id": "NPC_WT"}], "description": "从华生身上的痕迹（手腕肤色分界、左臂旧伤、面色憔悴、军人站姿）推断其身份与经历。",
 		"battlefield": {
 			"hypotheses": [
 				{"id":"W-01","text":"华生肤色黑白分明，有热带晒痕","correct":true},
@@ -512,7 +512,7 @@ func _show_messenger_reasoning_wall() -> void:
 	if _ui: _ui.set_camera_enabled(false)   # 推理墙：禁用摄像机
 	if _toolbar: _toolbar.hide_toolbar()
 	if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false
-	var hypo := {"title": "信使是海军陆战队军士？", "description": "从信使身上（锚形文身、络腮胡、挺拔站姿、发号施令神态）推断其军旅身份；注意分辨干扰项（袖口磨损、轻微跛行）。",
+	var hypo := {"title": "信使是海军陆战队军士？", "persons": [{"id": "NPC_MSG"}], "description": "从信使身上（锚形文身、络腮胡、挺拔站姿、发号施令神态）推断其军旅身份；注意分辨干扰项（袖口磨损、轻微跛行）。",
 		"battlefield": {
 			"hypotheses": _messenger_hypotheses(),
 			"contradictions": [],
