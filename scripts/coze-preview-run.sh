@@ -9,6 +9,9 @@ cd "$PROJECT_DIR"
 # 显式声明关键环境变量
 export PORT=3000
 
+# 数据库持久化：未配 Supabase 时走本地 SQLite，库落到工作区内（沙箱仅快照 /workspace/projects，/root 非持久）
+export SQLITE_PATH="$PROJECT_DIR/backend/data/local_dev.db"
+
 # 清理 5000 端口残留进程（绝不碰 9000）
 fuser -k 5000/tcp 2>/dev/null || true
 sleep 1
