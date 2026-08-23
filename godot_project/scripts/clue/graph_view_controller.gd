@@ -609,7 +609,10 @@ func _rel_color(kind: String) -> Color:
 func _rebuild_graph() -> void:
 	_compute_common_clues()
 	_derive_edges()
-	# 清旧节点 + 旧折叠控件
+	# 清旧节点 + 旧折叠控件（扫画布清除历史残留图元，避免拖动中重建叠加出重复同名节点）
+	for ch in _canvas.get_children():
+		if ch is Control and ch.has_meta("graph_node"):
+			ch.queue_free()
 	for n in _node_views.values():
 		if is_instance_valid(n): n.queue_free()
 	for c in _fold_controls.values():
@@ -636,6 +639,7 @@ func _rebuild_graph() -> void:
 			_all_positions[id] = pos[id]
 	for nd in nodes:
 		var v := _make_node(nd)
+		v.set_meta("graph_node", true)
 		_node_views[nd.id] = v
 		_canvas.add_child(v)
 		v.position = pos.get(nd.id, Vector2.ZERO) - v.size * 0.5
@@ -646,6 +650,7 @@ func _rebuild_graph() -> void:
 		if _is_leaf(nd.id): continue
 		if _direct_outer_neighbors(nd.id).is_empty(): continue
 		var fc := _make_fold_control(nd.id)
+		fc.set_meta("graph_node", true)
 		_fold_controls[nd.id] = fc
 		_canvas.add_child(fc)
 	_redraw_all()
@@ -681,6 +686,7 @@ func _node_list() -> Array:
 		# 使其显示为节点并把连线画出来（修复「拖线索后线索不显示、不知是否关联」）。
 		var _in_list := {}
 		for _n in list: _in_list[_n.id] = true
+		# 关联线索：被拖到推断/结论/人物但未挂焦点的线索也纳入（修复拖线索不显示）
 		for c2 in _clues:
 			var _cid2: String = c2.get("id", "")
 			if _in_list.has(_cid2): continue
@@ -688,17 +694,16 @@ func _node_list() -> Array:
 				list.append({"id": _cid2, "kind": "clue",
 					"label": c2.get("name", _cid2), "sub": _clue_sub(c2),
 					"color": _clue_color(c2), "data": c2, "common": _common_clues.has(_cid2)})
-			# 已放置线索（可能为孤立，如删除关系后）：始终保留为图谱节点
-			for _p_cid in _placed_clues:
-				if _in_list.has(_p_cid):
-					continue
-				var _p_c: Dictionary = _clue_by_id(_p_cid)
-				if _p_c.is_empty():
-					continue
-				list.append({"id": _p_cid, "kind": "clue",
-					"label": _p_c.get("name", _p_cid), "sub": _clue_sub(_p_c),
-					"color": _clue_color(_p_c), "data": _p_c, "common": _common_clues.has(_p_cid)})
-				_in_list[_p_cid] = true
+				_in_list[_cid2] = true
+		# 已放置线索（可能为孤立，如删除关系后）：始终保留为图谱节点（独立循环，杜绝重复叠加）
+		for _p_cid in _placed_clues:
+			if _in_list.has(_p_cid): continue
+			var _p_c: Dictionary = _clue_by_id(_p_cid)
+			if _p_c.is_empty(): continue
+			list.append({"id": _p_cid, "kind": "clue",
+				"label": _p_c.get("name", _p_cid), "sub": _clue_sub(_p_c),
+				"color": _clue_color(_p_c), "data": _p_c, "common": _common_clues.has(_p_cid)})
+			_in_list[_p_cid] = true
 		# 第二圈：推断
 		var hypos: Array = _hypo.get("battlefield", {}).get("hypotheses", [])
 		if hypos.is_empty():
