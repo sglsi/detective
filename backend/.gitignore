@@ -17,3 +17,4 @@ sherlock-detective/
 # 依赖与日志
 node_modules/
 *.log
+data/backups/
