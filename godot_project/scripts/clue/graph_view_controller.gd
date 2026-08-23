@@ -2221,13 +2221,24 @@ func _unmark_clue_placed(cid: String) -> void:
 	if not _state_store.is_empty():
 		_state_store["graph_placed_clues"] = _placed_clues.duplicate()
 
-## 左栏拖入图谱时的公开入口：把一条尚未放置的线索放入图谱（很可能成为孤立节点）。
-func place_clue(cid: String) -> void:
+## 左栏拖入图谱时的公开入口：把一条尚未放置的线索放入图谱。
+## drop_at 为抬起落点的 viewport 坐标；若恰好命中图上一个节点（推断/结论/线索），
+## 在放置该线索的同时自动与之建立绿实线 support 关系（对应需求「拖线索1到推理1默认建实线绿色关系」）。
+func place_clue(cid: String, drop_at: Vector2 = Vector2(-1, -1)) -> void:
 	if _state != State.EDITABLE:
 		_toast_msg("已封存，仅可浏览")
 		return
 	if _clue_placed(cid):
 		return
+	if drop_at.x >= 0.0:
+		var hit: String = _drop_node_except(drop_at, cid)
+		var hk: String = _node_kind.get(hit, "")
+		if hit != "" and hk in ["hypo", "clue", "conclusion"]:
+			_add_edge(cid, hit, "support", "green", false)
+			_persist_view()
+			_rebuild_graph()
+			_toast_msg("线索已放入图谱并与目标建立支持关系")
+			return
 	_mark_clue_placed(cid)
 	_persist_view()
 	_rebuild_graph()
