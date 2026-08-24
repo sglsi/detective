@@ -27,6 +27,8 @@ const GraphViewData = preload("res://scripts/clue/graph/graph_view_data.gd")
 var _data: GraphViewData
 const GraphViewLayout = preload("res://scripts/clue/graph/graph_view_layout.gd")
 var _layout: GraphViewLayout
+const GraphViewFold = preload("res://scripts/clue/graph/graph_view_fold.gd")
+var _fold: GraphViewFold
 
 # === 入参数据（由推理墙传入，本控制器只读 + 通过回调回写）===
 var _clues: Array = []
@@ -172,6 +174,8 @@ func _ready() -> void:
 	_data.owner = self
 	_layout = GraphViewLayout.new()
 	_layout.owner = self
+	_fold = GraphViewFold.new()
+	_fold.owner = self
 
 
 # === 当前笔（由推理墙顶部栏 / 图谱内弹窗共同驱动）===
@@ -286,7 +290,7 @@ func build(data: Dictionary) -> void:
 		for _rf in _relations:
 			for _eid in [_rf.get("from", ""), _rf.get("to", "")]:
 				if _eid == "": continue
-				if _ring_depth(_kind_of(_eid)) == 0 and not (_eid in _inner_roots):
+				if _fold._ring_depth(_fold._kind_of(_eid)) == 0 and not (_eid in _inner_roots):
 					_inner_roots.append(_eid)
 		for _eid in _inner_roots:
 			_folded_nodes[_eid] = true
@@ -385,7 +389,7 @@ func _create_ui() -> void:
 	_fold_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_fold_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fold_layer.z_index = 3
-	_fold_layer.draw.connect(_on_fold_draw)
+	_fold_layer.draw.connect(_fold._on_fold_draw)
 	_canvas.add_child(_fold_layer)
 
 	if _show_toolbar:
@@ -604,20 +608,20 @@ func _rebuild_graph() -> void:
 	_layout._apply_column_overlap_fix()
 	# 创建连线出口折叠控件（XMind 式 −/+N；线索等叶子节点也可折叠收起自身）
 	for nd in nodes:
-		if _is_leaf(nd.id):
-			var fc := _make_fold_control(nd.id)
+		if _fold._is_leaf(nd.id):
+			var fc := _fold._make_fold_control(nd.id)
 			fc.set_meta("graph_node", true)
 			_fold_controls[nd.id] = fc
 			_canvas.add_child(fc)
-		elif not _direct_outer_neighbors(nd.id).is_empty():
-			var fc := _make_fold_control(nd.id)
+		elif not _fold._direct_outer_neighbors(nd.id).is_empty():
+			var fc := _fold._make_fold_control(nd.id)
 			fc.set_meta("graph_node", true)
 			_fold_controls[nd.id] = fc
 			_canvas.add_child(fc)
 	# 已折叠的叶子（自身已隐藏）仍提供恢复控件，凭 _all_positions 定位在原位
 	for fid in _folded_nodes:
-		if _is_leaf(fid) and not _fold_controls.has(fid):
-			var fc := _make_fold_control(fid)
+		if _fold._is_leaf(fid) and not _fold_controls.has(fid):
+			var fc := _fold._make_fold_control(fid)
 			fc.set_meta("graph_node", true)
 			_fold_controls[fid] = fc
 			_canvas.add_child(fc)
@@ -731,7 +735,7 @@ func _node_list() -> Array:
 				list[_i]["label"] = _edited_texts[_oid]
 
 	# 图谱折叠：过滤掉被折叠根收起的"外层子树"（XMind 式）
-	var hidden := _compute_hidden()
+	var hidden := _fold._compute_hidden()
 	if not hidden.is_empty():
 		var kept := []
 		for nd in list:
@@ -744,179 +748,20 @@ func _node_list() -> Array:
 # ===================== 图谱折叠（XMind 式连线折叠） =====================
 ## 圈层深度：结论/人物/链=0（最内，可折叠外层）；推断=1；线索=2（最外，叶子不可折叠）。
 ## 与布局 _RING_BANDS 解耦——仅用于折叠方向判定（设计 §1.1）。
-func _ring_depth(kind: String) -> int:
-	match kind:
-		"conclusion": return 0
-		"person":     return 0
-		"chain":      return 0
-		"hypo":       return 1
-		"clue":       return 2
-		_:            return 2
-
 ## 任意节点 id 的 kind（不依赖可见性——隐藏节点也需判定圈层）
-func _kind_of(id: String) -> String:
-	if id == _focus_person: return "person"
-	if id == "conclusion": return "conclusion"
-	if id.begins_with("chain:"): return "chain"
-	if _node_kind.has(id): return _node_kind[id]
-	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
-		if h.get("id", "") == id: return "hypo"
-	for c in _clues:
-		if c.get("id", "") == id: return "clue"
-	return "clue"
-
 ## 叶子节点（线索）不可折叠
-func _is_leaf(id: String) -> bool:
-	return _ring_depth(_kind_of(id)) >= 2
-
 ## 无向邻接表（折叠遍历用）：玩家关系 + 数据边 + 模式C人物↔线索元数据边
-func _build_adjacency() -> Dictionary:
-	var adj := {}
-	var link := func(a: String, b: String) -> void:
-		if a == "" or b == "": return
-		if not adj.has(a): adj[a] = []
-		if not adj.has(b): adj[b] = []
-		if not (b in adj[a]): adj[a].append(b)
-		if not (a in adj[b]): adj[b].append(a)
-	for e in _edge_list:
-		link.call(e.from, e.to)
-	for r in _relations:
-		link.call(r.get("from", ""), r.get("to", ""))
-	if _mode == ViewMode.MODE_C and _focus_person != "":
-		# 结论节点 id 恒为 "conclusion"，直接锚定（避免在 _build_adjacency 内调 _node_list 造成递归）
-		link.call(_focus_person, "conclusion")
-	return adj
-
 ## 节点的直接外层邻居（圈层深度严格更大的相连节点）——用于折叠控件数量与朝向
-func _direct_outer_neighbors(id: String) -> Array:
-	var out := []
-	var rd := _ring_depth(_kind_of(id))
-	for nb in _build_adjacency().get(id, []):
-		if _ring_depth(_kind_of(nb)) > rd:
-			out.append(nb)
-	return out
-
 ## 折叠隐藏集合：从各折叠根 BFS，收起所有圈层更深且可达的外层节点（设计 §4.1）
-func _compute_hidden() -> Dictionary:
-	var hidden := {}
-	var adj := _build_adjacency()
-	for root in _folded_nodes:
-		# 叶子节点（如线索）折叠=收起自身（无更深子树可收），故把自身也计入隐藏集
-		if _is_leaf(root):
-			hidden[root] = true
-			continue
-		var root_rd := _ring_depth(_kind_of(root))
-		var stack := [root]
-		while not stack.is_empty():
-			var cur: String = stack.pop_back()
-			for nb in adj.get(cur, []):
-				if hidden.has(nb): continue
-				if _ring_depth(_kind_of(nb)) <= root_rd: continue
-				hidden[nb] = true
-				stack.append(nb)
-	return hidden
-
 ## 折叠控件上的计数：直接外层邻居数（设计 §4.3 / §9.4）
-func _fold_count(id: String) -> int:
-	return _direct_outer_neighbors(id).size()
-
 ## 折叠控件上的字形：展开=−，折叠=+N
-func _fold_glyph(id: String) -> String:
-	if _folded_nodes.has(id):
-		if _is_leaf(id): return "+"
-		return "+%d" % _fold_count(id)
-	return "-"
-
 ## 折叠控件位置：节点外缘、朝向外层邻居簇重心方向
-func _fold_control_pos(id: String) -> Vector2:
-	# 折叠后节点 view 被移除、_node_center 不再含其位置，凭 _all_positions（持久位置缓存）兜底定位
-	var center: Vector2 = _node_center.get(id, _all_positions.get(id, Vector2.ZERO))
-	if center == Vector2.ZERO: return center
-	var neighbors := _direct_outer_neighbors(id)
-	if neighbors.is_empty():
-		# 叶子（如线索）：控件置于节点右上角外缘，点击=收起/展开自身
-		var r: float = _node_radius_for_kind(_kind_of(id))
-		return center + Vector2(r * 0.7 + 6.0, -(r * 0.7 + 6.0))
-	var dir := Vector2.ZERO
-	for nb in neighbors:
-		var nc: Vector2 = _node_center.get(nb, center)
-		if nc != center:
-			dir += (nc - center).normalized()
-	if dir == Vector2.ZERO:
-		dir = Vector2(0, 1)
-	dir = dir.normalized()
-	var radius: float = _node_radius_for_kind(_kind_of(id))
-	return center + dir * (radius + 14)
-
 ## 节点半径（用于控件外移距离）
-func _node_radius_for_kind(kind: String) -> float:
-	match kind:
-		"person":     return 52.0
-		"conclusion": return 46.0
-		"chain":      return 36.0
-		"hypo":       return 40.0
-		"clue":       return 40.0
-		_:            return 40.0
-
 ## 创建连线出口折叠控件的「点击热区」（透明 Control，只接 gui_input；圆形由 _fold_layer 统一绘制）
-func _make_fold_control(id: String) -> Control:
-	var c := Control.new()
-	c.custom_minimum_size = Vector2(48, 48)
-	c.size = Vector2(48, 48)
-	c.position = _fold_control_pos(id) - Vector2(24, 24)
-	c.mouse_filter = Control.MOUSE_FILTER_STOP
-	c.z_index = 6
-	c.tooltip_text = "点击折叠/展开外层内容"
-	c.gui_input.connect(_on_fold_control_gui.bind(id))
-	return c
-
 ## 折叠圆形统一绘制（_fold_layer 的 draw 回调，绘制时机合法，规避"Drawing only allowed inside _draw"）
-func _on_fold_draw() -> void:
-	for id in _fold_controls:
-		var c: Control = _fold_controls.get(id)
-		if c == null or not is_instance_valid(c): continue
-		var center := _fold_control_pos(id)
-		var folded := _folded_nodes.has(id)
-		# 圆底
-		_fold_layer.draw_circle(center, 22.0, Color(0.10, 0.08, 0.06, 0.96))
-		_fold_layer.draw_arc(center, 22.0, 0, TAU, 28, COL_GOLD, 3.0)
-		# 字形
-		var f := ThemeDB.get_default_theme().default_font
-		if f == null: continue
-		var txt := _fold_glyph(id)
-		var fs := 26
-		var sz := f.get_string_size(txt, HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
-		var p := Vector2(center.x - sz.x * 0.5, center.y + sz.y * 0.5)
-		_fold_layer.draw_string(f, p, txt, HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER, -1, fs,
-			COL_GOLD_LIGHT if not folded else COL_GOLD)
-
 ## 点击折叠控件：toggle（不触发节点拖动/连线）
-func _on_fold_control_gui(event: InputEvent, id: String) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		toggle_fold(id)
-		get_viewport().set_input_as_handled()
-
 ## 拖动节点时同步所有折叠控件位置（点击热区 + 绘制图层都要刷新）
-func _sync_fold_controls_positions() -> void:
-	for id in _fold_controls:
-		var c = _fold_controls[id]
-		if not is_instance_valid(c): continue
-		c.position = _fold_control_pos(id) - Vector2(12, 12)
-	if _fold_layer and is_instance_valid(_fold_layer): _fold_layer.queue_redraw()
-
 ## 折叠根写回（供 UndoRedo 调用）
-func _set_folded(id: String, v: bool) -> void:
-	if v:
-		_folded_nodes[id] = true
-		if _node_center.has(id):
-			_all_positions[id] = _node_center[id]
-	else:
-		_folded_nodes.erase(id)
-		if _node_center.has(id):
-			_all_positions[id] = _node_center[id]
-	_rebuild_graph()
-
-
 # P0-2 状态过滤辅助：判断线索是否匹配当前过滤
 ## 轻量结论推算（与 reasoning_wall.get_verdict 同规则，供结论节点着色；视图派生，不缓存）
 ## 布局算法（按需求1/6）：
@@ -1201,7 +1046,7 @@ func _on_hint_draw() -> void:
 ## 边缘绘制（按需求5：连线用弧线代替直线）
 ## 用二次贝塞尔（控制点偏移路径中点垂直方向）实现自然弧度；虚线沿弧线采样。
 func _on_edge_draw() -> void:
-	var _fh: Dictionary = _compute_hidden()
+	var _fh: Dictionary = _fold._compute_hidden()
 	for e in _edge_list:
 		var a: Vector2 = _node_center.get(e.from, Vector2.ZERO)
 		var b: Vector2 = _node_center.get(e.to, Vector2.ZERO)
@@ -1326,44 +1171,8 @@ func _drag_preview_pos() -> Vector2:
 
 
 ## 拖动带子树的节点时先折叠子树（先折叠后移动）：移动只带该节点本身，避免整棵子树跟移。
-func _fold_subtree_for_drag(id: String) -> void:
-	if _state != State.EDITABLE: return
-	var subs := _subtree_ids(id)
-	if subs.is_empty() and not _folded_nodes.has(id):
-		return
-	call_deferred("_apply_fold_subtree", id, subs)
-
-
 ## BFS 沿连接收集本节点（kind 更深）的整棵子树 id（不含 id 自身），与 _relation_tree_layout 同款方向判据。
-func _subtree_ids(id: String) -> Array:
-	var res: Array = []
-	var adj := _build_adjacency()
-	var d0: int = _ring_depth(_kind_of(id))
-	var q: Array = [id]
-	var seen := {id: true}
-	while q.size() > 0:
-		var u: String = q.pop_front()
-		for nb in adj.get(u, []):
-			if seen.has(nb): continue
-			var d1: int = _ring_depth(_kind_of(nb))
-			if d1 <= d0: continue
-			seen[nb] = true
-			res.append(nb)
-			q.append(nb)
-	return res
-
-
 ## deferred：折叠子树（含本体），重排后拖动只体现该节点本身；可经节点折叠控件展开。
-func _apply_fold_subtree(id: String, subs: Array) -> void:
-	if not is_inside_tree(): return
-	if not _folded_nodes.has(id): _folded_nodes[id] = true
-	for s in subs:
-		_folded_nodes[s] = true
-	_state_store["graph_folded_nodes"] = _folded_nodes
-	_persist_view()
-	_rebuild_graph()
-
-
 # ===================== 交互 =====================
 func _on_node_hover(id: String, entered: bool) -> void:
 	if entered:
@@ -1532,7 +1341,7 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 	_dragging = false
 	_drag_id = ""
 	_drag_mode = ""
-	_sync_fold_controls_positions()
+	_fold._sync_fold_controls_positions()
 	_redraw_all()
 
 
@@ -1946,17 +1755,17 @@ func toggle_fold(id: String) -> bool:
 	var will_fold := not _folded_nodes.has(id)
 	if _state == State.EDITABLE:
 		_undo.create_action("折叠 %s" % label)
-		_undo.add_do_method(_set_folded.bind(id, will_fold))
-		_undo.add_undo_method(_set_folded.bind(id, not will_fold))
+		_undo.add_do_method(_fold._set_folded.bind(id, will_fold))
+		_undo.add_undo_method(_fold._set_folded.bind(id, not will_fold))
 		_undo.commit_action()
 	else:
-		_set_folded(id, will_fold)
+		_fold._set_folded(id, will_fold)
 	_persist_view()
 	if will_fold:
-		if _is_leaf(id):
+		if _fold._is_leaf(id):
 			_toast_msg("已收起「%s」" % label)
 		else:
-			_toast_msg("已折叠「%s」的外层内容（%d 项）" % [label, _fold_count(id)])
+			_toast_msg("已折叠「%s」的外层内容（%d 项）" % [label, _fold._fold_count(id)])
 	else:
 		_toast_msg("已展开「%s」" % label)
 	return will_fold
@@ -1965,7 +1774,7 @@ func toggle_fold(id: String) -> bool:
 func toggle_fold_focus() -> bool:
 	if _focus_person == "": return false
 	var id: String = _focus_person
-	if _highlight_id != "" and not _is_leaf(_highlight_id):
+	if _highlight_id != "" and not _fold._is_leaf(_highlight_id):
 		id = _highlight_id
 	return toggle_fold(id)
 
@@ -3121,7 +2930,7 @@ func _input(event: InputEvent) -> void:
 						n.scale = Vector2.ONE
 						n.z_index = 0
 						_drag_hover = ""
-					_sync_fold_controls_positions()
+					_fold._sync_fold_controls_positions()
 					_redraw_all()
 					get_viewport().set_input_as_handled()
 			elif _drag_mode == "edge":
