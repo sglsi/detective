@@ -12,6 +12,8 @@ enum ClueState { COLLECTED=0, ASSOCIATED=1, VERIFIED=2, INVALID=3 }
 # === 分层（Request C 后架构拆分）：状态/线索库/假设树/战场/对比台/关系/验证/历史 抽到 wall/ ===
 const WallState = preload("res://scripts/clue/wall/wall_state.gd")
 var _state_ctl: WallState
+const WallClueLibrary = preload("res://scripts/clue/wall/wall_clue_library.gd")
+var _clue_ctl: WallClueLibrary
 
 # === 数据 ===
 var _clues: Array = []                       # 线索字典数组
@@ -170,6 +172,8 @@ const _IDENTITY_REVEAL_GATES := {
 func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable(), auto_fold: bool = false) -> void:
 	_state_ctl = WallState.new()
 	_state_ctl.owner = self
+	_clue_ctl = WallClueLibrary.new()
+	_clue_ctl.owner = self
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
@@ -440,7 +444,7 @@ func _create_top_bar() -> Control:
 	filter_sel.add_item("已排除", 1)
 	filter_sel.add_item("待查", 2)
 	filter_sel.add_item("关键", 3)
-	filter_sel.item_selected.connect(_on_filter_selected)
+	filter_sel.item_selected.connect(_clue_ctl._on_filter_selected)
 	row2.add_child(filter_sel)
 	_filter_sel = filter_sel
 
@@ -605,7 +609,7 @@ func _create_left_panel() -> Control:
 	_search_edit.placeholder_text = "搜索线索..."
 	_search_edit.add_theme_font_size_override("font_size", 14)
 	_search_edit.custom_minimum_size = Vector2(200, 34)
-	_search_edit.text_changed.connect(_on_search_changed)
+	_search_edit.text_changed.connect(_clue_ctl._on_search_changed)
 	vb.add_child(_search_edit)
 
 	# 筛选按钮行
@@ -614,10 +618,10 @@ func _create_left_panel() -> Control:
 	filter_row.custom_minimum_size = Vector2(200, 32)
 	vb.add_child(filter_row)
 
-	_filter_all = _make_filter_btn("全部", true)
-	_filter_assoc = _make_filter_btn("已关联", false)
-	_filter_unassoc = _make_filter_btn("未关联", false)
-	_filter_misleading = _make_filter_btn("干扰", false)
+	_filter_all = _clue_ctl._make_filter_btn("全部", true)
+	_filter_assoc = _clue_ctl._make_filter_btn("已关联", false)
+	_filter_unassoc = _clue_ctl._make_filter_btn("未关联", false)
+	_filter_misleading = _clue_ctl._make_filter_btn("干扰", false)
 	filter_row.add_child(_filter_all)
 	filter_row.add_child(_filter_assoc)
 	filter_row.add_child(_filter_unassoc)
@@ -652,49 +656,14 @@ func _create_left_panel() -> Control:
 	rec_row.add_theme_constant_override("separation", 8)
 	rec_row.custom_minimum_size = Vector2(200, 44)
 	inner.add_child(rec_row)
-	var rec_btn := _make_action_btn("调查记录")
+	var rec_btn := _clue_ctl._make_action_btn("调查记录")
 	rec_btn.pressed.connect(_on_investigate_pressed)
 	rec_row.add_child(rec_btn)
 
 	return panel
 
 
-func _make_filter_btn(text: String, active: bool) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	btn.toggle_mode = true
-	btn.button_pressed = active
-	btn.add_theme_font_size_override("font_size", 13)
-	btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.25, 0.20, 0.12, 0.95) if active else Color(0.14, 0.12, 0.08, 0.95)
-	s.border_color = Color(0.65, 0.55, 0.30)
-	s.border_width_left = 1; s.border_width_right = 1
-	s.border_width_top = 1; s.border_width_bottom = 1
-	s.set_corner_radius_all(4)
-	btn.add_theme_stylebox_override("normal", s)
-	btn.pressed.connect(_on_filter_pressed.bind(btn))
-	return btn
-
-
 # 统一风格的动作按钮（提交验证 / 返回 / 调查记录 共用）
-func _make_action_btn(text: String) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	btn.add_theme_font_size_override("font_size", 18)
-	btn.add_theme_color_override("font_color", COL_GOLD)
-	btn.custom_minimum_size = Vector2(140, 44)
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.50, 0.10, 0.10, 0.95)
-	s.border_color = Color(0.85, 0.65, 0.25)
-	s.border_width_left = 2; s.border_width_right = 2
-	s.border_width_top = 2; s.border_width_bottom = 2
-	s.set_corner_radius_all(4)
-	btn.add_theme_stylebox_override("normal", s)
-	return btn
-
-
 func _create_center_panel() -> Control:
 	var panel := Control.new()
 
@@ -806,7 +775,7 @@ func _create_center_panel() -> Control:
 	_status_lbl.custom_minimum_size = Vector2(200, 40)
 	bottom_row.add_child(_status_lbl)
 
-	var verify_btn := _make_action_btn("提交验证")
+	var verify_btn := _clue_ctl._make_action_btn("提交验证")
 	verify_btn.pressed.connect(_on_verify_pressed)
 	bottom_row.add_child(verify_btn)
 
@@ -910,20 +879,8 @@ func _on_desk_collapse() -> void:
 	_desk_body.visible = not _desk_body.visible
 
 
-func _find_clue(cid: String) -> Dictionary:
-	for c in _clues:
-		if c.get("id", "") == cid: return c
-	return {}
-
-
-func _clue_name(cid: String) -> String:
-	var c: Dictionary = _find_clue(cid)
-	if c.is_empty(): return cid
-	return c.get("name", cid)
-
-
 func _load_comparison(cid: String) -> void:
-	var clue: Dictionary = _find_clue(cid)
+	var clue: Dictionary = _clue_ctl._find_clue(cid)
 	if clue.is_empty(): return
 	if _compare_slots.size() < 2:
 		for i in range(_compare_slots.size()):
@@ -956,7 +913,7 @@ func _refresh_desk() -> void:
 		else:
 			for d in _doubt_book:
 				var lab := Label.new()
-				lab.text = "• %s  （%s ↔ %s）" % [_contradiction_title(d.get("cid", "")), _clue_name(d.get("a", "")), _clue_name(d.get("b", ""))]
+				lab.text = "• %s  （%s ↔ %s）" % [_contradiction_title(d.get("cid", "")), _clue_ctl._clue_name(d.get("a", "")), _clue_ctl._clue_name(d.get("b", ""))]
 				lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				lab.add_theme_font_size_override("font_size", 13)
 				lab.add_theme_color_override("font_color", Color(0.9, 0.7, 0.5))
@@ -1060,7 +1017,7 @@ func _create_right_panel() -> Control:
 	back_row.add_theme_constant_override("separation", 8)
 	back_row.custom_minimum_size = Vector2(200, 44)
 	vb.add_child(back_row)
-	var back_btn := _make_action_btn("返回")
+	var back_btn := _clue_ctl._make_action_btn("返回")
 	back_btn.pressed.connect(_on_back_pressed)
 	back_row.add_child(back_btn)
 
@@ -1068,121 +1025,7 @@ func _create_right_panel() -> Control:
 
 
 # === 线索库 ===
-func _refresh_clue_list() -> void:
-	if not _clue_list: return
-	for c in _clue_list.get_children(): c.queue_free()
-	_card_btns.clear()
-
-	var term := _search_edit.text.strip_edges().to_lower()
-	var filter := _current_filter()
-
-	var placed: Array = _state_store.get("graph_placed_clues", []) as Array
-	# 任务7：画布上当前可见的线索也视为「已入图」，从左栏去重——线索在推理墙整体中唯一，
-	# 不能同时存在于左栏与画布（含因「关联焦点人物/有关系」而自动出现在画布上的线索）。
-	var visible: Array = []
-	if _graph_view and is_instance_valid(_graph_view) and _graph_view.has_method("visible_clue_ids"):
-		visible = _graph_view.visible_clue_ids()
-	for clue in _clues:
-		var cid: String = clue.get("id", "")
-		if placed.has(cid) or visible.has(cid):
-			continue
-		var name: String = clue.get("name", clue.get("label", cid))
-		var state := _clue_state(clue)
-		if filter != -1 and state != filter:
-			continue
-		if term != "" and not name.to_lower().contains(term):
-			continue
-		var card := _make_clue_card(clue)
-		_clue_list.add_child(card)
-		_card_btns[clue["id"]] = card
-
-
-func _current_filter() -> int:
-	if _filter_assoc and _filter_assoc.button_pressed: return ClueState.ASSOCIATED
-	if _filter_unassoc and _filter_unassoc.button_pressed: return ClueState.COLLECTED
-	if _filter_misleading and _filter_misleading.button_pressed: return ClueState.INVALID
-	return -1
-
-
-func _clue_state(clue: Dictionary) -> int:
-	if clue.get("associated", false):
-		return ClueState.ASSOCIATED if clue.get("correct", true) else ClueState.INVALID
-	return ClueState.COLLECTED
-
-
 # === 阶段2：证据属性标签 + 可信度（由 attribute_tags 派生）===
-func _attribute_label_of(clue: Dictionary) -> String:
-	var at: Array = clue.get("attribute_tags", [])
-	if at.is_empty(): return "其他"
-	return at[0]
-
-
-func _credibility_of(clue: Dictionary) -> String:
-	var at: Array = clue.get("attribute_tags", [])
-	if at.has("直接物证"): return "高"
-	if at.has("目击证词"): return "中"
-	if at.has("嫌疑人陈述"): return "中"
-	if at.has("二手传闻"): return "低"
-	return "中"
-
-
-func _make_clue_card(clue: Dictionary) -> Button:
-	var card := Button.new()
-	var name: String = clue.get("name", clue.get("label", clue.get("id", "")))
-	var state := _clue_state(clue)
-	var state_text: String = ["已收集", "已关联", "已验证", "已失效"][state]
-	var attr: String = _attribute_label_of(clue)
-	var cred: String = _credibility_of(clue)
-	card.text = name
-	if _difficulty != Diff.HARD:
-		card.text += "  [%s]" % state_text
-	card.text += "\n%s · 可信度:%s" % [attr, cred]
-	card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	card.tooltip_text = clue.get("desc", "")
-	card.custom_minimum_size = Vector2(200, 72)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.add_theme_font_size_override("font_size", 18)
-
-	var sn := StyleBoxFlat.new()
-	match state:
-		ClueState.ASSOCIATED:
-			sn.bg_color = Color(0.08, 0.28, 0.08, 0.95)
-			sn.border_color = Color(0.2, 0.8, 0.2)
-			sn.border_width_left = 2; sn.border_width_right = 2
-			sn.border_width_top = 2; sn.border_width_bottom = 2
-		ClueState.INVALID:
-			sn.bg_color = Color(0.25, 0.10, 0.10, 0.95)
-			sn.border_color = Color(0.8, 0.35, 0.25)
-			sn.border_width_left = 2; sn.border_width_right = 2
-			sn.border_width_top = 2; sn.border_width_bottom = 2
-		_:
-			sn.bg_color = Color(0.18, 0.14, 0.09, 0.95)
-			sn.border_color = Color(0.55, 0.42, 0.20)
-			sn.border_width_left = 1; sn.border_width_right = 1
-			sn.border_width_top = 1; sn.border_width_bottom = 1
-	sn.set_corner_radius_all(6)
-	card.add_theme_stylebox_override("normal", sn)
-	card.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	card.pressed.connect(_on_clue_card_pressed.bind(clue["id"]))
-	card.gui_input.connect(_on_node_gui.bind(clue["id"]))
-	card.gui_input.connect(_on_clue_drag.bind(clue["id"]))
-	card.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
-	return card
-
-
-func _on_filter_pressed(btn: Button) -> void:
-	_filter_all.button_pressed = false
-	_filter_assoc.button_pressed = false
-	_filter_unassoc.button_pressed = false
-	_filter_misleading.button_pressed = false
-	btn.button_pressed = true
-	_refresh_clue_list()
-
-
-func _on_search_changed(_txt: String) -> void:
-	_refresh_clue_list()
-
-
 # === 假设树 ===
 func _refresh_hypothesis_tree() -> void:
 	if not _tree_root: return
@@ -1316,7 +1159,7 @@ func _refresh_assoc_panel() -> void:
 		s.border_width_top = 1; s.border_width_bottom = 1
 		s.set_corner_radius_all(4)
 		b.add_theme_stylebox_override("normal", s)
-		b.pressed.connect(_show_clue_detail.bind(c))
+		b.pressed.connect(_clue_ctl._show_clue_detail.bind(c))
 		_assoc_list.add_child(b)
 
 
@@ -1538,116 +1381,7 @@ func _refresh_battlefield_status_only() -> void:
 
 
 # === 线索详情弹窗 ===
-func _show_clue_detail(clue: Dictionary) -> void:
-	if _detail_popup and is_instance_valid(_detail_popup):
-		_detail_popup.queue_free()
-
-	_detail_popup = AcceptDialog.new()
-	_detail_popup.title = "线索详情"
-	_detail_popup.min_size = Vector2(440, 320)
-	_detail_popup.exclusive = true
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-
-	var name_lbl := Label.new()
-	name_lbl.text = clue.get("name", clue.get("label", clue.get("id", "")))
-	name_lbl.add_theme_font_size_override("font_size", 22)
-	name_lbl.add_theme_color_override("font_color", COL_GOLD)
-	vb.add_child(name_lbl)
-
-	var desc_lbl := Label.new()
-	desc_lbl.text = clue.get("desc", "（暂无描述）")
-	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_lbl.custom_minimum_size = Vector2(380, 80)
-	desc_lbl.add_theme_font_size_override("font_size", 15)
-	desc_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	vb.add_child(desc_lbl)
-
-	if _difficulty != Diff.HARD:
-		var tags := HBoxContainer.new()
-		var correct: bool = clue.get("correct", true)
-		var ct := Button.new()
-		ct.text = "✓ 正确线索" if correct else "⚠ 干扰项"
-		ct.disabled = true
-		ct.add_theme_color_override("font_color", COL_GREEN if correct else COL_RED)
-		tags.add_child(ct)
-		var src_tag := Label.new()
-		src_tag.text = "来源: " + str(clue.get("source", "?"))
-		src_tag.add_theme_color_override("font_color", Color(0.5, 0.48, 0.40))
-		tags.add_child(src_tag)
-		vb.add_child(tags)
-
-	# 阶段2：证据属性（人证/物证）与可信度
-	var ac_row := HBoxContainer.new()
-	var ac_lbl := Label.new()
-	ac_lbl.text = "证据属性: %s    可信度: %s" % [_attribute_label_of(clue), _credibility_of(clue)]
-	ac_lbl.add_theme_font_size_override("font_size", 14)
-	ac_lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.50))
-	ac_row.add_child(ac_lbl)
-	vb.add_child(ac_row)
-
-	# 阶段3：从详情弹窗把线索放入对比台
-	var desk_row := HBoxContainer.new()
-	var to_desk := Button.new()
-	to_desk.text = "→ 放入对比台"
-	to_desk.add_theme_font_size_override("font_size", 15)
-	to_desk.add_theme_color_override("font_color", COL_GOLD)
-	to_desk.pressed.connect(func():
-		_load_comparison(clue["id"])
-		_detail_popup.hide()
-	)
-	desk_row.add_child(to_desk)
-	vb.add_child(desk_row)
-
-	var btn_row := HBoxContainer.new()
-	var assoc_btn := Button.new()
-	var is_assoc: bool = clue.get("associated", false)
-	assoc_btn.text = "取消关联" if is_assoc else "→ 关联到假设面板"
-	assoc_btn.pressed.connect(func():
-		_detail_popup.hide()
-		_toggle_association(clue["id"])
-	)
-	btn_row.add_child(assoc_btn)
-	vb.add_child(btn_row)
-
-	_detail_popup.add_child(vb)
-	add_child(_detail_popup)
-	_detail_popup.popup_centered()
-
-
 # === 关联逻辑 ===
-func _on_clue_card_pressed(cid: String) -> void:
-	if _connect_mode: return   # 连线模式下点击不弹详情，由拖拽建立关系
-	var clue: Dictionary = _find_clue(cid)
-	if not clue.is_empty():
-		_show_clue_detail(clue)
-
-
-func _toggle_association(cid: String) -> void:
-	var clue: Dictionary = {}
-	for c in _clues:
-		if c["id"] == cid:
-			clue = c; break
-	if clue.is_empty(): return
-
-	if clue.get("associated", false):
-		clue["associated"] = false
-		_associated -= 1
-		if not clue.get("correct", true): _contradicting -= 1
-		_status_lbl.text = "已取消关联: %s (共%d条)" % [cid, _associated]
-		_status_lbl.add_theme_color_override("font_color", Color(0.65, 0.55, 0.35))
-	else:
-		clue["associated"] = true
-		_associated += 1
-		if not clue.get("correct", true): _contradicting += 1
-	_status_lbl.text = "线索已关联: %s (共%d条)" % [cid, _associated]
-	_status_lbl.add_theme_color_override("font_color", COL_GREEN)
-
-	_update_all()
-	_state_ctl._persist_state()
-
-
 # === 自由连线：各线索/假设之间拖拽相互关系 ===
 # 关系信号接入验证见 _state_ctl._contradiction_signals()/_state_ctl._support_signals()/get_verdict()。
 # 设计依据：docs/02_核心设计/06_推理墙运行机制.md §2.2（拖拽模式默认；自由连线模式 M2+ 线索↔线索）
@@ -1660,7 +1394,7 @@ func connect_nodes(from_id: String, to_id: String, kind: String, color_key: Stri
 		if r.from == from_id and r.to == to_id and r.kind == kind: return false
 	var resolved := kind
 	if kind == "auto":
-		var a := _find_clue(from_id); var b := _find_clue(to_id)
+		var a := _clue_ctl._find_clue(from_id); var b := _clue_ctl._find_clue(to_id)
 		if not a.is_empty() and not b.is_empty() and not _detect_contradiction(a, b).is_empty():
 			resolved = "contradict"
 		else:
@@ -1752,13 +1486,13 @@ func _on_open_graph_view() -> void:
 		"on_close": Callable(self, "_on_back_pressed")
 	})
 	_graph_view = gv
-	_refresh_clue_list()   # 任务7：图谱构建后立即按画布可见线索去重左栏（打开墙即保证唯一）
+	_clue_ctl._refresh_clue_list()   # 任务7：图谱构建后立即按画布可见线索去重左栏（打开墙即保证唯一）
 	_sync_top_bar()
 	_sync_connect_btn()
 
 
 func _gv_tag_person(clue_id: String, person_id: String) -> void:
-	var clue: Dictionary = _find_clue(clue_id)
+	var clue: Dictionary = _clue_ctl._find_clue(clue_id)
 	if clue.is_empty(): return
 	var rns: Array = clue.get("related_npcs", [])
 	if not rns.has(person_id):
@@ -1934,13 +1668,6 @@ func _restore_one(nid: String) -> void:
 			_recycle_panel = null
 
 
-func _on_filter_selected(idx: int) -> void:
-	if _graph_view and not is_instance_valid(_graph_view): return
-	var labels := ["all", "excluded", "pending", "key"]
-	var key: String = labels[idx] if idx < labels.size() else "all"
-	_graph_view.set_status_filter(key)
-
-
 func _on_toggle_fold() -> void:
 	if _graph_view and is_instance_valid(_graph_view):
 		var folded: bool = _graph_view.toggle_fold_focus()
@@ -1959,7 +1686,7 @@ func _gv_relations_changed(rels: Array) -> void:
 	_relations = rels
 	_state_ctl._persist_state()
 	_update_verdict_label()
-	_refresh_clue_list()
+	_clue_ctl._refresh_clue_list()
 
 
 func _kind_to_key(kind: String) -> String:
@@ -2025,7 +1752,7 @@ func _ensure_drag_ghost(cid: String) -> void:
 	if _drag_ghost and is_instance_valid(_drag_ghost):
 		return
 	var label := Label.new()
-	var clue := _find_clue(cid)
+	var clue := _clue_ctl._find_clue(cid)
 	label.text = clue.get("name", cid)
 	label.add_theme_font_size_override("font_size", 16)
 	label.modulate = Color(1, 1, 1, 0.9)
@@ -2056,7 +1783,7 @@ func _finish_clue_drag(cid: String) -> void:
 		# 落点若命中图上一个节点，place_clue 会在放置线索同时自动建绿实线支持关系
 		_graph_view.place_clue(cid, gp)
 		_state_ctl._persist_state()
-		_refresh_clue_list()
+		_clue_ctl._refresh_clue_list()
 	else:
 		_ui_show_toast("把线索拖到右侧图谱画布上即可放入图谱")
 
@@ -2147,7 +1874,7 @@ func _on_rel_layer_draw() -> void:
 
 
 func _update_all() -> void:
-	_refresh_clue_list()
+	_clue_ctl._refresh_clue_list()
 	_refresh_hypothesis_tree()
 	_refresh_assoc_panel()
 	_refresh_desk()
@@ -2680,7 +2407,7 @@ func get_difficulty() -> int:
 
 
 func test_associate(cid: String) -> void:
-	_toggle_association(cid)
+	_clue_ctl._toggle_association(cid)
 
 
 func _debug_ui_counts() -> Dictionary:
