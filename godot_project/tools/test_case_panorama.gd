@@ -54,3 +54,30 @@ func _run() -> void:
 
 	# 3) 关联未来线索也显示（无关联线索 c4 也应平铺展示，作为可后续布设的孤立节点）
 	_chk(gv._node_views.has("c4"), "孤立线索 c4 也平铺展示（供后续布设）")
+
+	# 4) 问题3: 自定义推断+线索建立联系后，折叠推断应能同时隐藏其线索（不只藏线）
+	gv.add_text_node("hypo")
+	var fol = null
+	for id in gv._node_views:
+		if id.begins_with("note_hypo"):
+			fol = id
+			break
+	_chk(fol != null, "已新增自定义推断 %s" % (str(fol) if fol != null else ""))
+	gv.add_text_node("clue")
+	var targ = ""
+	for id in gv._node_views:
+		if id.begins_with("note_clue"):
+			targ = id
+			break
+	_chk(targ != "", "已新增自定义线索 %s" % targ)
+	if fol != null and targ != "":
+		gv._add_edge(fol, targ, "support", "green", false)
+	await process_frame
+	await process_frame
+	_chk(gv._node_views.has(targ), "线索 %s 已出现在画布（建边前）" % targ)
+	var ok_fold: bool = gv.toggle_fold(fol)
+	await process_frame
+	await process_frame
+	var hidden: Dictionary = gv._compute_hidden()
+	_chk(ok_fold and (hidden.has(targ) or not gv._node_views.has(targ)),
+		"折叠推断后线索 %s 被隐藏 okfold=%s cnt=%d" % [targ, ok_fold, hidden.size()])

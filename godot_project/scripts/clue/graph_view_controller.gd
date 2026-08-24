@@ -63,6 +63,7 @@ var _node_center: Dictionary = {}   # id -> Vector2（画布本地中心）
 var _node_kind: Dictionary = {}     # id -> String
 var _node_data: Dictionary = {}     # id -> Dictionary（原始数据）
 var _graph_nodes: Array = []        # 玩家顶栏「添文本框」新增的自定义节点 [{id,kind,label,sub}]（持久化于 state_store["graph_nodes"]）
+var _graph_deleted: Array = []      # 回收站：玩家删除的自定义文本框（state_store["graph_deleted_nodes"]）
 var _edited_texts: Dictionary = {}  # 玩家在详情卡编辑过的节点文本 id -> 新文本（覆盖原生/自定义节点显示，持久化 state_store["graph_edited_texts"]）
 var _edge_list: Array = []          # [{from,to,kind,color,dashed,dotted,always}]
 var _highlight_id: String = ""
@@ -76,6 +77,7 @@ var _pan_last := Vector2.ZERO
 # === 拖拽 ===
 var _dragging := false
 var _drag_id := ""
+var _drag_hover := ""              # 拖拽中命中的目标节点 id（问题1：可建边视觉提示）
 var _drag_from := Vector2.ZERO
 var _drag_kind := ""
 var _drag_mode := ""              # "move" 或 "edge"（_drag_kind 是关系 kind support/oppose）
@@ -249,6 +251,7 @@ func build(data: Dictionary) -> void:
 	_placed_clues = (_state_store.get("graph_placed_clues", []) as Array).duplicate()
 	_manual_nodes = (Array(_state_store.get("graph_manual_nodes", [])) as Array).duplicate()
 	_graph_nodes = (Array(_state_store.get("graph_nodes", [])) as Array).duplicate()
+	_graph_deleted = (Array(_state_store.get("graph_deleted_nodes", [])) as Array).duplicate()
 	_edited_texts = (Dictionary(_state_store.get("graph_edited_texts", {})) as Dictionary).duplicate()
 
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
@@ -2775,7 +2778,18 @@ func _open_link_suggestions(cid: String) -> void:
 	panel.add_child(margin)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
-	margin.add_child(vb)
+	# 问题Q2：详情卡内容增多，用 ScrollContainer 包裹，保证全部内容可滚动查看、底部按钮可点
+	var scr := ScrollContainer.new()
+	scr.custom_minimum_size = Vector2(488, 600)
+	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scr.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scr.add_theme_constant_override("separation", 8)
+	margin.add_child(scr)
+	var vbw := VBoxContainer.new()
+	vbw.add_theme_constant_override("separation", 8)
+	scr.add_child(vbw)
+	# 下面原 vb 直接改为 vbw
+	vb = vbw
 
 	var t := Label.new()
 	t.text = "把线索「%s」连到：" % _find_clue(cid).get("name", cid)
@@ -3204,7 +3218,7 @@ func _show_detail(id: String, kind: String) -> void:
 	if _detail_card and is_instance_valid(_detail_card):
 		_detail_card.queue_free()
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(520, 360)
+	card.custom_minimum_size = Vector2(520, 640)
 	# 需求1：详情弹窗必须盖过左侧「已收集线索」栏（reasoning_wall 顶层 z=20）。
 	# graph_view 整树 z=5，任何子节点都无法超过左栏；故把卡挂到 graph_view 的父
 	# （reasoning_wall 顶层），并设 z=30（低于顶栏 100，顶栏仍可点）。
@@ -3305,6 +3319,15 @@ func _show_detail(id: String, kind: String) -> void:
 			_rebuild_graph()
 			if is_instance_valid(card): card.queue_free())
 		vb.add_child(save_btn)
+
+	if _state == State.EDITABLE and id.begins_with("note_"):
+		var del_btn := Button.new()
+		del_btn.text = "🗑 删除此文本框"
+		del_btn.add_theme_font_size_override("font_size", 26)
+		del_btn.pressed.connect(func():
+			_delete_text_node(id)
+			if is_instance_valid(card): card.queue_free())
+		vb.add_child(del_btn)
 
 	# —— 连线管理（问题1：取消右键后，删除连线改由此处）：列出本节点参与的全部关系，逐个可删 ——
 	var rels := []
@@ -3445,6 +3468,7 @@ func _persist_view() -> void:
 	_state_store["graph_folded_nodes"] = _folded_nodes
 	_state_store["graph_nodes"] = _graph_nodes.duplicate()
 	_state_store["graph_edited_texts"] = _edited_texts.duplicate()
+	_state_store["graph_deleted_nodes"] = _state_store.get("graph_deleted_nodes", [])
 	_persist_node_positions()
 
 
@@ -3474,6 +3498,52 @@ func add_text_node(kind: String) -> void:
 	_rebuild_graph()
 
 
+func _delete_text_node(id: String) -> void:
+	if not id.begins_with("note_"): return
+	var target: Array = _graph_nodes.filter(func(n): return n.get("id", "") == id)
+	if target.is_empty(): return
+	_graph_nodes = _graph_nodes.filter(func(n): return n.get("id", "") != id)
+	_relations = _relations.filter(func(r): return r.get("from", "") != id and r.get("to", "") != id)
+	var del_pool: Array = _state_store.get("graph_deleted_nodes", [])
+	del_pool.append(target[0])
+	_state_store["graph_deleted_nodes"] = del_pool
+	_folded_nodes.erase(id)
+	_node_center.erase(id)
+	_persist_view()
+	_rebuild_graph()
+
+
+
+
+func restore_text_node(id: String) -> void:
+	var del_pool: Array = _state_store.get("graph_deleted_nodes", [])
+	var found: Array = del_pool.filter(func(n): return n.get("id", "") == id)
+	if found.is_empty(): return
+	_graph_nodes.append(found[0])
+	_state_store["graph_deleted_nodes"] = del_pool.filter(func(n): return n.get("id", "") != id)
+	var base: Vector2 = _canvas.size * 0.5
+	_node_center[id] = _clamp_to_canvas(base + Vector2(-30, -20))
+	var nps: Dictionary = _state_store.get("graph_node_positions", {})
+	nps[id] = _node_center[id]
+	_state_store["graph_node_positions"] = nps
+	_persist_view()
+	_rebuild_graph()
+
+func get_deleted_nodes() -> Array:
+	return ([] if _state_store.is_empty() else _state_store.get("graph_deleted_nodes", [])) as Array
+
+func update_node_label(id: String, text: String) -> void:
+	if _state_store.is_empty(): return
+	if not _graph_nodes.any(func(n): return n.get("id", "") == id): return
+	for i in _graph_nodes.size():
+		if _graph_nodes[i].get("id", "") == id:
+			var ndc: Dictionary = _graph_nodes[i]
+			ndc["label"] = text
+			_graph_nodes[i] = ndc
+			break
+	_persist_view()
+	_rebuild_graph()
+
 func _gn_color(kind: String) -> Color:
 	match kind:
 		"person": return Color(0.66, 0.20, 0.16, 0.97)
@@ -3501,6 +3571,21 @@ func _input(event: InputEvent) -> void:
 					var clamped: Vector2 = _clamp_free(new_center)
 					n.position = clamped - n.size * 0.5
 					_node_center[_drag_id] = clamped
+					# 拖拽命中提示：拖到其它节点范围时，把拖拽节点缩小并置顶，
+					# 让玩家直观感知两者可建立联系
+					var _hit: String = _drop_node_except(clamped, _drag_id) if _state == State.EDITABLE else ""
+					if _hit == "":
+						_hit = _nearest_node_except(clamped, _drag_id, 48.0) if _state == State.EDITABLE else ""
+					if _hit != "" and _node_kind.get(_hit, "") in ["hypo", "clue", "conclusion"]:
+						n.modulate = Color(1, 1, 1, 0.55)
+						n.scale = Vector2(0.9, 0.9)
+						n.z_index = 900
+						_drag_hover = _hit
+					else:
+						n.modulate = Color(1, 1, 1, 1)
+						n.scale = Vector2.ONE
+						n.z_index = 0
+						_drag_hover = ""
 					_sync_fold_controls_positions()
 					_redraw_all()
 					get_viewport().set_input_as_handled()
