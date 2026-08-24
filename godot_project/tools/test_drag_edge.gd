@@ -28,7 +28,7 @@ func _run() -> void:
 	# 模拟：按下 c1（drag_start 记录），移动（warp 鼠标到目标中心），松手提交
 	var n1: Control = gv._node_views.get("c1")
 	var start: Vector2 = n1.get_global_rect().get_center()
-	gv._drag_start = start
+	gv._drag_start = target - Vector2(40, 0)
 	Input.warp_mouse(target)
 	await get_tree().create_timer(0.05).timeout
 	var gp: Vector2 = get_viewport().get_mouse_position()
@@ -44,7 +44,7 @@ func _run() -> void:
 	gv._dragging = true
 	gv._drag_id = "c1"
 	gv._drag_mode = "move"
-	gv._commit_move("c1")
+	gv._commit_move("c1", target)
 	await get_tree().create_timer(0.15).timeout
 	print("[DRAG] after commit_move: relations=%d" % wall._relations.size())
 	for rr in wall._relations:
