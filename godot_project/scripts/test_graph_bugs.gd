@@ -111,7 +111,7 @@ func _run() -> void:
 
 	# ================= Bug3：左侧线索拖入图谱 =================
 	# 模拟：在 dock 卡片上按下 → 移动（手动把 _dock_start 设远，模拟真实光标位移>6px）→ 松开
-	gv._on_dock_card_gui(_mk_press(Vector2(90, 200)), "c1")
+	gv._dockctl._on_dock_card_gui(_mk_press(Vector2(90, 200)), "c1")
 	_chk(gv._dock_dragging == true, "Bug3-A：按下线索卡片开始拖拽")
 	gv._dock_start = Vector2(90, 200)          # 模拟真实起点
 	gv._input(_mk_motion(Vector2(700, 400)))    # 移动到图谱区

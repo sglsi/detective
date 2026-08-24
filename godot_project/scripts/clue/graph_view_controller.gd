@@ -31,6 +31,8 @@ const GraphViewFold = preload("res://scripts/clue/graph/graph_view_fold.gd")
 var _fold: GraphViewFold
 const GraphViewEdge = preload("res://scripts/clue/graph/graph_view_edge.gd")
 var _edge: GraphViewEdge
+const GraphViewDock = preload("res://scripts/clue/graph/graph_view_dock.gd")
+var _dockctl: GraphViewDock   # 左线索栏 dock 逻辑（注意：_dock 已用于线索栏 UI 节点本体）
 
 # === 入参数据（由推理墙传入，本控制器只读 + 通过回调回写）===
 var _clues: Array = []
@@ -180,6 +182,8 @@ func _ready() -> void:
 	_fold.owner = self
 	_edge = GraphViewEdge.new()
 	_edge.owner = self
+	_dockctl = GraphViewDock.new()
+	_dockctl.owner = self
 
 
 # === 当前笔（由推理墙顶部栏 / 图谱内弹窗共同驱动）===
@@ -1487,7 +1491,7 @@ func _on_redo() -> void:
 func set_pen(color_key: String, dashed: bool) -> void:
 	_pen_color_key = color_key
 	_pen_dashed = dashed
-	_emit_pen_changed()
+	_dockctl._emit_pen_changed()
 
 
 func set_mode(m: int) -> void:
@@ -1680,365 +1684,7 @@ func redo() -> void:
 
 
 # ===================== 浮层线索栏（左侧，可收缩）=====================
-func _create_clue_dock() -> void:
-	_dock = Control.new()
-	_dock.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
-	_dock.offset_top = 64
-	_dock.offset_bottom = -44
-	_dock.offset_right = 26 if _dock_collapsed else 340
-	_dock.mouse_filter = Control.MOUSE_FILTER_STOP
-	_dock.z_index = 5
-	add_child(_dock)
-
-	var bg := ColorRect.new()
-	bg.color = Color(0.10, 0.08, 0.06, 0.62)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_dock.add_child(bg)
-
-	_dock_toggle_btn = Button.new()
-	_dock_toggle_btn.text = "›" if _dock_collapsed else "‹"
-	_dock_toggle_btn.add_theme_font_size_override("font_size", 30)
-	_dock_toggle_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	_dock_toggle_btn.custom_minimum_size = Vector2(44, 48)
-	_dock_toggle_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_dock_toggle_btn.offset_right = -6; _dock_toggle_btn.offset_left = -52
-	_dock_toggle_btn.offset_top = 4; _dock_toggle_btn.offset_bottom = 32
-	_dock_toggle_btn.pressed.connect(_on_dock_toggle)
-	_dock.add_child(_dock_toggle_btn)
-
-	var title := Label.new()
-	title.text = "已收集线索"
-	title.add_theme_font_size_override("font_size", 30)
-	title.add_theme_color_override("font_color", COL_GOLD)
-	title.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	title.offset_left = 10; title.offset_top = 8; title.offset_right = -44; title.offset_bottom = 58
-	title.visible = not _dock_collapsed
-	_dock.add_child(title)
-
-	var scroll := ScrollContainer.new()
-	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_top = 62; scroll.offset_bottom = -8; scroll.offset_left = 6; scroll.offset_right = -6
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.mouse_filter = Control.MOUSE_FILTER_STOP
-	scroll.visible = not _dock_collapsed
-	_dock.add_child(scroll)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
-	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(vb)
-	_dock_list = vb
-
-	_refresh_dock()
-
-
-func _refresh_dock() -> void:
-	if not _dock_list: return
-	for c in _dock_list.get_children(): c.queue_free()
-	_dock_cards = {}
-	for c in _clues:
-		var card := _make_dock_clue_card(c)
-		_dock_list.add_child(card)
-		_dock_cards[c.get("id", "")] = card
-
-
-func _make_dock_clue_card(clue: Dictionary) -> Control:
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(300, 100)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.mouse_filter = Control.MOUSE_FILTER_STOP
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.08, 0.28, 0.08, 0.95)
-	s.border_color = Color(0.2, 0.8, 0.2)
-	s.border_width_left = 2; s.border_width_right = 2; s.border_width_top = 2; s.border_width_bottom = 2
-	s.set_corner_radius_all(6)
-	card.add_theme_stylebox_override("panel", s)
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_top", 4)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_bottom", 4)
-	card.add_child(margin)
-	var vb := VBoxContainer.new()
-	margin.add_child(vb)
-	var name := Label.new()
-	name.text = clue.get("name", clue.get("id", "?"))
-	name.add_theme_font_size_override("font_size", 40)
-	name.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vb.add_child(name)
-	var sub := Label.new()
-	sub.text = "拖入图谱建立关系"
-	sub.add_theme_font_size_override("font_size", 20)
-	sub.add_theme_color_override("font_color", COL_GREY)
-	vb.add_child(sub)
-	var cid: String = clue.get("id", "")
-	card.gui_input.connect(_on_dock_card_gui.bind(cid))
-	card.tooltip_text = clue.get("desc", "")
-	return card
-
-
-func _on_dock_card_gui(event: InputEvent, cid: String) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		if _state != State.EDITABLE:
-			_toast_msg("已封存，仅可浏览")
-			return
-		_dock_dragging = true
-		_dock_clue_id = cid
-		_dock_moved = false
-		_dock_start = get_viewport().get_mouse_position()
-		_make_dock_preview(cid)
-		# 声明吃掉这次按下：防止 dock 所在 ScrollContainer 把按下当成滚动起点而抢走后续拖动，
-		# 否则「左侧线索拖不进图谱」（Bug3）。
-		get_viewport().set_input_as_handled()
-
-
-func _on_dock_drop() -> void:
-	_dock_dragging = false
-	var cid := _dock_clue_id
-	_dock_clue_id = ""
-	_clear_dock_preview()
-	if not _dock_moved:
-		return
-	var gp := get_viewport().get_mouse_position()
-	if _dock and is_instance_valid(_dock) and _dock.get_global_rect().has_point(gp):
-		return   # 落回线索栏内，视为取消
-	_open_link_suggestions(cid)
-
-
-func _make_dock_preview(cid: String) -> void:
-	_clear_dock_preview()
-	var clue: Dictionary = _data._find_clue(cid)
-	var prev := PanelContainer.new()
-	prev.custom_minimum_size = Vector2(300, 100)
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.10, 0.30, 0.10, 0.95)
-	s.border_color = COL_GOLD
-	s.border_width_left = 2; s.border_width_right = 2; s.border_width_top = 2; s.border_width_bottom = 2
-	s.set_corner_radius_all(6)
-	prev.add_theme_stylebox_override("panel", s)
-	var lab := Label.new()
-	lab.text = clue.get("name", cid)
-	lab.add_theme_font_size_override("font_size", 40)
-	lab.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	prev.add_child(lab)
-	prev.z_index = 40
-	# 纯视觉预览：设为 IGNORE，绝不作为命中控件拦截松开事件（否则拖到图谱上松手可能被预览本身吃掉）
-	prev.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(prev)
-	_dock_preview = prev
-	_move_dock_preview(get_viewport().get_mouse_position())
-
-
-func _move_dock_preview(gp: Vector2) -> void:
-	if _dock_preview and is_instance_valid(_dock_preview):
-		_dock_preview.position = gp - _dock_preview.size * 0.5
-
-
-func _clear_dock_preview() -> void:
-	if _dock_preview and is_instance_valid(_dock_preview):
-		_dock_preview.queue_free()
-	_dock_preview = null
-
-
-func _on_dock_toggle() -> void:
-	_dock_collapsed = not _dock_collapsed
-	if _dock and is_instance_valid(_dock):
-		_dock.offset_right = 26 if _dock_collapsed else 340
-	if _dock_toggle_btn and is_instance_valid(_dock_toggle_btn):
-		_dock_toggle_btn.text = "›" if _dock_collapsed else "‹"
-	var title_child: Array = _dock.get_children().filter(func(c): return c is Label)
-	for t in title_child: t.visible = not _dock_collapsed
-	if _dock_list and is_instance_valid(_dock_list):
-		# 滚动容器是 _dock_list 的父节点
-		var sc := _dock_list.get_parent()
-		if sc and is_instance_valid(sc): sc.visible = not _dock_collapsed
-
-
 # ===================== 「推断/结论」建议弹窗 =====================
-func _open_link_suggestions(cid: String) -> void:
-	_close_link_popup()
-	_link_popup_clue_id = cid
-	var popup := Control.new()
-	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.mouse_filter = Control.MOUSE_FILTER_STOP
-	popup.z_index = 25
-	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.45)
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.add_child(overlay)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(640, 560)
-	panel.position = (get_viewport_rect().size - Vector2(440, 380)) * 0.5
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
-	ps.border_color = COL_GOLD
-	ps.border_width_left = 2; ps.border_width_right = 2; ps.border_width_top = 2; ps.border_width_bottom = 2
-	ps.set_corner_radius_all(10)
-	panel.add_theme_stylebox_override("panel", ps)
-	popup.add_child(panel)
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	panel.add_child(margin)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	# 问题Q2：详情卡内容增多，用 ScrollContainer 包裹，保证全部内容可滚动查看、底部按钮可点
-	var scr := ScrollContainer.new()
-	scr.custom_minimum_size = Vector2(488, 600)
-	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scr.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scr.add_theme_constant_override("separation", 8)
-	margin.add_child(scr)
-	var vbw := VBoxContainer.new()
-	vbw.add_theme_constant_override("separation", 8)
-	scr.add_child(vbw)
-	# 下面原 vb 直接改为 vbw
-	vb = vbw
-
-	var t := Label.new()
-	t.text = "把线索「%s」连到：" % _data._find_clue(cid).get("name", cid)
-	t.add_theme_font_size_override("font_size", 30)
-	t.add_theme_color_override("font_color", COL_GOLD)
-	vb.add_child(t)
-
-	var pen_row := HBoxContainer.new()
-	vb.add_child(pen_row)
-	pen_row.add_child(_mk_pen_label("线型"))
-	var solid := _mk_pen_btn("实线", not _pen_dashed, Color(0.8, 0.8, 0.8))
-	solid.pressed.connect(func(): _set_pen_dashed(false))
-	pen_row.add_child(solid)
-	var dashed := _mk_pen_btn("虚线", _pen_dashed, COL_GREY)
-	dashed.pressed.connect(func(): _set_pen_dashed(true))
-	pen_row.add_child(dashed)
-
-	var col_row := HBoxContainer.new()
-	vb.add_child(col_row)
-	col_row.add_child(_mk_pen_label("性质"))
-	var keys := ["green", "orange", "red", "grey"]
-	var labels := ["支持", "矛盾存疑", "反对", "弱关联"]
-	for i in keys.size():
-		var b := _mk_pen_btn(labels[i], _pen_color_key == keys[i], _data.color_from_key(keys[i]))
-		var k: String = keys[i]
-		b.pressed.connect(func(): _set_pen_color(k))
-		col_row.add_child(b)
-
-	var sep := HSeparator.new()
-	vb.add_child(sep)
-	var hint := Label.new()
-	hint.text = "选择要连接的目标："
-	hint.add_theme_font_size_override("font_size", 40)
-	hint.add_theme_color_override("font_color", COL_GREY)
-	vb.add_child(hint)
-
-	var pname: String = _data._person_name(_focus_person)
-	var pb := _mk_link_target("★ %s（星型归属）" % pname)
-	pb.pressed.connect(func(): _confirm_link(cid, _focus_person, "person"))
-	vb.add_child(pb)
-	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
-		var hb := _mk_link_target("推断：%s" % h.get("text", h.get("id", "?")))
-		var hid: String = h.get("id", "")
-		hb.pressed.connect(func(): _confirm_link(cid, hid, "hypo"))
-		vb.add_child(hb)
-	var cb := _mk_link_target("结论：%s" % _data._verdict_text())
-	cb.pressed.connect(func(): _confirm_link(cid, "conclusion", "conclusion"))
-	vb.add_child(cb)
-
-	var cancel := Button.new()
-	cancel.text = "取消"
-	cancel.add_theme_font_size_override("font_size", 26)
-	cancel.pressed.connect(_close_link_popup)
-	vb.add_child(cancel)
-
-	add_child(popup)
-	_link_popup = popup
-
-
-func _close_link_popup() -> void:
-	if _link_popup and is_instance_valid(_link_popup):
-		_link_popup.queue_free()
-		_link_popup = null
-
-
-func _confirm_link(cid: String, target_id: String, kind_hint: String) -> void:
-	_close_link_popup()
-	if target_id == "" or target_id == cid: return
-	if kind_hint == "person":
-		_tag_person(cid, target_id)
-	else:
-		var kind: String = _data.key_to_kind(_pen_color_key)
-		_edge._add_edge(cid, target_id, kind, _pen_color_key, _pen_dashed)
-
-
-func _mk_pen_label(t: String) -> Label:
-	var l := Label.new()
-	l.text = t
-	l.add_theme_font_size_override("font_size", 40)
-	l.add_theme_color_override("font_color", COL_GREY)
-	l.custom_minimum_size = Vector2(60, 44)
-	return l
-
-
-func _mk_pen_btn(t: String, active: bool, col: Color) -> Button:
-	var b := Button.new()
-	b.text = t
-	b.toggle_mode = true
-	b.button_pressed = active
-	b.add_theme_font_size_override("font_size", 40)
-	b.add_theme_color_override("font_color", col if active else COL_GOLD_LIGHT)
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.25, 0.20, 0.12, 0.95) if active else Color(0.14, 0.12, 0.08, 0.95)
-	s.border_color = col if active else Color(0.45, 0.38, 0.20)
-	s.border_width_left = 1; s.border_width_right = 1; s.border_width_top = 1; s.border_width_bottom = 1
-	s.set_corner_radius_all(4)
-	b.add_theme_stylebox_override("normal", s)
-	b.custom_minimum_size = Vector2(110, 44)
-	return b
-
-
-func _mk_link_target(t: String) -> Button:
-	var b := Button.new()
-	b.text = t
-	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	b.add_theme_font_size_override("font_size", 26)
-	b.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	b.custom_minimum_size = Vector2(560, 52)
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.16, 0.13, 0.08, 0.95)
-	s.border_color = Color(0.45, 0.38, 0.20)
-	s.border_width_left = 1; s.border_width_right = 1; s.border_width_top = 1; s.border_width_bottom = 1
-	s.set_corner_radius_all(5)
-	b.add_theme_stylebox_override("normal", s)
-	return b
-
-
-func _set_pen_color(key: String) -> void:
-	_pen_color_key = key
-	_emit_pen_changed()
-	_refresh_link_popup_pen()
-
-
-func _set_pen_dashed(d: bool) -> void:
-	_pen_dashed = d
-	_emit_pen_changed()
-	_refresh_link_popup_pen()
-
-
-func _emit_pen_changed() -> void:
-	if _cb_pen_changed.is_valid():
-		_cb_pen_changed.call(_pen_color_key, _pen_dashed)
-
-
-func _refresh_link_popup_pen() -> void:
-	if _link_popup and is_instance_valid(_link_popup):
-		var cid := _link_popup_clue_id
-		_close_link_popup()
-		_open_link_suggestions(cid)
-
-
 # ===================== 缩放/平移 =====================
 func _on_canvas_gui(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -2587,12 +2233,12 @@ func _input(event: InputEvent) -> void:
 		var gp2: Vector2 = get_viewport().get_mouse_position()
 		if gp2.distance_to(_dock_start) > 6:
 			_dock_moved = true
-		_move_dock_preview(gp2)
+		_dockctl._move_dock_preview(gp2)
 		# 声明吃掉移动：避免 dock 的 ScrollContainer 在拖动过程中抢去事件去滚动列表
 		get_viewport().set_input_as_handled()
 		return
 	if _dock_dragging and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		_on_dock_drop()
+		_dockctl._on_dock_drop()
 		return
 	# === 键 ===
 	# ⚠️ 2026-08-19 修复：elif 分支曾无类型守卫直接访问 event.keycode，
