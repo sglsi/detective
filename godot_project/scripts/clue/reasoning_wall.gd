@@ -537,6 +537,28 @@ func _create_top_bar() -> Control:
 
 	row2.add_child(_mk_sep())
 
+	# 「添加文本框」工具组：将自定义文本框加入画布（线索/推断/结论/人物）
+	var add_label := Label.new()
+	add_label.text = "➕ 添加"
+	add_label.add_theme_font_size_override("font_size", 15)
+	add_label.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	add_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row2.add_child(add_label)
+	var add_defs := [
+		["clue", "🧾 线索", "在画布添加一个线索文本框"],
+		["hypo", "💡 推断", "在画布添加一个推断文本框"],
+		["conclusion", "🏁 结论", "在画布添加一个结论文本框"],
+		["person", "🧑 人物", "在画布添加一个人物文本框"],
+	]
+	for i in range(add_defs.size()):
+		var ad: Array = add_defs[i]
+		var add_btn := _mk_top_btn(ad[1], false)
+		add_btn.tooltip_text = ad[2]
+		add_btn.pressed.connect(func(k: String = ad[0]): _on_add_text_node(k))
+		row2.add_child(add_btn)
+
+	row2.add_child(_mk_sep())
+
 	_connect_btn = _mk_top_btn("🔗 连线", false)
 	_connect_btn.tooltip_text = "开启后：依次点两个节点 = 建立连线；两节点已有连线时再点两次 = 取消该连线"
 	_connect_btn.pressed.connect(_on_top_connect_toggle)
@@ -1960,6 +1982,13 @@ func _on_top_redo() -> void:
 func _on_search_submitted(text: String) -> void:
 	if _graph_view and is_instance_valid(_graph_view):
 		_graph_view.set_search_query(text)
+
+
+func _on_add_text_node(kind: String) -> void:
+	if _graph_view and is_instance_valid(_graph_view) and _graph_view.has_method("add_text_node"):
+		_graph_view.add_text_node(kind)
+		if _status_lbl:
+			_status_lbl.text = "已添加文本框到画布"
 
 
 func _on_filter_selected(idx: int) -> void:
