@@ -75,15 +75,15 @@ func _run() -> void:
 			concl_label = "found"
 	_chk(concl_label == "found", "Fix3-C：结论节点卡片文本已按实时判定显示「说得通」")
 	# 删掉唯一 support 关系 → support=2 → 「有点道理」黄（即时降级，无需退出重进）
-	gv._remove_edge("c1", "H1", "support")
+	gv._edge._remove_edge("c1", "H1", "support")
 	_chk(gv._data._verdict_text() == "有点道理", "Fix3-D：删连线后结论即时降级为「有点道理」")
 	_chk(gv._data._verdict_color() == gv.COL_YELLOW, "Fix3-E：结论色即时变黄")
 	# 加一条虚线 support → 虚线不计入判定 → 仍是「有点道理」
-	gv._add_edge("c1", "H1", "support", "green", true)
+	gv._edge._add_edge("c1", "H1", "support", "green", true)
 	_chk(gv._data._verdict_text() == "有点道理", "Fix3-F：虚线（存疑）支持连线不计入判定")
 	# 删虚线、加实线 → 恢复「说得通」绿
-	gv._remove_edge("c1", "H1", "support")
-	gv._add_edge("c1", "H1", "support", "green", false)
+	gv._edge._remove_edge("c1", "H1", "support")
+	gv._edge._add_edge("c1", "H1", "support", "green", false)
 	_chk(gv._data._verdict_text() == "说得通", "Fix3-G：实线支持连线计入后结论恢复「说得通」")
 
 	# ================= 问题1：取消右键，功能移到详情卡 =================
@@ -116,16 +116,16 @@ func _run() -> void:
 	_chk(gv._data._verdict_text() == "有点道理", "Fix1-H：删除后结论即时降级（与 Fix3-D 一致）")
 
 	# ================= 连线模式快捷 toggle（点两节点=有边删/无边建） =================
-	gv._add_edge("c1", "H1", "support", "green", false)
-	_chk(gv._relations_between("c1", "H1").size() == 1, "Fix1-I：c1↔H1 已有 1 条连线（准备测 toggle）")
+	gv._edge._add_edge("c1", "H1", "support", "green", false)
+	_chk(gv._edge._relations_between("c1", "H1").size() == 1, "Fix1-I：c1↔H1 已有 1 条连线（准备测 toggle）")
 	gv.set_connect_mode(true)
 	gv._handle_connect_click("c1", "clue")
 	gv._handle_connect_click("H1", "hypo")
-	_chk(gv._relations_between("c1", "H1").is_empty(), "Fix1-J：连线模式点两已有连线节点=删除该连线")
+	_chk(gv._edge._relations_between("c1", "H1").is_empty(), "Fix1-J：连线模式点两已有连线节点=删除该连线")
 	_chk(gv._data._verdict_text() == "有点道理", "Fix1-K：删除后结论即时降级")
 	gv._handle_connect_click("c1", "clue")
 	gv._handle_connect_click("H1", "hypo")
-	_chk(gv._relations_between("c1", "H1").size() == 1, "Fix1-L：再点两次恢复建边")
+	_chk(gv._edge._relations_between("c1", "H1").size() == 1, "Fix1-L：再点两次恢复建边")
 	_chk(gv._data._verdict_text() == "说得通", "Fix1-M：恢复建边后结论回升")
 	gv.set_connect_mode(false)
 	gv.queue_free()
