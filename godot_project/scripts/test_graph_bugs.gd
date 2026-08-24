@@ -155,7 +155,7 @@ func _run_rw() -> void:
 	_chk(ss.has("graph_node_positions") and ss["graph_node_positions"].has("c1"),
 		"RW-Bug1-B：玩家移动后位置写入共享 state_store")
 	# 推理墙自身持久化（关系/标签变更时也会调用）
-	rw._persist_state()
+	rw._state_ctl._persist_state()
 	_chk(ss.has("graph_node_positions") and ss["graph_node_positions"].has("c1"),
 		"RW-Bug1-C：_persist_state 后位置仍在（Bug1 修复：不再 clear 整块）")
 	_chk(ss.has("associated"), "RW-Bug1-D：推理墙自身键亦正常写入")

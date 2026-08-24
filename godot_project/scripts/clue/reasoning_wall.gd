@@ -1,11 +1,17 @@
 extends Control
+class_name ReasoningWall
 
 ## 推理墙 — 设计文档 P0 实现（五区布局 + 线索库 + 假设树 + 四级验证 + 结论里程碑）
 ## 依据：docs/02_核心设计/06_推理墙运行机制.md
+## 架构（Request C 后分层）：状态/线索库/假设树/战场/对比台/关系/验证/历史 抽到 scripts/clue/wall/
 
 enum Verdict { INSUFFICIENT=1, SUPPORTED=2, VERIFIED=3, CONTRADICTORY=0 }
 enum Diff { EASY=0, NORMAL=1, HARD=2 }
 enum ClueState { COLLECTED=0, ASSOCIATED=1, VERIFIED=2, INVALID=3 }
+
+# === 分层（Request C 后架构拆分）：状态/线索库/假设树/战场/对比台/关系/验证/历史 抽到 wall/ ===
+const WallState = preload("res://scripts/clue/wall/wall_state.gd")
+var _state_ctl: WallState
 
 # === 数据 ===
 var _clues: Array = []                       # 线索字典数组
@@ -160,23 +166,10 @@ const _IDENTITY_REVEAL_GATES := {
 	"NPC_HOP": ["C_SOTCB_501", "C_SOTCB_502"],
 }
 
-func _npc_display_name(id: String) -> String:
-	return _NPC_DISPLAY_NAMES.get(id, id)
-
-
 ## 身份揭示门控（需求2）：判定某 NPC 是否应以"已知人物"出现。live 为当前已收集线索。
-func _identity_revealed(pid: String, live: Array) -> bool:
-	var gates: Array = _IDENTITY_REVEAL_GATES.get(pid, [])
-	if gates.is_empty():
-		return true
-	for g in gates:
-		for c in live:
-			if c.get("id", "") == g:
-				return true
-	return false
-
-
 func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable(), auto_fold: bool = false) -> void:
+	_state_ctl = WallState.new()
+	_state_ctl.owner = self
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
@@ -196,8 +189,8 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	# 案件级大墙：_clues 可能是全案池（跨场景），观察星须按「本场景已收集条数」计，避免被池扩大抬高
 	_local_clue_count = local_clue_count if local_clue_count >= 0 else _clues.size()
 	_insight_bonus = hypothesis.get("insight_bonus", 0)
-	_init_milestones(hypothesis)
-	_restore_state()      # 构建 UI 前回填关联/战场/里程碑/verified（首次为空则 no-op）
+	_state_ctl._init_milestones(hypothesis)
+	_state_ctl._restore_state()      # 构建 UI 前回填关联/战场/里程碑/verified（首次为空则 no-op）
 	_create_ui()
 	_update_all()
 	_on_open_graph_view()    # 图谱=默认主视图（覆盖列表区；左/右/中/底面板已隐藏）
@@ -205,36 +198,15 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 
 func get_verdict() -> int:
 	# 矛盾信号：误导线索(_contradicting) + 关系中的矛盾/反对（线索↔线索矛盾、线索→假设反对）
-	if _contradiction_signals() > 0: return Verdict.CONTRADICTORY
+	if _state_ctl._contradiction_signals() > 0: return Verdict.CONTRADICTORY
 	# 支持信号：已关联线索(_associated) + 线索→假设 支持关系
-	if _support_signals() >= 3: return Verdict.VERIFIED
-	if _support_signals() >= 1: return Verdict.SUPPORTED
+	if _state_ctl._support_signals() >= 3: return Verdict.VERIFIED
+	if _state_ctl._support_signals() >= 1: return Verdict.SUPPORTED
 	return Verdict.INSUFFICIENT
 
 
 ## 关系信号：把「拖拽相互关系」接入验证判定（原判定只看 _associated/_contradicting 计数，
 ## 与 design doc §2.2『关联推理应实时更新验证等级』一致）
-func _contradiction_signals() -> int:
-	var n := _contradicting
-	for r in _relations:
-		# 虚线（存疑）只显示、不计入判定，防止玩家乱连误判结案
-		if r.get("dashed", false):
-			continue
-		if r.kind == "contradict" or r.kind == "oppose":
-			n += 1
-	return n
-
-
-func _support_signals() -> int:
-	var n := _associated
-	for r in _relations:
-		if r.get("dashed", false):
-			continue
-		if r.kind == "support":
-			n += 1
-	return n
-
-
 func close_wall() -> void:
 	_on_back_pressed()
 
@@ -242,68 +214,6 @@ func close_wall() -> void:
 # === 跨重开持久化（#场景二卡死修复）===
 ## 推理墙为瞬时节点，重建即丢失进度。状态由场景持有的 _state_store 引用保存：
 ## 关联线索 id、战场假设/矛盾状态、里程碑点亮、verified 标记与最近判定。
-
-func _restore_state() -> void:
-	if not _persist_enabled: return
-	if _state_store.is_empty(): return
-	var saved_assoc: Array = _state_store.get("associated", [])
-	var assoc_set := {}
-	for s in saved_assoc: assoc_set[s] = true
-	_associated = 0; _contradicting = 0
-	_doubt_book = _state_store.get("doubt_book", [])
-	_relations = []
-	for r in _state_store.get("relations", []):
-		_relations.append({"from": r.get("from", ""), "to": r.get("to", ""), "kind": r.get("kind", "relate"),
-			"color_key": r.get("color_key", _kind_to_key(r.get("kind", "relate"))), "dashed": r.get("dashed", false)})
-	for c in _clues:
-		if assoc_set.has(c.get("id", "")):
-			c["associated"] = true
-			_associated += 1
-			if not c.get("correct", true): _contradicting += 1
-		else:
-			c["associated"] = false
-	var bf: Dictionary = _state_store.get("battlefield", {})
-	_battle_hypo_states = {}
-	_battle_contra_states = {}
-	for h in _battle.get("hypotheses", []):
-		var hid: String = h.get("id", "")
-		if bf.has(hid): _battle_hypo_states[hid] = int(bf[hid])
-	for c in _battle.get("contradictions", []):
-		var cid: String = c.get("id", "")
-		if bf.has(cid): _battle_contra_states[cid] = bool(bf[cid])
-	for m in _milestones:
-		m["lit"] = (m["id"] in _state_store.get("milestones_lit", []))
-	_verified = _state_store.get("verified", false)
-	_verified_verdict = _state_store.get("verdict", -1)
-
-
-func _persist_state() -> void:
-	if not _persist_enabled: return   # 调用方未开启持久化则不写（兼容旧调用方）
-	var assoc := []
-	for c in _clues:
-		if c.get("associated", false): assoc.append(c.get("id", ""))
-	var m_lit := []
-	for m in _milestones:
-		if m["lit"]: m_lit.append(m["id"])
-	var bf := {}
-	for h in _battle.get("hypotheses", []):
-		bf[h.get("id", "")] = _battle_hypo_states.get(h.get("id", ""), 0)
-	for c in _battle.get("contradictions", []):
-		bf[c.get("id", "")] = _battle_contra_states.get(c.get("id", ""), false)
-	# ⚠️ 不要 _state_store.clear()！
-	# 图谱视图（GraphViewController）把「玩家移动节点位置 / 当前模式 / 焦点 / 引导是否看过」
-	# 也写进同一份 _state_store 引用（graph_node_positions / graph_view_mode /
-	# graph_focus / graph_seed / graph_tutorial_seen）。clear() 会把它们一起抹掉，
-	# 造成「关系能存档、节点位置读档后回到默认」的 Bug1。
-	# 这里只覆盖推理墙自身关心的键；图谱键原样保留（读取时各自 get 默认值即可）。
-	_state_store["associated"] = assoc
-	_state_store["milestones_lit"] = m_lit
-	_state_store["battlefield"] = bf
-	_state_store["verified"] = _verified
-	_state_store["verdict"] = _verified_verdict
-	_state_store["doubt_book"] = _doubt_book
-	_state_store["relations"] = _relations.duplicate()
-
 
 # === 入口：构建五区布局 ===
 func _create_ui() -> void:
@@ -1094,7 +1004,7 @@ func _on_compare_pressed() -> void:
 		_battle_contra_states[cid] = true   # 直接标记（键可能原不存在，幂等）
 	_refresh_battlefield_status_only()
 	_refresh_desk()
-	_persist_state()
+	_state_ctl._persist_state()
 
 
 func _add_doubt(cid: String, a: String, b: String) -> void:
@@ -1569,7 +1479,7 @@ func _on_battle_hypo_pressed(id: String) -> void:
 		btn.text = ["未定", "采纳✓", "排除✗"][st]
 		_style_battle_btn(btn, st)
 	_refresh_battlefield_status_only()
-	_persist_state()
+	_state_ctl._persist_state()
 
 
 func _on_battle_contra_pressed(id: String) -> void:
@@ -1580,7 +1490,7 @@ func _on_battle_contra_pressed(id: String) -> void:
 		btn.text = "已识别" if st else "未识别"
 		_style_battle_btn(btn, 1 if st else 0)
 	_refresh_battlefield_status_only()
-	_persist_state()
+	_state_ctl._persist_state()
 
 
 func _style_battle_btn(btn: Button, st: int) -> void:
@@ -1735,11 +1645,11 @@ func _toggle_association(cid: String) -> void:
 	_status_lbl.add_theme_color_override("font_color", COL_GREEN)
 
 	_update_all()
-	_persist_state()
+	_state_ctl._persist_state()
 
 
 # === 自由连线：各线索/假设之间拖拽相互关系 ===
-# 关系信号接入验证见 _contradiction_signals()/_support_signals()/get_verdict()。
+# 关系信号接入验证见 _state_ctl._contradiction_signals()/_state_ctl._support_signals()/get_verdict()。
 # 设计依据：docs/02_核心设计/06_推理墙运行机制.md §2.2（拖拽模式默认；自由连线模式 M2+ 线索↔线索）
 
 ## 建立一条关系。kind="auto" 时（线索↔线索）自动跑矛盾检测：有矛盾→"contradict"，否则→"relate"。
@@ -1758,7 +1668,7 @@ func connect_nodes(from_id: String, to_id: String, kind: String, color_key: Stri
 	var ck := color_key if color_key != "" else _kind_to_key(resolved)
 	_relations.append({"from": from_id, "to": to_id, "kind": resolved, "color_key": ck, "dashed": dashed})
 	_refresh_relations()
-	_persist_state()
+	_state_ctl._persist_state()
 	return true
 
 
@@ -1769,13 +1679,13 @@ func remove_relation(from_id: String, to_id: String) -> void:
 			kept.append(r)
 	_relations = kept
 	_refresh_relations()
-	_persist_state()
+	_state_ctl._persist_state()
 
 
 func clear_relations() -> void:
 	_relations = []
 	_refresh_relations()
-	_persist_state()
+	_state_ctl._persist_state()
 
 
 func get_relations() -> Array:
@@ -1821,11 +1731,11 @@ func _on_open_graph_view() -> void:
 	add_child(gv)
 	# z_index 远低于顶栏（z=100），确保顶栏按钮可点击
 	gv.z_index = 5
-	var persons := _derive_persons()
+	var persons := _state_ctl._derive_persons()
 	var focus: String = _state_store.get("graph_focus", "")
 	# 防串位守卫：持久化的 graph_focus 若不属于当前墙的人物集合（多墙共享 wall_state 时
 	# 会从上一墙残留焦点，造成信使墙误显示华生），回退到本墙人物首项并写回，杜绝张冠李戴。
-	if focus == "" or not _persons_contain(persons, focus):
+	if focus == "" or not _state_ctl._persons_contain(persons, focus):
 		focus = persons[0].get("id", "") if not persons.is_empty() else ""
 		_state_store["graph_focus"] = focus
 	gv.build({
@@ -1847,40 +1757,6 @@ func _on_open_graph_view() -> void:
 	_sync_connect_btn()
 
 
-func _derive_persons() -> Array:
-	var seen := {}
-	var out := []
-	# 兜底（修根因 2026-08-19 v4）：如果调用方传入的 _clues 为空但 ClueSystem 实际有已收集线索，
-	# 实时拉一次（在 easy 模式下对话可能提前结束导致 _clues 没被填到；这层兜底保证人物中心至少能渲染）。
-	if _clues.is_empty() and ClueSystem and ClueSystem.has_method("get_collected"):
-		var live: Array = ClueSystem.get_collected("")
-		if not live.is_empty():
-			print("[reasoning_wall] 兜底从 ClueSystem.get_collected 拉取 %d 条线索" % live.size())
-			_clues = live
-	for c in _clues:
-		for p in c.get("related_npcs", []):
-			if not seen.has(p):
-				seen[p] = true
-				# 身份揭示门控：未满足揭示条件（如霍普未收到电报）时仍保留人物中心，
-				# 但以「神秘嫌疑犯」占位居替，避免提前暴露真名（需求2）且不让人物消失（需求4）。
-				var npc_name: String = _npc_display_name(p) if _identity_revealed(p, _clues) else "神秘嫌疑犯"
-				out.append({"id": p, "name": npc_name})
-	var extra: Array = _hypothesis.get("persons", [])
-	for p in extra:
-		var pid: String = p.get("id", "") if p is Dictionary else str(p)
-		if not seen.has(pid):
-			seen[pid] = true
-			out.append({"id": pid, "name": _npc_display_name(pid)})
-	return out
-
-
-func _persons_contain(persons: Array, pid: String) -> bool:
-	for p in persons:
-		if p.get("id", "") == pid:
-			return true
-	return false
-
-
 func _gv_tag_person(clue_id: String, person_id: String) -> void:
 	var clue: Dictionary = _find_clue(clue_id)
 	if clue.is_empty(): return
@@ -1888,7 +1764,7 @@ func _gv_tag_person(clue_id: String, person_id: String) -> void:
 	if not rns.has(person_id):
 		rns.append(person_id)
 		clue["related_npcs"] = rns
-	_persist_state()
+	_state_ctl._persist_state()
 	_update_all()
 
 
@@ -2081,7 +1957,7 @@ func _on_export_pressed() -> void:
 
 func _gv_relations_changed(rels: Array) -> void:
 	_relations = rels
-	_persist_state()
+	_state_ctl._persist_state()
 	_update_verdict_label()
 	_refresh_clue_list()
 
@@ -2100,7 +1976,7 @@ func _sync_top_bar() -> void:
 	_mode_c_btn.button_pressed = (_graph_view._mode == 0)
 	_mode_b_btn.button_pressed = (_graph_view._mode == 1)
 	_top_focus_sel.clear()
-	var persons := _derive_persons()
+	var persons := _state_ctl._derive_persons()
 	for p in persons:
 		_top_focus_sel.add_item(p.get("name", p.get("id", "?")))
 		_top_focus_sel.set_item_metadata(_top_focus_sel.get_item_count() - 1, p.get("id", ""))
@@ -2179,7 +2055,7 @@ func _finish_clue_drag(cid: String) -> void:
 	if not inside_panel and _graph_view and is_instance_valid(_graph_view):
 		# 落点若命中图上一个节点，place_clue 会在放置线索同时自动建绿实线支持关系
 		_graph_view.place_clue(cid, gp)
-		_persist_state()
+		_state_ctl._persist_state()
 		_refresh_clue_list()
 	else:
 		_ui_show_toast("把线索拖到右侧图谱画布上即可放入图谱")
@@ -2277,8 +2153,8 @@ func _update_all() -> void:
 	_refresh_desk()
 	_refresh_battlefield()
 	_update_verdict_label()
-	_update_milestone_ui()
-	_update_star_rating()
+	_state_ctl._update_milestone_ui()
+	_state_ctl._update_star_rating()
 	_refresh_relations()
 
 
@@ -2390,7 +2266,7 @@ func _on_verify_pressed() -> void:
 	if v == Verdict.VERIFIED:
 		for m in _milestones: m["lit"] = true
 		_milestone_confirmed = _milestone_total
-		_update_milestone_ui()
+		_state_ctl._update_milestone_ui()
 
 	var ok := Button.new()
 	ok.text = "确定"
@@ -2416,7 +2292,7 @@ func _on_verify_confirm(v: int) -> void:
 	_verify_win = null
 	_verified = true
 	_verified_verdict = v
-	_persist_state()
+	_state_ctl._persist_state()
 	# 立即隐藏并销毁墙，解除全屏 MOUSE_FILTER_STOP 拦截，确保过渡对话可点击/渲染；
 	# 不再依赖「等一帧」的 await（Web 运行时偶发不可靠导致卡死）。
 	visible = false
@@ -2444,8 +2320,8 @@ func _on_verify_title_gui(event: InputEvent) -> void:
 func _compute_report(v: int) -> String:
 	var levels := {0: "矛盾冲突", 1: "证据不足", 2: "倾向成立", 3: "已获证实"}
 	var hypo_name: String = _hypothesis.get("title", "")
-	var support := _support_signals()
-	var contra := _contradiction_signals()
+	var support := _state_ctl._support_signals()
+	var contra := _state_ctl._contradiction_signals()
 	if _difficulty == Diff.HARD:
 		return "假设：%s\n验证等级：%s" % [hypo_name, levels.get(v, "?")]
 	var report := "假设：%s\n验证等级：%s\n" % [hypo_name, levels.get(v, "?")]
@@ -2462,86 +2338,7 @@ func _compute_report(v: int) -> String:
 
 
 # === 里程碑 ===
-func _init_milestones(hypo: Dictionary) -> void:
-	_milestones = []
-	var ms: Array = hypo.get("milestones", [])
-	for m in ms:
-		_milestones.append({"id": m.get("id", ""), "text": m.get("text", ""), "lit": false})
-	if _milestones.is_empty():
-		_milestones.append({"id": "core", "text": hypo.get("title", "核心结论"), "lit": false})
-	_milestone_total = _milestones.size()
-	_milestone_confirmed = 0
-
-
-func _update_milestone_ui() -> void:
-	if not _milestone_lbl: return
-	var blocks := ""
-	var lit := 0
-	for m in _milestones:
-		if m["lit"]:
-			blocks += "■"
-			lit += 1
-		else:
-			blocks += "□"
-	_milestone_lbl.text = "结论里程碑：%s  已确认事实 %d/%d" % [blocks, lit, _milestone_total]
-
-
 # === 三星评价 ===
-func _update_star_rating() -> void:
-	if not _star_lbl: return
-	# ---- v4.0 三维离散判定（§B-11.5 / 06 §4.1）----
-	# 1) 观察之星：按缺失条数（缺≥3→1⭐ / 缺1-2→2⭐ / 缺0→3⭐），不区分线索重要性
-	# 案件级大墙下，观察星按「本场景已收集条数」(_local_clue_count) 计，不受全案线索池扩大影响
-	var collected := _local_clue_count
-	var missing := maxi(0, _expected_clues - collected)
-	var observe_stars := 3
-	if missing >= 3:
-		observe_stars = 1
-	elif missing >= 1:
-		observe_stars = 2
-
-	# 2) 推理之星：按已关联线索的正确比例（4/4→3⭐ / 3/4→2⭐ / ≤2/4→1⭐），错误无惩罚
-	var correct_assoc := 0; var total_assoc := 0
-	for c in _clues:
-		if c.get("associated", false):
-			total_assoc += 1
-			if c.get("correct", true): correct_assoc += 1
-	var reasoning_stars := 1
-	if total_assoc > 0:
-		if correct_assoc == total_assoc:
-			reasoning_stars = 3
-		elif correct_assoc * 4 >= 3 * total_assoc:   # 正确比例 ≥ 3/4
-			reasoning_stars = 2
-		else:
-			reasoning_stars = 1
-
-	# 3) 洞察之星：战场命中比例（绕路/重要方向/最优顺序的代理）+ 隐藏线索加成，封顶 3⭐
-	var insight_stars := 1
-	if not _battle.is_empty():
-		var txt := _battle_status_text()
-		var parts := txt.split("·")
-		if parts.size() >= 2:
-			var hpart := parts[0].strip_edges()  # "推理战场：假设命中 x/y"
-			var cp := hpart.split("/")
-			if cp.size() == 2:
-				var ok := int(cp[0].split(" ")[-1])
-				var tot := int(cp[1])
-				if tot > 0:
-					var ratio2 := float(ok) / tot
-					if ratio2 >= 1.0: insight_stars = 3
-					elif ratio2 >= 0.5: insight_stars = 2
-					else: insight_stars = 1
-	# 隐藏线索/全追问等洞察加成（场景经 hypothesis.insight_bonus 传入）
-	insight_stars = clampi(insight_stars + _insight_bonus, 1, 3)
-
-	_last_stars = {"observation": observe_stars, "reasoning": reasoning_stars, "insight": insight_stars}
-	_star_lbl.text = "观察%d⭐ 推理%d⭐ 洞察%d⭐" % [observe_stars, reasoning_stars, insight_stars]
-
-	# 提交逐链三星到 StarRatingSystem（幂等覆盖；逐链离散制 v4.0）
-	if StarRatingSystem and _chain_id != "":
-		StarRatingSystem.submit_chain(_chain_id, observe_stars, reasoning_stars, insight_stars)
-
-
 # === 返回调查 + 历史信息面板 ===
 func _on_investigate_pressed() -> void:
 	if _verifying: return
@@ -2833,7 +2630,7 @@ func _on_back_pressed() -> void:
 	if _history_panel and is_instance_valid(_history_panel):
 		_close_history_panel()
 		return
-	_persist_state()
+	_state_ctl._persist_state()
 	# #4 双级存储：退出推理墙仅作「临时存储」——把图谱状态写进内存态 _state_store（随当前会话存活），
 	# 不写入游戏存档。长期存储(写档)只由手动存档、场景结束自动存档触发（各场景 _do_save / _save_and_transition）。
 	# 故原「关墙即 _on_persist（落盘）」已移除，实现「退出推理墙=临时存储」的需求。
