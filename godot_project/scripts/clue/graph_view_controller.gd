@@ -1,4 +1,5 @@
 extends Control
+class_name GraphViewController
 
 ## 推理墙 · 图谱视图控制器（GraphViewController）
 ## 设计依据：09_图谱视图专项 (v1.3/v1.4) + 10_推理墙界面与交互设计 (v1.0/v1.1)
@@ -20,6 +21,10 @@ extends Control
 enum ViewMode { MODE_C = 0, MODE_B = 1, MODE_A = 2, MODE_D = 3 }
 enum State { EDITABLE = 0, LOCKED = 1 }
 enum Diff { EASY = 0, NORMAL = 1, HARD = 2 }
+
+# === 分层（Request C 后架构拆分）：数据派生层抽到 graph/GraphViewData ===
+const GraphViewData = preload("res://scripts/clue/graph/graph_view_data.gd")
+var _data: GraphViewData
 
 # === 入参数据（由推理墙传入，本控制器只读 + 通过回调回写）===
 var _clues: Array = []
@@ -160,20 +165,9 @@ const _KEY_TO_KIND := {"green": "support", "orange": "contradict", "red": "oppos
 const _KIND_TO_KEY := {"support": "green", "imply": "green", "contradict": "orange", "oppose": "red", "relate": "grey"}
 
 
-static func kind_to_key(kind: String) -> String:
-	return _KIND_TO_KEY.get(kind, "grey")
-
-
-static func key_to_kind(key: String) -> String:
-	return _KEY_TO_KIND.get(key, "relate")
-
-
-static func color_from_key(key: String) -> Color:
-	return _COLOR_KEYS.get(key, _COLOR_KEYS["grey"])
-
-
 func _ready() -> void:
-	pass
+	_data = GraphViewData.new()
+	_data.owner = self
 
 
 # === 当前笔（由推理墙顶部栏 / 图谱内弹窗共同驱动）===
@@ -267,7 +261,7 @@ func build(data: Dictionary) -> void:
 					if not seen.has(p):
 						seen[p] = true
 						# 身份揭示门控占位：未揭示身份的人物仍保留，但用「神秘嫌疑犯」占位居替（同 reasoning_wall._derive_persons）
-						var npc_name: String = _NPC_DISPLAY_NAMES.get(p, p) if _identity_revealed(p, live) else "神秘嫌疑犯"
+						var npc_name: String = _NPC_DISPLAY_NAMES.get(p, p) if _data._identity_revealed(p, live) else "神秘嫌疑犯"
 						out.append({"id": p, "name": npc_name})
 			if not out.is_empty():
 				print("[graph_view] build 时 _persons 兜底拉取 persons.size=%d" % out.size())
@@ -333,17 +327,6 @@ func build(data: Dictionary) -> void:
 
 ## 身份揭示门控（需求2）：判定某 NPC 是否应以"已知人物"出现在人物中心。
 ## 仅当已收集线索中存在其"揭示名字的证据"时才揭示；收集线索集合由 live（已收集线索）承载。
-func _identity_revealed(pid: String, live: Array) -> bool:
-	var gates: Array = _IDENTITY_REVEAL_GATES.get(pid, [])
-	if gates.is_empty():
-		return true
-	for g in gates:
-		for c in live:
-			if c.get("id", "") == g:
-				return true
-	return false
-
-
 # ===================== UI 构建 =====================
 func _create_ui() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -570,77 +553,7 @@ func _refresh_toolbar_state() -> void:
 ##   1) _persons 列表里登记的 name（场景传入的别名）
 ##   2) NPC ID → 中文名静态映射（_NPC_DISPLAY_NAMES，目录里只有 id 没有中文名时的兜底）
 ##   3) 原 id 字符串
-func _person_name(id: String) -> String:
-	for p in _persons:
-		if p.get("id", "") == id:
-			var nm: String = p.get("name", "")
-			if nm != "" and nm != id:
-				return nm
-	if _NPC_DISPLAY_NAMES.has(id):
-		return _NPC_DISPLAY_NAMES[id]
-	return id
-
-
-func _find_clue(cid: String) -> Dictionary:
-	for c in _clues:
-		if c.get("id", "") == cid: return c
-	return {}
-
-
-func _clues_for_person(pid: String) -> Array:
-	var out := []
-	for c in _clues:
-		if pid in c.get("related_npcs", []):
-			out.append(c)
-	return out
-
-
-func _compute_common_clues() -> void:
-	_common_clues = {}
-	for c in _clues:
-		var np := 0
-		for _p in c.get("related_npcs", []):
-			np += 1
-		if np >= 2:
-			_common_clues[c.get("id", "")] = true
-
-
 ## 证据连线（数据边）派生：玩家关系 + 自动推断（clue.relation_tags→推断 / 推断→结论）
-func _derive_edges() -> void:
-	_edge_list = []
-	var seen := {}
-	var add := func(f: String, t: String, kind: String, always: bool, color_key: String = "", dashed: bool = false) -> void:
-		if f == "" or t == "": return
-		var key = "%s|%s|%s" % [f, t, kind]
-		if seen.has(key): return
-		seen[key] = true
-		var ck := color_key if color_key != "" else kind_to_key(kind)
-		var col := color_from_key(ck)
-		_edge_list.append({"from": f, "to": t, "kind": kind, "color": col, "color_key": ck, "dashed": dashed, "dotted": false, "always": always})
-
-	for r in _relations:
-		var k: String = r.get("kind", "relate")
-		# 用户手动建立的关系常显（需求 2026-08-19：连线建立后一直显示，不依赖悬停/模式）
-		add.call(r.get("from", ""), r.get("to", ""), k, true, r.get("color_key", ""), r.get("dashed", false))
-
-	# 自动推断：线索 relation_tags 命中某推断节点 → 证据指向
-	var hypo_ids := []
-	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
-		hypo_ids.append(h.get("id", ""))
-	for c in _clues:
-		for tag in c.get("relation_tags", []):
-			if hypo_ids.has(tag):
-				add.call(c.get("id", ""), tag, "support", false, "", false)
-
-	# 自动推断：所有推断 → 结论（传导）— 这些结构性边始终显示（不依赖悬停）
-	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
-		add.call(h.get("id", ""), "conclusion", "imply", true, "", false)
-
-
-func _rel_color(kind: String) -> Color:
-	return color_from_key(kind_to_key(kind))
-
-
 # ===================== 图重建 =====================
 ## 节点卡片真实高度：视图已测量用视图，否则回退字符估算
 func _view_height(id: String) -> float:
@@ -689,8 +602,8 @@ func _apply_column_overlap_fix() -> void:
 
 
 func _rebuild_graph() -> void:
-	_compute_common_clues()
-	_derive_edges()
+	_data._compute_common_clues()
+	_data._derive_edges()
 	# 清旧节点 + 旧折叠控件（扫画布清除历史残留图元，避免拖动中重建叠加出重复同名节点）
 	for ch in _canvas.get_children():
 		if ch is Control and ch.has_meta("graph_node"):
@@ -761,33 +674,33 @@ func _node_list() -> Array:
 				continue
 			var is_focus := pid == fp
 			list.append({"id": pid, "kind": "person",
-				"label": _person_name(pid), "sub": "焦点" if is_focus else "角色",
+				"label": _data._person_name(pid), "sub": "焦点" if is_focus else "角色",
 				"color": COL_PERSON, "data": {"id": pid}})
 	else:
 		# 中心：焦点人物
 		list.append({"id": _focus_person, "kind": "person",
-			"label": _person_name(_focus_person), "sub": "焦点", "color": COL_PERSON,
+			"label": _data._person_name(_focus_person), "sub": "焦点", "color": COL_PERSON,
 			"data": {"id": _focus_person}})
 
 	if _mode == ViewMode.MODE_C:
 		# 第一圈：线索
-		var clues := _clues if _case_wide else _clues_for_person(_focus_person)
+		var clues := _clues if _case_wide else _data._clues_for_person(_focus_person)
 		# P0-2 状态过滤
 		if _status_filter != "all" and not clues.is_empty():
 			var sf := _status_filter
-			clues = clues.filter(func(c): return _clue_matches_filter(c, sf))
+			clues = clues.filter(func(c): return _data._clue_matches_filter(c, sf))
 		if clues.is_empty():
 			clues = _clues
 			# 同样应用状态过滤
 			if _status_filter != "all":
 				var sf2 := _status_filter
-				clues = clues.filter(func(c): return _clue_matches_filter(c, sf2))
+				clues = clues.filter(func(c): return _data._clue_matches_filter(c, sf2))
 		for c in clues:
 			var cid: String = c.get("id", "")
 			var common: bool = _common_clues.has(cid)
 			list.append({"id": cid, "kind": "clue",
-				"label": c.get("name", cid), "sub": _clue_sub(c),
-				"color": _clue_color(c), "data": c, "common": common})
+				"label": c.get("name", cid), "sub": _data._clue_sub(c),
+				"color": _data._clue_color(c), "data": c, "common": common})
 		# 关联线索：被拖拽连到推断/结论/人物但本身未挂焦点人物的线索，也纳入星型视图，
 		# 使其显示为节点并把连线画出来（修复「拖线索后线索不显示、不知是否关联」）。
 		var _in_list := {}
@@ -796,19 +709,19 @@ func _node_list() -> Array:
 		for c2 in _clues:
 			var _cid2: String = c2.get("id", "")
 			if _in_list.has(_cid2): continue
-			if _clue_has_relation(_cid2):
+			if _data._clue_has_relation(_cid2):
 				list.append({"id": _cid2, "kind": "clue",
-					"label": c2.get("name", _cid2), "sub": _clue_sub(c2),
-					"color": _clue_color(c2), "data": c2, "common": _common_clues.has(_cid2)})
+					"label": c2.get("name", _cid2), "sub": _data._clue_sub(c2),
+					"color": _data._clue_color(c2), "data": c2, "common": _common_clues.has(_cid2)})
 				_in_list[_cid2] = true
 		# 已放置线索（可能为孤立，如删除关系后）：始终保留为图谱节点（独立循环，杜绝重复叠加）
 		for _p_cid in _placed_clues:
 			if _in_list.has(_p_cid): continue
-			var _p_c: Dictionary = _clue_by_id(_p_cid)
+			var _p_c: Dictionary = _data._clue_by_id(_p_cid)
 			if _p_c.is_empty(): continue
 			list.append({"id": _p_cid, "kind": "clue",
-				"label": _p_c.get("name", _p_cid), "sub": _clue_sub(_p_c),
-				"color": _clue_color(_p_c), "data": _p_c, "common": _common_clues.has(_p_cid)})
+				"label": _p_c.get("name", _p_cid), "sub": _data._clue_sub(_p_c),
+				"color": _data._clue_color(_p_c), "data": _p_c, "common": _common_clues.has(_p_cid)})
 			_in_list[_p_cid] = true
 		# 第二圈：推断
 		var hypos: Array = _hypo.get("battlefield", {}).get("hypotheses", [])
@@ -830,8 +743,8 @@ func _node_list() -> Array:
 		for c in clues:
 			var cid: String = c.get("id", "")
 			list.append({"id": cid, "kind": "clue",
-				"label": c.get("name", cid), "sub": _clue_sub(c),
-				"color": _clue_color(c), "data": c, "common": _common_clues.has(cid)})
+				"label": c.get("name", cid), "sub": _data._clue_sub(c),
+				"color": _data._clue_color(c), "data": c, "common": _common_clues.has(cid)})
 		var hypos: Array = _hypo.get("battlefield", {}).get("hypotheses", [])
 		if hypos.is_empty():
 			hypos = [{"id": "H_core", "text": _hypo.get("title", "核心推断"), "correct": true}]
@@ -843,7 +756,7 @@ func _node_list() -> Array:
 			list.append({"id": "chain:" + chain_id2, "kind": "chain",
 				"label": "#" + str(chain_id2), "sub": "推理链", "color": COL_GOLD, "data": {}})
 	list.append({"id": "conclusion", "kind": "conclusion",
-		"label": _verdict_text(), "sub": "结论", "color": _verdict_color(), "data": {}})
+		"label": _data._verdict_text(), "sub": "结论", "color": _data._verdict_color(), "data": {}})
 
 	# 顶栏「添文本框」新增的自定义节点：始终作为独立节点追加进画布（可连线、可移动）
 	for gn in _graph_nodes:
@@ -1044,72 +957,8 @@ func _set_folded(id: String, v: bool) -> void:
 	_rebuild_graph()
 
 
-func _clue_sub(c: Dictionary) -> String:
-	var correct: bool = c.get("correct", true)
-	var st := "已关联" if c.get("associated", false) else "未关联"
-	if not correct: st = "干扰项"
-	# P0-2 用户标记状态覆盖
-	var uid: String = c.get("id", "")
-	if _user_excluded.has(uid): st = "已排除"
-	elif _user_pending.has(uid): st = "待查"
-	return st
-
-
 # P0-2 状态过滤辅助：判断线索是否匹配当前过滤
-func _clue_matches_filter(c: Dictionary, filter: String) -> bool:
-	var uid: String = c.get("id", "")
-	match filter:
-		"excluded": return _user_excluded.has(uid)
-		"pending": return _user_pending.has(uid)
-		"key":
-			# 关键：correct=true 且 importance >= 5（"重要"+"关键"）且未排除
-			if _user_excluded.has(uid): return false
-			return c.get("correct", true) and int(c.get("importance", 0)) >= 5
-	return true
-
-
-func _clue_color(c: Dictionary) -> Color:
-	if not c.get("correct", true): return COL_RED
-	if c.get("associated", false): return COL_GREEN
-	return COL_GOLD_LIGHT
-
-
-func _verdict_text() -> String:
-	var v := _compute_verdict()
-	return ["两种对不上", "证据不足", "有点道理", "说得通"][v]
-
-
-func _verdict_color() -> Color:
-	var v := _compute_verdict()
-	return [COL_RED, COL_ORANGE, COL_YELLOW, COL_GREEN][v]
-
-
 ## 轻量结论推算（与 reasoning_wall.get_verdict 同规则，供结论节点着色；视图派生，不缓存）
-func _compute_verdict() -> int:
-	if _verdict >= 0:
-		return _verdict
-	var contra := 0
-	for c in _clues:
-		if c.get("associated", false) and not c.get("correct", true):
-			contra += 1
-	for r in _relations:
-		if r.get("dashed", false): continue   # 虚线（存疑）只显示不计入判定，与 get_verdict 同规则
-		if r.get("kind", "") in ["contradict", "oppose"]:
-			contra += 1
-	if contra > 0: return 0
-	var support := 0
-	for c in _clues:
-		if c.get("associated", false) and c.get("correct", true):
-			support += 1
-	for r in _relations:
-		if r.get("dashed", false): continue   # 同上：虚线支持连线不计入
-		if r.get("kind", "") == "support":
-			support += 1
-	if support >= 3: return 3
-	if support >= 1: return 2
-	return 1
-
-
 ## 布局算法（按需求1/6）：
 ##   - 每节点按 kind 分配「距离带 [min, max]」（_RING_BANDS）：核心<结论<链<推断<线索
 ##   - 节点可在带内自由拖动，distance 钳制到带内 → 永远维持排序
@@ -1684,7 +1533,7 @@ func _node_tooltip(nd: Dictionary) -> String:
 			var who := "未知"
 			var rns: Array = c.get("related_npcs", [])
 			if not rns.is_empty():
-				who = "、".join(rns.map(func(p): return _person_name(p)))
+				who = "、".join(rns.map(func(p): return _data._person_name(p)))
 			return "线索：%s\n%s\n和谁有关：%s" % [c.get("name", ""), c.get("desc", ""), who]
 		"hypo":
 			return "推断：%s" % [nd.data.get("text", "")]
@@ -1751,7 +1600,7 @@ func _on_edge_draw() -> void:
 		var a3: Vector2 = _node_center.get(_drag_id, Vector2.ZERO)
 		if a3 != Vector2.ZERO:
 			if _drag_mode == "edge":
-				_draw_arc_line(a3, _drag_preview_pos(), _rel_color(_drag_kind), 2, 40.0)
+				_draw_arc_line(a3, _drag_preview_pos(), _data._rel_color(_drag_kind), 2, 40.0)
 			elif _drag_mode == "move":
 				# move 模式不画预览线
 				pass
@@ -1927,7 +1776,7 @@ func _on_node_gui(event: InputEvent, id: String, kind: String) -> void:
 			if mb.shift_pressed:
 				# Shift+左键拖动 = 建边
 				_drag_mode = "edge"
-				_drag_kind = key_to_kind(_pen_color_key)
+				_drag_kind = _data.key_to_kind(_pen_color_key)
 				_drag_color_key = _pen_color_key
 				_drag_dashed = _pen_dashed
 				_drag_from = get_viewport().get_mouse_position()
@@ -1986,7 +1835,7 @@ func _handle_connect_click(id: String, kind: String) -> bool:
 		_redraw_all()
 		return true
 	# 节点 → 节点：建证据连线；若两节点间已有连线则反向删除（连线模式快捷取消，问题1 补充）
-	var kind_str: String = key_to_kind(_pen_color_key)
+	var kind_str: String = _data.key_to_kind(_pen_color_key)
 	var existing: Array = _relations_between(_connect_first_id, id)
 	if existing.is_empty():
 		_add_edge(_connect_first_id, id, kind_str, _pen_color_key, _pen_dashed)
@@ -2019,7 +1868,7 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 			if drop_kind == "person":
 				_tag_person(id, drop)
 			elif drop_kind in ["hypo", "clue", "conclusion"]:
-				_add_edge(id, drop, key_to_kind(_pen_color_key), _pen_color_key, _pen_dashed)
+				_add_edge(id, drop, _data.key_to_kind(_pen_color_key), _pen_color_key, _pen_dashed)
 				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
 				_nudge_away_from(id, drop)
 		if moved:
@@ -2210,7 +2059,7 @@ func _open_status_menu(clue_id: String) -> void:
 ## 节点短名（连线删除菜单用）：人物→中文名；推断→截断文本；线索→名称；其余→id
 func _node_short_label(id: String) -> String:
 	if _node_kind.get(id, "") == "person":
-		return _person_name(id)
+		return _data._person_name(id)
 	var nd: Dictionary = _node_data.get(id, {})
 	var lab: String = nd.get("label", "")
 	if lab != "":
@@ -2225,11 +2074,11 @@ func _tag_person(clue_id: String, person_id: String) -> void:
 	if clue_id == person_id:
 		_toast_msg("线索不能指向自己")
 		return
-	var clue: Dictionary = _find_clue(clue_id)
+	var clue: Dictionary = _data._find_clue(clue_id)
 	if clue.is_empty(): return
 	var rns: Array = clue.get("related_npcs", [])
 	if rns.has(person_id):
-		_toast_msg("这条线索已和%s有关" % _person_name(person_id))
+		_toast_msg("这条线索已和%s有关" % _data._person_name(person_id))
 		return
 	_undo.create_action("tag_person")
 	_undo.add_do_method(_do_tag.bind(clue_id, person_id, true))
@@ -2239,11 +2088,11 @@ func _tag_person(clue_id: String, person_id: String) -> void:
 		_cb_tag.call(clue_id, person_id)
 	_persist_view()
 	_rebuild_graph()
-	_toast_msg("已为线索「%s」打上%s标签" % [clue.get("name", clue_id), _person_name(person_id)])
+	_toast_msg("已为线索「%s」打上%s标签" % [clue.get("name", clue_id), _data._person_name(person_id)])
 
 
 func _do_tag(clue_id: String, person_id: String, add: bool) -> void:
-	var clue: Dictionary = _find_clue(clue_id)
+	var clue: Dictionary = _data._find_clue(clue_id)
 	if clue.is_empty(): return
 	var rns: Array = clue.get("related_npcs", [])
 	if add and not rns.has(person_id):
@@ -2261,7 +2110,7 @@ func _add_edge(from: String, to: String, kind: String, color_key: String = "", d
 		_toast_msg("线索不能指向自己")
 		return
 	if color_key == "":
-		color_key = kind_to_key(kind)
+		color_key = _data.kind_to_key(kind)
 	for r in _relations:
 		if r.from == from and r.to == to and r.kind == kind:
 			_toast_msg("这条证据连线已存在")
@@ -2270,10 +2119,10 @@ func _add_edge(from: String, to: String, kind: String, color_key: String = "", d
 	_undo.add_do_method(_do_edge.bind(from, to, kind, color_key, dashed, true))
 	_undo.add_undo_method(_do_edge.bind(from, to, kind, color_key, dashed, false))
 	_undo.commit_action()
-	if _id_is_clue(from):
-		_mark_clue_placed(from)
-	if _id_is_clue(to):
-		_mark_clue_placed(to)
+	if _data._id_is_clue(from):
+		_data._mark_clue_placed(from)
+	if _data._id_is_clue(to):
+		_data._mark_clue_placed(to)
 	if _cb_relations_changed.is_valid():
 		_cb_relations_changed.call(_relations.duplicate())
 	_persist_view()
@@ -2300,46 +2149,6 @@ func _relations_between(a: String, b: String) -> Array:
 	return out
 
 ## 线索是否参与了任意玩家连线（用于把被拖拽关联、但本身未挂焦点人物的线索也纳入星型视图）
-func _clue_has_relation(cid: String) -> bool:
-	for r in _relations:
-		if r.get("from", "") == cid or r.get("to", "") == cid:
-			return true
-	return false
-
-
-func _id_is_clue(cid: String) -> bool:
-	for c in _clues:
-		if c.get("id", "") == cid:
-			return true
-	return false
-
-
-func _clue_by_id(cid: String) -> Dictionary:
-	for c in _clues:
-		if c.get("id", "") == cid:
-			return c
-	return {}
-
-
-func _clue_placed(cid: String) -> bool:
-	return cid in _placed_clues
-
-
-func _mark_clue_placed(cid: String) -> void:
-	if cid in _placed_clues:
-		return
-	_placed_clues.append(cid)
-	if not _state_store.is_empty():
-		_state_store["graph_placed_clues"] = _placed_clues.duplicate()
-
-
-func _unmark_clue_placed(cid: String) -> void:
-	if cid not in _placed_clues:
-		return
-	_placed_clues.erase(cid)
-	if not _state_store.is_empty():
-		_state_store["graph_placed_clues"] = _placed_clues.duplicate()
-
 ## 左栏拖入图谱时的公开入口：把一条尚未放置的线索放入图谱。
 ## drop_at 为抬起落点的 viewport 坐标；若恰好命中图上一个节点（推断/结论/线索），
 ## 在放置该线索的同时自动与之建立绿实线 support 关系（对应需求「拖线索1到推理1默认建实线绿色关系」）。
@@ -2347,7 +2156,7 @@ func place_clue(cid: String, drop_at: Vector2 = Vector2(-1, -1)) -> void:
 	if _state != State.EDITABLE:
 		_toast_msg("已封存，仅可浏览")
 		return
-	if _clue_placed(cid):
+	if _data._clue_placed(cid):
 		return
 	if drop_at.x >= 0.0:
 		var hit: String = _drop_node_except(drop_at, cid)
@@ -2358,7 +2167,7 @@ func place_clue(cid: String, drop_at: Vector2 = Vector2(-1, -1)) -> void:
 			_rebuild_graph()
 			_toast_msg("线索已放入图谱并与目标建立支持关系")
 			return
-	_mark_clue_placed(cid)
+	_data._mark_clue_placed(cid)
 	_persist_view()
 	_rebuild_graph()
 	_toast_msg("线索已放入图谱（详情卡可移除归还）")
@@ -2370,7 +2179,7 @@ func _unplace_clue_from_graph(cid: String, card: Control) -> void:
 	for r in _relations:
 		if r.get("from", "") == cid or r.get("to", "") == cid:
 			doomed.append(r)
-	_unmark_clue_placed(cid)
+	_data._unmark_clue_placed(cid)
 	for r in doomed:
 		_remove_edge(r.get("from", ""), r.get("to", ""), r.get("kind", "relate"))
 	if is_instance_valid(card):
@@ -2590,7 +2399,7 @@ func _node_list_raw() -> Array:
 # === P2 导出为 Markdown ===
 func export_markdown() -> void:
 	var md := "# 推理墙 — 案件进度\n\n"
-	md += "- 焦点人物：%s\n" % _person_name(_focus_person)
+	md += "- 焦点人物：%s\n" % _data._person_name(_focus_person)
 	md += "- 已排除线索：%d\n" % _user_excluded.size()
 	md += "- 待查线索：%d\n" % _user_pending.size()
 	md += "- 玩家关系：%d\n\n" % _relations.size()
@@ -2782,7 +2591,7 @@ func _on_dock_drop() -> void:
 
 func _make_dock_preview(cid: String) -> void:
 	_clear_dock_preview()
-	var clue: Dictionary = _find_clue(cid)
+	var clue: Dictionary = _data._find_clue(cid)
 	var prev := PanelContainer.new()
 	prev.custom_minimum_size = Vector2(300, 100)
 	var s := StyleBoxFlat.new()
@@ -2873,7 +2682,7 @@ func _open_link_suggestions(cid: String) -> void:
 	vb = vbw
 
 	var t := Label.new()
-	t.text = "把线索「%s」连到：" % _find_clue(cid).get("name", cid)
+	t.text = "把线索「%s」连到：" % _data._find_clue(cid).get("name", cid)
 	t.add_theme_font_size_override("font_size", 30)
 	t.add_theme_color_override("font_color", COL_GOLD)
 	vb.add_child(t)
@@ -2894,7 +2703,7 @@ func _open_link_suggestions(cid: String) -> void:
 	var keys := ["green", "orange", "red", "grey"]
 	var labels := ["支持", "矛盾存疑", "反对", "弱关联"]
 	for i in keys.size():
-		var b := _mk_pen_btn(labels[i], _pen_color_key == keys[i], color_from_key(keys[i]))
+		var b := _mk_pen_btn(labels[i], _pen_color_key == keys[i], _data.color_from_key(keys[i]))
 		var k: String = keys[i]
 		b.pressed.connect(func(): _set_pen_color(k))
 		col_row.add_child(b)
@@ -2907,7 +2716,7 @@ func _open_link_suggestions(cid: String) -> void:
 	hint.add_theme_color_override("font_color", COL_GREY)
 	vb.add_child(hint)
 
-	var pname: String = _person_name(_focus_person)
+	var pname: String = _data._person_name(_focus_person)
 	var pb := _mk_link_target("★ %s（星型归属）" % pname)
 	pb.pressed.connect(func(): _confirm_link(cid, _focus_person, "person"))
 	vb.add_child(pb)
@@ -2916,7 +2725,7 @@ func _open_link_suggestions(cid: String) -> void:
 		var hid: String = h.get("id", "")
 		hb.pressed.connect(func(): _confirm_link(cid, hid, "hypo"))
 		vb.add_child(hb)
-	var cb := _mk_link_target("结论：%s" % _verdict_text())
+	var cb := _mk_link_target("结论：%s" % _data._verdict_text())
 	cb.pressed.connect(func(): _confirm_link(cid, "conclusion", "conclusion"))
 	vb.add_child(cb)
 
@@ -2942,7 +2751,7 @@ func _confirm_link(cid: String, target_id: String, kind_hint: String) -> void:
 	if kind_hint == "person":
 		_tag_person(cid, target_id)
 	else:
-		var kind: String = key_to_kind(_pen_color_key)
+		var kind: String = _data.key_to_kind(_pen_color_key)
 		_add_edge(cid, target_id, kind, _pen_color_key, _pen_dashed)
 
 
@@ -3204,11 +3013,11 @@ func _do_change_edge_kind(from: String, to: String, old_kind: String, dashed: bo
 		if r.from == from and r.to == to and r.kind == old_kind:
 			r["kind"] = new_kind
 			r["dashed"] = dashed
-			r["color_key"] = kind_to_key(new_kind)
+			r["color_key"] = _data.kind_to_key(new_kind)
 			changed = true
 			break
 	if not changed:
-		_relations.append({"from": from, "to": to, "kind": new_kind, "color_key": kind_to_key(new_kind), "dashed": dashed})
+		_relations.append({"from": from, "to": to, "kind": new_kind, "color_key": _data.kind_to_key(new_kind), "dashed": dashed})
 
 func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 	var old_scale := _zoom
@@ -3288,10 +3097,10 @@ func _detail_title_text(id: String, kind: String) -> String:
 	if kind == "hypo":
 		return str(_node_data.get(id, {}).get("text", ""))
 	if kind == "person":
-		return _person_name(id)
+		return _data._person_name(id)
 	if kind == "chain":
 		return str(_node_data.get(id, {}).get("label", id))
-	return _verdict_text()
+	return _data._verdict_text()
 
 
 # ===================== 详情卡 =====================
@@ -3344,12 +3153,12 @@ func _show_detail(id: String, kind: String) -> void:
 			var who := "未知"
 			var rns: Array = c.get("related_npcs", [])
 			if not rns.is_empty():
-				who = "、".join(rns.map(func(p): return _person_name(p)))
+				who = "、".join(rns.map(func(p): return _data._person_name(p)))
 			var attr := "其他"
 			var at: Array = c.get("attribute_tags", [])
 			if not at.is_empty(): attr = at[0]
 			body.text = "%s\n和谁有关：%s\n证据属性：%s\n状态：%s" % [
-				c.get("desc", ""), who, attr, _clue_sub(c)]
+				c.get("desc", ""), who, attr, _data._clue_sub(c)]
 			if _difficulty == Diff.EASY:
 				body.text += "\n（福尔摩斯旁白：这条线索值得和%s对一对。）" % who
 			if _state == State.EDITABLE:
@@ -3363,7 +3172,7 @@ func _show_detail(id: String, kind: String) -> void:
 				status_btn.add_theme_font_size_override("font_size", 26)
 				status_btn.pressed.connect(func(): _open_status_menu(id))
 				vb.add_child(status_btn)
-				if _clue_placed(id):
+				if _data._clue_placed(id):
 					var rmv_btn := Button.new()
 					rmv_btn.text = "从图谱移除（归还线索）"
 					rmv_btn.add_theme_font_size_override("font_size", 26)
@@ -3374,10 +3183,10 @@ func _show_detail(id: String, kind: String) -> void:
 			title.text = "推断：" + h.get("text", id)
 			body.text = "这是你正在考虑的其中一种可能性。"
 		"person":
-			title.text = "焦点人物：" + _person_name(id)
+			title.text = "焦点人物：" + _data._person_name(id)
 			body.text = "星型中心。把线索拖到此处即可标注它和这个人的关系。"
 		"conclusion":
-			title.text = "当前结论：" + _verdict_text()
+			title.text = "当前结论：" + _data._verdict_text()
 			body.text = "根据你关联的证据与连线实时推算。点「提交验证」可正式结案。"
 		"chain":
 			title.text = "推理链：" + _node_data.get(id, {}).get("label", id)

@@ -67,8 +67,8 @@ func _run() -> void:
 
 	# ================= 问题3：结论实时推算（不冻结 verdict） =================
 	# 数据：c1/c2 正确关联(2) + c1→H1 support(1) = 3 → 「说得通」绿；data 传的 verdict:0 应被忽略
-	_chk(gv._verdict_text() == "说得通", "Fix3-A：verdict 不被 build 快照冻结（传 verdict:0 仍实时算出说得通）")
-	_chk(gv._verdict_color() == gv.COL_GREEN, "Fix3-B：结论色为绿（说得通）")
+	_chk(gv._data._verdict_text() == "说得通", "Fix3-A：verdict 不被 build 快照冻结（传 verdict:0 仍实时算出说得通）")
+	_chk(gv._data._verdict_color() == gv.COL_GREEN, "Fix3-B：结论色为绿（说得通）")
 	var concl_label := ""
 	for l in gv._node_views["conclusion"].find_children("*", "Label", true, false):
 		if (l as Label).text == "说得通":
@@ -76,15 +76,15 @@ func _run() -> void:
 	_chk(concl_label == "found", "Fix3-C：结论节点卡片文本已按实时判定显示「说得通」")
 	# 删掉唯一 support 关系 → support=2 → 「有点道理」黄（即时降级，无需退出重进）
 	gv._remove_edge("c1", "H1", "support")
-	_chk(gv._verdict_text() == "有点道理", "Fix3-D：删连线后结论即时降级为「有点道理」")
-	_chk(gv._verdict_color() == gv.COL_YELLOW, "Fix3-E：结论色即时变黄")
+	_chk(gv._data._verdict_text() == "有点道理", "Fix3-D：删连线后结论即时降级为「有点道理」")
+	_chk(gv._data._verdict_color() == gv.COL_YELLOW, "Fix3-E：结论色即时变黄")
 	# 加一条虚线 support → 虚线不计入判定 → 仍是「有点道理」
 	gv._add_edge("c1", "H1", "support", "green", true)
-	_chk(gv._verdict_text() == "有点道理", "Fix3-F：虚线（存疑）支持连线不计入判定")
+	_chk(gv._data._verdict_text() == "有点道理", "Fix3-F：虚线（存疑）支持连线不计入判定")
 	# 删虚线、加实线 → 恢复「说得通」绿
 	gv._remove_edge("c1", "H1", "support")
 	gv._add_edge("c1", "H1", "support", "green", false)
-	_chk(gv._verdict_text() == "说得通", "Fix3-G：实线支持连线计入后结论恢复「说得通」")
+	_chk(gv._data._verdict_text() == "说得通", "Fix3-G：实线支持连线计入后结论恢复「说得通」")
 
 	# ================= 问题1：取消右键，功能移到详情卡 =================
 	# 非线索节点调 _open_tag_menu 直接返回，不弹 PopupMenu
@@ -113,7 +113,7 @@ func _run() -> void:
 	for r in gv._relations:
 		if r.get("from", "") == "c1" and r.get("to", "") == "H1": still = true
 	_chk(not still, "Fix1-G：c1→H1 连线已被删除")
-	_chk(gv._verdict_text() == "有点道理", "Fix1-H：删除后结论即时降级（与 Fix3-D 一致）")
+	_chk(gv._data._verdict_text() == "有点道理", "Fix1-H：删除后结论即时降级（与 Fix3-D 一致）")
 
 	# ================= 连线模式快捷 toggle（点两节点=有边删/无边建） =================
 	gv._add_edge("c1", "H1", "support", "green", false)
@@ -122,11 +122,11 @@ func _run() -> void:
 	gv._handle_connect_click("c1", "clue")
 	gv._handle_connect_click("H1", "hypo")
 	_chk(gv._relations_between("c1", "H1").is_empty(), "Fix1-J：连线模式点两已有连线节点=删除该连线")
-	_chk(gv._verdict_text() == "有点道理", "Fix1-K：删除后结论即时降级")
+	_chk(gv._data._verdict_text() == "有点道理", "Fix1-K：删除后结论即时降级")
 	gv._handle_connect_click("c1", "clue")
 	gv._handle_connect_click("H1", "hypo")
 	_chk(gv._relations_between("c1", "H1").size() == 1, "Fix1-L：再点两次恢复建边")
-	_chk(gv._verdict_text() == "说得通", "Fix1-M：恢复建边后结论回升")
+	_chk(gv._data._verdict_text() == "说得通", "Fix1-M：恢复建边后结论回升")
 	gv.set_connect_mode(false)
 	gv.queue_free()
 

@@ -86,12 +86,12 @@ func _run() -> void:
 	_chk(gv._highlight_id == "", "移出清除高亮")
 
 	# ---- 5) 打标签 + 撤销（零惩罚）----
-	var c3: Dictionary = gv._find_clue("c3")
+	var c3: Dictionary = gv._data._find_clue("c3")
 	_chk(not ("NPC_DRE" in c3.get("related_npcs", [])), "打标签前 c3 与德雷伯无关")
 	gv._tag_person("c3", "NPC_DRE")
-	_chk("NPC_DRE" in gv._find_clue("c3").get("related_npcs", []), "打标签后 c3 关联德雷伯")
+	_chk("NPC_DRE" in gv._data._find_clue("c3").get("related_npcs", []), "打标签后 c3 关联德雷伯")
 	gv._on_undo()
-	_chk(not ("NPC_DRE" in gv._find_clue("c3").get("related_npcs", [])), "撤销后 c3 取消关联德雷伯")
+	_chk(not ("NPC_DRE" in gv._data._find_clue("c3").get("related_npcs", [])), "撤销后 c3 取消关联德雷伯")
 
 	# ---- 6) 自环约束（线索不能指向自己）----
 	var rel_before: int = gv._relations.size()
@@ -113,9 +113,9 @@ func _run() -> void:
 	locked_data["editable"] = false
 	var gvL := _mk_controller(locked_data)
 	_chk(gvL._state == 1, "锁定态 State.LOCKED")
-	var lc3: Dictionary = gvL._find_clue("c3")
+	var lc3: Dictionary = gvL._data._find_clue("c3")
 	gvL._tag_person("c3", "NPC_DRE")
-	_chk(not ("NPC_DRE" in gvL._find_clue("c3").get("related_npcs", [])), "锁定态打标签被拒（零惩罚只读）")
+	_chk(not ("NPC_DRE" in gvL._data._find_clue("c3").get("related_npcs", [])), "锁定态打标签被拒（零惩罚只读）")
 	gvL.queue_free()
 
 	gv.queue_free()
