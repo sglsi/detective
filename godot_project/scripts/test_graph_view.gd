@@ -95,12 +95,12 @@ func _run() -> void:
 
 	# ---- 6) 自环约束（线索不能指向自己）----
 	var rel_before: int = gv._relations.size()
-	gv._add_edge("c3", "c3", "support")
+	gv._edge._add_edge("c3", "c3", "support")
 	_chk(gv._relations.size() == rel_before, "自环被拒：关系数不变")
 	_chk(gv._node_views.has("c3") == false or true, "自环不改节点结构")
 
 	# ---- 7) 建立证据连线（c3→H1）----
-	gv._add_edge("c3", "H1", "support")
+	gv._edge._add_edge("c3", "H1", "support")
 	_chk(gv._relations.size() == rel_before + 1, "建立 c3→H1 证据连线成功")
 
 	# ---- 8) 模式切换 C→B 不崩溃、节点结构保留 ----
