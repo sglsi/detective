@@ -62,6 +62,7 @@ var _node_center: Dictionary = {}   # id -> Vector2（画布本地中心）
 var _node_kind: Dictionary = {}     # id -> String
 var _node_data: Dictionary = {}     # id -> Dictionary（原始数据）
 var _graph_nodes: Array = []        # 玩家顶栏「添文本框」新增的自定义节点 [{id,kind,label,sub}]（持久化于 state_store["graph_nodes"]）
+var _edited_texts: Dictionary = {}  # 玩家在详情卡编辑过的节点文本 id -> 新文本（覆盖原生/自定义节点显示，持久化 state_store["graph_edited_texts"]）
 var _edge_list: Array = []          # [{from,to,kind,color,dashed,dotted,always}]
 var _highlight_id: String = ""
 var _common_clues: Dictionary = {}  # clue_id -> true（被≥2人物关联）
@@ -246,6 +247,7 @@ func build(data: Dictionary) -> void:
 	_placed_clues = (_state_store.get("graph_placed_clues", []) as Array).duplicate()
 	_manual_nodes = (Array(_state_store.get("graph_manual_nodes", [])) as Array).duplicate()
 	_graph_nodes = (Array(_state_store.get("graph_nodes", [])) as Array).duplicate()
+	_edited_texts = (Dictionary(_state_store.get("graph_edited_texts", {})) as Dictionary).duplicate()
 
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
 	# 实时从 Autoload 拉并组装一次（避免 reasoning_wall 提前 _derive 之后又被另一层兜底覆盖，
@@ -816,6 +818,13 @@ func _node_list() -> Array:
 	for gn in _graph_nodes:
 		list.append({"id": gn.get("id", ""), "kind": gn.get("kind", "hypo"),
 			"label": gn.get("label", "文本框"), "sub": gn.get("sub", "自定义"), "color": _gn_color(gn.get("kind", "hypo")), "data": {}})
+
+	# 玩家在详情卡编辑过的文本覆盖：统一应用到所有节点（优先级最高）
+	if not _edited_texts.is_empty():
+		for _i in range(list.size()):
+			var _oid: String = str(list[_i].get("id", ""))
+			if _edited_texts.has(_oid):
+				list[_i]["label"] = _edited_texts[_oid]
 
 	# 图谱折叠：过滤掉被折叠根收起的"外层子树"（XMind 式）
 	var hidden := _compute_hidden()
@@ -1950,8 +1959,8 @@ func _handle_connect_click(id: String, kind: String) -> bool:
 ##   - 单击（位移 <8px）→ 弹详情
 ##   - 拖到另一节点上松开 → 建证据连线（线索↔推断/线索↔线索；线索→人物=打标签），用当前笔色/线型
 ##   - 拖到空地松开 → 移动节点位置（钳制到 kind 距离带）
-func _commit_move(id: String) -> void:
-	var gp: Vector2 = get_viewport().get_mouse_position()
+func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
+	var gp: Vector2 = get_viewport().get_mouse_position() if at == Vector2.INF else at
 	var moved := gp.distance_to(_drag_start) > 8.0
 	if moved and _state == State.EDITABLE:
 		var drop: String = _drop_node_except(gp, id)
@@ -3138,6 +3147,21 @@ func _on_close_pressed() -> void:
 		queue_free()
 
 
+# 详情标题的主体文本（去前缀），供「编辑内容」输入框作为初始值
+func _detail_title_text(id: String, kind: String) -> String:
+	if _edited_texts.has(id):
+		return str(_edited_texts[id])
+	if kind == "clue":
+		return str(_node_data.get(id, {}).get("name", id))
+	if kind == "hypo":
+		return str(_node_data.get(id, {}).get("text", ""))
+	if kind == "person":
+		return _person_name(id)
+	if kind == "chain":
+		return str(_node_data.get(id, {}).get("label", id))
+	return _verdict_text()
+
+
 # ===================== 详情卡 =====================
 func _show_detail(id: String, kind: String) -> void:
 	if _detail_card and is_instance_valid(_detail_card):
@@ -3221,6 +3245,30 @@ func _show_detail(id: String, kind: String) -> void:
 			title.text = "推理链：" + _node_data.get(id, {}).get("label", id)
 			body.text = "点此切换到推理链聚焦视图。"
 
+	# —— 编辑内容（问题2：允许玩家编辑文本框内容）——
+	if _state == State.EDITABLE and kind in ["clue", "hypo", "conclusion", "person", "chain"]:
+		var edit_lbl := Label.new()
+		edit_lbl.text = "编辑内容"
+		edit_lbl.add_theme_font_size_override("font_size", 28)
+		edit_lbl.add_theme_color_override("font_color", COL_GOLD)
+		vb.add_child(edit_lbl)
+		var edit_box := TextEdit.new()
+		edit_box.custom_minimum_size = Vector2(440, 96)
+		edit_box.add_theme_font_size_override("font_size", 24)
+		edit_box.text = str(_edited_texts.get(id, _detail_title_text(id, kind)))
+		vb.add_child(edit_box)
+		var save_btn := Button.new()
+		save_btn.text = "保存修改"
+		save_btn.add_theme_font_size_override("font_size", 26)
+		save_btn.pressed.connect(func():
+			var new_text: String = edit_box.text.strip_edges()
+			if new_text.is_empty(): return
+			_edited_texts[id] = new_text
+			_persist_view()
+			_rebuild_graph()
+			if is_instance_valid(card): card.queue_free())
+		vb.add_child(save_btn)
+
 	# —— 连线管理（问题1：取消右键后，删除连线改由此处）：列出本节点参与的全部关系，逐个可删 ——
 	var rels := []
 	for r in _relations:
@@ -3249,7 +3297,14 @@ func _show_detail(id: String, kind: String) -> void:
 	close.pressed.connect(func(): card.queue_free())
 	vb.add_child(close)
 
-	card.position = Vector2(40, 80)
+	# 需求：详情窗摆到界面「中部偏左 1/4」处，避开顶部功能栏（z=100，高约110px）。
+	# 用视口可见矩形定位（卡片挂到 host 后以绝对坐标摆放），不足时回退到固定坐标。
+	var view_rect := get_viewport().get_visible_rect()
+	if view_rect.size.x > 100.0 and view_rect.size.y > 100.0:
+		card.position = Vector2(view_rect.position.x + view_rect.size.x * 0.23,
+			view_rect.position.y + view_rect.size.y * 0.5 - card.custom_minimum_size.y * 0.5)
+	else:
+		card.position = Vector2(40, 160)
 	# 需求1：挂载到 graph_view 的父（reasoning_wall 顶层），脱离 graph_view z=5 的层级锁，
 	# 否则卡内任何子节点都盖不过左栏（z=20）。父容器让卡与左栏成为兄弟，凭 z=30 盖左栏。
 	var host: Node = get_parent()
@@ -3352,6 +3407,7 @@ func _persist_view() -> void:
 	_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
 	_state_store["graph_folded_nodes"] = _folded_nodes
 	_state_store["graph_nodes"] = _graph_nodes.duplicate()
+	_state_store["graph_edited_texts"] = _edited_texts.duplicate()
 	_persist_node_positions()
 
 
