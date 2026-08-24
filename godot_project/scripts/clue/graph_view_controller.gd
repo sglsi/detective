@@ -61,6 +61,7 @@ var _node_views: Dictionary = {}    # id -> Control
 var _node_center: Dictionary = {}   # id -> Vector2（画布本地中心）
 var _node_kind: Dictionary = {}     # id -> String
 var _node_data: Dictionary = {}     # id -> Dictionary（原始数据）
+var _graph_nodes: Array = []        # 玩家顶栏「添文本框」新增的自定义节点 [{id,kind,label,sub}]（持久化于 state_store["graph_nodes"]）
 var _edge_list: Array = []          # [{from,to,kind,color,dashed,dotted,always}]
 var _highlight_id: String = ""
 var _common_clues: Dictionary = {}  # clue_id -> true（被≥2人物关联）
@@ -244,7 +245,7 @@ func build(data: Dictionary) -> void:
 	_mode = _state_store.get("graph_view_mode", ViewMode.MODE_C)
 	_placed_clues = (_state_store.get("graph_placed_clues", []) as Array).duplicate()
 	_manual_nodes = (Array(_state_store.get("graph_manual_nodes", [])) as Array).duplicate()
-	_focus_person = _state_store.get("graph_focus", _focus_person)
+	_graph_nodes = (Array(_state_store.get("graph_nodes", [])) as Array).duplicate()
 
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
 	# 实时从 Autoload 拉并组装一次（避免 reasoning_wall 提前 _derive 之后又被另一层兜底覆盖，
@@ -811,6 +812,11 @@ func _node_list() -> Array:
 	list.append({"id": "conclusion", "kind": "conclusion",
 		"label": _verdict_text(), "sub": "结论", "color": _verdict_color(), "data": {}})
 
+	# 顶栏「添文本框」新增的自定义节点：始终作为独立节点追加进画布（可连线、可移动）
+	for gn in _graph_nodes:
+		list.append({"id": gn.get("id", ""), "kind": gn.get("kind", "hypo"),
+			"label": gn.get("label", "文本框"), "sub": gn.get("sub", "自定义"), "color": _gn_color(gn.get("kind", "hypo")), "data": {}})
+
 	# 图谱折叠：过滤掉被折叠根收起的"外层子树"（XMind 式）
 	var hidden := _compute_hidden()
 	if not hidden.is_empty():
@@ -1366,6 +1372,14 @@ func _clamp_to_canvas(p: Vector2) -> Vector2:
 	var ox: float = clampf(p.x, m, maxf(cv.x - m, m))
 	var oy: float = clampf(p.y, m, maxf(cv.y - m, m))
 	return Vector2(ox, oy)
+
+
+# 拖动自由摆放：允许节点中心略超出画布（半张卡，约 120px），吃满可视区但不至于拖丢
+func _clamp_free(p: Vector2) -> Vector2:
+	var cv: Vector2 = _canvas.size
+	var slack: float = 120.0
+	return Vector2(clampf(p.x, -slack, maxf(cv.x + slack, slack)),
+		clampf(p.y, -slack, maxf(cv.y + slack, slack)))
 
 func _clamp_to_band(pos: Vector2, center: Vector2, kind: String) -> Vector2:
 	var band: Dictionary = _RING_BANDS.get(kind, _RING_BANDS["clue"])
@@ -3337,7 +3351,42 @@ func _persist_view() -> void:
 	_state_store["graph_seed"] = _layout_seed
 	_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
 	_state_store["graph_folded_nodes"] = _folded_nodes
+	_state_store["graph_nodes"] = _graph_nodes.duplicate()
 	_persist_node_positions()
+
+
+# 顶栏「添文本框」：向画布新增一个自定义文本节点（kind = clue/hypo/conclusion/person）
+func add_text_node(kind: String) -> void:
+	var nkid: String = kind if kind in ["clue", "hypo", "conclusion", "person"] else "hypo"
+	var seq: int = 0
+	var nid: String = ""
+	while true:
+		nid = "note_%s_%d" % [nkid, seq]
+		if not _node_center.has(nid): break
+		seq += 1
+	var labels: Dictionary = {"clue": "线索", "hypo": "推断", "conclusion": "结论", "person": "人物"}
+	var subs: Dictionary = {"clue": "线索", "hypo": "推断", "conclusion": "结论", "person": "人物"}
+	var placed: Dictionary = {"id": nid, "kind": nkid, "label": "【%s】新文本" % labels.get(nkid, "文本"), "sub": subs.get(nkid, "自定义"), "data": {"correct": true}}
+	_graph_nodes.append(placed)
+	# 在画布中部放置
+	var base: Vector2 = _canvas.size * 0.5
+	var jitter: Vector2 = Vector2((-60 + (seq % 5) * 30), (-40 + (seq % 4) * 25))
+	var pos: Vector2 = _clamp_to_canvas(base + jitter)
+	_node_center[nid] = pos
+	var nps: Dictionary = _state_store.get("graph_node_positions", {})
+	nps[nid] = pos
+	_state_store["graph_node_positions"] = nps
+	_layout_seed = int(Time.get_ticks_msec()) + seq
+	_persist_view()
+	_rebuild_graph()
+
+
+func _gn_color(kind: String) -> Color:
+	match kind:
+		"person": return Color(0.66, 0.20, 0.16, 0.97)
+		"conclusion": return Color(0.84, 0.74, 0.56, 0.96)
+		"clue": return COL_CLUE_BG
+		_: return COL_HYPO_BG
 
 
 func _clear_drag_preview() -> void:
@@ -3356,7 +3405,7 @@ func _input(event: InputEvent) -> void:
 					var mouse_canvas: Vector2 = _canvas.get_global_transform().affine_inverse() * get_viewport().get_mouse_position()
 					var new_pos: Vector2 = mouse_canvas - _drag_offset
 					var new_center: Vector2 = new_pos + n.size * 0.5
-					var clamped: Vector2 = _clamp_to_canvas(new_center)
+					var clamped: Vector2 = _clamp_free(new_center)
 					n.position = clamped - n.size * 0.5
 					_node_center[_drag_id] = clamped
 					_sync_fold_controls_positions()

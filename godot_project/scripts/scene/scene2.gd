@@ -224,5 +224,9 @@ func _apply_restored_phase(p: int, ids: Array, _clues_arr: Array) -> bool:
 		Phase.REASONING:
 			_phase = Phase.REASONING; _wall_auto = true; _open_wall(); return true
 		Phase.TRANSITION:
-			_enter_transition(); return true
+			# 终局（已过场）读档：直接展示「侦破过程」结束面板（对齐场景一读档直接 _show_rating），
+			# 而不是重放过场对话。_suppress_terminal_save 已由基类置 true，点「继续推进」时
+			# _save_and_transition 会跳过重复存档、直接切入下一场景。
+			_show_scene_rating("场景二 完成 · 侦破过程", "res://scenes/scene3.tscn", Callable(self, "_save_and_transition").bind("scene2", "res://scenes/scene3.tscn"))
+			return true
 	return false
