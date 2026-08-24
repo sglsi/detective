@@ -104,7 +104,13 @@ func _make_field(placeholder: String, secret: bool) -> LineEdit:
 	ed.size = Vector2(480, 48)
 	ed.secret = secret
 	ed.add_theme_font_size_override("font_size", 20)
+	ed.gui_input.connect(_paste_into.bind(ed))
 	return ed
+
+func _paste_into(ev: InputEvent, ed: LineEdit) -> void:
+	if ev is InputEventKey and ev.pressed and ev.ctrl_pressed and ev.keycode == KEY_V:
+		ed.insert_text_at_caret(DisplayServer.clipboard_get())
+		ev.accept()
 
 func _connect_auth() -> void:
 	if AuthManager:

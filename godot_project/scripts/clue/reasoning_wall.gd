@@ -83,6 +83,7 @@ var _verify_v: int = 0                        # 当前判定等级（供 ESC 确
 var _verify_drag := false
 var _verify_drag_offset := Vector2.ZERO
 var _graph_view: Control = null               # 图谱视图（GraphViewController）叠加层
+var _recycle_panel: PanelContainer = null     # 回收站恢复面板
 
 # === 统一顶栏：线型/颜色/视图/焦点 选择器 ===
 var _pen_solid_btn: Button = null
@@ -500,6 +501,10 @@ func _create_top_bar() -> Control:
 	var fit_btn := _mk_top_btn("🔎 适应", false)
 	fit_btn.pressed.connect(_on_fit_view_pressed)
 	row1.add_child(fit_btn)
+
+	var recycle_btn := _mk_top_btn("🚮 回收站", false)
+	recycle_btn.pressed.connect(_on_recycle_pressed)
+	row1.add_child(recycle_btn)
 
 	var close_btn := _mk_top_btn("✕", false)
 	close_btn.add_theme_color_override("font_color", Color(0.85, 0.5, 0.5))
@@ -2003,6 +2008,48 @@ func _on_fit_view_pressed() -> void:
 		_graph_view.fit_view()
 		if _status_lbl:
 			_status_lbl.text = "已适应画布"
+
+
+func _on_recycle_pressed() -> void:
+	if not _graph_view or not is_instance_valid(_graph_view): return
+	if not _graph_view.has_method("get_deleted_nodes") or not _graph_view.has_method("restore_text_node"):
+		return
+	var deleted: Array = _graph_view.get_deleted_nodes()
+	if deleted.is_empty():
+		if _status_lbl: _status_lbl.text = "回收站为空"
+		return
+	if _recycle_panel:
+		_recycle_panel.queue_free()
+		_recycle_panel = null
+	var panel := PanelContainer.new()
+	panel.name = "recycle_panel"
+	_recycle_panel = panel
+	var vb := VBoxContainer.new()
+	vb.custom_minimum_size = Vector2(360, 420)
+	panel.add_child(vb)
+	var lab := Label.new()
+	lab.text = "🚮 已删除文本框（点击恢复）"
+	lab.add_theme_font_size_override("font_size", 18)
+	vb.add_child(lab)
+	for n in deleted:
+		var b := Button.new()
+		var nm: String = str(n.get("label", n.get("id", "?")))
+		b.text = nm
+		b.add_theme_font_size_override("font_size", 15)
+		var nid: String = str(n.get("id", ""))
+		b.pressed.connect(_restore_one.bind(nid))
+		vb.add_child(b)
+	panel.position = Vector2(660, 160)
+	panel.z_index = 95
+	add_child(panel)
+
+
+func _restore_one(nid: String) -> void:
+	if _graph_view and is_instance_valid(_graph_view) and _graph_view.has_method("restore_text_node"):
+		_graph_view.restore_text_node(nid)
+		if _recycle_panel:
+			_recycle_panel.queue_free()
+			_recycle_panel = null
 
 
 func _on_filter_selected(idx: int) -> void:

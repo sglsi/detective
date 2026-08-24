@@ -205,7 +205,11 @@ func _save_session() -> void:
 		return
 	var f = FileAccess.open(SESSION_PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"email": email}))
+		f.store_string(JSON.stringify({
+			"email": email,
+			"token": session_token,
+			"mode": "online" if APIManager.is_online else "local"
+		}))
 		f.close()
 
 ## 主动退出登录时清除记住的会话
@@ -226,7 +230,17 @@ func _restore_session() -> void:
 	if not data is Dictionary:
 		return
 	var email = data.get("email", "")
-	if email.is_empty():
+	if email.is_empty() and data.get("token", "") == "":
+		return
+	var tok: String = data.get("token", "")
+	if tok != "":
+		user_data = {"email": email, "username": data.get("username", email)}
+		current_auth_state = AuthState.LOGGED_IN
+		session_token = tok
+		APIManager.auth_token = tok
+		if GameManager:
+			GameManager.is_guest = false
+		print("[AuthManager] 已自动恢复在线会话: ", email)
 		return
 	var accounts = _load_accounts()
 	for k in accounts:
