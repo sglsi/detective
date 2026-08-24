@@ -156,18 +156,18 @@ func _run() -> void:
 	var gv5 := _mk_controller(_sample_data())
 	gv5._mode = 0  # ViewMode.MODE_C
 	gv5._node_center["c1"] = Vector2(900, 300)          # 模拟玩家把 c1 拖到星型右上
-	gv5._persist_node_positions()
+	gv5._layout._persist_node_positions()
 	_chk(gv5._state_store["graph_node_positions"]["c1"] == Vector2(900, 300), "Fix5-A：MODE_C 拖动后位置写盘")
 	gv5._switch_mode(1)  # ViewMode.MODE_B                    # 切推理链（垂直分层）
 	_chk(gv5._all_positions.get("c1", Vector2.ZERO) == Vector2(900, 300),
 		"Fix5-B：MODE_B 布局不污染 _all_positions（修复前会被覆盖成垂直分层坐标）")
 	gv5._node_center["c1"] = Vector2(500, 900)
-	gv5._persist_node_positions()
+	gv5._layout._persist_node_positions()
 	_chk(gv5._state_store["graph_node_positions"]["c1"] == Vector2(900, 300),
 		"Fix5-C：MODE_B 下拖动不覆盖星型存档位置")
 	gv5._switch_mode(0)  # ViewMode.MODE_C                    # 切回星型
 	var center5: Vector2 = gv5._canvas.size * 0.5
-	var expect5: Vector2 = gv5._clamp_to_band(Vector2(900, 300), center5, "clue")
+	var expect5: Vector2 = gv5._layout._clamp_to_band(Vector2(900, 300), center5, "clue")
 	_chk(gv5._node_center.get("c1", Vector2.ZERO) == expect5, "Fix5-D：切回星型后 c1 恢复存档位置（钳制带内）")
 	gv5._persist_view()
 	_chk(gv5._state_store["graph_node_positions"]["c1"] == expect5,

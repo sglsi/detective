@@ -85,7 +85,7 @@ func _run() -> void:
 	var node: Control = gv._node_views.get("c1")
 	var new_center := Vector2(900, 300)
 	gv._node_center["c1"] = new_center
-	gv._persist_node_positions()
+	gv._layout._persist_node_positions()
 	var saved: Dictionary = gv._state_store.get("graph_node_positions", {})
 	_chk(saved.has("c1"), "Bug1-A：拖动后位置写入 state_store")
 	_chk(saved.get("c1", Vector2.ZERO) == new_center, "Bug1-B：写入坐标值正确")
@@ -151,7 +151,7 @@ func _run_rw() -> void:
 	var gv = rw._graph_view
 	_chk(gv != null and is_instance_valid(gv), "RW-Bug1-A：图谱视图已随推理墙打开")
 	gv._node_center["c1"] = Vector2(950, 280)
-	gv._persist_node_positions()
+	gv._layout._persist_node_positions()
 	_chk(ss.has("graph_node_positions") and ss["graph_node_positions"].has("c1"),
 		"RW-Bug1-B：玩家移动后位置写入共享 state_store")
 	# 推理墙自身持久化（关系/标签变更时也会调用）
