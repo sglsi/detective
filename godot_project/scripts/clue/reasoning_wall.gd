@@ -1167,9 +1167,14 @@ func _refresh_clue_list() -> void:
 	var filter := _current_filter()
 
 	var placed: Array = _state_store.get("graph_placed_clues", []) as Array
+	# 任务7：画布上当前可见的线索也视为「已入图」，从左栏去重——线索在推理墙整体中唯一，
+	# 不能同时存在于左栏与画布（含因「关联焦点人物/有关系」而自动出现在画布上的线索）。
+	var visible: Array = []
+	if _graph_view and is_instance_valid(_graph_view) and _graph_view.has_method("visible_clue_ids"):
+		visible = _graph_view.visible_clue_ids()
 	for clue in _clues:
 		var cid: String = clue.get("id", "")
-		if placed.has(cid):
+		if placed.has(cid) or visible.has(cid):
 			continue
 		var name: String = clue.get("name", clue.get("label", cid))
 		var state := _clue_state(clue)
@@ -1837,6 +1842,7 @@ func _on_open_graph_view() -> void:
 		"on_close": Callable(self, "_on_back_pressed")
 	})
 	_graph_view = gv
+	_refresh_clue_list()   # 任务7：图谱构建后立即按画布可见线索去重左栏（打开墙即保证唯一）
 	_sync_top_bar()
 	_sync_connect_btn()
 
