@@ -33,6 +33,7 @@ var _verdict: int = -1              # -1 表示由本视图自行推算
 var _state_store: Dictionary = {}
 var _placed_clues: Array = []
 var _auto_fold: bool = false
+var _case_wide: bool = false
 var _manual_nodes: Array = []
 var _cb_tag: Callable = Callable()
 var _cb_add_edge: Callable = Callable()
@@ -241,6 +242,7 @@ func build(data: Dictionary) -> void:
 	_cb_relations_changed = data.get("on_relations_changed", Callable())
 	_show_toolbar = data.get("show_toolbar", false)
 	_auto_fold = data.get("auto_fold", false)
+	_case_wide = data.get("case_wide", false)
 
 	# 视图记忆恢复（09 R-3）：读 SaveGame/state_store
 	_mode = _state_store.get("graph_view_mode", ViewMode.MODE_C)
@@ -733,14 +735,25 @@ func _rebuild_graph() -> void:
 
 func _node_list() -> Array:
 	var list := []
-	# 中心：焦点人物
-	list.append({"id": _focus_person, "kind": "person",
-		"label": _person_name(_focus_person), "sub": "焦点", "color": COL_PERSON,
-		"data": {"id": _focus_person}})
+	if _case_wide:
+		var fp: String = _focus_person
+		for p in _persons:
+			var pid: String = str(p.get("id", "")) if p is Dictionary else ""
+			if pid == "" or pid == "__case__":
+				continue
+			var is_focus := pid == fp
+			list.append({"id": pid, "kind": "person",
+				"label": _person_name(pid), "sub": "焦点" if is_focus else "角色",
+				"color": COL_PERSON, "data": {"id": pid}})
+	else:
+		# 中心：焦点人物
+		list.append({"id": _focus_person, "kind": "person",
+			"label": _person_name(_focus_person), "sub": "焦点", "color": COL_PERSON,
+			"data": {"id": _focus_person}})
 
 	if _mode == ViewMode.MODE_C:
 		# 第一圈：线索
-		var clues := _clues_for_person(_focus_person)
+		var clues := _clues if _case_wide else _clues_for_person(_focus_person)
 		# P0-2 状态过滤
 		if _status_filter != "all" and not clues.is_empty():
 			var sf := _status_filter
@@ -3109,6 +3122,30 @@ func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 	var lp := _canvas.get_global_transform().affine_inverse() * mouse_pos
 	_canvas.scale = Vector2(ns, ns)
 	_canvas.position = mouse_pos - lp * ns
+	_zoom = ns
+
+## 自适应画布：缩放+居中至全部节点可见（内容少则放大，多则缩小）
+func fit_view() -> void:
+	var ids: Array = _node_center.keys()
+	if ids.is_empty():
+		_canvas.scale = Vector2.ONE
+		_canvas.position = Vector2.ZERO
+		_zoom = 1.0
+		return
+	var minp := Vector2.INF
+	var maxp := Vector2(-INF, -INF)
+	for id in ids:
+		var c: Vector2 = _node_center[id]
+		minp = Vector2(min(minp.x, c.x), min(minp.y, c.y))
+		maxp = Vector2(max(maxp.x, c.x), max(maxp.y, c.y))
+	var bbox := maxp - minp
+	var margin := 90.0
+	var vp: Vector2 = _clip.size if _clip != null and _clip.size.x > 0 else Vector2(1280, 760)
+	var ns: float = min((vp.x - margin * 2.0) / max(bbox.x, 1.0), (vp.y - margin * 2.0) / max(bbox.y, 1.0))
+	ns = clamp(ns, 0.35, 1.6)
+	_canvas.scale = Vector2(ns, ns)
+	var center_gl := _canvas.get_global_transform().affine_inverse() * (minp + bbox * 0.5)
+	_canvas.position = -center_gl * ns + _clip.get_global_transform().origin + vp * 0.5
 	_zoom = ns
 
 
