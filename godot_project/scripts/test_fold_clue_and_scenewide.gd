@@ -48,10 +48,10 @@ func _ready() -> void:
 	_build(gv, d1)
 	print("[DBG] clues=", gv._clues.size(), " focus=", gv._focus_person, " ids=", _ids(gv))
 	_chk("c1" in _ids(gv), "任务3·前置：线索 c1 初始可见")
-	_chk(not gv._compute_hidden().has("c1"), "任务3·前置：c1 未折叠")
+	_chk(not gv._fold._compute_hidden().has("c1"), "任务3·前置：c1 未折叠")
 	var ok: bool = gv.toggle_fold("c1")
 	_chk(ok, "任务3·toggle_fold(c1) 返回 true（线索现在可折叠）")
-	_chk(gv._compute_hidden().has("c1"), "任务3·折叠后 c1 进入隐藏集")
+	_chk(gv._fold._compute_hidden().has("c1"), "任务3·折叠后 c1 进入隐藏集")
 	_chk(not ("c1" in _ids(gv)), "任务3·折叠后 c1 从画布节点列表移除（真折叠，非仅隐藏连线）")
 	gv.toggle_fold("c1")
 	_chk("c1" in _ids(gv), "任务3·再次展开后 c1 恢复可见")
@@ -73,7 +73,7 @@ func _ready() -> void:
 		"auto_fold": true
 	}
 	_build(gv2, d2)
-	_chk(gv2._compute_hidden().is_empty(), "任务5·case_wide 进入新场景不自动折叠（隐藏集为空）")
+	_chk(gv2._fold._compute_hidden().is_empty(), "任务5·case_wide 进入新场景不自动折叠（隐藏集为空）")
 	_chk("c_old" in _ids(gv2), "任务5·旧场景线索 c_old 完整可见（不被收起）")
 	_chk("c_new" in _ids(gv2), "任务5·新场景线索 c_new 完整可见")
 	_chk("p_old" in _ids(gv2), "任务5·旧人物节点 p_old 完整可见")

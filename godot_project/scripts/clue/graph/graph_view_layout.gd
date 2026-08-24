@@ -149,7 +149,7 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 			roots.append(nd.id)
 	if roots.is_empty() and not nodes.is_empty():
 		roots = [nodes[0].id]
-	var adj := owner._build_adjacency()
+	var adj := owner._fold._build_adjacency()
 	# 构建父子关系树：从根 BFS，邻居"性质层更深"者作子，每节点只承接一次（防环）
 	var child_map := {}
 	var assigned := {}
