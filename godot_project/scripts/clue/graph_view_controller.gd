@@ -280,9 +280,10 @@ func build(data: Dictionary) -> void:
 	var _old_fp: Dictionary = _state_store.get("graph_folded_persons", {})
 	for _pid in _old_fp:
 		_folded_nodes[_pid] = true
-	# 需求2：进入新场景（案件级大墙 reuse）时若已建立关系，自动折叠内层已确立的推理主干，
-	# 聚焦最新线索与推断。仅当玩家尚未主动折叠过（_folded_nodes 为空）才播种，玩家展开/折叠会覆盖。
-	if _auto_fold and _folded_nodes.is_empty() and not _relations.is_empty():
+	# 需求2（修订·任务5）：进入新场景（案件级大墙 reuse，scene 2~8）时【不再】自动折叠已确立
+	# 推理主干——否则上一场景已收集/已关联的线索与推断会被收起，表现为「场景二线索在场景三只部分显示」。
+	# 跨场景进入须完整展现全部线索与关系，由玩家在墙内手动折叠。仅场景一教学墙（非 case_wide）保留自动折叠聚焦。
+	if _auto_fold and not _case_wide and _folded_nodes.is_empty() and not _relations.is_empty():
 		var _inner_roots: Array = []
 		for _rf in _relations:
 			for _eid in [_rf.get("from", ""), _rf.get("to", "")]:
@@ -365,8 +366,11 @@ func _create_ui() -> void:
 	_clip.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_clip.offset_top = 64
 	_clip.offset_bottom = -44
-	_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 任务8：裁剪视口改为 STOP 并接管平移/缩放输入，使「平移后超出原画布」的扩展区域
+	# 也能点击并拖动（原本 IGNORE 会让点击穿透，扩展区不可交互）。
+	_clip.mouse_filter = Control.MOUSE_FILTER_STOP
 	_clip.clip_contents = true
+	_clip.gui_input.connect(_on_canvas_gui)
 	add_child(_clip)
 
 	# _world 容器（缩放/平移等价 Camera2D）
@@ -725,14 +729,25 @@ func _rebuild_graph() -> void:
 		_node_data[nd.id] = nd.data
 	# 同列纵向去重叠：按真实卡片高度硬保证相邻卡片上下边距 ≥15px（不依赖布局/估算，避免任何覆盖）
 	_apply_column_overlap_fix()
-	# 创建连线出口折叠控件（XMind 式 −/+N）
+	# 创建连线出口折叠控件（XMind 式 −/+N；线索等叶子节点也可折叠收起自身）
 	for nd in nodes:
-		if _is_leaf(nd.id): continue
-		if _direct_outer_neighbors(nd.id).is_empty(): continue
-		var fc := _make_fold_control(nd.id)
-		fc.set_meta("graph_node", true)
-		_fold_controls[nd.id] = fc
-		_canvas.add_child(fc)
+		if _is_leaf(nd.id):
+			var fc := _make_fold_control(nd.id)
+			fc.set_meta("graph_node", true)
+			_fold_controls[nd.id] = fc
+			_canvas.add_child(fc)
+		elif not _direct_outer_neighbors(nd.id).is_empty():
+			var fc := _make_fold_control(nd.id)
+			fc.set_meta("graph_node", true)
+			_fold_controls[nd.id] = fc
+			_canvas.add_child(fc)
+	# 已折叠的叶子（自身已隐藏）仍提供恢复控件，凭 _all_positions 定位在原位
+	for fid in _folded_nodes:
+		if _is_leaf(fid) and not _fold_controls.has(fid):
+			var fc := _make_fold_control(fid)
+			fc.set_meta("graph_node", true)
+			_fold_controls[fid] = fc
+			_canvas.add_child(fc)
 	_redraw_all()
 
 
@@ -913,6 +928,10 @@ func _compute_hidden() -> Dictionary:
 	var hidden := {}
 	var adj := _build_adjacency()
 	for root in _folded_nodes:
+		# 叶子节点（如线索）折叠=收起自身（无更深子树可收），故把自身也计入隐藏集
+		if _is_leaf(root):
+			hidden[root] = true
+			continue
 		var root_rd := _ring_depth(_kind_of(root))
 		var stack := [root]
 		while not stack.is_empty():
@@ -931,15 +950,20 @@ func _fold_count(id: String) -> int:
 ## 折叠控件上的字形：展开=−，折叠=+N
 func _fold_glyph(id: String) -> String:
 	if _folded_nodes.has(id):
+		if _is_leaf(id): return "+"
 		return "+%d" % _fold_count(id)
 	return "-"
 
 ## 折叠控件位置：节点外缘、朝向外层邻居簇重心方向
 func _fold_control_pos(id: String) -> Vector2:
-	var center: Vector2 = _node_center.get(id, Vector2.ZERO)
+	# 折叠后节点 view 被移除、_node_center 不再含其位置，凭 _all_positions（持久位置缓存）兜底定位
+	var center: Vector2 = _node_center.get(id, _all_positions.get(id, Vector2.ZERO))
 	if center == Vector2.ZERO: return center
 	var neighbors := _direct_outer_neighbors(id)
-	if neighbors.is_empty(): return center
+	if neighbors.is_empty():
+		# 叶子（如线索）：控件置于节点右上角外缘，点击=收起/展开自身
+		var r: float = _node_radius_for_kind(_kind_of(id))
+		return center + Vector2(r * 0.7 + 6.0, -(r * 0.7 + 6.0))
 	var dir := Vector2.ZERO
 	for nb in neighbors:
 		var nc: Vector2 = _node_center.get(nb, center)
@@ -1011,8 +1035,12 @@ func _sync_fold_controls_positions() -> void:
 func _set_folded(id: String, v: bool) -> void:
 	if v:
 		_folded_nodes[id] = true
+		if _node_center.has(id):
+			_all_positions[id] = _node_center[id]
 	else:
 		_folded_nodes.erase(id)
+		if _node_center.has(id):
+			_all_positions[id] = _node_center[id]
 	_rebuild_graph()
 
 
@@ -1399,12 +1427,15 @@ func _clamp_to_canvas(p: Vector2) -> Vector2:
 	return Vector2(ox, oy)
 
 
-# 拖动自由摆放：允许节点中心略超出画布（半张卡，约 120px），吃满可视区但不至于拖丢
+# 拖动自由摆放：放开范围限制（任务6）——允许节点中心拖到可视区之外较大范围，
+# 配合画布平移（任务8）寻找；仅做极大值兜底避免坐标失控。
 func _clamp_free(p: Vector2) -> Vector2:
+	if not is_finite(p.x) or not is_finite(p.y):
+		return Vector2.ZERO
 	var cv: Vector2 = _canvas.size
-	var slack: float = 120.0
-	return Vector2(clampf(p.x, -slack, maxf(cv.x + slack, slack)),
-		clampf(p.y, -slack, maxf(cv.y + slack, slack)))
+	var slack: float = max(cv.x, cv.y, 3000.0)
+	return Vector2(clampf(p.x, -slack, cv.x + slack),
+		clampf(p.y, -slack, cv.y + slack))
 
 func _clamp_to_band(pos: Vector2, center: Vector2, kind: String) -> Vector2:
 	var band: Dictionary = _RING_BANDS.get(kind, _RING_BANDS["clue"])
@@ -1989,13 +2020,39 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 				_tag_person(id, drop)
 			elif drop_kind in ["hypo", "clue", "conclusion"]:
 				_add_edge(id, drop, key_to_kind(_pen_color_key), _pen_color_key, _pen_dashed)
+				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
+				_nudge_away_from(id, drop)
 		if moved:
 			if not _manual_nodes.has(id):
 				_manual_nodes.append(id)
 			_state_store["graph_manual_nodes"] = _manual_nodes
+			# 任务9：落到空白处且与其他节点重叠时，沿背离方向轻推避免覆盖
+			if drop == "":
+				var _nn: Control = _node_views.get(id)
+				if _nn and is_instance_valid(_nn):
+					var _sr := Rect2(_nn.position, _nn.size)
+					for _oid in _node_views:
+						if _oid == id: continue
+						var _o: Control = _node_views[_oid]
+						if not is_instance_valid(_o): continue
+						var _or := Rect2(_o.position, _o.size)
+						if _sr.intersects(_or):
+							var _dv: Vector2 = (_nn.position + _nn.size * 0.5) - (_o.position + _o.size * 0.5)
+							if _dv == Vector2.ZERO: _dv = Vector2(0, 1)
+							_dv = _dv.normalized()
+							var _push: float = (_sr.size.y + _or.size.y) * 0.5 + 8.0
+							_nn.position += _dv * _push
+							_sr = Rect2(_nn.position, _nn.size)
+							_node_center[id] = _nn.position + _nn.size * 0.5
 	elif not moved:
 		_on_node_clicked(id, _node_kind.get(id, ""))
 	_persist_node_positions()
+	# 复位拖拽期间的视觉态（缩小/置顶/半透明），避免建关系后残留
+	var nd: Control = _node_views.get(id)
+	if nd and is_instance_valid(nd):
+		nd.scale = Vector2.ONE
+		nd.z_index = 0
+		nd.modulate = Color(1, 1, 1, 1)
 	_dragging = false
 	_drag_id = ""
 	_drag_mode = ""
@@ -2030,6 +2087,27 @@ func _nearest_node_except(gp: Vector2, exclude_id: String, max_dist: float) -> S
 			best_d = d
 			best = id
 	return best
+
+
+## 任务4：建立关系后把被拖节点推离目标框，避免落点重叠（拖到目标上即建边，易压住目标）。
+## 仅当两框中心距 < 两框半宽之和+余量才推；推到目标外侧 min_dist 处，并更新位置缓存与持久化。
+func _nudge_away_from(id: String, drop: String) -> void:
+	var a: Control = _node_views.get(id)
+	var b: Control = _node_views.get(drop)
+	if a == null or b == null or not is_instance_valid(a) or not is_instance_valid(b): return
+	var ac: Vector2 = a.position + a.size * 0.5
+	var bc: Vector2 = b.position + b.size * 0.5
+	var dv: Vector2 = ac - bc
+	if dv == Vector2.ZERO: dv = Vector2(0, 1)
+	var min_dist: float = (a.size.x + b.size.x) * 0.5 + 24.0
+	if dv.length() >= min_dist: return
+	dv = dv.normalized()
+	var new_c: Vector2 = bc + dv * min_dist
+	a.position = new_c - a.size * 0.5
+	_node_center[id] = new_c
+	_all_positions[id] = new_c
+	_persist_node_positions()
+	_redraw_all()
 
 
 ## 提交建边（拖到另一节点上 = 加证据连线；落空 = 取消）
@@ -2427,7 +2505,7 @@ func set_status_filter(f: String) -> void:
 ## 折叠/展开某个节点（XMind 式通用入口）。id 为空或叶子（线索）返回 false。
 ## EDITABLE 态走 UndoRedo（与移动/连线同栈，支持 Ctrl+Z/Y）；LOCKED 态直接生效（浏览用）。
 func toggle_fold(id: String) -> bool:
-	if id == "" or _is_leaf(id): return false
+	if id == "": return false
 	var label: String = _node_short_label(id)
 	var will_fold := not _folded_nodes.has(id)
 	if _state == State.EDITABLE:
@@ -2439,7 +2517,10 @@ func toggle_fold(id: String) -> bool:
 		_set_folded(id, will_fold)
 	_persist_view()
 	if will_fold:
-		_toast_msg("已折叠「%s」的外层内容（%d 项）" % [label, _fold_count(id)])
+		if _is_leaf(id):
+			_toast_msg("已收起「%s」" % label)
+		else:
+			_toast_msg("已折叠「%s」的外层内容（%d 项）" % [label, _fold_count(id)])
 	else:
 		_toast_msg("已展开「%s」" % label)
 	return will_fold
@@ -3237,7 +3318,13 @@ func _show_detail(id: String, kind: String) -> void:
 	card.add_child(margin)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
-	margin.add_child(vb)
+	# 需求2修复：详情内容可能超出固定高度，用 ScrollContainer 包裹，确保完整可滚动查看
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	margin.add_child(scroll)
+	scroll.add_child(vb)
 
 	var title := Label.new()
 	title.add_theme_font_size_override("font_size", 34)
@@ -3544,6 +3631,14 @@ func update_node_label(id: String, text: String) -> void:
 	_persist_view()
 	_rebuild_graph()
 
+## 任务7：返回当前画布上可见的「线索」节点 id 列表，供推理墙左栏做唯一性去重。
+func visible_clue_ids() -> Array:
+	var out := []
+	for id in _node_views:
+		if _node_kind.get(id, "") == "clue":
+			out.append(id)
+	return out
+
 func _gn_color(kind: String) -> Color:
 	match kind:
 		"person": return Color(0.66, 0.20, 0.16, 0.97)
@@ -3573,9 +3668,13 @@ func _input(event: InputEvent) -> void:
 					_node_center[_drag_id] = clamped
 					# 拖拽命中提示：拖到其它节点范围时，把拖拽节点缩小并置顶，
 					# 让玩家直观感知两者可建立联系
-					var _hit: String = _drop_node_except(clamped, _drag_id) if _state == State.EDITABLE else ""
-					if _hit == "":
-						_hit = _nearest_node_except(clamped, _drag_id, 48.0) if _state == State.EDITABLE else ""
+				# ⚠️ 修复（任务1）：_drop_node_except/_nearest_node_except 期望「视口全局坐标」
+				# （内部会再做一次 affine_inverse 变换），此处必须传鼠标全局坐标而非画布本地
+				# 坐标 clamped，否则双重变换导致命中恒空、缩小/置顶从不触发。
+				var _gp: Vector2 = get_viewport().get_mouse_position()
+				var _hit: String = _drop_node_except(_gp, _drag_id) if _state == State.EDITABLE else ""
+				if _hit == "":
+					_hit = _nearest_node_except(_gp, _drag_id, 48.0) if _state == State.EDITABLE else ""
 					if _hit != "" and _node_kind.get(_hit, "") in ["hypo", "clue", "conclusion"]:
 						n.modulate = Color(1, 1, 1, 0.55)
 						n.scale = Vector2(0.9, 0.9)
