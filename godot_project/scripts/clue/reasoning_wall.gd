@@ -1819,9 +1819,12 @@ func _derive_persons() -> Array:
 			_clues = live
 	for c in _clues:
 		for p in c.get("related_npcs", []):
-			if not seen.has(p) and _identity_revealed(p, _clues):
+			if not seen.has(p):
 				seen[p] = true
-				out.append({"id": p, "name": _npc_display_name(p)})
+				# 身份揭示门控：未满足揭示条件（如霍普未收到电报）时仍保留人物中心，
+				# 但以「神秘嫌疑犯」占位居替，避免提前暴露真名（需求2）且不让人物消失（需求4）。
+				var npc_name: String = _npc_display_name(p) if _identity_revealed(p, _clues) else "神秘嫌疑犯"
+				out.append({"id": p, "name": npc_name})
 	var extra: Array = _hypothesis.get("persons", [])
 	for p in extra:
 		var pid: String = p.get("id", "") if p is Dictionary else str(p)

@@ -431,6 +431,11 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# _wall_state 同步指向共享引用：scene 侧 _do_save 存档 _wall_state 时即共享的最新图谱。
 	if use_case_wide and ClueSystem != null:
 		_wall_state = ClueSystem.case_wall_state
+		# 跨场景共享图谱内容（关系/节点位置/折叠），但新场景开墙应回到「可编辑」，
+		# 不沿用上一场景提交验证得到的 verified/verdict（否则场景三墙整体 LOCKED、节点全冻结）。
+		# 验证锁只约束「本场景当前阶段答完题」，跨场景进入新推理阶段必须解除。
+		_wall_state["verified"] = false
+		_wall_state["verdict"] = -1
 	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true, local_count, Callable(self, "_do_save"), use_case_wide)
 
 ## 默认验证回调：展示判定结果；满足「推理阶段」或「线索已收满」则自动推进过渡。

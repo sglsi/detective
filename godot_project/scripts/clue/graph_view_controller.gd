@@ -256,9 +256,11 @@ func build(data: Dictionary) -> void:
 			var out := []
 			for c in live:
 				for p in c.get("related_npcs", []):
-					if not seen.has(p) and _identity_revealed(p, live):
+					if not seen.has(p):
 						seen[p] = true
-						out.append({"id": p, "name": _NPC_DISPLAY_NAMES.get(p, p)})
+						# 身份揭示门控占位：未揭示身份的人物仍保留，但用「神秘嫌疑犯」占位居替（同 reasoning_wall._derive_persons）
+						var npc_name: String = _NPC_DISPLAY_NAMES.get(p, p) if _identity_revealed(p, live) else "神秘嫌疑犯"
+						out.append({"id": p, "name": npc_name})
 			if not out.is_empty():
 				print("[graph_view] build 时 _persons 兜底拉取 persons.size=%d" % out.size())
 				_persons = out
