@@ -45,6 +45,7 @@ var _battle_contra_btns: Dictionary = {}
 var _state_store: Dictionary = {}            # 外部传入的持久化字典引用（场景持有）
 var _persist_enabled: bool = false           # 是否启用跨重开持久化（由调用方 setup 时开启）
 var _auto_fold: bool = false                 # 场景切换进入已建立关系的墙时自动折叠既有推理主干
+var _case_wide: bool = false                 # 全案大墙(use_case_wide)：多人物平铺全部已收集线索/推断/结论
 var _verified: bool = false                  # 本次/历史是否已提交过验证（拿到判定）
 var _verified_verdict: int = -1              # 最近一次提交得到的判定
 var _on_advance: Callable = Callable()       # 验证后关墙时推进剧情的回调（仅推理阶段有效）
@@ -186,6 +187,7 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_on_advance = on_advance
 	_on_persist = on_persist
 	_auto_fold = auto_fold
+	_case_wide = auto_fold
 	_battle = hypothesis.get("battlefield", {})
 	_case_name = hypothesis.get("case_name", _case_name)
 	_chain_id = hypothesis.get("chain_id", "")
@@ -494,6 +496,10 @@ func _create_top_bar() -> Control:
 	var help_btn := _mk_top_btn("❓ 求助", false)
 	help_btn.pressed.connect(_on_help_pressed)
 	row1.add_child(help_btn)
+
+	var fit_btn := _mk_top_btn("🔎 适应", false)
+	fit_btn.pressed.connect(_on_fit_view_pressed)
+	row1.add_child(fit_btn)
 
 	var close_btn := _mk_top_btn("✕", false)
 	close_btn.add_theme_color_override("font_color", Color(0.85, 0.5, 0.5))
@@ -1818,6 +1824,7 @@ func _on_open_graph_view() -> void:
 		"editable": not _verified, "verdict": get_verdict(),
 		"state_store": _state_store,
 		"auto_fold": _auto_fold,
+		"case_wide": _case_wide,
 		"on_tag": Callable(self, "_gv_tag_person"),
 		"on_relations_changed": Callable(self, "_gv_relations_changed"),
 		"on_pen_changed": Callable(self, "_gv_pen_changed"),
@@ -1989,6 +1996,13 @@ func _on_add_text_node(kind: String) -> void:
 		_graph_view.add_text_node(kind)
 		if _status_lbl:
 			_status_lbl.text = "已添加文本框到画布"
+
+
+func _on_fit_view_pressed() -> void:
+	if _graph_view and is_instance_valid(_graph_view) and _graph_view.has_method("fit_view"):
+		_graph_view.fit_view()
+		if _status_lbl:
+			_status_lbl.text = "已适应画布"
 
 
 func _on_filter_selected(idx: int) -> void:

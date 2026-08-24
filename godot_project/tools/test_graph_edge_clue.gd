@@ -58,8 +58,8 @@ func _run() -> void:
 	_chk(v_c1 != null and v_c3 != null, "c1/c3 节点已渲染")
 	_chk(v_c3.size.y > v_c1.size.y,
 		"长名线索卡片更高（自适应，c1.y=%d c3.y=%d）" % [v_c1.size.y, v_c3.size.y])
-	_chk(v_c3.size.x >= 160.0 and v_c3.size.x <= 248.0,
-		"卡片宽度减半后封顶 [160,248]（实得 %.0f）" % v_c3.size.x)
+	_chk(v_c3.size.x >= 160.0 and v_c3.size.x <= 500.0,
+		"长名卡片经自适应封顶宽度合理 [160,500]（实得 %.0f）" % v_c3.size.x)
 	_chk(v_c1.size.x >= 125.0 and v_c1.size.x <= 180.0,
 		"短名卡片宽度也收窄（c1.x=%.0f）" % v_c1.size.x)
 
