@@ -591,7 +591,10 @@ func on_use_prop(prop_id: String) -> void:
 
 # ===================== 存 / 读档（通用核心） =====================
 func _do_save(slot: int = -1) -> void:
-	# 游客也可本地存档（仅写本地槽位；云端镜像仅注册用户在线时发生，见 SaveManager.save_to_slot）
+	# 存档为登录用户专属（游客不可存档）
+	if GameManager and GameManager.is_guest:
+		_ui.show_notification("游客模式不支持存档 — 请返回主菜单注册/登录")
+		return
 	var data := {"clue_ids": []}
 	# 以本场景本地进度为权威（不读全局 ClueSystem，避免跨轮累计污染存档）
 	var ids: Array = []
@@ -607,7 +610,10 @@ func _do_save(slot: int = -1) -> void:
 	_ui.show_notification("✅ 进度已保存 " + Time.get_datetime_string_from_system().replace("T", " "))
 
 func _do_load() -> void:
-	# 游客也可读本地档（与 _do_save 的本地存档策略一致）
+	# 读档为登录用户专属（游客不可读档）
+	if GameManager and GameManager.is_guest:
+		_ui.show_notification("游客模式不支持读档 — 请返回主菜单注册/登录")
+		return
 	if not SaveManager:
 		_ui.show_notification("存档系统不可用")
 		return
@@ -647,13 +653,8 @@ func _restore_saved_state() -> bool:
 	_ui.show_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
 	# 以存档 clue_ids 为唯一权威重建本地进度，并同步 ClueSystem（推理墙单一真相源），
 	# 杜绝「场景内进度（_obs 已记录数）」与「推理墙（ClueSystem 全局累计）」不一致的「两层皮」。
-	_clues = []
-	if ClueSystem: ClueSystem.clear_source(clue_source())
-	for cid in saved_ids:
-		var h = _get_hotspot(cid)
-		if not h.is_empty():
-			_clues.append(h)
-			if ClueSystem: ClueSystem.collect_clue_from_catalog(cid, h.get("label", ""), h.get("desc", ""), h.get("correct", true), clue_source(), int(h.get("wt", -1)), "", "", h.get("content_tags", []), h.get("attribute_tags", []), h.get("relation_tags", []))
+	# 统一走 _restore_clues_from_ids：非热点/对话/工具授予线索也一并恢复（此前内联仅补热点，导致读档后部分线索显示未收集）。
+	_restore_clues_from_ids(saved_ids)
 	return _apply_restored_phase(saved_phase, saved_ids, _clues)
 
 ## 子类按自身 Phase 分支恢复（通用骨架已处理好 ClueSystem 同步与通知）

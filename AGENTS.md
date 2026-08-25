@@ -384,6 +384,11 @@ NO other objects, isolated, game asset
   - **线上登录 token 持久化（2026-08）**：`auth_manager._save_session` 现同时存 `token` + `mode`；`_restore_session` 读到 session 含 token 时直接恢复在线会话（设 `session_token`、`APIManager.auth_token`、user_data），不再要求本地账号库匹配——修复"线上账号刷新后必须重新输入"。⚠️ auth_manager 用 `APIManager.is_online`（不是 BoardSession）。
   - **登录/注册输入框粘贴（2026-08）**：`auth_panel._make_field` 给 LineEdit 连接 gui_input，Ctrl+V 用 `DisplayServer.clipboard_get()` 插入光标处（Godot 默认不支持粘贴）。
 
+#### 2026-09 存档读档线索恢复（detective_scene.gd）
+- **游客不可存档是我们确定的设计**（鼓励注册），`_do_save`/`_do_load` 对 `GameManager.is_guest` 直接 `_ui.show_notification` 拒绝并 return——**勿改回游客可存档**。
+- **读档后线索显示未收集的根因**：`_restore_saved_state` 原来内联 `_get_hotspot(cid)` 只重建「热点线索」，对话/工具授予的非热点线索读档后丢失。已改为统一调 `_restore_clues_from_ids(saved_ids)`——它会用存档 ids + `ClueSystem` 已恢复的 collected(`prior`) 一并回收热点与非热点线索。**读档恢复线索务必走该方法，勿用奄试 `_get_hotspot` 单点重建**。
+- 回归：`p12`(P12_E2E_OK)、`p16`(P16_E2E_OK，登录态存档→读档→场景三墙还原 scene2 线索与关系)。
+
 #### 2026-08 问题修复：游客存档 + 全案墙线索默认进左栏
 
 - **游客本地存档（#1：收集后存档→读档线索显示未收集）**：`detective_scene.gd` 的 `_do_save` 里 `if GameManager and GameManager.is_guest:` 分支此前直接 `show_notification("游客模式暂不支持存档") + return`——游客存档被拒、读档自然全部丢失。改为游客跳过云同步但**仍落本地盘**（走 `clue_ids`- 快照 + `request_save`），仅提示“未登录，已保存到本地”。存档按 `_user_namespace()` 区分游客/登录玩家互不串档。回归：`Q1_OK`（scene2 收集→`_do_save`→`load_game`→`collected 恢复 N`）。
