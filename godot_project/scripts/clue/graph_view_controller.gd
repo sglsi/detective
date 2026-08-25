@@ -62,10 +62,9 @@ var _layout_seed: int = 1
 
 # === 渲染容器 ===
 var _clip: Control = null           # 裁剪视口（视觉显示，IGNORE）
-var _hit_layer: Control = null      # 命中层：图谱可交互区（让出顶栏/左栏命中）
-var hit_off_top: int = 110          # 命中让出区上缘（顶栏高）——由推理墙传入
-var hit_off_left: int = 540         # 命中让出区左缘（左栏右缘宽）——由推理墙传入
-var _canvas: Control = null         # _world：节点与连线挂此（IGNORE，命中由 _hit 承担）
+var hit_off_top: int = 110          # 契入让出区上缘（顶栏高）——由推理墙传入，谱图 _clip 从顶栏之下开始
+var hit_off_left: int = 540         # 契入让出区左缘（左栏右缘宽）——由推理墙传入，谱图 _clip 从左栏之右开始
+var _canvas: Control = null         # _world：节点与连线挂此（STOP，承接平移/缩放/空白点击）
 var _hint_layer: Control = null     # 难度提示圈（最底）
 var _edge_layer: Control = null     # 连线绘制层（节点下）
 var _toolbar: Control = null
@@ -363,31 +362,25 @@ func _create_ui() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	# 裁剪视口：图谱契回墙顶层铺满画布（世界原点=墙左上，节点坐标不偏移）。
-	# 命中与显示分离：_clip/_canvas 仅负责裁剪显示（IGNORE），画布交互（平移/缩放/空白点击）由 _hit 命中层接收。
-	# _hit 让出顶栏/左栏所占区域，使浮层的顶栏/左栏始终优先可点，图谱不吞其命中（告别靠 z_index「盖图谱」的脆弱命中）。
+	# 裁剪视口：图谱契入「左栏右侧、顶栏之下」的图谱交互区（世界坐标 0,0 = 该区左上）。
+	# clip 同时承担显示与命中：几何让出顶栏/左栏后，该区域天然既显示又接收画布操作，
+	# 顶栏/左栏不被图谱覆盖故始终优先可点；画布操作（平移/滚轮/空白点击/shift 建边/折叠）
+	# 一律经 _clip.gui_input → _on_canvas_gui 处理，无需另设命中层。
 	_clip = Control.new()
 	_clip.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_clip.offset_left = hit_off_left
+	_clip.offset_top = hit_off_top
+	_clip.mouse_filter = Control.MOUSE_FILTER_STOP
 	_clip.clip_contents = true
+	_clip.gui_input.connect(_on_canvas_gui)
 	add_child(_clip)
 
-	# 命中层：图谱可交互区 = 全屏扣除顶栏(高 hit_off_top)、左栏(右缘 hit_off_left) 浮层区。
-	# 两值由推理墙传入（同一来源），须与顶栏高/左栏右缘一致——改 UI 尺寸只改墙逻辑即可。
-	_hit_layer = Control.new()
-	_hit_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_hit_layer.offset_top = hit_off_top
-	_hit_layer.offset_left = hit_off_left
-	_hit_layer.mouse_filter = Control.MOUSE_FILTER_STOP
-	_hit_layer.gui_input.connect(_on_canvas_gui)
-	# 命中层压到节点(z=0)之下，保证节点卡片先接收点击/拖动；空白处才落到 _hit 做平移。
-	_hit_layer.z_index = -5
-	add_child(_hit_layer)
-
-	# _world 容器（缩放/平移等价 Camera2D；命中由 _hit 承担，自身不拦截）
+	# _world 容器（缩放/平移等价 Camera2D；节点与连线挂此）。STOP 承担平移/滚轮/空白点击，
+	# 节点卡片(z=0)自身 STOP 优先接收点击与拖拽，空白处落回 _canvas（与契入前一致）。
 	_canvas = Control.new()
 	_canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_canvas.mouse_filter = Control.MOUSE_FILTER_STOP
+	_canvas.gui_input.connect(_on_canvas_gui)
 	_clip.add_child(_canvas)
 
 	_hint_layer = Control.new()
@@ -1767,11 +1760,13 @@ func _on_canvas_left_click(viewport_pos: Vector2) -> void:
 func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 	var old_scale := _zoom
 	var ns: float = clamp(old_scale * factor, 0.4, 2.5)
-	# 全局坐标 → 画布本地（含 _clip 偏移），与 _on_canvas_left_click 一致
+	# 全局坐标 → 画布本地（含 _clip 契入偏移），与 _on_canvas_left_click 一致
 	var lp := _canvas.get_global_transform().affine_inverse() * mouse_pos
 	_canvas.scale = Vector2(ns, ns)
-	_canvas.position = mouse_pos - lp * ns
+	# _canvas.position 是相对 _clip(契入后左上=左栏右缘/顶栏底) 的局部坐标，转回视口坐标需扣 _clip 原点偏移
+	_canvas.position = mouse_pos - lp * ns - _clip.get_global_transform().origin
 	_zoom = ns
+	
 
 ## 自适应画布：缩放+居中至全部节点可见（内容少则放大，多则缩小）
 func fit_view() -> void:
@@ -1794,7 +1789,7 @@ func fit_view() -> void:
 	ns = clamp(ns, 0.35, 1.6)
 	_canvas.scale = Vector2(ns, ns)
 	var center_gl := _canvas.get_global_transform().affine_inverse() * (minp + bbox * 0.5)
-	_canvas.position = -center_gl * ns + _clip.get_global_transform().origin + vp * 0.5
+	_canvas.position = -center_gl * ns + vp * 0.5
 	_zoom = ns
 
 
