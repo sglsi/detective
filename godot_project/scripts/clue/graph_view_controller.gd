@@ -363,7 +363,10 @@ func _create_ui() -> void:
 	# 裁剪视口（限制 _canvas 在屏幕内）
 	_clip = Control.new()
 	_clip.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_clip.offset_top = 64
+	# 让出顶栏（offset_top=110，避其按钮下部）与左侧「已收集线索」栏（offset_left=540）：
+	# 图谱画布若是全屏 STOP 会覆盖顶栏/左栏，导致点按被画布平移拦截（顶栏仅上1/5可点、左栏不可点）。
+	_clip.offset_top = 110
+	_clip.offset_left = 540
 	_clip.offset_bottom = -44
 	# 任务8：裁剪视口改为 STOP 并接管平移/缩放输入，使「平移后超出原画布」的扩展区域
 	# 也能点击并拖动（原本 IGNORE 会让点击穿透，扩展区不可交互）。
@@ -668,20 +671,23 @@ func _node_list() -> Array:
 				if _placed_ids.has(_cid_in_wall):
 					clues.append(_c_in_wall)
 		else:
-			clues = _data._clues_for_person(_focus_person)
+			# 问题1：场景一教学墙(非 case_wide)与全案墙一致——只把已放置线索作为图谱节点，
+			# 未放置孤立线索默认留在左栏「已收集线索栏」，由玩家拖入或建边后再显示。
+			var _placed_ids2 := {}
+			for _pid in _placed_clues: _placed_ids2[_pid] = true
+			for _c_in_wall in _clues:
+				var _cid_in_wall: String = str(_c_in_wall.get("id", ""))
+				if _placed_ids2.has(_cid_in_wall):
+					clues.append(_c_in_wall)
 		# P0-2 状态过滤
 		if _status_filter != "all" and not clues.is_empty():
 			var sf := _status_filter
 			clues = clues.filter(func(c): return _data._clue_matches_filter(c, sf))
-		# 兜底显示全部线索（问题2）：
-		# 非全案墙教学/单人物视图，焦点人物无可关联线索时展示全部，避免画面空白；
-		# 全案墙(case_wide)不兜底——线索默认在左栏，未放置即不进画布。
+		# 兜底显示全部线索（问题1）：无论全案墙或场景一教学墙，都不把孤立未放置线索无条件平铺
+		# 进画布——未放置线索默认在左栏「已收集线索栏」，由下方「关联线索」「已放置线索」两段
+		# 补入已拖入/已建关系的线索节点。这条兜底逻辑已移除，避免教学墙线索仍上画布。
 		if clues.is_empty() and not _case_wide:
-			clues = _clues
-			# 同样应用状态过滤
-			if _status_filter != "all":
-				var sf2 := _status_filter
-				clues = clues.filter(func(c): return _data._clue_matches_filter(c, sf2))
+			pass
 		for c in clues:
 			var cid: String = c.get("id", "")
 			var common: bool = _common_clues.has(cid)

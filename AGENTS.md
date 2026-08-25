@@ -389,7 +389,12 @@ NO other objects, isolated, game asset
 - **读档后线索显示未收集的根因**：`_restore_saved_state` 原来内联 `_get_hotspot(cid)` 只重建「热点线索」，对话/工具授予的非热点线索读档后丢失。已改为统一调 `_restore_clues_from_ids(saved_ids)`——它会用存档 ids + `ClueSystem` 已恢复的 collected(`prior`) 一并回收热点与非热点线索。**读档恢复线索务必走该方法，勿用奄试 `_get_hotspot` 单点重建**。
 - 回归：`p12`(P12_E2E_OK)、`p16`(P16_E2E_OK，登录态存档→读档→场景三墙还原 scene2 线索与关系)。
 
-#### 2026-08 问题修复：游客存档 + 全案墙线索默认进左栏
+#### 2026-09 修复：图谱画布让出顶栏/左栏 + 场景一教学墙线索默认进左栏
+
+用户反馈三处：①场景一默认线索仍在画布（场景二正确）；②左栏看到但不可点，拖动变画布平移；③顶栏按钮仅上 1/5 可点，下部 4/5 点按拖动为画布移动。
+
+- **根因①：非 case_wide（场景一教学墙）仍平铺线索上画布。** `graph_view_controller._node_list` MODE_C 的 case_wide 分支早已改为只取 `_placed_clues`（已放置线索）；但**非 case_wide 分支**仍用 `_data._clues_for_person(_focus_person)` 平铺，且兜底 `if clues.is_empty() and not _case_wide: clues = _clues` **无条件把全部线索塞进画布** → 场景一线索仍在画布。修复：非 case_wide 改走与 case_wide 一致的「仅 `_placed_clues` 已放置线索进画布」，并**移除该兜底**（未放置线索默认留左栏，由下方「关联线索」「已放置线索」两段补入已介入节点）。回归：`tools/q5_scene1_leftbar.gd`（Q5_OK：画布无线索、线索在左栏，需先 `await process_frame` 再 load 墙脚本否则 ClueSystem autoload 未注册编译失败）。
+- **根因②③：图谱画布 `_clip` 全屏 STOP 覆盖顶栏/左栏。** `graph_view_controller_gd._create_ui` 中 `_clip`（负责平移/滚轮，`mouse_filter=STOP`）原 `PRESET_FULL_RECT + offset_top=64`，从 y=64 往下全屏拦截——正好盖住顶栏按钮下部（row2 约 y54~104）与整个左栏「已收集线索」栏，故点击落到 `_clip`（画布平移）而不是顶栏/左栏。修复：`_clip.offset_top=64→110`（让出顶栏，正好在顶栏底之下）并新增 `_clip.offset_left=540`（让出左栏宽）。图谱坐标转换一律用 `_canvas.get_global_transform() * viewport_pos`（`_on_canvas_left_click`/`_zoom_at`），改 `_clip` rect 不影响平移/缩放/命中的坐标系；`_canvas`/节点锚 FULL_RECT 跟随 `_clip`,世界坐标起点=clip 左上 (540,110)。**拖节点 `_clamp_free` 允许超界 ±120 会把节点拖进左栏下被 z=20 左栏盖住（视觉），可接受（UI 优先），不要回退此改动。**
 
 - **游客本地存档（#1：收集后存档→读档线索显示未收集）**：`detective_scene.gd` 的 `_do_save` 里 `if GameManager and GameManager.is_guest:` 分支此前直接 `show_notification("游客模式暂不支持存档") + return`——游客存档被拒、读档自然全部丢失。改为游客跳过云同步但**仍落本地盘**（走 `clue_ids`- 快照 + `request_save`），仅提示“未登录，已保存到本地”。存档按 `_user_namespace()` 区分游客/登录玩家互不串档。回归：`Q1_OK`（scene2 收集→`_do_save`→`load_game`→`collected 恢复 N`）。
 - **全案墙线索默认进左栏（#2：默认已收集线索放左栏不放画布）**：`graph_view_controller._node_list` 的 MODE_C 在 `case_wide` 分支此前 `clues := _clues` 无条件把**全部已收集线索平铺进画布**。改为 `clues := _placed_clues` 过滤（仅已放置的线索作为图谱节点）+ 已有关系线索；未放置线索留在左栏由 `_refresh_clue_list` 展示、玩家拖入。自定义文本节点（`_graph_nodes`，含 `add_text_node` 创建）不受影响走单独追加。回归：`tools/q2_leftbar.gd`（Q2_OK：case_wide 下人物平铺、线索默认不在画布、左栏可显示）。⚠️ 语义变更后，**已建关系/已放置的线索仍会进画布**（`_placed_clues` 跨场景经 `case_wall_state["graph_placed_clues"]` 持久化），未放置线索仅在左栏。
