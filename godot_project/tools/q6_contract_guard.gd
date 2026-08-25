@@ -1,10 +1,11 @@
 extends SceneTree
-# Q6 契约守卫：图谱"显示/命中分离" + 契回墙顶层全屏 + 浮层命中让出区 不可回归。
+# Q6 契约守卫：图谱"契入让出"（_clip 几何让出顶栏/左栏，同一区域既显示又承接画布交互）不可回归。
 # 守护目标（防"修一处坏一处"的死循环）：
-#  - 图谱契回墙顶层全屏（世界原点到(0,0)，节点坐标不偏移 → 折叠/排序不偏移）；
-#  - _clip/_canvas 只负责显示(Ignore)，_hit_layer(STOP) 让出顶栏/左栏区，
-#    使左栏/顶栏浮层确定性可点（不赌 z_index 命中顺序）；
-#  - 命中让出区 hit_off_left/top 由推理墙单源传入，须与左栏右缘/顶栏底对齐。
+#  - 图谱契回墙顶层，_clip 契入让出「左栏右侧、顶栏之下」的图谱交互区（clip_contents 裁剪）；
+#  - 图谱交互只经 _clip/_canvas(STOP) → _on_canvas_gui 一条链：平移/缩放/空白点击/shift 建边/折叠
+#    都在 clip 区内正常响应，顶栏/左栏区域天然不被图谱覆盖故可点，无需命中分离层；
+#  - 契入让出区 hit_off_left/top 由推理墙单源传入，须与左栏右缘/顶栏底对齐；
+#  - 手工写 _canvas.position 的锚点位（_zoom_at/fit_view）须按 _clip 原点偏移校正，保证世界坐标可换算。
 var _fails: int = 0
 
 func _check(ok: bool, msg: String) -> void:
@@ -22,23 +23,24 @@ func _init() -> void:
 	await process_frame
 	await process_frame
 	var gv = load("res://scripts/clue/graph_view_controller.gd").new()
-	_check(gv.hit_off_left == 540, "命中让出区左侧=540(左栏右缘)")
-	_check(gv.hit_off_top == 110, "命中让出区顶部=110(顶栏底)")
+	_check(gv.hit_off_left == 540, "契入让出区左侧=540(左栏右缘)")
+	_check(gv.hit_off_top == 110, "契入让出区顶部=110(顶栏底)")
 
 	var g := _src("res://scripts/clue/graph_view_controller.gd")
 	_check(g.contains("mouse_filter = Control.MOUSE_FILTER_IGNORE"), "图谱根 mouse_filter=IGNORE(不抢UI)")
-	_check(g.contains("_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE"), "_clip 只显示(Ignore)")
-	_check(g.contains("_clip.clip_contents = true"), "_clip 仍裁剪显示到画布")
-	_check(g.contains("_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE"), "_canvas 只显示(Ignore)")
-	_check(g.contains("_hit_layer.mouse_filter = Control.MOUSE_FILTER_STOP"), "_hit_layer STOP 接管画布交互")
-	_check(g.contains("_hit_layer.gui_input.connect(_on_canvas_gui)"), "_hit_layer 连接画布命令")
-	_check(g.contains("_hit_layer.z_index = -5"), "_hit_layer 压在节点(z=0)之下，节点优先点击/拖动")
-	_check(g.contains("_hit_layer.offset_left = hit_off_left"), "命中让出区左侧用 hit_off_left(非硬编码)")
-	_check(g.contains("_hit_layer.offset_top = hit_off_top"), "命中让出区顶部用 hit_off_top(非硬编码)")
+	_check(g.contains("_clip.mouse_filter = Control.MOUSE_FILTER_STOP"), "_clip STOP 同一区域即显示即交互")
+	_check(g.contains("_clip.gui_input.connect(_on_canvas_gui)"), "_clip 连接画布命令(shift建边/平移/缩放走此链)")
+	_check(g.contains("_clip.clip_contents = true"), "_clip 裁剪显示到图谱交互区")
+	_check(g.contains("_clip.offset_left = hit_off_left"), "契入让出区左侧用 hit_off_left(非硬编码)")
+	_check(g.contains("_clip.offset_top = hit_off_top"), "契入让出区顶部用 hit_off_top(非硬编码)")
+	_check(g.contains("_canvas.mouse_filter = Control.MOUSE_FILTER_STOP"), "_canvas STOP 承接平移/滚轮/空白点击")
+	_check(g.contains("_canvas.gui_input.connect(_on_canvas_gui)"), "_canvas 连接画布命令")
+	_check(not g.contains("_hit_layer"), "已废除命中分离层 _hit_layer")
+	_check(g.contains("_clip.get_global_transform().origin"), "_zoom_at/fit_view 按 _clip 原点校正坐标")
 
 	var w := _src("res://scripts/clue/reasoning_wall.gd")
 	_check(not w.contains("_graph_holder.add_child"), "图谱契回墙顶层，不再契入容器")
-	_check(w.contains("gv.hit_off_left = 540") and w.contains("gv.hit_off_top = 110"), "推理墙单源传入命中让出区")
+	_check(w.contains("gv.hit_off_left = 540") and w.contains("gv.hit_off_top = 110"), "推理墙单源传入契入让出区")
 
 	print("Q6 DONE fails=" + str(_fails))
 	quit(_fails)

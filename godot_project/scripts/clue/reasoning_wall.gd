@@ -892,16 +892,14 @@ func _on_open_graph_view() -> void:
 		return
 	var gv = load("res://scripts/clue/graph_view_controller.gd").new()
 	gv.name = "GraphView"
-	# 图谱契回墙顶层铺满画布：世界坐标以墙左上为原点，与持久化节点位置一致，
-	# 避免契入容器造成节点坐标整体偏移、折叠/排序错乱。
-	# 视觉：图谱全屏延伸（半透明左栏浮于其上，透出图谱）。
-	# 命中：图谱以 _hit 命中层在顶栏/左栏区域"让出"（不抢点击，确定性，不赌 z 主序），
-	#      顶栏(z=100)/左栏(z=20) 在浮层区照常接收；图谱自由区由 _hit 接管平移缩放。
+	# 图谱契回墙顶层铺满；图谱内部 _clip 契入让出「左栏右侧、顶栏之下」的图谱交互区（几何让出）。
+	# clip 同一区域既承接显示又承接画布交互（平移/缩放/shift 建边/折叠），不被顶栏/左栏覆盖，
+	# 故顶栏(z=100)/左栏(z=20) 天然优先可点、无需命中分离层。
 	add_child(gv)
 	gv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	gv.z_index = 5
-	# 命中让出区=图谱可交互区，须与顶栏底(offset_bottom=110)/左栏右缘(offset_right=540)一致；
-	# 改顶栏/左栏尺寸时须同步此两值（图谱 _hit 命中层用它们避开 UI 浮层）。
+	# 契入让出区须与顶栏底(offset_bottom=110)/左栏右缘(offset_right=540)一致；
+	# 改顶栏/左栏尺寸时须同步此两值（图谱 _clip 用它们避开 UI 浮层）。
 	gv.hit_off_top = 110
 	gv.hit_off_left = 540
 	var persons := _state_ctl._derive_persons()
