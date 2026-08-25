@@ -360,14 +360,11 @@ func _create_ui() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	# 裁剪视口（限制 _canvas 在屏幕内）
+	# 裁剪视口（限制 _canvas 在所辖容器内）。
+	# 图谱由推理墙契入布局容器 _graph_holder（顶栏之下、左栏右侧），本体 PRESET_FULL_RECT 填满，
+	# 故此处 clip 填满本体即可，不再写任何让出偏移——容器位置变了图谱自动跟随（免 magic number 失步）。
 	_clip = Control.new()
 	_clip.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# 让出顶栏（offset_top=110，避其按钮下部）与左侧「已收集线索」栏（offset_left=540）：
-	# 图谱画布若是全屏 STOP 会覆盖顶栏/左栏，导致点按被画布平移拦截（顶栏仅上1/5可点、左栏不可点）。
-	_clip.offset_top = 110
-	_clip.offset_left = 540
-	_clip.offset_bottom = -44
 	# 任务8：裁剪视口改为 STOP 并接管平移/缩放输入，使「平移后超出原画布」的扩展区域
 	# 也能点击并拖动（原本 IGNORE 会让点击穿透，扩展区不可交互）。
 	_clip.mouse_filter = Control.MOUSE_FILTER_STOP
