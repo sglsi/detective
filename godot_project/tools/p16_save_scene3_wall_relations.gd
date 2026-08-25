@@ -49,9 +49,9 @@ func _initialize() -> void:
 		wall2._state_store["graph_relations"] = rels
 		var rels_s2: int = wall2._state_store.get("graph_relations", []).size()
 		log.append("scene2 墙 graph_relations 条数=%d (注入建边后)" % rels_s2)
-		wall2._on_verify_pressed()
+		wall2._verify_ctl._on_verify_pressed()
 		await process_frame; await process_frame
-		wall2._on_verify_confirm(wall2.get_verdict())
+		wall2._verify_ctl._on_verify_confirm(wall2.get_verdict())
 		await process_frame; await process_frame
 
 	# scene2 完结 → 真实存档（模拟玩家点「继续推进」）

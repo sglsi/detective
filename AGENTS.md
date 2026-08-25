@@ -383,3 +383,14 @@ NO other objects, isolated, game asset
   - **Details 文本编辑（2026-08）**：详情卡「编辑内容」存 `state_store["graph_edited_texts"]`（`_edited_texts`），渲染 label 统一优先取 override，跨重开恢复。
   - **线上登录 token 持久化（2026-08）**：`auth_manager._save_session` 现同时存 `token` + `mode`；`_restore_session` 读到 session 含 token 时直接恢复在线会话（设 `session_token`、`APIManager.auth_token`、user_data），不再要求本地账号库匹配——修复"线上账号刷新后必须重新输入"。⚠️ auth_manager 用 `APIManager.is_online`（不是 BoardSession）。
   - **登录/注册输入框粘贴（2026-08）**：`auth_panel._make_field` 给 LineEdit 连接 gui_input，Ctrl+V 用 `DisplayServer.clipboard_get()` 插入光标处（Godot 默认不支持粘贴）。
+
+### 推理墙重构后（组合架构）的测试/脚本 API 适配
+
+2026-08 拉取远端重构：`graph_view_controller.gd` → `scripts/clue/graph/`（data/dock/edge/fold/layout）；`reasoning_wall.gd` → `scripts/clue/wall/`（clue_library/state/battlefield/comparison/history/hypothesis/relations/verify）。类从「继承」改为「组合」——ReasoningWall 通过 `_clue_ctl`/`_verify_ctl` 等组件实例转发 API。**旧 e2e 测试（tools/*.gd）若直接调原推理墙方法会报 Nonexistent function 并触发 WATCHDOG 超时挂死**，必须按下列新访问路径改写：
+
+- `_toggle_association`（线索关联）→ `wall._clue_ctl._toggle_association(cid)`（原 `wall._toggle_association`）
+- `_on_verify_pressed` / `_on_verify_confirm(v)` → `wall._verify_ctl._on_verify_pressed()` / `wall._verify_ctl._on_verify_confirm(v)`
+- 仍留在 ReasoningWall 可用：`get_verdict()`、`_clues`、`_state_store`
+- 场景侧不变：`s2._obs._record(h.id, desc)`、`s2._open_wall()`、`wall2._clue_ctl`、窗口取 `s2.find_child("ReasoningWall", true, false)`
+
+适配完成后回归通道：`p12_scene2_to_scene3_e2e.gd`（P12_E2E_OK：场景二→三真实路径）、`p16_save_scene3_wall_relations.gd`（P16_E2E_OK：读档→场景三墙还原 scene2 关系）、`p15_architecture_unification.gd`、`p0_smoke_test.gd`、`smoke_load_check.gd`。改完推理墙源码后必须 `--export-release "Web"` 重导 pck，否则预览仍旧版。

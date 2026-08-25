@@ -60,11 +60,11 @@ func _initialize() -> void:
 		ok = false; print("P12_FAIL scene2 推理墙未打开")
 	else:
 		for c in wall2._clues:
-			if not c.get("associated", false): wall2._toggle_association(c["id"])
-		wall2._on_verify_pressed()
+			if not c.get("associated", false): wall2._clue_ctl._toggle_association(c["id"])
+		wall2._verify_ctl._on_verify_pressed()
 		await process_frame
 		await process_frame
-		wall2._on_verify_confirm(wall2.get_verdict())
+		wall2._verify_ctl._on_verify_confirm(wall2.get_verdict())
 		await process_frame
 		await process_frame
 
@@ -135,12 +135,12 @@ func _initialize() -> void:
 		log.append("scene3 推理墙线索数=%d (期望 19 = 6 garden + 13 indoor 全案池；>13 证明跨场景线索已并入)" % n3)
 		if n3 != 19: ok = false; print("P12_FAIL 推理墙线索数=", n3)
 		for c in wall3._clues:
-			if not c.get("associated", false): wall3._toggle_association(c["id"])
+			if not c.get("associated", false): wall3._clue_ctl._toggle_association(c["id"])
 		log.append("scene3 全关联 verdict=%d (期望 3)" % wall3.get_verdict())
-		wall3._on_verify_pressed()
+		wall3._verify_ctl._on_verify_pressed()
 		await process_frame
 		await process_frame
-		wall3._on_verify_confirm(wall3.get_verdict())
+		wall3._verify_ctl._on_verify_confirm(wall3.get_verdict())
 		await process_frame
 		await process_frame
 
