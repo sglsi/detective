@@ -591,10 +591,7 @@ func on_use_prop(prop_id: String) -> void:
 
 # ===================== 存 / 读档（通用核心） =====================
 func _do_save(slot: int = -1) -> void:
-	# 存档为登录用户专属（游客不可存档）
-	if GameManager and GameManager.is_guest:
-		_ui.show_notification("游客模式不支持存档 — 请返回主菜单注册/登录")
-		return
+	# 游客也可本地存档（仅写本地槽位；云端镜像仅注册用户在线时发生，见 SaveManager.save_to_slot）
 	var data := {"clue_ids": []}
 	# 以本场景本地进度为权威（不读全局 ClueSystem，避免跨轮累计污染存档）
 	var ids: Array = []
@@ -610,10 +607,7 @@ func _do_save(slot: int = -1) -> void:
 	_ui.show_notification("✅ 进度已保存 " + Time.get_datetime_string_from_system().replace("T", " "))
 
 func _do_load() -> void:
-	# 存档为登录用户专属（游客不可读档）
-	if GameManager and GameManager.is_guest:
-		_ui.show_notification("游客模式不支持读档 — 请返回主菜单注册/登录")
-		return
+	# 游客也可读本地档（与 _do_save 的本地存档策略一致）
 	if not SaveManager:
 		_ui.show_notification("存档系统不可用")
 		return

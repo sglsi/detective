@@ -190,6 +190,11 @@ func _sync_fold_controls_positions() -> void:
 func _set_folded(id: String, v: bool) -> void:
 	if v:
 		owner._folded_nodes[id] = true
+		# 折叠本体时一并折叠其下层子树（推断→线索等），避免只藏连线而节点仍平铺
+		for s in _subtree_ids(id):
+			owner._folded_nodes[s] = true
+			if owner._node_center.has(s):
+				owner._all_positions[s] = owner._node_center[s]
 		if owner._node_center.has(id):
 			owner._all_positions[id] = owner._node_center[id]
 	else:
