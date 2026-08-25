@@ -14,6 +14,18 @@ const WallState = preload("res://scripts/clue/wall/wall_state.gd")
 var _state_ctl: WallState
 const WallClueLibrary = preload("res://scripts/clue/wall/wall_clue_library.gd")
 var _clue_ctl: WallClueLibrary
+const WallHypothesis = preload("res://scripts/clue/wall/wall_hypothesis.gd")
+var _hypo_ctl: WallHypothesis
+const WallBattlefield = preload("res://scripts/clue/wall/wall_battlefield.gd")
+var _bf_ctl: WallBattlefield
+const WallComparison = preload("res://scripts/clue/wall/wall_comparison.gd")
+var _cmp_ctl: WallComparison
+const WallRelations = preload("res://scripts/clue/wall/wall_relations.gd")
+var _rel_ctl: WallRelations
+const WallVerify = preload("res://scripts/clue/wall/wall_verify.gd")
+var _verify_ctl: WallVerify
+const WallHistory = preload("res://scripts/clue/wall/wall_history.gd")
+var _hist_ctl: WallHistory
 
 # === 数据 ===
 var _clues: Array = []                       # 线索字典数组
@@ -174,6 +186,18 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_state_ctl.owner = self
 	_clue_ctl = WallClueLibrary.new()
 	_clue_ctl.owner = self
+	_hypo_ctl = WallHypothesis.new()
+	_hypo_ctl.owner = self
+	_bf_ctl = WallBattlefield.new()
+	_bf_ctl.owner = self
+	_cmp_ctl = WallComparison.new()
+	_cmp_ctl.owner = self
+	_rel_ctl = WallRelations.new()
+	_rel_ctl.owner = self
+	_verify_ctl = WallVerify.new()
+	_verify_ctl.owner = self
+	_hist_ctl = WallHistory.new()
+	_hist_ctl.owner = self
 	_clues = clues
 	_hypothesis = hypothesis
 	_on_verify = on_verify
@@ -235,7 +259,7 @@ func _create_ui() -> void:
 	_rel_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_rel_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_rel_layer.z_index = 15
-	_rel_layer.draw.connect(_on_rel_layer_draw)
+	_rel_layer.draw.connect(_rel_ctl._on_rel_layer_draw)
 	add_child(_rel_layer)
 
 	# 顶部功能栏 (高度 60)
@@ -341,11 +365,11 @@ func _create_top_bar() -> Control:
 	lt_lbl.custom_minimum_size = Vector2(28, 46)
 	row1.add_child(lt_lbl)
 	_pen_solid_btn = _mk_top_btn("实线", true)
-	_pen_solid_btn.pressed.connect(func(): _set_pen_dashed(false))
+	_pen_solid_btn.pressed.connect(func(): _rel_ctl._set_pen_dashed(false))
 	row1.add_child(_pen_solid_btn)
 	_pen_dashed_btn = _mk_top_btn("虚线", false)
 	_pen_dashed_btn.add_theme_color_override("font_color", COL_GREY)
-	_pen_dashed_btn.pressed.connect(func(): _set_pen_dashed(true))
+	_pen_dashed_btn.pressed.connect(func(): _rel_ctl._set_pen_dashed(true))
 	row1.add_child(_pen_dashed_btn)
 
 	row1.add_child(_mk_sep())
@@ -362,7 +386,7 @@ func _create_top_bar() -> Control:
 		var b := _mk_top_btn(cl[i], i == 0)
 		b.add_theme_color_override("font_color", _gw_color(ck[i]))
 		var key: String = ck[i]
-		b.pressed.connect(func(): _set_pen_color(key))
+		b.pressed.connect(func(): _rel_ctl._set_pen_color(key))
 		_color_btns[key] = b
 		row1.add_child(b)
 
@@ -405,7 +429,7 @@ func _create_top_bar() -> Control:
 	_top_verify_btn = _mk_top_btn("✓ 提交验证", false)
 	_top_verify_btn.tooltip_text = "提交当前推理，正式判定（可推进剧情）"
 	_top_verify_btn.custom_minimum_size = Vector2(130, 44)
-	_top_verify_btn.pressed.connect(_on_verify_pressed)
+	_top_verify_btn.pressed.connect(_verify_ctl._on_verify_pressed)
 	row1.add_child(_top_verify_btn)
 
 	var help_btn := _mk_top_btn("❓ 求助", false)
@@ -486,10 +510,10 @@ func _create_top_bar() -> Control:
 
 	_connect_btn = _mk_top_btn("🔗 连线", false)
 	_connect_btn.tooltip_text = "开启后：依次点两个节点 = 建立连线；两节点已有连线时再点两次 = 取消该连线"
-	_connect_btn.pressed.connect(_on_top_connect_toggle)
+	_connect_btn.pressed.connect(_rel_ctl._on_top_connect_toggle)
 	row2.add_child(_connect_btn)
 
-	_sync_top_bar()
+	_rel_ctl._sync_top_bar()
 
 	return bar
 
@@ -657,7 +681,7 @@ func _create_left_panel() -> Control:
 	rec_row.custom_minimum_size = Vector2(200, 44)
 	inner.add_child(rec_row)
 	var rec_btn := _clue_ctl._make_action_btn("调查记录")
-	rec_btn.pressed.connect(_on_investigate_pressed)
+	rec_btn.pressed.connect(_hist_ctl._on_investigate_pressed)
 	rec_row.add_child(rec_btn)
 
 	return panel
@@ -776,12 +800,12 @@ func _create_center_panel() -> Control:
 	bottom_row.add_child(_status_lbl)
 
 	var verify_btn := _clue_ctl._make_action_btn("提交验证")
-	verify_btn.pressed.connect(_on_verify_pressed)
+	verify_btn.pressed.connect(_verify_ctl._on_verify_pressed)
 	bottom_row.add_child(verify_btn)
 
 	# 阶段3：线索对比台固定在中央区底部，预留 ~150px 高度
 	margin.offset_bottom = -162
-	var desk := _build_comparison_desk()
+	var desk := _cmp_ctl._build_comparison_desk()
 	desk.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	desk.offset_top = -150
 	desk.offset_bottom = -8
@@ -792,185 +816,6 @@ func _create_center_panel() -> Control:
 
 
 # === 阶段3：线索对比台 + 矛盾疑点册 ===
-func _build_comparison_desk() -> Control:
-	var desk := PanelContainer.new()
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.09, 0.11, 0.09, 0.98)
-	s.border_color = Color(0.55, 0.65, 0.45, 0.7)
-	s.border_width_left = 1; s.border_width_right = 1
-	s.border_width_top = 1; s.border_width_bottom = 1
-	s.set_corner_radius_all(6)
-	desk.add_theme_stylebox_override("panel", s)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
-	vb.add_theme_constant_override("margin_left", 10)
-	vb.add_theme_constant_override("margin_top", 6)
-	vb.add_theme_constant_override("margin_right", 10)
-	vb.add_theme_constant_override("margin_bottom", 6)
-	desk.add_child(vb)
-
-	var hdr := HBoxContainer.new()
-	var title := Label.new()
-	title.text = "线索对比台（放入两条线索比对，发现矛盾即入疑点册）"
-	title.add_theme_font_size_override("font_size", 15)
-	title.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hdr.add_child(title)
-	var collapse_btn := Button.new()
-	collapse_btn.text = "▾"
-	collapse_btn.add_theme_font_size_override("font_size", 14)
-	collapse_btn.pressed.connect(_on_desk_collapse)
-	hdr.add_child(collapse_btn)
-	vb.add_child(hdr)
-
-	_desk_body = VBoxContainer.new()
-	_desk_body.add_theme_constant_override("separation", 6)
-	vb.add_child(_desk_body)
-
-	var rowA := HBoxContainer.new()
-	_slot_a_lbl = Label.new()
-	_slot_a_lbl.text = "槽A：空"
-	_slot_a_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_slot_a_lbl.add_theme_font_size_override("font_size", 14)
-	_slot_a_lbl.add_theme_color_override("font_color", Color(0.80, 0.78, 0.65))
-	rowA.add_child(_slot_a_lbl)
-	_desk_body.add_child(rowA)
-
-	var rowB := HBoxContainer.new()
-	_slot_b_lbl = Label.new()
-	_slot_b_lbl.text = "槽B：空"
-	_slot_b_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_slot_b_lbl.add_theme_font_size_override("font_size", 14)
-	_slot_b_lbl.add_theme_color_override("font_color", Color(0.80, 0.78, 0.65))
-	rowB.add_child(_slot_b_lbl)
-	_desk_body.add_child(rowB)
-
-	var cmp_row := HBoxContainer.new()
-	var cmp_btn := Button.new()
-	cmp_btn.text = "比对"
-	cmp_btn.add_theme_font_size_override("font_size", 15)
-	cmp_btn.add_theme_color_override("font_color", COL_GOLD)
-	cmp_btn.pressed.connect(_on_compare_pressed)
-	cmp_row.add_child(cmp_btn)
-	var clr_btn := Button.new()
-	clr_btn.text = "清空"
-	clr_btn.add_theme_font_size_override("font_size", 13)
-	clr_btn.pressed.connect(func(): _compare_slots = []; _refresh_desk())
-	cmp_row.add_child(clr_btn)
-	_desk_body.add_child(cmp_row)
-
-	_result_lbl = Label.new()
-	_result_lbl.text = "（把两条线索放入对比台，点击「比对」）"
-	_result_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_result_lbl.add_theme_font_size_override("font_size", 14)
-	_result_lbl.add_theme_color_override("font_color", Color(0.7, 0.75, 0.6))
-	_desk_body.add_child(_result_lbl)
-
-	_notebook_vb = VBoxContainer.new()
-	_notebook_vb.add_theme_constant_override("separation", 3)
-	_desk_body.add_child(_notebook_vb)
-
-	return desk
-
-
-func _on_desk_collapse() -> void:
-	if not _desk_body: return
-	_desk_body.visible = not _desk_body.visible
-
-
-func _load_comparison(cid: String) -> void:
-	var clue: Dictionary = _clue_ctl._find_clue(cid)
-	if clue.is_empty(): return
-	if _compare_slots.size() < 2:
-		for i in range(_compare_slots.size()):
-			if _compare_slots[i].get("id", "") == cid:
-				_compare_slots.remove_at(i)
-				break
-		_compare_slots.append(clue)
-	else:
-		_compare_slots.remove_at(0)
-		_compare_slots.append(clue)
-	_refresh_desk()
-
-
-func _refresh_desk() -> void:
-	if not _slot_a_lbl or not _slot_b_lbl: return
-	var a: String = "空"
-	var b: String = "空"
-	if _compare_slots.size() >= 1: a = _compare_slots[0].get("name", _compare_slots[0].get("id", "?"))
-	if _compare_slots.size() >= 2: b = _compare_slots[1].get("name", _compare_slots[1].get("id", "?"))
-	_slot_a_lbl.text = "槽A：" + a
-	_slot_b_lbl.text = "槽B：" + b
-	if _notebook_vb:
-		for c in _notebook_vb.get_children(): c.queue_free()
-		if _doubt_book.is_empty():
-			var empty := Label.new()
-			empty.text = "（疑点册为空）"
-			empty.add_theme_font_size_override("font_size", 12)
-			empty.add_theme_color_override("font_color", Color(0.5, 0.48, 0.40))
-			_notebook_vb.add_child(empty)
-		else:
-			for d in _doubt_book:
-				var lab := Label.new()
-				lab.text = "• %s  （%s ↔ %s）" % [_contradiction_title(d.get("cid", "")), _clue_ctl._clue_name(d.get("a", "")), _clue_ctl._clue_name(d.get("b", ""))]
-				lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				lab.add_theme_font_size_override("font_size", 13)
-				lab.add_theme_color_override("font_color", Color(0.9, 0.7, 0.5))
-				_notebook_vb.add_child(lab)
-
-
-func _contradiction_title(cid: String) -> String:
-	for c in _battle.get("contradictions", []):
-		if c.get("id", "") == cid: return c.get("text", cid)
-	return cid
-
-
-func _detect_contradiction(a: Dictionary, b: Dictionary) -> Array:
-	var ta: Array = a.get("relation_tags", [])
-	var tb: Array = b.get("relation_tags", [])
-	var ca: Array = []
-	var cb: Array = []
-	for t in ta:
-		if t.begins_with("C"): ca.append(t)
-	for t in tb:
-		if t.begins_with("C"): cb.append(t)
-	var out := []
-	for t in ca:
-		if cb.has(t) and not out.has(t):
-			out.append(t)
-	return out
-
-
-func _on_compare_pressed() -> void:
-	if _compare_slots.size() < 2:
-		if _result_lbl: _result_lbl.text = "请先放入两条线索再比对"
-		return
-	var a: Dictionary = _compare_slots[0]
-	var b: Dictionary = _compare_slots[1]
-	var hits: Array = _detect_contradiction(a, b)
-	if hits.is_empty():
-		if _result_lbl: _result_lbl.text = "暂未发现冲突（无矛盾，无任何惩罚）"
-		return
-	var names := []
-	for cid in hits:
-		names.append(_contradiction_title(cid))
-	if _result_lbl: _result_lbl.text = "发现疑点：" + ", ".join(names)
-	for cid in hits:
-		_add_doubt(cid, a.get("id", ""), b.get("id", ""))
-		_battle_contra_states[cid] = true   # 直接标记（键可能原不存在，幂等）
-	_refresh_battlefield_status_only()
-	_refresh_desk()
-	_state_ctl._persist_state()
-
-
-func _add_doubt(cid: String, a: String, b: String) -> void:
-	for d in _doubt_book:
-		if d.get("cid", "") == cid:
-			return
-	_doubt_book.append({"cid": cid, "a": a, "b": b})
-
-
 func _create_right_panel() -> Control:
 	var panel := Control.new()
 
@@ -1027,359 +872,8 @@ func _create_right_panel() -> Control:
 # === 线索库 ===
 # === 阶段2：证据属性标签 + 可信度（由 attribute_tags 派生）===
 # === 假设树 ===
-func _refresh_hypothesis_tree() -> void:
-	if not _tree_root: return
-	for c in _tree_root.get_children(): c.queue_free()
-
-	var hypos: Array = _battle.get("hypotheses", [])
-	if hypos.is_empty():
-		var empty := Label.new()
-		empty.text = "（本推理链暂无结构化假设节点，请直接关联线索）"
-		empty.add_theme_font_size_override("font_size", 15)
-		empty.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
-		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		empty.custom_minimum_size = Vector2(200, 40)
-		_tree_root.add_child(empty)
-		return
-
-	for h in hypos:
-		var node := _make_hypothesis_node(h)
-		_tree_root.add_child(node)
-
-
-func _make_hypothesis_node(h: Dictionary) -> Control:
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(200, 90)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.10, 0.08, 0.95)
-	style.border_color = Color(0.45, 0.35, 0.15, 0.5)
-	style.border_width_left = 1; style.border_width_right = 1
-	style.border_width_top = 1; style.border_width_bottom = 1
-	style.set_corner_radius_all(6)
-	card.add_theme_stylebox_override("panel", style)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 12)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 12)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	card.add_child(margin)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
-	margin.add_child(vb)
-
-	var id: String = h.get("id", "?")
-	var text: String = h.get("text", "")
-	var correct: bool = h.get("correct", false)
-
-	var top_row := HBoxContainer.new()
-	top_row.add_theme_constant_override("separation", 8)
-	vb.add_child(top_row)
-
-	var lbl := Label.new()
-	lbl.text = id + "  " + text
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lbl.add_theme_font_size_override("font_size", 15)
-	lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.custom_minimum_size = Vector2(160, 24)
-	top_row.add_child(lbl)
-
-	# 状态标记
-	if _difficulty != Diff.HARD:
-		var tag := Label.new()
-		tag.text = "正确" if correct else "待定"
-		tag.add_theme_font_size_override("font_size", 12)
-		tag.add_theme_color_override("font_color", Color(0.4, 0.85, 0.4) if correct else Color(0.7, 0.7, 0.7))
-		tag.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_RIGHT
-		tag.custom_minimum_size = Vector2(48, 20)
-		top_row.add_child(tag)
-
-	# 子假设/证据行
-	var evi := _evidence_for_hypothesis(id)
-	var evi_lbl := Label.new()
-	evi_lbl.text = "证据：" + (", ".join(evi) if not evi.is_empty() else "（暂无）")
-	evi_lbl.add_theme_font_size_override("font_size", 13)
-	evi_lbl.add_theme_color_override("font_color", Color(0.55, 0.70, 0.55) if not evi.is_empty() else Color(0.50, 0.45, 0.38))
-	evi_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	evi_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	evi_lbl.custom_minimum_size = Vector2(160, 20)
-	vb.add_child(evi_lbl)
-	card.gui_input.connect(_on_node_gui.bind(id))
-	card.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
-	_hypo_nodes[id] = card
-	return card
-
-
-func _evidence_for_hypothesis(hid: String) -> Array:
-	var out := []
-	# 标签驱动（阶段1）：仅当线索「已关联」且其 relation_tags 含该假设节点 id 时，
-	# 才作为该节点的证据。替换原退化逻辑（relation_tags 为空则全量罗列），
-	# 实现「线索按标签自动匹配假设」——不同线索精确落到对应假设/矛盾节点。
-	for c in _clues:
-		if c.get("associated", false):
-			var tags: Array = c.get("relation_tags", [])
-			if tags.has(hid):
-				out.append(c.get("name", c.get("id", "")))
-	return out
-
-
 # === 关联面板 ===
-func _refresh_assoc_panel() -> void:
-	if not _assoc_list: return
-	for c in _assoc_list.get_children(): c.queue_free()
-	var assoc: Array = []
-	for c in _clues:
-		if c.get("associated", false): assoc.append(c)
-	if assoc.is_empty():
-		var ph := Label.new()
-		ph.text = "（暂无关联线索）"
-		ph.add_theme_font_size_override("font_size", 14)
-		ph.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
-		ph.custom_minimum_size = Vector2(160, 40)
-		_assoc_list.add_child(ph)
-		return
-	for c in assoc:
-		var b := Button.new()
-		b.text = c.get("name", c.get("id", ""))
-		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # 长线索名在格子内换行，宽度跟随列宽，不撑破中心面板
-		b.custom_minimum_size = Vector2(120, 44)
-		b.size_flags_horizontal = Control.SIZE_FILL
-		b.size_flags_vertical = Control.SIZE_FILL
-		b.add_theme_font_size_override("font_size", 13)
-		b.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-		var s := StyleBoxFlat.new()
-		s.bg_color = Color(0.08, 0.30, 0.08, 0.95)
-		s.border_color = Color(0.2, 0.8, 0.2)
-		s.border_width_left = 1; s.border_width_right = 1
-		s.border_width_top = 1; s.border_width_bottom = 1
-		s.set_corner_radius_all(4)
-		b.add_theme_stylebox_override("normal", s)
-		b.pressed.connect(_clue_ctl._show_clue_detail.bind(c))
-		_assoc_list.add_child(b)
-
-
 # === 推理战场 ===
-func _refresh_battlefield() -> void:
-	if not _battlefield_box: return
-	for c in _battlefield_box.get_children(): c.queue_free()
-	_battle_hypo_btns.clear()
-	_battle_contra_btns.clear()
-
-	var hypos: Array = _battle.get("hypotheses", [])
-	var contras: Array = _battle.get("contradictions", [])
-
-	if hypos.is_empty() and contras.is_empty():
-		var empty := Label.new()
-		empty.text = "（本推理链未配置推理战场）"
-		empty.add_theme_font_size_override("font_size", 14)
-		empty.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
-		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		empty.custom_minimum_size = Vector2(160, 40)
-		_battlefield_box.add_child(empty)
-		return
-
-	if not hypos.is_empty():
-		var hl := Label.new()
-		hl.text = "活跃假设（点击标记：未定→采纳→排除）"
-		hl.add_theme_font_size_override("font_size", 14)
-		hl.add_theme_color_override("font_color", Color(0.70, 0.85, 0.95))
-		hl.custom_minimum_size = Vector2(160, 22)
-		_battlefield_box.add_child(hl)
-		for h in hypos:
-			_battlefield_box.add_child(_make_battle_hypo_card(h))
-
-	if not contras.is_empty():
-		var cl := Label.new()
-		cl.text = "矛盾标记（点击标记是否已识别）"
-		cl.add_theme_font_size_override("font_size", 14)
-		cl.add_theme_color_override("font_color", Color(0.95, 0.80, 0.70))
-		cl.custom_minimum_size = Vector2(160, 22)
-		_battlefield_box.add_child(cl)
-		for c in contras:
-			_battlefield_box.add_child(_make_battle_contra_card(c))
-
-	var status := Label.new()
-	status.text = _battle_status_text()
-	status.add_theme_font_size_override("font_size", 14)
-	status.add_theme_color_override("font_color", COL_GREEN)
-	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	status.custom_minimum_size = Vector2(160, 40)
-	_battlefield_box.add_child(status)
-
-
-func _make_battle_hypo_card(h: Dictionary) -> Control:
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(180, 96)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.10, 0.08, 0.95)
-	style.border_color = Color(0.45, 0.35, 0.15, 0.5)
-	style.border_width_left = 1; style.border_width_right = 1
-	style.border_width_top = 1; style.border_width_bottom = 1
-	style.set_corner_radius_all(6)
-	card.add_theme_stylebox_override("panel", style)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	card.add_child(margin)
-
-	# 纵向布局：上方为假设文字，下方为整行铺满卡片宽度的状态按钮（点击区=整个按钮区域）
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
-	margin.add_child(vb)
-
-	var id: String = h.get("id", "?")
-	var text: String = h.get("text", "")
-	var lbl := Label.new()
-	lbl.text = id + "  " + text
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.custom_minimum_size = Vector2(0, 32)
-	vb.add_child(lbl)
-
-	var btn := Button.new()
-	var hst: int = _battle_hypo_states.get(id, 0)
-	btn.text = ["未定", "采纳✓", "排除✗"][hst]
-	btn.add_theme_font_size_override("font_size", 15)
-	btn.custom_minimum_size = Vector2(93, 40)
-	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	btn.pressed.connect(_on_battle_hypo_pressed.bind(id))
-	_style_battle_btn(btn, hst)
-	vb.add_child(btn)
-	_battle_hypo_btns[id] = btn
-
-	return card
-
-
-func _make_battle_contra_card(c: Dictionary) -> Control:
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(180, 84)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.10, 0.08, 0.95)
-	style.border_color = Color(0.45, 0.35, 0.15, 0.5)
-	style.border_width_left = 1; style.border_width_right = 1
-	style.border_width_top = 1; style.border_width_bottom = 1
-	style.set_corner_radius_all(6)
-	card.add_theme_stylebox_override("panel", style)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	card.add_child(margin)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
-	margin.add_child(vb)
-
-	var id: String = c.get("id", "?")
-	var text: String = c.get("text", "")
-	var lbl := Label.new()
-	lbl.text = id + "  " + text
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.custom_minimum_size = Vector2(0, 32)
-	vb.add_child(lbl)
-
-	var btn := Button.new()
-	var cst: bool = _battle_contra_states.get(id, false)
-	btn.text = "已识别" if cst else "未识别"
-	btn.add_theme_font_size_override("font_size", 15)
-	btn.custom_minimum_size = Vector2(93, 40)
-	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	btn.pressed.connect(_on_battle_contra_pressed.bind(id))
-	_style_battle_btn(btn, 1 if cst else 0)
-	vb.add_child(btn)
-	_battle_contra_btns[id] = btn
-
-	return card
-
-
-func _on_battle_hypo_pressed(id: String) -> void:
-	var st: int = _battle_hypo_states.get(id, 0)
-	st = (st + 1) % 3
-	_battle_hypo_states[id] = st
-	var btn = _battle_hypo_btns.get(id)
-	if btn:
-		btn.text = ["未定", "采纳✓", "排除✗"][st]
-		_style_battle_btn(btn, st)
-	_refresh_battlefield_status_only()
-	_state_ctl._persist_state()
-
-
-func _on_battle_contra_pressed(id: String) -> void:
-	var st: bool = not _battle_contra_states.get(id, false)
-	_battle_contra_states[id] = st
-	var btn = _battle_contra_btns.get(id)
-	if btn:
-		btn.text = "已识别" if st else "未识别"
-		_style_battle_btn(btn, 1 if st else 0)
-	_refresh_battlefield_status_only()
-	_state_ctl._persist_state()
-
-
-func _style_battle_btn(btn: Button, st: int) -> void:
-	var sn := StyleBoxFlat.new()
-	match st:
-		1:
-			sn.bg_color = Color(0.08, 0.28, 0.08, 0.95)
-			sn.border_color = Color(0.2, 0.8, 0.2)
-		2:
-			sn.bg_color = Color(0.32, 0.08, 0.08, 0.95)
-			sn.border_color = Color(0.85, 0.35, 0.25)
-		_:
-			sn.bg_color = Color(0.18, 0.14, 0.09, 0.95)
-			sn.border_color = Color(0.55, 0.42, 0.20)
-	sn.border_width_left = 1; sn.border_width_right = 1
-	sn.border_width_top = 1; sn.border_width_bottom = 1
-	sn.set_corner_radius_all(4)
-	btn.add_theme_stylebox_override("normal", sn)
-
-
-func _battle_status_text() -> String:
-	var hypos: Array = _battle.get("hypotheses", [])
-	var contras: Array = _battle.get("contradictions", [])
-	var h_ok := 0; var h_tot := hypos.size()
-	for h in hypos:
-		var id: String = h.get("id", "")
-		var st: int = _battle_hypo_states.get(id, 0)
-		var correct: bool = h.get("correct", false)
-		if (st == 1 and correct) or (st == 2 and not correct):
-			h_ok += 1
-	var c_ok := 0; var c_tot := contras.size()
-	for c in contras:
-		var cid: String = c.get("id", "")
-		if _battle_contra_states.get(cid, false):
-			c_ok += 1
-	return "推理战场：假设命中 %d/%d · 矛盾识别 %d/%d" % [h_ok, h_tot, c_ok, c_tot]
-
-
-func _refresh_battlefield_status_only() -> void:
-	if not _battlefield_box: return
-	for c in _battlefield_box.get_children():
-		if c is Label and c.text.begins_with("推理战场："):
-			c.text = _battle_status_text()
-			return
-
-
 # === 线索详情弹窗 ===
 # === 关联逻辑 ===
 # === 自由连线：各线索/假设之间拖拽相互关系 ===
@@ -1388,71 +882,6 @@ func _refresh_battlefield_status_only() -> void:
 
 ## 建立一条关系。kind="auto" 时（线索↔线索）自动跑矛盾检测：有矛盾→"contradict"，否则→"relate"。
 ## 返回 false 表示无效或重复（不建立）。
-func connect_nodes(from_id: String, to_id: String, kind: String, color_key: String = "", dashed: bool = false) -> bool:
-	if from_id == "" or to_id == "" or from_id == to_id: return false
-	for r in _relations:
-		if r.from == from_id and r.to == to_id and r.kind == kind: return false
-	var resolved := kind
-	if kind == "auto":
-		var a := _clue_ctl._find_clue(from_id); var b := _clue_ctl._find_clue(to_id)
-		if not a.is_empty() and not b.is_empty() and not _detect_contradiction(a, b).is_empty():
-			resolved = "contradict"
-		else:
-			resolved = "relate"
-	var ck := color_key if color_key != "" else _kind_to_key(resolved)
-	_relations.append({"from": from_id, "to": to_id, "kind": resolved, "color_key": ck, "dashed": dashed})
-	_refresh_relations()
-	_state_ctl._persist_state()
-	return true
-
-
-func remove_relation(from_id: String, to_id: String) -> void:
-	var kept := []
-	for r in _relations:
-		if not (r.from == from_id and r.to == to_id):
-			kept.append(r)
-	_relations = kept
-	_refresh_relations()
-	_state_ctl._persist_state()
-
-
-func clear_relations() -> void:
-	_relations = []
-	_refresh_relations()
-	_state_ctl._persist_state()
-
-
-func get_relations() -> Array:
-	return _relations.duplicate()
-
-
-func set_connect_mode(on: bool) -> void:
-	_connect_mode = on
-
-
-func _on_connect_toggled() -> void:
-	_connect_mode = not _connect_mode
-	mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
-	if _connect_btn and is_instance_valid(_connect_btn):
-		_connect_btn.text = "🔗 连线：" + ("开" if _connect_mode else "关")
-		if _connect_mode:
-			_connect_btn.add_theme_color_override("font_color", COL_GREEN)
-		else:
-			_connect_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	for n in _card_btns.values():
-		if is_instance_valid(n): n.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
-	for n in _hypo_nodes.values():
-		if is_instance_valid(n): n.mouse_default_cursor_shape = Control.CURSOR_CROSS if _connect_mode else Control.CURSOR_ARROW
-	if _status_lbl:
-		_status_lbl.text = "连线模式：" + ("开（在节点上按住左键拖到另一节点建立关系；Shift=反对，否则支持）" if _connect_mode else "关（点击线索查看详情；点「🔗连线」可拖拽建立关系）")
-
-
-func _on_clear_relations() -> void:
-	clear_relations()
-	if _status_lbl:
-		_status_lbl.text = "已清除全部关系（%d 条）" % _relations.size()
-
-
 # ===================== 图谱视图（GraphViewController 叠加层） =====================
 ## doc 09/10：在列表式推理墙之上叠加一个图视图（模式 C 星型 + 模式 B 链聚焦），
 ## 读取同一份数据（_clues/_hypothesis/_relations/_state_store），通过回调回写，数据层零改动。
@@ -1479,110 +908,19 @@ func _on_open_graph_view() -> void:
 		"state_store": _state_store,
 		"auto_fold": _auto_fold,
 		"case_wide": _case_wide,
-		"on_tag": Callable(self, "_gv_tag_person"),
+		"on_tag": Callable(_rel_ctl, "_gv_tag_person"),
 		"on_relations_changed": Callable(self, "_gv_relations_changed"),
-		"on_pen_changed": Callable(self, "_gv_pen_changed"),
-		"on_verify": Callable(self, "_on_verify_pressed"),
+		"on_pen_changed": Callable(_rel_ctl, "_gv_pen_changed"),
+		"on_verify": Callable(_verify_ctl, "_on_verify_pressed"),
 		"on_close": Callable(self, "_on_back_pressed")
 	})
 	_graph_view = gv
 	_clue_ctl._refresh_clue_list()   # 任务7：图谱构建后立即按画布可见线索去重左栏（打开墙即保证唯一）
-	_sync_top_bar()
-	_sync_connect_btn()
-
-
-func _gv_tag_person(clue_id: String, person_id: String) -> void:
-	var clue: Dictionary = _clue_ctl._find_clue(clue_id)
-	if clue.is_empty(): return
-	var rns: Array = clue.get("related_npcs", [])
-	if not rns.has(person_id):
-		rns.append(person_id)
-		clue["related_npcs"] = rns
-	_state_ctl._persist_state()
-	_update_all()
-
-
-func _gv_add_edge(from_id: String, to_id: String, kind: String, color_key: String = "", dashed: bool = false) -> void:
-	connect_nodes(from_id, to_id, kind, color_key, dashed)
-	_update_all()
-
-
-func _gv_remove_relation(from_id: String, to_id: String) -> void:
-	remove_relation(from_id, to_id)
-	_update_all()
+	_rel_ctl._sync_top_bar()
+	_rel_ctl._sync_connect_btn()
 
 
 # === 统一顶栏：线型/颜色/视图/焦点 选择器驱动图谱 ===
-func _set_pen_dashed(d: bool) -> void:
-	print("[topbar] _set_pen_dashed(%s) gv=%s _pen_color_key=%s" % [
-		d, "YES" if (_graph_view and is_instance_valid(_graph_view)) else "NULL",
-		_graph_view._pen_color_key if (_graph_view and is_instance_valid(_graph_view)) else "?"
-	])
-	if _graph_view and is_instance_valid(_graph_view):
-		_graph_view.set_pen(_graph_view._pen_color_key, d)
-		_graph_view._toast_msg("线型：%s" % ("虚线" if d else "实线"))
-	_sync_pen_buttons()
-
-
-func _set_pen_color(key: String) -> void:
-	var names := {"green": "支持", "orange": "矛盾存疑", "red": "反对", "grey": "弱关联"}
-	print("[topbar] _set_pen_color(%s) gv=%s" % [key, "YES" if (_graph_view and is_instance_valid(_graph_view)) else "NULL"])
-	if _graph_view and is_instance_valid(_graph_view):
-		_graph_view.set_pen(key, _graph_view._pen_dashed)
-		_graph_view._toast_msg("性质：%s" % names.get(key, key))
-	_sync_pen_buttons()
-
-
-func _sync_pen_buttons() -> void:
-	if not _graph_view or not is_instance_valid(_graph_view): return
-	_pen_solid_btn.button_pressed = not _graph_view._pen_dashed
-	_pen_dashed_btn.button_pressed = _graph_view._pen_dashed
-	_pen_solid_btn.add_theme_color_override("font_color", COL_GOLD if not _graph_view._pen_dashed else COL_GOLD_LIGHT)
-	_pen_dashed_btn.add_theme_color_override("font_color", COL_GOLD if _graph_view._pen_dashed else COL_GOLD_LIGHT)
-	for k in _color_btns.keys():
-		var active2: bool = (k == _graph_view._pen_color_key)
-		_color_btns[k].button_pressed = active2
-		_color_btns[k].add_theme_color_override("font_color", _gw_color(_COLOR_LABELS.get(k, "支持")) if active2 else COL_GREY)
-
-
-func _gv_pen_changed(color_key: String, dashed: bool) -> void:
-	_sync_pen_buttons()
-
-
-func _on_top_connect_toggle() -> void:
-	print("[topbar] _on_top_connect_toggle pressed=%s gv=%s" % [
-		_connect_btn.button_pressed if _connect_btn else "NULL_BTN",
-		"YES" if (_graph_view and is_instance_valid(_graph_view)) else "NULL"
-	])
-	if not _graph_view or not is_instance_valid(_graph_view):
-		_connect_btn.button_pressed = false
-		return
-	var want: bool = _connect_btn.button_pressed
-	# 已结案（verdict 已出）→ 禁止进入连线模式
-	if want and _graph_view._state != 0:   # State.EDITABLE
-		_connect_btn.button_pressed = false
-		if _status_lbl:
-			_status_lbl.text = "已结案，推理墙只读（不能新增连线）"
-		return
-	_graph_view.set_connect_mode(want)
-	_connect_btn.text = "🔗 连线：" + ("开" if want else "关")
-	_connect_btn.add_theme_color_override("font_color", COL_GREEN if want else COL_GOLD_LIGHT)
-	if want:
-		if _status_lbl:
-			_status_lbl.text = "连线模式：依次点两个节点建边（线型+性质决定连线颜色/虚实）；点「🔗 连线：关」退出"
-	else:
-		if _status_lbl:
-			_status_lbl.text = "连线模式已关：可拖动线索到推断上直接建立关系"
-
-
-func _sync_connect_btn() -> void:
-	if not _connect_btn or not _graph_view or not is_instance_valid(_graph_view): return
-	var on: bool = _graph_view.get_connect_mode()
-	_connect_btn.button_pressed = on
-	_connect_btn.text = "🔗 连线：" + ("开" if on else "关")
-	_connect_btn.add_theme_color_override("font_color", COL_GREEN if on else COL_GOLD_LIGHT)
-
-
 func _on_top_mode(m: int) -> void:
 	if _graph_view and is_instance_valid(_graph_view):
 		_graph_view.set_mode(m)
@@ -1685,619 +1023,33 @@ func _on_export_pressed() -> void:
 func _gv_relations_changed(rels: Array) -> void:
 	_relations = rels
 	_state_ctl._persist_state()
-	_update_verdict_label()
+	_verify_ctl._update_verdict_label()
 	_clue_ctl._refresh_clue_list()
-
-
-func _kind_to_key(kind: String) -> String:
-	match kind:
-		"support", "imply": return "green"
-		"contradict": return "orange"
-		"oppose": return "red"
-		_: return "grey"
-
-
-func _sync_top_bar() -> void:
-	if not _graph_view or not is_instance_valid(_graph_view): return
-	_sync_pen_buttons()
-	_mode_c_btn.button_pressed = (_graph_view._mode == 0)
-	_mode_b_btn.button_pressed = (_graph_view._mode == 1)
-	_top_focus_sel.clear()
-	var persons := _state_ctl._derive_persons()
-	for p in persons:
-		_top_focus_sel.add_item(p.get("name", p.get("id", "?")))
-		_top_focus_sel.set_item_metadata(_top_focus_sel.get_item_count() - 1, p.get("id", ""))
-	for i in _top_focus_sel.get_item_count():
-		if _top_focus_sel.get_item_metadata(i) == _graph_view._focus_person:
-			_top_focus_sel.select(i)
-	if _top_verify_btn:
-		_top_verify_btn.disabled = _verified
 
 
 ## 节点 gui_input：连线模式下，左键按下即开始拖拽建立关系（Shift=反对，否则=支持）
-func _on_node_gui(event: InputEvent, id: String) -> void:
-	if not _connect_mode: return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		_start_link(id, event.shift_pressed)
-		get_viewport().set_input_as_handled()
-
-
 ## 左栏「已收集线索」卡拖入图谱：把线索拖到图谱画布区（左栏之外）即放入图谱为节点。
 ## 仅在推理墙打开图谱时生效；不构成拖拽的普通点击仍归卡片自身处理。
-func _on_clue_drag(event: InputEvent, cid: String) -> void:
-	if not _graph_view or not is_instance_valid(_graph_view):
-		return
-	if _state_store.get("graph_placed_clues", []).has(cid):
-		return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			if _drag_src == "":
-				_drag_src = cid
-				_drag_origin = get_viewport().get_mouse_position()
-		else:
-			var was: String = _drag_src
-			_drag_src = ""
-			_clear_drag_ghost()
-			if was == cid and _drag_origin != Vector2(-1, -1):
-				_finish_clue_drag(cid)
-	elif event is InputEventMouseMotion and _drag_src == cid and _drag_origin != Vector2(-1, -1):
-		var mp := get_viewport().get_mouse_position()
-		if mp.distance_to(_drag_origin) > 12:
-			_ensure_drag_ghost(cid)
-			if _drag_ghost and is_instance_valid(_drag_ghost):
-				_drag_ghost.global_position = mp - _drag_ghost.size * 0.5
-
-
-func _ensure_drag_ghost(cid: String) -> void:
-	if _drag_ghost and is_instance_valid(_drag_ghost):
-		return
-	var label := Label.new()
-	var clue := _clue_ctl._find_clue(cid)
-	label.text = clue.get("name", cid)
-	label.add_theme_font_size_override("font_size", 16)
-	label.modulate = Color(1, 1, 1, 0.9)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.2, 0.3, 0.2, 0.9)
-	sb.border_color = Color(0.4, 0.9, 0.4)
-	sb.border_width_left = 2; sb.border_width_right = 2
-	sb.border_width_top = 2; sb.border_width_bottom = 2
-	sb.set_corner_radius_all(6)
-	label.add_theme_stylebox_override("normal", sb)
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.z_index = 30
-	add_child(label)
-	_drag_ghost = label
-
-
-func _clear_drag_ghost() -> void:
-	if _drag_ghost and is_instance_valid(_drag_ghost):
-		_drag_ghost.queue_free()
-	_drag_ghost = null
-
-
-func _finish_clue_drag(cid: String) -> void:
-	var gp := get_viewport().get_mouse_position()
-	# 只有放到图谱画布上（左栏矩形之外）才算「拖入图谱」；丢回左栏内则取消。
-	var inside_panel := _left_panel and is_instance_valid(_left_panel) and _left_panel.get_global_rect().has_point(gp)
-	if not inside_panel and _graph_view and is_instance_valid(_graph_view):
-		# 落点若命中图上一个节点，place_clue 会在放置线索同时自动建绿实线支持关系
-		_graph_view.place_clue(cid, gp)
-		_state_ctl._persist_state()
-		_clue_ctl._refresh_clue_list()
-	else:
-		_ui_show_toast("把线索拖到右侧图谱画布上即可放入图谱")
-
-
-func _start_link(id: String, shift: bool) -> void:
-	_dragging_link = true
-	_link_src = id
-	_link_kind = "oppose" if shift else "support"
-	_link_preview = get_viewport().get_mouse_position()
-	if _rel_layer: _rel_layer.queue_redraw()
-
-
 ## 松开时命中测试：返回光标下、且非源节点的线索/假设节点 id
-func _link_target_at(gp: Vector2) -> String:
-	for cid in _card_btns.keys():
-		var n: Control = _card_btns[cid]
-		if is_instance_valid(n) and n.get_global_rect().has_point(gp): return cid
-	for hid in _hypo_nodes.keys():
-		var n: Control = _hypo_nodes[hid]
-		if is_instance_valid(n) and n.get_global_rect().has_point(gp): return hid
-	return ""
-
-
-func _commit_link(src: String, dst: String) -> void:
-	var src_clue := _card_btns.has(src)
-	var dst_clue := _card_btns.has(dst)
-	var kind := "relate"
-	if src_clue and dst_clue:
-		kind = "auto"          # 线索↔线索：自动矛盾检测
-	elif src_clue != dst_clue:
-		kind = _link_kind      # 线索↔假设：支持/反对
-	connect_nodes(src, dst, kind)
-
-
-func _refresh_relations() -> void:
-	if _rel_layer: _rel_layer.queue_redraw()
-
-
-func _node_center(id: String) -> Vector2:
-	var node: Control = null
-	if _card_btns.has(id): node = _card_btns[id]
-	elif _hypo_nodes.has(id): node = _hypo_nodes[id]
-	if node == null or not is_instance_valid(node): return Vector2.ZERO
-	return _rel_layer.get_global_transform().affine_inverse() * (node.global_position + node.size * 0.5)
-
-
-func _rel_color(kind: String) -> Color:
-	var key := _kind_to_key(kind)
-	match key:
-		"green": return Color(0.4, 0.85, 0.4)
-		"orange": return Color(0.95, 0.55, 0.25)
-		"red": return Color(0.95, 0.3, 0.3)
-		_: return Color(0.55, 0.50, 0.42)
-
-
-func _draw_dashed_line(canvas: Control, a: Vector2, b: Vector2, col: Color) -> void:
-	var dist := a.distance_to(b)
-	var dash := 12.0; var gap := 8.0
-	var seg := dash + gap
-	if seg <= 0: return
-	var steps := int(dist / seg)
-	var dir := (b - a).normalized()
-	var pos := a
-	for i in steps:
-		var p2 := pos + dir * dash
-		if p2.distance_to(a) > dist: p2 = b
-		canvas.draw_line(pos, p2, col, 2)
-		pos = p2 + dir * gap
-	if pos.distance_to(b) > 1.0:
-		canvas.draw_line(pos, b, col, 2)
-
-
-func _on_rel_layer_draw() -> void:
-	if _relations.is_empty() and not _dragging_link:
-		return
-	for r in _relations:
-		var a := _node_center(r.from); var b := _node_center(r.to)
-		if a == Vector2.ZERO or b == Vector2.ZERO: continue
-		var col := _rel_color(r.get("color_key", _kind_to_key(r.kind)))
-		if r.get("dashed", false):
-			_draw_dashed_line(_rel_layer, a, b, col)
-		else:
-			_rel_layer.draw_line(a, b, col, 3)
-	if _dragging_link and _link_src != "":
-		var a := _node_center(_link_src)
-		if a != Vector2.ZERO:
-			_rel_layer.draw_line(a, _rel_layer.get_global_transform().affine_inverse() * _link_preview, _rel_color(_link_kind), 2)
-
-
 func _update_all() -> void:
 	_clue_ctl._refresh_clue_list()
-	_refresh_hypothesis_tree()
-	_refresh_assoc_panel()
-	_refresh_desk()
-	_refresh_battlefield()
-	_update_verdict_label()
+	_hypo_ctl._refresh_hypothesis_tree()
+	_hypo_ctl._refresh_assoc_panel()
+	_cmp_ctl._refresh_desk()
+	_bf_ctl._refresh_battlefield()
+	_verify_ctl._update_verdict_label()
 	_state_ctl._update_milestone_ui()
 	_state_ctl._update_star_rating()
-	_refresh_relations()
-
-
-func _update_verdict_label() -> void:
-	if not _verdict_lbl: return
-	var v := get_verdict()
-	var txt: String = ["矛盾冲突", "证据不足", "倾向成立", "已获证实"][v]
-	var col: Color = [COL_RED, COL_YELLOW, Color(0.4, 0.85, 0.4), COL_GREEN][v]
-	_verdict_lbl.text = "当前判定：" + txt
-	_verdict_lbl.add_theme_color_override("font_color", col)
+	_rel_ctl._refresh_relations()
 
 
 # === 验证 ===
-func _on_verify_pressed() -> void:
-	if _verifying: return
-	if _verified: return   # 已提交过验证的墙不允许重复提交（顶栏/图谱入口共用）
-	_verifying = true
-	var v := get_verdict()
-	_last_report = _compute_report(v)
-
-	# 半透明遮罩，吸收窗口外的点击，并压暗底层推理墙
-	var backdrop := ColorRect.new()
-	backdrop.color = Color(0, 0, 0, 0.7)
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
-	backdrop.z_index = 19
-	backdrop.name = "VerifyBackdrop"
-	add_child(backdrop)
-
-	# 居中结果窗口（手动计算 position 确保真正居中；PRESET_CENTER 在 add_child 前因 size=0 失效）
-	var win := PanelContainer.new()
-	win.custom_minimum_size = Vector2(720, 440)
-	win.size = Vector2(720, 440)
-	win.z_index = 20
-	win.name = "VerifyResult"
-	add_child(win)
-	win.position = (get_viewport_rect().size - win.size) / 2
-
-	var pstyle := StyleBoxFlat.new()
-	pstyle.bg_color = Color(0.10, 0.08, 0.06, 0.98)
-	pstyle.border_color = [COL_RED, COL_YELLOW, Color(0.4, 0.85, 0.4), COL_GREEN][v] as Color
-	pstyle.border_width_left = 3; pstyle.border_width_right = 3
-	pstyle.border_width_top = 3; pstyle.border_width_bottom = 3
-	pstyle.set_corner_radius_all(10)
-	win.add_theme_stylebox_override("panel", pstyle)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 28)
-	margin.add_theme_constant_override("margin_top", 24)
-	margin.add_theme_constant_override("margin_right", 28)
-	margin.add_theme_constant_override("margin_bottom", 24)
-	win.add_child(margin)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 16)
-	margin.add_child(vb)
-
-	# 标题栏（拖拽手柄）
-	var title_bar := HBoxContainer.new()
-	title_bar.custom_minimum_size = Vector2(0, 42)
-	title_bar.mouse_filter = Control.MOUSE_FILTER_STOP
-	title_bar.add_theme_constant_override("separation", 10)
-	var tstyle := StyleBoxFlat.new()
-	tstyle.bg_color = Color(0.18, 0.14, 0.08, 1.0)
-	tstyle.set_corner_radius_all(6)
-	title_bar.add_theme_stylebox_override("panel", tstyle)
-	title_bar.gui_input.connect(_on_verify_title_gui)
-	vb.add_child(title_bar)
-
-	var title_cap := Label.new()
-	title_cap.text = "🔍 验证结果"
-	title_cap.add_theme_font_size_override("font_size", 20)
-	title_cap.add_theme_color_override("font_color", COL_GOLD)
-	title_cap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_bar.add_child(title_cap)
-
-	var vclose := Button.new()
-	vclose.text = "✕"
-	vclose.add_theme_font_size_override("font_size", 18)
-	vclose.add_theme_color_override("font_color", Color(0.85, 0.55, 0.55))
-	vclose.custom_minimum_size = Vector2(40, 32)
-	var vcstyle := StyleBoxFlat.new()
-	vcstyle.bg_color = Color(0.30, 0.18, 0.18, 0.95)
-	vcstyle.border_color = Color(0.7, 0.4, 0.4)
-	vcstyle.set_corner_radius_all(4)
-	vclose.add_theme_stylebox_override("normal", vcstyle)
-	vclose.pressed.connect(_close_verify_win)
-	title_bar.add_child(vclose)
-
-	var title := Label.new()
-	title.text = ["矛盾冲突", "证据不足", "倾向成立", "已获证实"][v] as String
-	title.add_theme_font_size_override("font_size", 38)
-	title.add_theme_color_override("font_color", [COL_RED, COL_YELLOW, Color(0.4, 0.85, 0.4), COL_GREEN][v] as Color)
-	title.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vb.add_child(title)
-
-	var rep := Label.new()
-	rep.text = _last_report
-	rep.add_theme_font_size_override("font_size", 18)
-	rep.add_theme_color_override("font_color", Color(0.85, 0.95, 0.85))
-	rep.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	rep.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
-	rep.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rep.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vb.add_child(rep)
-
-	if v == Verdict.VERIFIED:
-		for m in _milestones: m["lit"] = true
-		_milestone_confirmed = _milestone_total
-		_state_ctl._update_milestone_ui()
-
-	var ok := Button.new()
-	ok.text = "确定"
-	ok.add_theme_font_size_override("font_size", 18)
-	ok.add_theme_color_override("font_color", COL_GOLD)
-	ok.custom_minimum_size = Vector2(160, 46)
-	ok.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var ks := StyleBoxFlat.new()
-	ks.bg_color = Color(0.50, 0.10, 0.10, 0.95)
-	ks.border_color = Color(0.85, 0.65, 0.25)
-	ks.border_width_left = 2; ks.border_width_right = 2
-	ks.border_width_top = 2; ks.border_width_bottom = 2
-	ks.set_corner_radius_all(4)
-	ok.add_theme_stylebox_override("normal", ks)
-	ok.pressed.connect(_on_verify_confirm.bind(v))
-	vb.add_child(ok)
-
-	_verify_win = win
-	_verify_v = v
-
-
-func _on_verify_confirm(v: int) -> void:
-	_verify_win = null
-	_verified = true
-	_verified_verdict = v
-	_state_ctl._persist_state()
-	# 立即隐藏并销毁墙，解除全屏 MOUSE_FILTER_STOP 拦截，确保过渡对话可点击/渲染；
-	# 不再依赖「等一帧」的 await（Web 运行时偶发不可靠导致卡死）。
-	visible = false
-	queue_free()
-	if _on_verify.is_valid(): _on_verify.call(v)
-
-
 # 仅关闭验证结果窗口（不确认验证、不关闭推理墙），保留推理墙继续操作
-func _close_verify_win() -> void:
-	_verify_drag = false
-	_verifying = false
-	if _verify_win and is_instance_valid(_verify_win):
-		_verify_win.queue_free()
-		_verify_win = null
-
-
 # 验证结果窗口标题栏拖拽
-func _on_verify_title_gui(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		_verify_drag = true
-		if _verify_win and is_instance_valid(_verify_win):
-			_verify_drag_offset = get_viewport().get_mouse_position() - _verify_win.global_position
-
-
-func _compute_report(v: int) -> String:
-	var levels := {0: "矛盾冲突", 1: "证据不足", 2: "倾向成立", 3: "已获证实"}
-	var hypo_name: String = _hypothesis.get("title", "")
-	var support := _state_ctl._support_signals()
-	var contra := _state_ctl._contradiction_signals()
-	if _difficulty == Diff.HARD:
-		return "假设：%s\n验证等级：%s" % [hypo_name, levels.get(v, "?")]
-	var report := "假设：%s\n验证等级：%s\n" % [hypo_name, levels.get(v, "?")]
-	match v:
-		Verdict.VERIFIED:
-			report += "支持依据：%d 条正确证据，证据链完整闭合\n行动建议：提交结论，推进结案" % support
-		Verdict.SUPPORTED:
-			report += "支持依据：%d 条证据倾向支持\n存疑点：%d 条矛盾/误导项待排除\n行动建议：深挖剩余疑点，寻找决定性证据完成闭环" % [support, contra]
-		Verdict.INSUFFICIENT:
-			report += "存疑点：证据不足（仅关联 %d 条）\n行动建议：补充更多相关证据，或转向其他假设调查" % _associated
-		Verdict.CONTRADICTORY:
-			report += "存疑点：存在 %d 条矛盾证据（含关系矛盾）\n行动建议：推翻该假设，或寻找证据解释矛盾" % contra
-	return report
-
-
 # === 里程碑 ===
 # === 三星评价 ===
 # === 返回调查 + 历史信息面板 ===
-func _on_investigate_pressed() -> void:
-	if _verifying: return
-	_show_history_panel()
-
-
-func _show_history_panel() -> void:
-	if _history_panel and is_instance_valid(_history_panel):
-		_history_panel.queue_free()
-		_history_panel = null
-		return
-
-	_history_panel = Control.new()
-	_history_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_history_panel.z_index = 10
-	_history_panel.name = "HistoryPanel"
-	add_child(_history_panel)
-
-	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.55)
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	_history_panel.add_child(overlay)
-
-	# 可自由拖动的窗口本体
-	var win := PanelContainer.new()
-	win.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	win.custom_minimum_size = Vector2(720, 560)
-	win.size = Vector2(720, 560)
-	var wstyle := StyleBoxFlat.new()
-	wstyle.bg_color = Color(0.10, 0.08, 0.06, 0.98)
-	wstyle.border_color = Color(0.65, 0.55, 0.30)
-	wstyle.border_width_left = 2; wstyle.border_width_right = 2
-	wstyle.border_width_top = 2; wstyle.border_width_bottom = 2
-	wstyle.set_corner_radius_all(8)
-	win.add_theme_stylebox_override("panel", wstyle)
-	overlay.add_child(win)
-	_hist_win = win
-	win.position = (get_viewport_rect().size - win.size) / 2
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	win.add_child(margin)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 10)
-	margin.add_child(vb)
-
-	# 标题栏（拖拽手柄）
-	var title_bar := HBoxContainer.new()
-	title_bar.custom_minimum_size = Vector2(0, 42)
-	title_bar.mouse_filter = Control.MOUSE_FILTER_STOP
-	title_bar.add_theme_constant_override("separation", 10)
-	var tstyle := StyleBoxFlat.new()
-	tstyle.bg_color = Color(0.18, 0.14, 0.08, 1.0)
-	tstyle.set_corner_radius_all(6)
-	title_bar.add_theme_stylebox_override("panel", tstyle)
-	title_bar.gui_input.connect(_on_hist_title_gui)
-	vb.add_child(title_bar)
-
-	var title := Label.new()
-	title.text = "📋 调查历史记录"
-	title.add_theme_font_size_override("font_size", 26)
-	title.add_theme_color_override("font_color", COL_GOLD)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_bar.add_child(title)
-
-	var hclose := Button.new()
-	hclose.text = "✕"
-	hclose.add_theme_font_size_override("font_size", 18)
-	hclose.add_theme_color_override("font_color", Color(0.85, 0.55, 0.55))
-	hclose.custom_minimum_size = Vector2(40, 32)
-	var hcstyle := StyleBoxFlat.new()
-	hcstyle.bg_color = Color(0.30, 0.18, 0.18, 0.95)
-	hcstyle.border_color = Color(0.7, 0.4, 0.4)
-	hcstyle.set_corner_radius_all(4)
-	hclose.add_theme_stylebox_override("normal", hcstyle)
-	hclose.pressed.connect(_close_history_panel)
-	title_bar.add_child(hclose)
-
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	vb.add_child(scroll)
-
-	var content := VBoxContainer.new()
-	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	content.add_theme_constant_override("separation", 14)
-	scroll.add_child(content)
-
-	# 1. 当前推理状态
-	var state_sec := _history_section(content, "当前推理状态")
-	var v := get_verdict()
-	var verdict_text: String = ["矛盾冲突", "证据不足", "倾向成立", "已获证实"][v]
-	var state_lbl := Label.new()
-	state_lbl.text = "核心问题：%s\n当前判定：%s\n已关联线索：%d 条" % [_hypothesis.get("title", ""), verdict_text, _associated]
-	state_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	state_lbl.add_theme_font_size_override("font_size", 15)
-	state_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	state_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	state_lbl.custom_minimum_size = Vector2(200, 60)
-	state_sec.add_child(state_lbl)
-
-	# 2. 已收集线索
-	var clue_sec := _history_section(content, "已收集线索 (%d)" % _clues.size())
-	if _clues.is_empty():
-		var empty := Label.new()
-		empty.text = "（暂无已收集线索）"
-		empty.add_theme_color_override("font_color", Color(0.55, 0.50, 0.40))
-		clue_sec.add_child(empty)
-	else:
-		for c in _clues:
-			var row := HBoxContainer.new()
-			row.add_theme_constant_override("separation", 8)
-			clue_sec.add_child(row)
-
-			var mark := Label.new()
-			var is_assoc: bool = c.get("associated", false)
-			var correct: bool = c.get("correct", true)
-			mark.text = "✓" if is_assoc else "○"
-			mark.add_theme_color_override("font_color", COL_GREEN if is_assoc else Color(0.55, 0.50, 0.40))
-			mark.custom_minimum_size = Vector2(24, 24)
-			row.add_child(mark)
-
-			var info := VBoxContainer.new()
-			info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			row.add_child(info)
-
-			var name_lbl := Label.new()
-			name_lbl.text = c.get("name", c.get("id", ""))
-			name_lbl.add_theme_font_size_override("font_size", 15)
-			name_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-			name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			info.add_child(name_lbl)
-
-			var desc_lbl := Label.new()
-			desc_lbl.text = c.get("desc", "")
-			desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			desc_lbl.add_theme_font_size_override("font_size", 13)
-			desc_lbl.add_theme_color_override("font_color", Color(0.60, 0.55, 0.45))
-			desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			desc_lbl.custom_minimum_size = Vector2(160, 20)
-			info.add_child(desc_lbl)
-
-			if _difficulty != Diff.HARD:
-				var tag := Label.new()
-				tag.text = "已关联" if is_assoc else ("正确" if correct else "干扰")
-				tag.add_theme_color_override("font_color", COL_GREEN if is_assoc else (COL_GREEN if correct else COL_RED))
-				tag.custom_minimum_size = Vector2(60, 24)
-				row.add_child(tag)
-
-	# 3. 结论里程碑
-	var ms_sec := _history_section(content, "结论里程碑")
-	var ms_lbl := Label.new()
-	var ms_text := ""
-	for m in _milestones:
-		ms_text += "■ " if m["lit"] else "□ "
-		ms_text += m["text"] + "\n"
-	ms_lbl.text = ms_text.strip_edges() if ms_text != "" else "（暂无里程碑）"
-	ms_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	ms_lbl.add_theme_font_size_override("font_size", 14)
-	ms_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	ms_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ms_lbl.custom_minimum_size = Vector2(200, 40)
-	ms_sec.add_child(ms_lbl)
-
-	# 底部按钮
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 12)
-	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	btn_row.custom_minimum_size = Vector2(200, 48)
-	vb.add_child(btn_row)
-
-	var close_btn := Button.new()
-	close_btn.text = "关闭"
-	close_btn.add_theme_font_size_override("font_size", 18)
-	close_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	close_btn.custom_minimum_size = Vector2(120, 44)
-	var cs := StyleBoxFlat.new()
-	cs.bg_color = Color(0.22, 0.18, 0.12, 0.95)
-	cs.border_color = Color(0.55, 0.45, 0.25)
-	cs.border_width_left = 2; cs.border_width_right = 2
-	cs.border_width_top = 2; cs.border_width_bottom = 2
-	cs.set_corner_radius_all(4)
-	close_btn.add_theme_stylebox_override("normal", cs)
-	close_btn.pressed.connect(_close_history_panel)
-	btn_row.add_child(close_btn)
-
-
-func _history_section(parent: VBoxContainer, title: String) -> VBoxContainer:
-	var sec := VBoxContainer.new()
-	sec.add_theme_constant_override("separation", 6)
-	sec.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parent.add_child(sec)
-
-	var lbl := Label.new()
-	lbl.text = title
-	lbl.add_theme_font_size_override("font_size", 17)
-	lbl.add_theme_color_override("font_color", COL_GOLD)
-	lbl.custom_minimum_size = Vector2(200, 26)
-	sec.add_child(lbl)
-
-	var line := ColorRect.new()
-	line.color = Color(0.45, 0.35, 0.15, 0.5)
-	line.custom_minimum_size = Vector2(200, 2)
-	sec.add_child(line)
-
-	return sec
-
-
-func _close_history_panel() -> void:
-	_hist_drag = false
-	_hist_win = null
-	if _history_panel and is_instance_valid(_history_panel):
-		_history_panel.queue_free()
-	_history_panel = null
-
-
 # 标题栏拖拽
-func _on_hist_title_gui(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		_hist_drag = true
-		if _hist_win and is_instance_valid(_hist_win):
-			_hist_drag_offset = get_viewport().get_mouse_position() - _hist_win.global_position
-
-
 # === 输入/关闭 ===
 func _input(event: InputEvent) -> void:
 	# 历史窗口拖动中：处理移动与松开（即使光标移出标题栏也能停止拖动）
@@ -2312,9 +1064,9 @@ func _input(event: InputEvent) -> void:
 	if _dragging_link:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 			_dragging_link = false
-			var tgt := _link_target_at(get_viewport().get_mouse_position())
+			var tgt := _rel_ctl._link_target_at(get_viewport().get_mouse_position())
 			if tgt != "" and tgt != _link_src:
-				_commit_link(_link_src, tgt)
+				_rel_ctl._commit_link(_link_src, tgt)
 			_link_src = ""
 			if _rel_layer: _rel_layer.queue_redraw()
 			return
@@ -2336,14 +1088,14 @@ func _input(event: InputEvent) -> void:
 		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
 			get_viewport().set_input_as_handled()
 			# 同样把销毁墙移出 _input 派发（_on_verify_confirm 内 queue_free 整棵墙），防 wasm 栈溢出
-			call_deferred("_on_verify_confirm", _verify_v)
+			_verify_ctl.call_deferred("_on_verify_confirm", _verify_v)
 		return
 	if _verifying: return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			get_viewport().set_input_as_handled()
 			if _history_panel and is_instance_valid(_history_panel):
-				_close_history_panel()
+				_hist_ctl._close_history_panel()
 			else:
 				# 与 graph_view 的 ESC 修复同款：把"销毁墙节点"移出 _input 派发，
 				# 否则 wasm(浏览器) 在 _input 内同步 queue_free 整棵墙会栈溢出（Maximum call stack size exceeded）。
@@ -2355,7 +1107,7 @@ func _on_back_pressed() -> void:
 	if _verifying: return
 	_closing = true
 	if _history_panel and is_instance_valid(_history_panel):
-		_close_history_panel()
+		_hist_ctl._close_history_panel()
 		return
 	_state_ctl._persist_state()
 	# #4 双级存储：退出推理墙仅作「临时存储」——把图谱状态写进内存态 _state_store（随当前会话存活），

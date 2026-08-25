@@ -64,7 +64,7 @@ func _run() -> void:
 	wallA.test_associate("c3")
 	_chk(wallA.get_verdict() == 3, "A: 关联3正确线索 → VERIFIED(3)")
 	# 走真实验证路径（点亮里程碑 + 生成结构化报告）
-	wallA._on_verify_pressed()
+	wallA._verify_ctl._on_verify_pressed()
 	await get_tree().create_timer(0.1).timeout
 	var msA = wallA.get_milestone_state()
 	_chk(msA["confirmed"] == 2 and msA["total"] == 2, "A: 验证后点亮全部里程碑 (2/2)")
@@ -95,7 +95,7 @@ func _run() -> void:
 	# ---- 用例 E：HARD 难度报告仅含等级（不泄露支持/矛盾明细）----
 	var wallE = _make_wall(clues, hypo, 2)
 	_chk(wallE.get_difficulty() == 2, "E: 难度透传 HARD(2)")
-	var hard_rep = wallE._compute_report(3)
+	var hard_rep = wallE._verify_ctl._compute_report(3)
 	_chk("支持依据" not in hard_rep, "E: HARD 报告不泄露支持依据明细")
 	_chk("验证等级" in hard_rep, "E: HARD 报告含等级")
 	wallE.queue_free()

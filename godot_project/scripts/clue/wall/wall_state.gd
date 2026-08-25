@@ -65,7 +65,7 @@ func _restore_state() -> void:
 	owner._relations = []
 	for r in owner._state_store.get("relations", []):
 		owner._relations.append({"from": r.get("from", ""), "to": r.get("to", ""), "kind": r.get("kind", "relate"),
-			"color_key": r.get("color_key", owner._kind_to_key(r.get("kind", "relate"))), "dashed": r.get("dashed", false)})
+			"color_key": r.get("color_key", owner._rel_ctl._kind_to_key(r.get("kind", "relate"))), "dashed": r.get("dashed", false)})
 	for c in owner._clues:
 		if assoc_set.has(c.get("id", "")):
 			c["associated"] = true
@@ -203,7 +203,7 @@ func _update_star_rating() -> void:
 	# 3) 洞察之星：战场命中比例（绕路/重要方向/最优顺序的代理）+ 隐藏线索加成，封顶 3⭐
 	var insight_stars := 1
 	if not owner._battle.is_empty():
-		var txt := owner._battle_status_text()
+		var txt := owner._bf_ctl._battle_status_text()
 		var parts := txt.split("·")
 		if parts.size() >= 2:
 			var hpart := parts[0].strip_edges()  # "推理战场：假设命中 x/y"

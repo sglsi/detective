@@ -217,10 +217,10 @@ func _run_rw_verify() -> void:
 	_chk(rw._top_verify_btn != null and is_instance_valid(rw._top_verify_btn),
 		"Fix2-G：推理墙顶栏存在「✓ 提交验证」按钮（图谱主视图时可见）")
 	_chk(not rw._top_verify_btn.disabled, "Fix2-H：未验证态顶栏提交验证按钮可用")
-	rw._on_verify_pressed()
+	rw._verify_ctl._on_verify_pressed()
 	_chk(rw._verifying == true, "Fix2-I：点顶栏提交验证进入验证流程")
 	_chk(rw._verify_win != null and is_instance_valid(rw._verify_win), "Fix2-J：验证结果窗口已弹出（图谱之上可见）")
-	rw._close_verify_win()
+	rw._verify_ctl._close_verify_win()
 	_chk(rw._verifying == false, "Fix2-K：关闭验证窗口后状态复位")
 	rw.queue_free()
 	print("=== 图谱提交验证链路测试: PASS=%d FAIL=%d ===" % [_pass, _fail])
