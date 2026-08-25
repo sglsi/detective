@@ -61,8 +61,11 @@ var _undo := UndoRedo.new()
 var _layout_seed: int = 1
 
 # === 渲染容器 ===
-var _clip: Control = null           # 裁剪视口
-var _canvas: Control = null         # _world：节点与连线挂此
+var _clip: Control = null           # 裁剪视口（视觉显示，IGNORE）
+var _hit_layer: Control = null      # 命中层：图谱可交互区（让出顶栏/左栏命中）
+var hit_off_top: int = 110          # 命中让出区上缘（顶栏高）——由推理墙传入
+var hit_off_left: int = 540         # 命中让出区左缘（左栏右缘宽）——由推理墙传入
+var _canvas: Control = null         # _world：节点与连线挂此（IGNORE，命中由 _hit 承担）
 var _hint_layer: Control = null     # 难度提示圈（最底）
 var _edge_layer: Control = null     # 连线绘制层（节点下）
 var _toolbar: Control = null
@@ -360,23 +363,31 @@ func _create_ui() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	# 裁剪视口（限制 _canvas 在所辖容器内）。
-	# 图谱由推理墙契入布局容器 _graph_holder（顶栏之下、左栏右侧），本体 PRESET_FULL_RECT 填满，
-	# 故此处 clip 填满本体即可，不再写任何让出偏移——容器位置变了图谱自动跟随（免 magic number 失步）。
+	# 裁剪视口：图谱契回墙顶层铺满画布（世界原点=墙左上，节点坐标不偏移）。
+	# 命中与显示分离：_clip/_canvas 仅负责裁剪显示（IGNORE），画布交互（平移/缩放/空白点击）由 _hit 命中层接收。
+	# _hit 让出顶栏/左栏所占区域，使浮层的顶栏/左栏始终优先可点，图谱不吞其命中（告别靠 z_index「盖图谱」的脆弱命中）。
 	_clip = Control.new()
 	_clip.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# 任务8：裁剪视口改为 STOP 并接管平移/缩放输入，使「平移后超出原画布」的扩展区域
-	# 也能点击并拖动（原本 IGNORE 会让点击穿透，扩展区不可交互）。
-	_clip.mouse_filter = Control.MOUSE_FILTER_STOP
+	_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_clip.clip_contents = true
-	_clip.gui_input.connect(_on_canvas_gui)
 	add_child(_clip)
 
-	# _world 容器（缩放/平移等价 Camera2D）
+	# 命中层：图谱可交互区 = 全屏扣除顶栏(高 hit_off_top)、左栏(右缘 hit_off_left) 浮层区。
+	# 两值由推理墙传入（同一来源），须与顶栏高/左栏右缘一致——改 UI 尺寸只改墙逻辑即可。
+	_hit_layer = Control.new()
+	_hit_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_hit_layer.offset_top = hit_off_top
+	_hit_layer.offset_left = hit_off_left
+	_hit_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_hit_layer.gui_input.connect(_on_canvas_gui)
+	# 命中层压到节点(z=0)之下，保证节点卡片先接收点击/拖动；空白处才落到 _hit 做平移。
+	_hit_layer.z_index = -5
+	add_child(_hit_layer)
+
+	# _world 容器（缩放/平移等价 Camera2D；命中由 _hit 承担，自身不拦截）
 	_canvas = Control.new()
 	_canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_canvas.mouse_filter = Control.MOUSE_FILTER_STOP
-	_canvas.gui_input.connect(_on_canvas_gui)
+	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_clip.add_child(_canvas)
 
 	_hint_layer = Control.new()

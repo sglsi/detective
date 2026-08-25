@@ -325,7 +325,12 @@ NO other objects, isolated, game asset
 - **封存后不可预览时**：推理墙图谱改动在 `godot_project/scripts/clue/`，改完必须重新导出 Web 才生效，仅改源码不重新导出会造成"预览仍是旧版"。
 
 ## 推理墙图谱（graph_view_controller.gd）交互能力
-- **图谱布局契入架构（不再全屏叠加）**：`reasoning_wall` 创建 `_graph_holder`（Control，锚 FULL_RECT，`offset_left=540 / offset_top=110 / offset_bottom=-44`，契入左栏右侧、顶栏之下），`_on_open_graph_view` 里 gv `_graph_holder.add_child(gv)` 并 `PRESET_FULL_RECT`；图谱 `_clip` 填满本体即可，**不再写任何让出偏移**——容器由 UI 布局定位，顶栏/左栏尺寸一改图谱自动跟随（免 magic number 在不同分辨率/改尺寸时失步）。世界坐标起点仍是容器左上 (540,110)，节点持久化坐标不受影响。回归：P0/P12/P15/P16/Q2/Q5_OK/case_panorama 全过（case_panorama 唯一 FAIL 为「无人物注入」测试数据差异）。
+- **图谱契回全屏 + 显示/命中分离（2026-08 新方案，替代早期契入容器）**：契入容器方案会让图谱世界坐标起点变为容器左上 (540,110)，导致持久化节点坐标偏移、并破坏「左栏半透明浮在画布之上」的既有视觉。回退为**图谱契回墙顶层全屏**（`_on_open_graph_view` 里 `add_child(gv)` + `PRESET_FULL_RECT` + `gv.z_index=5`），世界坐标保持 wall 左上 (0,0)，折叠/排序布局正常，且图谱视觉延伸至顶栏/左栏之下，左栏背景半透明（`COL_PANEL` α=0.92）浮上透出图谱。
+  - **命中让出层**：图谱根 `self.mouse_filter=IGNORE`；`_clip`/`_canvas` 均设 `MOUSE_FILTER_IGNORE`（只负责显示/裁剪，全屏铺开）；新增 `_hit_layer`（`MOUSE_FILTER_STOP` + `gui_input.connect(_on_canvas_gui)`，锚 FULL_RECT 但 `offset_top=hit_off_top / offset_left=hit_off_left`），承担图谱平移/缩放/画布点击命中，**只在顶栏之下、左栏右侧**的图谱交互区生效 → 顶栏/左栏区域无图谱命中，浮层确定性可点，不赌 z 命中顺序。
+  - **让出区单源传入**：图谱用成员 `hit_off_top/hit_off_left`（默认 110/540），由 `_on_open_graph_view` 契回处设 `gv.hit_off_top=110`、`gv.hit_off_left=540`（对齐顶栏底 `_top_bar.offset_bottom` / 左栏右缘 `_left_panel.offset_right`）。改 UI 尺寸须同步这两值（`tools/q6_contract_guard.gd` 源码契约守卫会报警）。
+  - 坐标转换一律 `_canvas.get_global_transform() * 视口坐标`，与命中层位置无关，故契回/命中分离不影响平移/缩放/落点。
+  - 回归：P0/P12_E2E_OK/P15/P16_E2E_OK/Q2_OK/Q5_OK/case_panorama(11/12) 全过；`tools/q6_contract_guard.gd`（Q6，显示/命中契约源码守卫）fails=0。
+- **ESC 关闭修复**：关闭处理用 `call_deferred("_on_close_pressed")`，避免在 `_input()` 里销毁节点卡死。
 - **ESC 关闭修复**：关闭处理用 `call_deferred("_on_close_pressed")`，避免在 `_input()` 里销毁节点卡死。
 - **提交验证按钮**：由 reasoning_wall 的常驻顶部栏（z=100，始终盖在图谱之上）提供，图谱自身工具栏默认 `_show_toolbar=false`，避免重复工具栏。
 - **连线交互**：点击连线命中检测（采样二次贝塞尔曲线 ×0.01 步长，容差 16px）弹出浮动菜单，支持删除连线 / 线型(dashed)切换 / 关系性质切换（relate→support→oppose→contradict）。关系变更统一走 `_undo` + `_do_*` → `_cb_relations_changed` → `_persist_view` → `_rebuild_graph()` 模式（`_redraw_all()` 不会重建 `_edge_list`）。
