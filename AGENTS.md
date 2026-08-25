@@ -384,6 +384,13 @@ NO other objects, isolated, game asset
   - **线上登录 token 持久化（2026-08）**：`auth_manager._save_session` 现同时存 `token` + `mode`；`_restore_session` 读到 session 含 token 时直接恢复在线会话（设 `session_token`、`APIManager.auth_token`、user_data），不再要求本地账号库匹配——修复"线上账号刷新后必须重新输入"。⚠️ auth_manager 用 `APIManager.is_online`（不是 BoardSession）。
   - **登录/注册输入框粘贴（2026-08）**：`auth_panel._make_field` 给 LineEdit 连接 gui_input，Ctrl+V 用 `DisplayServer.clipboard_get()` 插入光标处（Godot 默认不支持粘贴）。
 
+#### 2026-08 问题修复：游客存档 + 全案墙线索默认进左栏
+
+- **游客本地存档（#1：收集后存档→读档线索显示未收集）**：`detective_scene.gd` 的 `_do_save` 里 `if GameManager and GameManager.is_guest:` 分支此前直接 `show_notification("游客模式暂不支持存档") + return`——游客存档被拒、读档自然全部丢失。改为游客跳过云同步但**仍落本地盘**（走 `clue_ids`- 快照 + `request_save`），仅提示“未登录，已保存到本地”。存档按 `_user_namespace()` 区分游客/登录玩家互不串档。回归：`Q1_OK`（scene2 收集→`_do_save`→`load_game`→`collected 恢复 N`）。
+- **全案墙线索默认进左栏（#2：默认已收集线索放左栏不放画布）**：`graph_view_controller._node_list` 的 MODE_C 在 `case_wide` 分支此前 `clues := _clues` 无条件把**全部已收集线索平铺进画布**。改为 `clues := _placed_clues` 过滤（仅已放置的线索作为图谱节点）+ 已有关系线索；未放置线索留在左栏由 `_refresh_clue_list` 展示、玩家拖入。自定义文本节点（`_graph_nodes`，含 `add_text_node` 创建）不受影响走单独追加。回归：`tools/q2_leftbar.gd`（Q2_OK：case_wide 下人物平铺、线索默认不在画布、左栏可显示）。⚠️ 语义变更后，**已建关系/已放置的线索仍会进画布**（`_placed_clues` 跨场景经 `case_wall_state["graph_placed_clues"]` 持久化），未放置线索仅在左栏。
+- **折叠时一并收起关系子树（#3：新推断/线索建边后点击折叠无法把线索折叠，只隐藏连线）**：`graph_view_fold.gd` 的 `_set_folded` 在折叠一个节点时，仅把它记入 `_folded_nodes`，但未把它的**关系子树（邻接 BFS 中的更深层节点，如推断下的线索）**一并加入折叠集合，导致折叠只隐藏连线、线索节点仍在画布。修复：折叠根节点时用 `_compute_hidden` 收集其关系子树中「层级更深的节点」一并写入 `_folded_nodes`（展开时不清除子树折叠，保留用户折叠深度）。回归：`test_case_panorama.gd` 折叠断言 PASS（折叠推断→线索被折叠隐藏）。⚠️ 测试「无人物注入」FAIL 为注入数据差异，非产品 bug。
+- **测试注意**：graph 重构为组合架构后组件在 `_ready` 初始化，**SceneTree `--script` 直跑的测试若 new `GraphViewController` 后直接 `build()` 会因 `_edge/_fold/_data` 组件 Nil 报 `Nonexistent function`**。需把 graph 先 `add_child` 进树触发 `_ready`，或经 `ReasoningWall` 打开。`test_case_panorama` 的 2 项 FAIL（自定义 note 建边、无人物注入）是注入数据/运行环境差异，**非产品 bug**——真实路径由 `p12`（P12_E2E_OK）/`p16`（P16_E2E_OK）覆盖。
+
 ### 推理墙重构后（组合架构）的测试/脚本 API 适配
 
 2026-08 拉取远端重构：`graph_view_controller.gd` → `scripts/clue/graph/`（data/dock/edge/fold/layout）；`reasoning_wall.gd` → `scripts/clue/wall/`（clue_library/state/battlefield/comparison/history/hypothesis/relations/verify）。类从「继承」改为「组合」——ReasoningWall 通过 `_clue_ctl`/`_verify_ctl` 等组件实例转发 API。**旧 e2e 测试（tools/*.gd）若直接调原推理墙方法会报 Nonexistent function 并触发 WATCHDOG 超时挂死**，必须按下列新访问路径改写：

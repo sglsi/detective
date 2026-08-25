@@ -656,12 +656,27 @@ func _node_list() -> Array:
 
 	if _mode == ViewMode.MODE_C:
 		# 第一圈：线索
-		var clues := _clues if _case_wide else _data._clues_for_person(_focus_person)
+		# 问题2：默认已收集线索放推理墙左侧「已收集线索栏」而非画布。全案墙(case_wide)只把
+		# 已放置的线索（拖入图谱/建过关系，见 _placed_clues）作为图谱节点；未放置的孤立线索
+		# 保留在左栏，由玩家逐条拖入或建边后再显示。非全案墙仍按焦点人物关联线索展示。
+		var clues := []
+		if _case_wide:
+			var _placed_ids := {}
+			for _pid in _placed_clues: _placed_ids[_pid] = true
+			for _c_in_wall in _clues:
+				var _cid_in_wall: String = str(_c_in_wall.get("id", ""))
+				if _placed_ids.has(_cid_in_wall):
+					clues.append(_c_in_wall)
+		else:
+			clues = _data._clues_for_person(_focus_person)
 		# P0-2 状态过滤
 		if _status_filter != "all" and not clues.is_empty():
 			var sf := _status_filter
 			clues = clues.filter(func(c): return _data._clue_matches_filter(c, sf))
-		if clues.is_empty():
+		# 兜底显示全部线索（问题2）：
+		# 非全案墙教学/单人物视图，焦点人物无可关联线索时展示全部，避免画面空白；
+		# 全案墙(case_wide)不兜底——线索默认在左栏，未放置即不进画布。
+		if clues.is_empty() and not _case_wide:
 			clues = _clues
 			# 同样应用状态过滤
 			if _status_filter != "all":
