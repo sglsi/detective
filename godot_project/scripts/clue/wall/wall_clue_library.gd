@@ -156,8 +156,8 @@ func _make_clue_card(clue: Dictionary) -> Button:
 	card.add_theme_stylebox_override("normal", sn)
 	card.add_theme_color_override("font_color", owner.COL_GOLD_LIGHT)
 	card.pressed.connect(_on_clue_card_pressed.bind(clue["id"]))
-	card.gui_input.connect(owner._on_node_gui.bind(clue["id"]))
-	card.gui_input.connect(owner._on_clue_drag.bind(clue["id"]))
+	card.gui_input.connect(owner._rel_ctl._on_node_gui.bind(clue["id"]))
+	card.gui_input.connect(owner._rel_ctl._on_clue_drag.bind(clue["id"]))
 	card.mouse_default_cursor_shape = Control.CURSOR_CROSS if owner._connect_mode else Control.CURSOR_ARROW
 	return card
 
@@ -232,7 +232,7 @@ func _show_clue_detail(clue: Dictionary) -> void:
 	to_desk.add_theme_font_size_override("font_size", 15)
 	to_desk.add_theme_color_override("font_color", owner.COL_GOLD)
 	to_desk.pressed.connect(func():
-		owner._load_comparison(clue["id"])
+		owner._cmp_ctl._load_comparison(clue["id"])
 		owner._detail_popup.hide()
 	)
 	desk_row.add_child(to_desk)
