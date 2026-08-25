@@ -74,6 +74,7 @@ var _closing: bool = false                    # 关墙重入保护：ESC/返回/
 # === UI 引用 ===
 var _top_bar: Control = null
 var _left_panel: Control = null
+var _graph_holder: Control = null        # 图谱契入容器：左栏右侧、顶栏之下
 var _center_panel: Control = null
 var _right_panel: Control = null
 var _bottom_bar: Control = null
@@ -287,6 +288,16 @@ func _create_ui() -> void:
 	_left_panel.offset_right = 540  # 1920*0.28 ≈ 538
 	_left_panel.offset_top = 110    # 对齐中部区域（顶栏之下）
 	_left_panel.offset_bottom = -240
+
+	# 图谱契入容器：由 UI 布局定位（顶栏之下、左栏右侧、底部距底 44），
+	# 图谱 _clip 填满此容器，不再写让出偏移（免 magic number 在不同分辨率/改尺寸时失步）。
+	_graph_holder = Control.new()
+	_graph_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_graph_holder)
+	_graph_holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_graph_holder.offset_left = 540      # 对齐左栏右缘
+	_graph_holder.offset_top = 110       # 顶栏之下
+	_graph_holder.offset_bottom = -44
 
 	# 右侧面板 (扩展/战场) 26%
 	_right_panel = _create_right_panel()
@@ -891,7 +902,9 @@ func _on_open_graph_view() -> void:
 		return
 	var gv = load("res://scripts/clue/graph_view_controller.gd").new()
 	gv.name = "GraphView"
-	add_child(gv)
+	# 契入布局容器（左栏右侧、顶栏之下），图谱 _clip 填满容器，不再覆盖顶栏/左栏
+	_graph_holder.add_child(gv)
+	gv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# z_index 远低于顶栏（z=100），确保顶栏按钮可点击
 	gv.z_index = 5
 	var persons := _state_ctl._derive_persons()

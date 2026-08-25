@@ -325,6 +325,7 @@ NO other objects, isolated, game asset
 - **封存后不可预览时**：推理墙图谱改动在 `godot_project/scripts/clue/`，改完必须重新导出 Web 才生效，仅改源码不重新导出会造成"预览仍是旧版"。
 
 ## 推理墙图谱（graph_view_controller.gd）交互能力
+- **图谱布局契入架构（不再全屏叠加）**：`reasoning_wall` 创建 `_graph_holder`（Control，锚 FULL_RECT，`offset_left=540 / offset_top=110 / offset_bottom=-44`，契入左栏右侧、顶栏之下），`_on_open_graph_view` 里 gv `_graph_holder.add_child(gv)` 并 `PRESET_FULL_RECT`；图谱 `_clip` 填满本体即可，**不再写任何让出偏移**——容器由 UI 布局定位，顶栏/左栏尺寸一改图谱自动跟随（免 magic number 在不同分辨率/改尺寸时失步）。世界坐标起点仍是容器左上 (540,110)，节点持久化坐标不受影响。回归：P0/P12/P15/P16/Q2/Q5_OK/case_panorama 全过（case_panorama 唯一 FAIL 为「无人物注入」测试数据差异）。
 - **ESC 关闭修复**：关闭处理用 `call_deferred("_on_close_pressed")`，避免在 `_input()` 里销毁节点卡死。
 - **提交验证按钮**：由 reasoning_wall 的常驻顶部栏（z=100，始终盖在图谱之上）提供，图谱自身工具栏默认 `_show_toolbar=false`，避免重复工具栏。
 - **连线交互**：点击连线命中检测（采样二次贝塞尔曲线 ×0.01 步长，容差 16px）弹出浮动菜单，支持删除连线 / 线型(dashed)切换 / 关系性质切换（relate→support→oppose→contradict）。关系变更统一走 `_undo` + `_do_*` → `_cb_relations_changed` → `_persist_view` → `_rebuild_graph()` 模式（`_redraw_all()` 不会重建 `_edge_list`）。
