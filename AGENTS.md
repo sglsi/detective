@@ -418,3 +418,28 @@ NO other objects, isolated, game asset
 - 场景侧不变：`s2._obs._record(h.id, desc)`、`s2._open_wall()`、`wall2._clue_ctl`、窗口取 `s2.find_child("ReasoningWall", true, false)`
 
 适配完成后回归通道：`p12_scene2_to_scene3_e2e.gd`（P12_E2E_OK：场景二→三真实路径）、`p16_save_scene3_wall_relations.gd`（P16_E2E_OK：读档→场景三墙还原 scene2 关系）、`p15_architecture_unification.gd`、`p0_smoke_test.gd`、`smoke_load_check.gd`。改完推理墙源码后必须 `--export-release "Web"` 重导 pck，否则预览仍旧版。
+
+### 推理墙图谱 · 功能架构基线 + 改动前 Gate 规范（2026-08，必须遵守）
+
+**定位**：本模块是同类别里最容易"修一坏一片"的耦合点（多次出现改一个点带出三四个新问题）。下列是整理出来的**权威功能架构基线**与**规范性要求**。**任何对推理墙图谱（graph_view_controller.gd / scripts/clue/graph/ 组件 / reasoning_wall.gd 图谱相关部分）的改动，必须先对照本节；违背规范的改动必须先给建议并请用户确认，不能直接动。**
+
+**A. 功能架构基线**
+1. **组合架构**：`graph_view_controller.gd` 拆为 `scripts/clue/graph/`（data/dock/edge/fold/layout）；`reasoning_wall.gd` 拆为 `scripts/clue/wall/`。组件在 `_ready` 初始化，改 API 走 `owner._xxx` 组件转发，别直接 new 后即调（组件会 Nil）。
+2. **显示/命中（契入让出）**：图谱根 `mouse_filter=IGNORE`；`_clip` 用 offset 让出左栏(540)/顶栏(110)（契入=单源 `hit_off_left/top`），`clip_contents=true`；`_clip` 与 `_canvas` 均 `STOP + gui_input(_on_canvas_gui)` 承担平移/滚轮/空白点击/shift 建边/折叠命中。**禁止命中分离层 `_hit_layer`**，禁止把 `_on_canvas_gui` 从 `_clip`/`_canvas` 摘走（否则 shift 建边/折叠失效）。
+3. **世界坐标**：契入后 world 原点=图谱区左上；一切命中/坐标换算统一用 `_canvas.get_global_transform().affine_inverse()`（自带 clip 偏移）。仅手工写 `_canvas.position` 的 `_zoom_at`/`fit_view` 才需按 `_clip.get_global_transform().origin` 校正，其它（`_pan` 增量）不用。契入只用 `_clip` 裁显示+命中，**不把 `_canvas` 布局基准改成契入区**（反补 offset 保持整墙画布，防止重排挤压/覆盖）。
+4. **布局**：默认 `_relation_tree_layout`（按关系建树：人物根 col0、结论→推断→线索逐层，父居中子树带、列对齐防重叠）；显式“自动排列”按钮走 `_auto_rank_layout`（BFS 深度分列 + barycenter 同层减交叉）→ `_use_rank_layout` 标志切换；`_apply_column_overlap_fix` 兜底防同列重叠。**布局只在「建/删边、拖关系、自动排列」时机整图重排**。
+5. **折叠**：`_folded_nodes` 存折叠根 + 整棵子树；`_compute_hidden` 隐藏深一层子树；折叠根仍显示为文件夹（暗金框）并保留折叠圆圈；**只有“存在更低一级(有下级)”的节点才显示折叠圆圈**，无下级节点不显示（线索=证据最底层，通常无圆圈）。折叠/展开走 `_fold_keep_layout` **保持局部性**：只隐/显自己的下级子树，不重排上级/无关文本框。
+6. **折叠对称性**：展开必须把折叠根**连同整棵子树**从 `_folded_nodes` 移除并还原位置（否则线索/下级展开后仍隐藏）。
+7. **契约束守卫**：`tools/q6_contract_guard.gd`（源码断言：clip/canvas STOP+gui、契入用 hit_off、无 `_hit_layer`、`_zoom_at`/`fit_view` 含 `_clip` 原点校正、auto_layout/use_rank 契约）。改过相关源码后必跑 Q6。
+
+**B. 规范性要求（改动 gate 条款）**
+1. **先对照再动手**：本模块任何改动前，先读本节 + `q6_contract_guard.gd`，判断改动是否违背上述基线。违背 → 暂停，给出建议 + 影响评估 + 请确认后再改；不违背 → 直接改。
+2. **最小局部改动**：修 bug 不顺手重构、不扩大联动面；只改任务所需的点。
+3. **折叠遵守“局部 visibility”**：不得让折叠/展开触发整图重排；不得让无关/上级文本框位置变化。
+4. **圆圈显隐遵守“有下级才显示”**：无下级不建圈；不得为隐藏后代画圈（防悬空圆）。
+5. **契入遵守“让出不动坐标系”**：契入只裁显示/命中，布局基准保持整墙画布。
+6. **防回归必跑**：改完运行 `q6_contract_guard.gd` + 相关回归（`test_auto_layout.gd`、`test_case_panorama.gd`、`q5_scene1_leftbar.gd`、`p12`/`p16`），通过后才声称完成。
+7. **改源码必重导 pck**：改过 `scripts/clue/*` 后必须 `rm -rf .godot && --import && --export-release "Web"`，否则预览仍旧版。
+8. **破坏性/结构性改动先确认**：涉及折叠语义、契入几何、布局时机、世界坐标基准等核心契约的改动，一律先给方案征求确认。
+
+**C. 改动流程（口诀）**：读基线 → 判违背？违背则先确认再改，不违背直接改 → 跑 Q6+回归 → 重导 pck → 回报。
