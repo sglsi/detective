@@ -443,3 +443,34 @@ NO other objects, isolated, game asset
 8. **破坏性/结构性改动先确认**：涉及折叠语义、契入几何、布局时机、世界坐标基准等核心契约的改动，一律先给方案征求确认。
 
 **C. 改动流程（口诀）**：读基线 → 判违背？违背则先确认再改，不违背直接改 → 跑 Q6+回归 → 重导 pck → 回报。
+
+### 候选推断采纳机制（2026-09）
+
+**定位**：让"收集线索 → 归纳推断 → 相互印证 → 结论指向人物/事件"的目标逻辑能落地。核心思想：候选推断（battlefield.hypotheses）**本就自动渲染为图谱的 hypo 节点**，所以"采纳"不是新建节点，而是**按候选自动连上其支撑证据线索、并给出详细文案**。
+
+- **数据（难度驱动，放各场景 `reasoning_hypothesis().battlefield.hypotheses` 统一区块）**：每条扩展字段：
+
+| 字段 | 含义 |
+|---|---|
+| `id` | 假设 id（如 `H2-01`），即图谱 hypo 节点 id |
+| `text` | 推断原文 |
+| `kind` | `"true"`（正确候选）/ `"mislead"`（误导项，仅普通难度混入）|
+| `correct` | `bool`，兼容旧逻辑的核心参考 |
+| `gate_clue_ids` | 支撑证据线索 id 数组（候选被采纳时，这些已收集线索会被自动连到此推断）|
+| `adopt_desc` | 采纳详细文案（为何成立 + 指向谁 + 下一步）|
+| `reject_desc` | 排除（误导向）时的详细文案 |
+| `new_clue_hint` | 这条链缺哪环、去哪找的新线索指引 |
+
+  ⚠️ `gate_clue_ids` **必须与实际线索 id 对应**（线索 `relation_tags` 已表达"该线索支撑哪些假设"，可交叉核对——scene2 实例：`H2-01`↔`[c201,c202,c204]`、`H2-02`↔`[c206]`、`H2-03`↔`[c205]`、`C2-03`↔`[c203]`）。
+
+- **图谱侧 `graph_view_controller.adopt_candidate(cand: Dictionary)`**：`_state != EDITABLE` 直接提示返回；`cand.id` 空/已是 `_node_center` 中推断则 toasts。对 `cand.gate_clue_ids` 每个 id，用 `_data._id_is_clue(cid)` 校验是线索后才 `_edge._add_edge(cid, hid, "support","green",false)`（`_add_edge` 内部对线索端 `_mark_clue_placed`）。末尾 `_persist_view()`+`_rebuild_graph()`+`_ui_toast(adopt_desc)`。**不新建节点**（假设本就是 hypo 节点），只建边+给文案。配套新增 `_ui_toast(msg)`：有真实 toast 方法走它，否则 `print` 兜底（headless 环境安全）；新增 `any_edge(from_id,to_id)` 查 `_edge_list` 判断已有 support 边。
+
+- **推理墙侧（reasoning_wall.gd）**：
+  - 顶栏 row2 新增「🧠 候选」按钮 → `_on_candidates_pressed` → `_show_candidate_panel()`。
+  - `_show_candidate_panel`：构造居中 PanelContainer（`_candidate_panel`，z=40），按难度过滤 `battlefield.hypotheses`：EASY 只列 `kind=="true"`；NORMAL 列 `true + mislead`；HARD 空提示"困难模式请自行添加推断"。空列表给出引导文案。关闭走 `queue_free`。
+  - 每张候选卡：`gate_clue_ids` 中有、且未与推断建 support 边的已收集线索 → 展示支持线索卡；否则提示"暂无已收集的支撑线索，可手动拖线"。按钮行：`kind=="mislead"` 时给「排除 ✗」（`_reject_candidate`，展示 reject_desc toast），否则/同时给「采纳 ✓」（`_adopt_candidate` → `_graph_view.adopt_candidate(cand)`）。
+  - `_adopt_candidate(cand)`：先弹确认（`owner._mk_notice` → `_graph_view.adopt_candidate(cand)`；`_mk_notice(title,msg,yes=...)` 创建独立 Window 弹确认，简化版 create_instance+add_child）。
+  - 依赖链：面板数据源是 `_hypothesis.get("battlefield",{})`，难度是成员 `_difficulty`（`Diff` 枚举，autoload 或 scene.gd 定义，EASY=0/NORMAL=1/HARD=2）。
+  - `_mk_hint_box(true)` 返回 StyleBoxFlat 用作提示卡样式（无重名，本轮新增）。
+
+- **回归**：`p12`/`p16`/`q6`/`test_auto_layout`/`p0` 全过；`q5`（Q5_OK，exit=99 是非零标记 PASS 惯例）；`test_case_panorama` 的"无人物注入 FAIL"为注入数据差异，非产品 bug。改 multi `scripts/clue/*` + scene 数据后必须 `rm .godot && --import && --export-release "Web"`。
