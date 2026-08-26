@@ -199,8 +199,14 @@ func _set_folded(id: String, v: bool) -> void:
 			owner._all_positions[id] = owner._node_center[id]
 	else:
 		owner._folded_nodes.erase(id)
+		# 展开需一并清掉下层的子树折叠，否则线索保持隐藏无法正确显示
+		for s in _subtree_ids(id):
+			owner._folded_nodes.erase(s)
+			if owner._node_center.has(s):
+				owner._all_positions[s] = owner._node_center[s]
 		if owner._node_center.has(id):
 			owner._all_positions[id] = owner._node_center[id]
+	owner._fold_keep_layout = true
 	owner._rebuild_graph()
 
 
@@ -240,4 +246,5 @@ func _apply_fold_subtree(id: String, subs: Array) -> void:
 		owner._folded_nodes[s] = true
 	owner._state_store["graph_folded_nodes"] = owner._folded_nodes
 	owner._persist_view()
+	owner._fold_keep_layout = true
 	owner._rebuild_graph()

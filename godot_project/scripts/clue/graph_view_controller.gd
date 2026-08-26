@@ -66,6 +66,7 @@ var hit_off_top: int = 110          # 契入让出区上缘（顶栏高）——
 var hit_off_left: int = 540         # 契入让出区左缘（左栏右缘宽）——由推理墙传入，谱图 _clip 从左栏之右开始
 var _did_initial_fit: bool = false  # 契入模式首帧已 fit_view（只在打开时缩放一次，后续 rebuild 不重置玩家缩放）
 var _use_rank_layout: bool = false  # 顶栏「自动排列」一次性标志：布局层据其走 BFS 深度分列 + barycenter 减交叉
+var _fold_keep_layout: bool = false # 折叠/展开一次性标志：重建时跳过整体重排，仅按 _all_positions 摆放，避免折叠扰动其它/上级文本框
 var _canvas: Control = null         # _world：节点与连线挂此（STOP，承接平移/缩放/空白点击）
 var _hint_layer: Control = null     # 难度提示圈（最底）
 var _edge_layer: Control = null     # 连线绘制层（节点下）
@@ -608,14 +609,22 @@ func _rebuild_graph() -> void:
 			_all_positions[_k] = _v
 
 	var nodes := _node_list()
-	var pos := _layout._compute_layout(nodes)
+	var pos: Dictionary
+	if _fold_keep_layout:
+		# 折叠/展开：一次性保持所有可见节点现有位置，仅增删视图，不整体重排 → 不影响其它/上级文本框
+		_fold_keep_layout = false
+		pos = {}
+		for nd in nodes:
+			pos[nd.id] = _all_positions.get(nd.id, Vector2.ZERO)
+	else:
+		pos = _layout._compute_layout(nodes)
+		# 合并可见节点位置进全局缓存（隐藏节点的位置由 _all_positions 保留）。
+		# ⚠️ 仅模式 C 合并：模式 B 是垂直分层的临时聚焦视图，若写入会污染 _all_positions，
+		# 导致切回星型/重进时个别节点位置错乱回初始（问题2）。
+		if _mode == ViewMode.MODE_C:
+			for id in pos:
+				_all_positions[id] = pos[id]
 	_node_center = pos
-	# 合并可见节点位置进全局缓存（隐藏节点的位置由 _all_positions 保留）。
-	# ⚠️ 仅模式 C 合并：模式 B 是垂直分层的临时聚焦视图，若写入会污染 _all_positions，
-	# 导致切回星型/重进时个别节点位置错乱回初始（问题2）。
-	if _mode == ViewMode.MODE_C:
-		for id in pos:
-			_all_positions[id] = pos[id]
 	for nd in nodes:
 		var v := _make_node(nd)
 		v.set_meta("graph_node", true)
@@ -634,14 +643,6 @@ func _rebuild_graph() -> void:
 		var fc := _fold._make_fold_control(nd.id)
 		fc.set_meta("graph_node", true)
 		_fold_controls[nd.id] = fc
-		_canvas.add_child(fc)
-	# 已折叠节点（自身已隐藏）只要有下级仍提供恢复控件，凭 _all_positions 定位在原位
-	for fid in _folded_nodes:
-		if _fold_controls.has(fid): continue
-		if _fold._direct_outer_neighbors(fid).is_empty(): continue
-		var fc := _fold._make_fold_control(fid)
-		fc.set_meta("graph_node", true)
-		_fold_controls[fid] = fc
 		_canvas.add_child(fc)
 	# 契入模式（_clip 让出顶栏/左栏）首次 build 自动 fit 一次：布局基准是契入前的全屏画布，
 	# 契入 viewport 只显示其一部分，fit 缩放到契入区内看全；后续 rebuild 不再重置玩家缩放。
