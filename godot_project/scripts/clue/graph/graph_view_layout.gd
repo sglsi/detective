@@ -91,9 +91,13 @@ func _compute_layout(nodes: Array) -> Dictionary:
 	var saved_pos: Dictionary = owner._state_store.get("graph_node_positions", {})
 
 	if owner._mode == GraphViewController.ViewMode.MODE_C:
-		# 按关系驱动的横向阶梯树（华生示范对齐）：人物→结论→推断→线索 逐列向左/右阶梯铺开，
-		# 人物偏左树向右、偏右树向左（方向不硬性统一）；多人物各成一棵独立子树水平错开不交叉。
-		_relation_tree_layout(nodes, center, saved_pos, out)
+		if owner._use_rank_layout:
+			# 顶栏「自动排列」：严格按 BFS 深度分列 + 同层 barycenter 排序，整洁规范、尽量减少连线交叉
+			_auto_rank_layout(nodes, center, saved_pos, out)
+		else:
+			# 按关系驱动的横向阶梯树（华生示范对齐）：人物→结论→推断→线索 逐列向左/右阶梯铺开，
+			# 人物偏左树向右、偏右树向左（方向不硬性统一）；多人物各成一棵独立子树水平错开不交叉。
+			_relation_tree_layout(nodes, center, saved_pos, out)
 	else:
 		# 模式 B：推理链纵向自上而下（人物在最上，结论→推断/链→线索依次向下逐行排开）
 		out[owner._focus_person] = center
@@ -294,6 +298,114 @@ func _assign_subtree(u: String, child_map: Dictionary, sp: Dictionary, est_h: Di
 		var _h: float = sp.get(c, 130.0) as float
 		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + _h, pxx + dirv * col_gap, dirv, col_gap)
 		cur += _h + 15.0
+
+
+# ===================== 一键自动排列（顶栏「自动排列」） =====================
+## 严格按「BFS 深度」分列（人物列最右，结论/推断/线索逐列向左），同层 barycenter 排序
+## 减少相邻列连线交叉，参考华生示范的横向层级推理图：整墙整洁、规范、尽量避免连线交叉。
+func _auto_rank_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
+	var kind := {}
+	var ids: Array = []
+	for nd in nodes:
+		ids.append(nd.id)
+		kind[nd.id] = nd.kind
+	# 无向化邻接（rank/BFS 与 barycenter 都按无向连边处理，不依赖关系方向）
+	var adj := owner._fold._build_adjacency()
+	var undirected := {}
+	for u in adj:
+		if not undirected.has(u):
+			undirected[u] = []
+		for v in adj[u]:
+			if not undirected[u].has(v):
+				undirected[u].append(v)
+			if not undirected.has(v):
+				undirected[v] = []
+			if not undirected[v].has(u):
+				undirected[v].append(u)
+	# rank：从全部人物出发 BFS，人物=最右列(0)。
+	var rank := {}
+	var qq: Array = []
+	for id0 in ids:
+		if kind.get(id0, "") == "person" and not rank.has(id0):
+			rank[id0] = 0
+			qq.append(id0)
+	if qq.is_empty() and not ids.is_empty():
+		rank[ids[0]] = 0
+		qq.append(ids[0])
+	var qi := 0
+	while qi < qq.size():
+		var u: String = qq[qi]
+		qi += 1
+		for v in undirected.get(u, []):
+			if rank.has(v):
+				continue
+			rank[v] = rank[u] + 1
+			qq.append(v)
+	var graph_max := 0
+	for id0 in rank:
+		graph_max = maxi(graph_max, rank[id0])
+	var ISOLATED: int = graph_max + 1   # 无线索/无关系的孤立节点统一放最左列，保持整洁
+	for id0 in ids:
+		if not rank.has(id0):
+			rank[id0] = ISOLATED
+		graph_max = maxi(graph_max, rank[id0])
+	# 列 x：人物最右，向外逐列向左（参考示范「线索→推论→人物」由左及右汇聚）
+	var col_gap := 300.0
+	var right_x: float = center.x + float(graph_max) * col_gap * 0.5
+	# 同列按保存顺序/深度稳定初序
+	var by_rank := {}
+	for id0 in ids:
+		var r: int = rank[id0]
+		if not by_rank.has(r):
+			by_rank[r] = []
+		by_rank[r].append(id0)
+	var byr_keys: Array = by_rank.keys()
+	byr_keys.sort()
+	for r in byr_keys:
+		var arr: Array = by_rank[r]
+		arr.sort_custom(func(a, b):
+			var ya: Variant = saved_pos.get(a, null)
+			var yb: Variant = saved_pos.get(b, null)
+			var va: float = ya.y if ya is Vector2 else 0.0
+			var vb: float = yb.y if yb is Vector2 else 0.0
+			return va < vb)
+	# barycenter 迭代（3 轮），按相邻列序数均值重排同列，降低连线交叉
+	var nidx := {}
+	for r in byr_keys:
+		var arr: Array = by_rank[r]
+		for i in arr.size():
+			nidx[arr[i]] = i
+	for _it in range(3):
+		for r in byr_keys:
+			var arr: Array = by_rank[r]
+			if arr.size() < 2:
+				continue
+			var bc := {}
+			for id0 in arr:
+				var s: float = 0.0
+				var c: int = 0
+				for v in undirected.get(id0, []):
+					if rank.get(v, -1) == r:
+						continue
+					s += float(nidx.get(v, arr.size()))
+					c += 1
+				bc[id0] = s / float(c) if c > 0 else float(arr.size()) * 0.5
+			arr.sort_custom(func(a, b): return bc[a] < bc[b])
+			for i in arr.size():
+				nidx[arr[i]] = i
+	# y 分配：每列按序堆叠、列内等距、整体居中（同列真实高度去重叠交给 _apply_column_overlap_fix）
+	var ROW := 130.0
+	for r in byr_keys:
+		var arr: Array = by_rank[r]
+		var n2: int = arr.size()
+		var total: float = float(maxi(n2 - 1, 0)) * ROW
+		var top: float = center.y - total * 0.5
+		var xr: float = right_x - float(r) * col_gap
+		for j in n2:
+			out[arr[j]] = Vector2(xr, top + float(j) * ROW)
+	# 收尾钳制
+	for idf in out:
+		out[idf] = _clamp_to_canvas(out[idf])
 
 
 # ===================== XMind 式自由布局（保留；当前模式 C 用关系树，此处未启用） =====================

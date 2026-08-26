@@ -441,6 +441,11 @@ func _create_top_bar() -> Control:
 	fit_btn.pressed.connect(_on_fit_view_pressed)
 	row1.add_child(fit_btn)
 
+	var auto_btn := _mk_top_btn("✶ 自动排列", false)
+	auto_btn.tooltip_text = "按推理层级自动重排文本框（人物在右，结论/推断/线索逐列向左），尽量减小连线交叉"
+	auto_btn.pressed.connect(_on_auto_arrange_pressed)
+	row1.add_child(auto_btn)
+
 	var recycle_btn := _mk_top_btn("🚮 回收站", false)
 	recycle_btn.pressed.connect(_on_recycle_pressed)
 	row1.add_child(recycle_btn)
@@ -970,6 +975,13 @@ func _on_fit_view_pressed() -> void:
 		_graph_view.fit_view()
 		if _status_lbl:
 			_status_lbl.text = "已适应画布"
+
+
+func _on_auto_arrange_pressed() -> void:
+	if _graph_view and is_instance_valid(_graph_view) and _graph_view.has_method("auto_layout"):
+		_graph_view.auto_layout()
+		if _status_lbl:
+			_status_lbl.text = "已自动排列"
 
 
 func _on_recycle_pressed() -> void:

@@ -38,7 +38,14 @@ func _init() -> void:
 	_check(not g.contains("_hit_layer"), "已废除命中分离层 _hit_layer")
 	_check(g.contains("_clip.get_global_transform().origin"), "_zoom_at/fit_view 按 _clip 原点校正坐标")
 
+	var l := _src("res://scripts/clue/graph/graph_view_layout.gd")
+	_check(g.contains("func auto_layout"), "图谱提供 auto_layout 一键整理")
+	_check(g.contains("_use_rank_layout"), "图谱用 _use_rank_layout 切换规范分列布局")
+	_check(l.contains("func _auto_rank_layout"), "布局组件提供严格分列+barycenter 减交叉布局")
+	_check(l.contains("owner._use_rank_layout"), "_compute_layout 按 _use_rank_layout 分流到自动排列")
+
 	var w := _src("res://scripts/clue/reasoning_wall.gd")
+	_check(w.contains("自动排列") and w.contains("_on_auto_arrange_pressed"), "顶栏提供「自动排列」按钮")
 	_check(not w.contains("_graph_holder.add_child"), "图谱契回墙顶层，不再契入容器")
 	_check(w.contains("gv.hit_off_left = 540") and w.contains("gv.hit_off_top = 110"), "推理墙单源传入契入让出区")
 
