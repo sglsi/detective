@@ -65,6 +65,7 @@ var _clip: Control = null           # 裁剪视口（视觉显示，IGNORE）
 var hit_off_top: int = 110          # 契入让出区上缘（顶栏高）——由推理墙传入，谱图 _clip 从顶栏之下开始
 var hit_off_left: int = 540         # 契入让出区左缘（左栏右缘宽）——由推理墙传入，谱图 _clip 从左栏之右开始
 var _did_initial_fit: bool = false  # 契入模式首帧已 fit_view（只在打开时缩放一次，后续 rebuild 不重置玩家缩放）
+var _use_rank_layout: bool = false  # 顶栏「自动排列」一次性标志：布局层据其走 BFS 深度分列 + barycenter 减交叉
 var _canvas: Control = null         # _world：节点与连线挂此（STOP，承接平移/缩放/空白点击）
 var _hint_layer: Control = null     # 难度提示圈（最底）
 var _edge_layer: Control = null     # 连线绘制层（节点下）
@@ -1779,6 +1780,18 @@ func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 	_canvas.position = mouse_pos - lp * ns - _clip.get_global_transform().origin
 	_zoom = ns
 	
+
+## 顶栏「自动排列」：一次性切换到 BFS 深度分列 + barycenter 减交叉的规范布局，
+## 重排全部节点并持久化 + 适应画布看全。仅在模式 C（图谱）可用。
+func auto_layout() -> void:
+	if _mode != GraphViewController.ViewMode.MODE_C:
+		return
+	_use_rank_layout = true
+	_rebuild_graph()
+	_use_rank_layout = false
+	_persist_view()
+	fit_view()
+
 
 ## 自适应画布：缩放+居中至全部节点可见（内容少则放大，多则缩小）
 func fit_view() -> void:
