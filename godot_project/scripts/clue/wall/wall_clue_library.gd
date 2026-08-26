@@ -76,6 +76,10 @@ func _refresh_clue_list() -> void:
 		visible = owner._graph_view.visible_clue_ids()
 	for clue in owner._clues:
 		var cid: String = clue.get("id", "")
+		# 跨场景带入·任务：case_wide 左栏仅显示「本场景采集页收集到的线索」，
+		# 上一场景收集但未拖入画布的线索在下一场景左栏不再出现（玩家认为其不重要）。
+		if owner._case_wide and not owner._scene_clue_ids.is_empty() and not (cid in owner._scene_clue_ids):
+			continue
 		if placed.has(cid) or visible.has(cid):
 			continue
 		var name: String = clue.get("name", clue.get("label", cid))

@@ -192,29 +192,34 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		_subtree_span_est(_nd.id, child_map, est_h, memo)
 	# 人物定位：保存位优先（人物可自由拖动）；多人物水平错开
 	var col_gap: float = 300.0
-	var root_default_x: float = center.x
-	var _rd: Variant = saved_pos.get(owner._focus_person, null) if owner._focus_person != "" else null
-	if _rd is Vector2:
-		root_default_x = _rd.x
+	# 跨场景带入·任务：上一场景携带内容偏左、本场景新内容偏右，建立关系前分区域放置（建立关系后自然并入同一层级树）
+	var _is_cw := owner._case_wide and not owner._carried_ids.is_empty()
+	var _carried_x: float = center.x - 380.0
+	var _new_x: float = center.x + 380.0
 	for r in roots:
 		var _sv: Variant = saved_pos.get(r, null)
-		var rx: float = _sv.x if (_sv is Vector2) else root_default_x
+		var _rx: float
+		if _sv is Vector2:
+			_rx = _sv.x
+		else:
+			_rx = _carried_x if (_is_cw and (r in owner._carried_ids)) else _new_x
 		var ry: float = _sv.y if (_sv is Vector2) else center.y
-		out[r] = Vector2(rx, ry)
-	# direction：人物偏右→向左生长，偏左→向右（方向不硬性统一）
-	var dirv := 1.0
-	if root_default_x >= owner._canvas.size.x * 0.5:
-		dirv = -1.0
+		out[r] = Vector2(_rx, ry)
 	for r in roots:
 		var _sv2: Variant = saved_pos.get(r, null)
-		var rx2: float = _sv2.x if (_sv2 is Vector2) else root_default_x
+		var rx2: float = _sv2.x if (_sv2 is Vector2) else out[r].x
 		var ry2: float = _sv2.y if (_sv2 is Vector2) else center.y
+		# 根偏右→树向左生长，偏左→向右（方向不硬性统一，保持画布内）
+		var dirv := 1.0
+		if rx2 >= owner._canvas.size.x * 0.5:
+			dirv = -1.0
 		var _half3: float = maxf(memo.get(r, 130.0) * 0.5, 60.0)
 		var top2: float = ry2 - _half3
 		var bot2: float = ry2 + _half3
 		_assign_subtree(r, child_map, memo, est_h, out, top2, bot2, rx2, dirv, col_gap)
-	# 孤立（未接入树）节点：外围散布（保存位优先），保持可见
+	# 孤立（未接入树）节点：保存位优先；携带内容偏左、本场景新内容偏右，分区域放置、保持可见
 	var spare_i := 0
+	var spare_j := 0
 	var out_keys := {}
 	for k in out: out_keys[k] = true
 	for nd in nodes:
@@ -223,9 +228,12 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		if sv is Vector2:
 			out[nd.id] = sv
 			continue
-		out[nd.id] = Vector2(root_default_x + dirv * (5.0 + float(spare_i) * 0.6) * col_gap,
-			center.y - 220.0 + float(spare_i) * 120.0)
-		spare_i += 1
+		if _is_cw and (nd.id in owner._carried_ids):
+			out[nd.id] = Vector2(_carried_x + 40.0, center.y - 220.0 + float(spare_i) * 120.0)
+			spare_i += 1
+		else:
+			out[nd.id] = Vector2(_new_x - 40.0, center.y - 220.0 + float(spare_j) * 120.0)
+			spare_j += 1
 	# 手动拖动过的节点保持原位，不被自动布局覆盖（保证每个人物/结论/推断/线索都能自由移动）
 	for mid2 in owner._manual_nodes:
 		var _sv3: Variant = saved_pos.get(mid2, null)

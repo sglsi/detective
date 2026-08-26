@@ -48,6 +48,8 @@ var _placed_clues: Array = []
 var _auto_fold: bool = false
 var _case_wide: bool = false
 var _manual_nodes: Array = []
+var _carried_ids: Array = []            # 开墙时已存在（上一场景携带）的节点 id；布局据此与「本场景新内容」分区域放置
+var _scene_clue_ids: Array = []         # 本场景采集页收集到的线索 id（=「本场景新内容」）；布局分离时这些算新，其余算携带
 var _cb_tag: Callable = Callable()
 var _cb_add_edge: Callable = Callable()
 var _cb_remove_relation: Callable = Callable()
@@ -260,6 +262,7 @@ func build(data: Dictionary) -> void:
 	_show_toolbar = data.get("show_toolbar", false)
 	_auto_fold = data.get("auto_fold", false)
 	_case_wide = data.get("case_wide", false)
+	_scene_clue_ids = data.get("scene_clue_ids", [])
 
 	# 视图记忆恢复（09 R-3）：读 SaveGame/state_store
 	_mode = _state_store.get("graph_view_mode", ViewMode.MODE_C)
@@ -296,20 +299,14 @@ func build(data: Dictionary) -> void:
 	var _old_fp: Dictionary = _state_store.get("graph_folded_persons", {})
 	for _pid in _old_fp:
 		_folded_nodes[_pid] = true
-	# 需求2（修订·任务5）：进入新场景（案件级大墙 reuse，scene 2~8）时【不再】自动折叠已确立
-	# 推理主干——否则上一场景已收集/已关联的线索与推断会被收起，表现为「场景二线索在场景三只部分显示」。
-	# 跨场景进入须完整展现全部线索与关系，由玩家在墙内手动折叠。仅场景一教学墙（非 case_wide）保留自动折叠聚焦。
-	if _auto_fold and not _case_wide and _folded_nodes.is_empty() and not _relations.is_empty():
-		var _inner_roots: Array = []
-		for _rf in _relations:
-			for _eid in [_rf.get("from", ""), _rf.get("to", "")]:
-				if _eid == "": continue
-				if _fold._ring_depth(_fold._kind_of(_eid)) == 0 and not (_eid in _inner_roots):
-					_inner_roots.append(_eid)
-		for _eid in _inner_roots:
-			_folded_nodes[_eid] = true
-		_state_store["graph_folded_nodes"] = _folded_nodes
-		_persist_view()
+	# 需求（跨场景带入·任务）：case_wide（场景二~八）进入新场景时【自动折叠到每条推理链的最上层节点】——
+	# 只露有推理关系的最上层节点（孤立/叶子线索仍可见），玩家点击展开。取代旧「不自动折叠、交玩家手动」策略。
+	# 开墙即重新计算（不沿用上一场景折叠/展开态）；坐标不随携带（清空 graph_node_positions，由布局重排）。
+	# 先清空折叠态与坐标，让首次 _rebuild_graph 完整呈现所有节点（正确填充 _node_kind），随后折叠到根。
+	if _auto_fold:
+		if _state_store.has("graph_node_positions"):
+			_state_store.erase("graph_node_positions")
+		_folded_nodes = {}
 	_all_positions = {}
 
 	# 升级兜底聚焦（修根因 2026-08-19 v3）：缓存里残留的 "__case__" 一律强制重置为空，
@@ -339,6 +336,20 @@ func build(data: Dictionary) -> void:
 
 	_create_ui()
 	_rebuild_graph()
+	# 需求（跨场景带入·任务）：case_wide 进入新场景自动折叠到「每条推理链最上层节点」
+	#（只露有推理关系的最上层节点，孤立/叶子线索仍可见），玩家点击展开。
+	# 首次 _rebuild_graph 已完整呈现所有节点（折叠态清空），先记录「携带内容」节点集合，
+	# 供布局与「本场景新拖入内容」分区域放置；随后折叠到根并重建一次。
+	if _auto_fold:
+		# 携带（旧）内容 = 开墙时已存在的所有节点，除「本场景采集页新收集线索」外（那些算新内容，放另一区域）。
+		# 全案大墙 _clues 传入的是全案线索池（含上一场景线索），故必须用 _scene_clue_ids 把本场景新线索剔出，
+		# 否则本场景新线索会被误判为携带内容、与新内容混放在左/上区，违背「新旧分区域」要求。
+		_carried_ids = []
+		for id in _node_kind.keys():
+			if not (id in _scene_clue_ids):
+				_carried_ids.append(id)
+		_apply_fold_to_roots()
+		_rebuild_graph()
 	# 已收集线索栏唯一入口：reasoning_wall 左栏（挂顶层 z=20，显示+选择+拖入放置+放置后消失）。
 	# 这里不再创建图谱自带的第二套 dock（System B），避免"两套已收集线索"冗余。
 	# _create_clue_dock()
@@ -2130,6 +2141,48 @@ func _persist_view() -> void:
 	_state_store["graph_edited_texts"] = _edited_texts.duplicate()
 	_state_store["graph_deleted_nodes"] = _state_store.get("graph_deleted_nodes", [])
 	_layout._persist_node_positions()
+
+
+## 自动折叠到「每条推理链最上层节点」（跨场景带入·任务）：
+## 对任意节点，若它【没有更高层父节点】且【有下层子节点】，则视为该链的根 → 折叠以隐藏其整棵子树；
+## 孤立节点 / 叶子（无下层子节点，如未建立任何关系的独立线索）保持可见。
+## 层级序：人物/事件=0 最顶 > 结论=1 > 推断=2 > 线索=3 最底（与 graph_view_fold._ring_depth 对齐）。
+## 仅 case_wide 进入新场景时调用一次，不沿用上一场景折叠/展开态。
+func _apply_fold_to_roots() -> void:
+	var adj := _fold._build_adjacency()
+	var folded := {}
+	# 收集所有已知节点 id（邻接表 + 自定义文本框 + 系统结论/假设 + 线索 + 焦点人物），统一用权威 _kind_of 解析层级
+	var ids := {}
+	for id in adj:
+		ids[id] = true
+	for gn in _graph_nodes:
+		ids[gn.get("id", "")] = true
+	if not ids.has("conclusion"):
+		ids["conclusion"] = true
+	if _focus_person != "" and not ids.has(_focus_person):
+		ids[_focus_person] = true
+	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
+		ids[h.get("id", "")] = true
+	for c in _clues:
+		ids[c.get("id", "")] = true
+	for id in ids:
+		if id == "":
+			continue
+		var rd := _fold._ring_depth(_fold._kind_of(id))
+		var has_higher := false
+		var has_lower := false
+		for nb in adj.get(id, []):
+			var nrd := _fold._ring_depth(_fold._kind_of(nb))
+			if nrd > rd:
+				has_higher = true
+			elif nrd < rd:
+				has_lower = true
+		# 根 = 无更高层父节点 且 有下层子节点 → 折叠隐藏其子树（孤立/叶子不折叠，保持可见）
+		if has_higher and not has_lower:
+			folded[id] = true
+	_folded_nodes = folded
+	_state_store["graph_folded_nodes"] = _folded_nodes
+	_persist_view()
 
 
 # 顶栏「添文本框」：向画布新增一个自定义文本节点（kind = clue/hypo/conclusion/person）
