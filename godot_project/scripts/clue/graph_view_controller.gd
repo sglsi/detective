@@ -2212,6 +2212,62 @@ func visible_clue_ids() -> Array:
 			out.append(id)
 	return out
 
+## 采纳一条候选推断：生成推断(hypo)节点并自动与支撑证据线索建绿实线(support)关系。
+## cand 来自场景 battlefield.hypotheses：{id,text,kind:"true"/"mislead",gate_clue_ids:[...]}
+## 支撑线索 = gate_clue_ids 中当前已收集(_clues 含该 id)的线索；未收集的跳过（收集后发布会重算）。
+## 采纳一条候选推断（推理战场引导，2026-09）：
+## 推断假设(battlefield.hypotheses)已自动渲染为图谱 hypo 节点，relation_tags 已自动连"线索→推断"support 边。
+## 这里补齐两层增量：① 该候选 id 若尚未作为节点上墙（如困难模式玩家自行补录的候选），则建成 hypo 节点；
+## ② 把 gate_clue_ids 中「已收集但尚未与其连边」的证据线索补连 support 边，并展示 adopt_desc 详细文案。
+func adopt_candidate(cand: Dictionary) -> void:
+	if _state != State.EDITABLE:
+		_ui_toast("推理墙已封存，仅可浏览")
+		return
+	var hid: String = cand.get("id", "")
+	if hid == "":
+		return
+	var label: String = cand.get("text", "推断")
+	# ① 节点缺失才补建（正常路径由 battlefield.hypotheses 自动渲染；困难模式补录会走这里）
+	if not _node_center.has(hid):
+		var placed: Dictionary = {"id": hid, "kind": "hypo", "label": label,
+			"sub": "推断", "data": {"correct": cand.get("kind", "true") == "true", "candidate": true, "adopt_desc": cand.get("adopt_desc", "")}}
+		_graph_nodes.append(placed)
+		var base: Vector2 = _canvas.size * 0.5
+		var jitter: Vector2 = Vector2(-40 + (_graph_nodes.size() % 5) * 24, -30 + (_graph_nodes.size() % 4) * 22)
+		var pos: Vector2 = _layout._clamp_to_canvas(base + jitter)
+		_node_center[hid] = pos
+		var nps: Dictionary = _state_store.get("graph_node_positions", {})
+		nps[hid] = pos
+		_state_store["graph_node_positions"] = nps
+	# ② 补充连接缺失的支撑证据（relation_tags 已覆盖已知关联，这里兜底补齐 gate_clue_ids 中已收集但未连边的线索）
+	if not _data._id_is_clue(hid):
+		for cid in cand.get("gate_clue_ids", []):
+			var cs := str(cid)
+			if not _data._id_is_clue(cs):
+				continue
+			var linked := _relations.any(func(r): return r.get("from", "") == cs and r.get("to", "") == hid)
+			linked = linked or any_edge(cs, hid)
+			if not linked:
+				_edge._add_edge(cs, hid, "support", "green", false)
+	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
+	_persist_view()
+	_rebuild_graph()
+	var desc: String = cand.get("adopt_desc", "")
+	if desc != "":
+		_ui_toast(desc if desc.length() <= 120 else desc.substr(0, 117) + "…")
+
+
+func any_edge(f: String, t: String) -> bool:
+	for e in _edge_list:
+		if e.get("from", "") == f and e.get("to", "") == t:
+			return true
+	return false
+
+
+func _ui_toast(msg: String) -> void:
+	_toast_msg(msg)
+
+
 func _gn_color(kind: String) -> Color:
 	match kind:
 		"person": return Color(0.66, 0.20, 0.16, 0.97)

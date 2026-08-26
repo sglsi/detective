@@ -82,6 +82,9 @@ var _search_edit: LineEdit = null
 var _filter_sel: OptionButton = null
 var _fold_btn: Button = null
 var _export_btn: Button = null
+var _candidate_btn: Button = null
+var _candidate_panel: PanelContainer = null
+var _notice_lbl: Label = null
 var _filter_all: Button = null
 var _filter_assoc: Button = null
 var _filter_unassoc: Button = null
@@ -489,6 +492,15 @@ func _create_top_bar() -> Control:
 	export_btn.pressed.connect(_on_export_pressed)
 	row2.add_child(export_btn)
 	_export_btn = export_btn
+
+	row2.add_child(_mk_sep())
+
+	# 「候选采纳」：把场景预设的候选推断（按难度供给/甄别）采纳进图谱并自动连支撑证据
+	var cand_btn := _mk_top_btn("🧠 候选采纳", false)
+	cand_btn.tooltip_text = "查看场景预设的可采纳候选推断：简单=系统直接给、普通=含误导需甄别、困难=自行推断不预设"
+	cand_btn.pressed.connect(_on_candidates_pressed)
+	row2.add_child(cand_btn)
+	_candidate_btn = cand_btn
 
 	row2.add_child(_mk_sep())
 
@@ -1024,6 +1036,162 @@ func _restore_one(nid: String) -> void:
 		if _recycle_panel:
 			_recycle_panel.queue_free()
 			_recycle_panel = null
+
+
+## 「🧠 候选采纳」：打开场景预设候选推断面板，按难度决定供给与甄别方式
+## EASY  = 只列正确推断，点采纳→自动连支撑证据；NORMAL = 混入误导项，采纳/排除需甄别；
+## HARD  = 不预设候选，仅提示玩家自行添加推断/连线，归案时再与预设比对（比对走验证）。
+func _on_candidates_pressed() -> void:
+	if _candidate_panel:
+		_candidate_panel.queue_free()
+		_candidate_panel = null
+	var hypos: Array = []
+	if _battle is Dictionary and _battle.has("hypotheses") and _battle["hypotheses"] is Array:
+		hypos = _battle["hypotheses"]
+	if _difficulty == Diff.HARD or hypos.is_empty():
+		if _status_lbl:
+			if _difficulty == Diff.HARD:
+				_status_lbl.text = "困难模式：请自行添加推断/连线，归案时系统将比对剧情预设"
+			else:
+				_status_lbl.text = "本场景暂无预设候选推断"
+		return
+
+	var is_normal: bool = _difficulty == Diff.NORMAL
+	var panel := PanelContainer.new()
+	panel.name = "candidate_panel"
+	_candidate_panel = panel
+	var vb := VBoxContainer.new()
+	vb.custom_minimum_size = Vector2(460, 480)
+	panel.add_child(vb)
+	var title := Label.new()
+	title.text = "🧠 候选推断采纳（%s）" % ("普通" if is_normal else "简单")
+	title.add_theme_font_size_override("font_size", 18)
+	vb.add_child(title)
+	var tip := Label.new()
+	tip.text = "点「采纳」把推断接入图谱并自动连其支撑证据线索" + ("；误导项需甄别排除" if is_normal else "")
+	tip.add_theme_font_size_override("font_size", 13)
+	tip.modulate = Color(0.62, 0.62, 0.55)
+	vb.add_child(tip)
+	vb.add_child(HSeparator.new())
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(0, 340)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(sc)
+	var listv := VBoxContainer.new()
+	listv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(listv)
+
+	for h in hypos:
+		var hd: Dictionary = h
+		var hid: String = str(hd.get("id", ""))
+		var htext: String = str(hd.get("text", "未命名推断"))
+		var is_true: bool = str(hd.get("kind", "true")) == "true" or bool(hd.get("correct", true))
+		if not is_normal and not is_true:
+			continue
+		var card := VBoxContainer.new()
+		card.name = "cand_" + hid
+		var inner := PanelContainer.new()
+		inner.add_theme_stylebox_override("panel", _mk_hint_box(is_true))
+		var cvb := VBoxContainer.new()
+		inner.add_child(cvb)
+		var hl := Label.new()
+		hl.text = ("✅ " if is_true else "⚠️ 误导 ") + htext
+		hl.add_theme_font_size_override("font_size", 15)
+		hl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		cvb.add_child(hl)
+		var nhl := Label.new()
+		var ndesc: String = str(hd.get("new_clue_hint", ""))
+		if ndesc == "":
+			ndesc = str(hd.get("adopt_desc", ""))
+		nhl.text = ("> " + ndesc) if ndesc != "" else "已收集相关线索后采纳将自动连线"
+		nhl.add_theme_font_size_override("font_size", 12)
+		nhl.modulate = Color(0.78, 0.74, 0.6)
+		nhl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		cvb.add_child(nhl)
+		var hb := HBoxContainer.new()
+		hb.add_child(_mk_cand_act("采纳", hid, is_true, hd))
+		if is_normal and not is_true:
+			hb.add_child(_mk_cand_act("排除误导", hid, is_true, hd))
+		inner.add_child(hb)
+		card.add_child(inner)
+		listv.add_child(card)
+		listv.add_child(HSeparator.new())
+
+	var status := Label.new()
+	status.text = "提示：采纳后仍需在图上自行拖动建链，最终归案以提交验证为准。"
+	status.add_theme_font_size_override("font_size", 12)
+	status.modulate = Color(0.6, 0.6, 0.54)
+	vb.add_child(status)
+	panel.position = Vector2(600, 120)
+	panel.z_index = 95
+	add_child(panel)
+
+
+func _mk_cand_act(act: String, hid: String, is_true: bool, hd: Dictionary) -> Button:
+	var b := Button.new()
+	b.text = act
+	b.add_theme_font_size_override("font_size", 14)
+	if act == "采纳":
+		b.pressed.connect(_adopt_candidate.bind(hid, hd))
+	else:
+		b.pressed.connect(_reject_candidate.bind(hid, hd))
+	return b
+
+
+func _adopt_candidate(hid: String, hd: Dictionary) -> void:
+	if _candidate_panel:
+		_candidate_panel.queue_free()
+		_candidate_panel = null
+	if _graph_view and is_instance_valid(_graph_view) and _graph_view.has_method("adopt_candidate"):
+		_graph_view.adopt_candidate(hd)
+		_state_ctl._persist_state()
+		if _status_lbl:
+			_status_lbl.text = "已采纳候选推断：" + str(hd.get("text", hid))
+
+
+func _reject_candidate(hid: String, hd: Dictionary) -> void:
+	var rdesc: String = str(hd.get("reject_desc", ""))
+	if _status_lbl:
+		_status_lbl.text = "已排除误导：%s%s" % [str(hd.get("text", hid)), ("　" + rdesc if rdesc != "" else "")]
+	if rdesc != "":
+		_mk_notice("⚠️ 误导排除：%s" % rdesc)
+	if _candidate_panel:
+		_candidate_panel.queue_free()
+		_candidate_panel = null
+
+
+func _mk_hint_box(true_kind: bool) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	if true_kind:
+		sb.bg_color = Color(0.08, 0.18, 0.12, 1.0)
+		sb.border_color = Color(0.35, 0.75, 0.42, 1.0)
+	else:
+		sb.bg_color = Color(0.18, 0.1, 0.1, 1.0)
+		sb.border_color = Color(0.8, 0.36, 0.3, 1.0)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(4)
+	sb.set_content_margin_all(8)
+	return sb
+
+
+## 顶部临时提示浮窗（用于误导排除等详细文案，避免只用状态栏一行字）
+func _mk_notice(text: String) -> void:
+	if _notice_lbl:
+		_notice_lbl.queue_free()
+		_notice_lbl = null
+	var lbl := Label.new()
+	_notice_lbl = lbl
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 15)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.custom_minimum_size = Vector2(560, 0)
+	lbl.modulate = Color(1, 0.86, 0.5)
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", _mk_hint_box(true))
+	p.add_child(lbl)
+	p.position = Vector2(620, 80)
+	p.z_index = 96
+	add_child(p)
 
 
 func _on_toggle_fold() -> void:
