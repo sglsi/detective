@@ -64,6 +64,7 @@ var _layout_seed: int = 1
 var _clip: Control = null           # 裁剪视口（视觉显示，IGNORE）
 var hit_off_top: int = 110          # 契入让出区上缘（顶栏高）——由推理墙传入，谱图 _clip 从顶栏之下开始
 var hit_off_left: int = 540         # 契入让出区左缘（左栏右缘宽）——由推理墙传入，谱图 _clip 从左栏之右开始
+var _did_initial_fit: bool = false  # 契入模式首帧已 fit_view（只在打开时缩放一次，后续 rebuild 不重置玩家缩放）
 var _canvas: Control = null         # _world：节点与连线挂此（STOP，承接平移/缩放/空白点击）
 var _hint_layer: Control = null     # 难度提示圈（最底）
 var _edge_layer: Control = null     # 连线绘制层（节点下）
@@ -260,6 +261,7 @@ func build(data: Dictionary) -> void:
 
 	# 视图记忆恢复（09 R-3）：读 SaveGame/state_store
 	_mode = _state_store.get("graph_view_mode", ViewMode.MODE_C)
+	_did_initial_fit = false
 	_placed_clues = (_state_store.get("graph_placed_clues", []) as Array).duplicate()
 	_manual_nodes = (Array(_state_store.get("graph_manual_nodes", [])) as Array).duplicate()
 	_graph_nodes = (Array(_state_store.get("graph_nodes", [])) as Array).duplicate()
@@ -377,8 +379,13 @@ func _create_ui() -> void:
 
 	# _world 容器（缩放/平移等价 Camera2D；节点与连线挂此）。STOP 承担平移/滚轮/空白点击，
 	# 节点卡片(z=0)自身 STOP 优先接收点击与拖拽，空白处落回 _canvas（与契入前一致）。
+	# 【关键】契入让出只管“裁剪显示+命中”（_clip 偏移让出顶栏/左栏），布局基准不得跟随 compress：
+	# 这里 offset 反补 -hit_off，使 _canvas 仍覆盖契入前整个墙画布(0,0..W,H)，
+	# 世界坐标原点回到墙左上、画布宽回到契入前全屏值 → 横向阶梯树在宽松基准上重排，目标不会覆盖。
 	_canvas = Control.new()
 	_canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_canvas.offset_left = -hit_off_left
+	_canvas.offset_top = -hit_off_top
 	_canvas.mouse_filter = Control.MOUSE_FILTER_STOP
 	_canvas.gui_input.connect(_on_canvas_gui)
 	_clip.add_child(_canvas)
@@ -637,6 +644,11 @@ func _rebuild_graph() -> void:
 			fc.set_meta("graph_node", true)
 			_fold_controls[fid] = fc
 			_canvas.add_child(fc)
+	# 契入模式（_clip 让出顶栏/左栏）首次 build 自动 fit 一次：布局基准是契入前的全屏画布，
+	# 契入 viewport 只显示其一部分，fit 缩放到契入区内看全；后续 rebuild 不再重置玩家缩放。
+	if not _did_initial_fit and (hit_off_left > 0 or hit_off_top > 0):
+		_did_initial_fit = true
+		call_deferred("fit_view")
 	_redraw_all()
 
 
