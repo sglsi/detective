@@ -626,25 +626,23 @@ func _rebuild_graph() -> void:
 		_node_data[nd.id] = nd.data
 	# 同列纵向去重叠：按真实卡片高度硬保证相邻卡片上下边距 ≥15px（不依赖布局/估算，避免任何覆盖）
 	_layout._apply_column_overlap_fix()
-	# 创建连线出口折叠控件（XMind 式 −/+N；线索等叶子节点也可折叠收起自身）
+	# 创建连线出口折叠控件（XMind 式 −/+N）。设计：圆圈仅当该节点「有关系、有下级」时显示，
+	# 即高一级节点下确实有低一级节点才在其上画圈；无下级的叶子不建，避免任何线索常驻圆圈。
 	for nd in nodes:
-		if _fold._is_leaf(nd.id):
-			var fc := _fold._make_fold_control(nd.id)
-			fc.set_meta("graph_node", true)
-			_fold_controls[nd.id] = fc
-			_canvas.add_child(fc)
-		elif not _fold._direct_outer_neighbors(nd.id).is_empty():
-			var fc := _fold._make_fold_control(nd.id)
-			fc.set_meta("graph_node", true)
-			_fold_controls[nd.id] = fc
-			_canvas.add_child(fc)
-	# 已折叠的叶子（自身已隐藏）仍提供恢复控件，凭 _all_positions 定位在原位
+		if _fold._direct_outer_neighbors(nd.id).is_empty():
+			continue
+		var fc := _fold._make_fold_control(nd.id)
+		fc.set_meta("graph_node", true)
+		_fold_controls[nd.id] = fc
+		_canvas.add_child(fc)
+	# 已折叠节点（自身已隐藏）只要有下级仍提供恢复控件，凭 _all_positions 定位在原位
 	for fid in _folded_nodes:
-		if _fold._is_leaf(fid) and not _fold_controls.has(fid):
-			var fc := _fold._make_fold_control(fid)
-			fc.set_meta("graph_node", true)
-			_fold_controls[fid] = fc
-			_canvas.add_child(fc)
+		if _fold_controls.has(fid): continue
+		if _fold._direct_outer_neighbors(fid).is_empty(): continue
+		var fc := _fold._make_fold_control(fid)
+		fc.set_meta("graph_node", true)
+		_fold_controls[fid] = fc
+		_canvas.add_child(fc)
 	# 契入模式（_clip 让出顶栏/左栏）首次 build 自动 fit 一次：布局基准是契入前的全屏画布，
 	# 契入 viewport 只显示其一部分，fit 缩放到契入区内看全；后续 rebuild 不再重置玩家缩放。
 	if not _did_initial_fit and (hit_off_left > 0 or hit_off_top > 0):
