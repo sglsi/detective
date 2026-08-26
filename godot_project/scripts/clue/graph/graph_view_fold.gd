@@ -10,32 +10,45 @@ class_name GraphViewFold
 var owner: GraphViewController
 
 # ===================== 圈层判定 =====================
+## 圈层判定（与布局 _relation_tree_layout 的 depth_of 对齐：人物/事件=0 最顶 > 结论=1 > 推断=2 > 线索=3 最底）。
+## 折叠方向：折叠某节点 = 隐藏其「圈层更深（rd 更大）」的整棵子树。故人物(rd0)折叠会收起结论+推断+线索，
+## 结论(rd1)折叠收起推断+线索，推断(rd2)折叠收起线索。叶子=线索(rd3)可折叠收起自身。
 func _ring_depth(kind: String) -> int:
 	match kind:
-		"conclusion": return 0
 		"person":     return 0
-		"chain":      return 0
-		"hypo":       return 1
-		"clue":       return 2
-		_:            return 2
+		"event":      return 0
+		"conclusion": return 1
+		"hypo":       return 2
+		"chain":      return 2
+		"clue":       return 3
+		_:            return 3
 
 
-## 任意节点 id 的 kind（不依赖可见性——隐藏节点也需判定圈层）
+## 任意节点 id 的 kind（不依赖可见性——隐藏节点也需判定圈层）。
+## ⚠️ 必须从「权威数据」直接解析，不能优先依赖 _node_kind：_rebuild_graph 在 line 609 清空 _node_kind，
+## 而在 line 622 的 _node_list 内就会调用 _compute_hidden→_kind_of，此时 _node_kind 尚为空（要等 line 645
+## 才回填）。若优先读 _node_kind，则「开墙即折叠」(_apply_fold_to_roots) 会因 kind 全退化成 clue(叶子)
+## 而把折叠根自身也误收起。故这里优先从 _persons/_hypo/_clues/_graph_nodes 解析，_node_kind 仅作兜底。
 func _kind_of(id: String) -> String:
 	if id == owner._focus_person: return "person"
 	if id == "conclusion": return "conclusion"
 	if id.begins_with("chain:"): return "chain"
-	if owner._node_kind.has(id): return owner._node_kind[id]
+	for gn in owner._graph_nodes:
+		if gn.get("id", "") == id: return gn.get("kind", "hypo")
 	for h in owner._hypo.get("battlefield", {}).get("hypotheses", []):
 		if h.get("id", "") == id: return "hypo"
+	for p in owner._persons:
+		var pid: String = p.get("id", "") if p is Dictionary else str(p)
+		if pid == id: return "person"
 	for c in owner._clues:
 		if c.get("id", "") == id: return "clue"
+	if owner._node_kind.has(id): return owner._node_kind[id]
 	return "clue"
 
 
-## 叶子节点（线索）可折叠（任务3：折叠=收起自身，展开可恢复）
+## 叶子节点（线索，rd=3）可折叠（折叠=收起自身，展开可恢复）
 func _is_leaf(id: String) -> bool:
-	return _ring_depth(_kind_of(id)) >= 2
+	return _ring_depth(_kind_of(id)) >= 3
 
 
 ## 无向邻接表（折叠遍历用）：玩家关系 + 数据边 + 模式C人物↔结论元数据边

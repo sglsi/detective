@@ -436,7 +436,9 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 		# 验证锁只约束「本场景当前阶段答完题」，跨场景进入新推理阶段必须解除。
 		_wall_state["verified"] = false
 		_wall_state["verdict"] = -1
-	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true, local_count, Callable(self, "_do_save"), use_case_wide)
+	# 跨场景带入·任务：把「本场景采集页收集到的线索 id」传给墙，左栏只显示这些（上一场景未拖入画布的线索下一场景左栏不再出现）
+	var _scene_clue_ids: Array = ClueSystem.get_collected_ids(clue_source()) if ClueSystem and ClueSystem.has_method("get_collected_ids") else []
+	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true, local_count, Callable(self, "_do_save"), use_case_wide, _scene_clue_ids)
 
 ## 默认验证回调：展示判定结果；满足「推理阶段」或「线索已收满」则自动推进过渡。
 ## 三级反馈映射（06 §2.3 + 一致性报告 H-3）：已获证实+倾向成立→正确（绿）；

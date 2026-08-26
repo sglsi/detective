@@ -32,36 +32,36 @@ func _initialize() -> void:
 	# 注：枚举 Verdict 值 CONTRADICTORY=0 / INSUFFICIENT=1 / SUPPORTED=2 / VERIFIED=3
 
 	# 1) 关联 3 条正确线索 → VERIFIED(3)
-	rw._toggle_association("c1")
-	rw._toggle_association("c2")
-	rw._toggle_association("c3")
+	rw._clue_ctl._toggle_association("c1")
+	rw._clue_ctl._toggle_association("c2")
+	rw._clue_ctl._toggle_association("c3")
 	var v1: int = rw.get_verdict()
 	log.append("关联3条正确线索 verdict=%d (期望3)" % v1)
 	if v1 != 3: ok = false; print("REL_FAIL 基础关联未得 VERIFIED, v=", v1)
 
 	# 2) 线索↔线索矛盾关系 → CONTRADICTORY(0)
-	var r2: bool = rw.connect_nodes("c1", "c2", "auto")
-	var rel_kind_after: String = rw.get_relations()[-1]["kind"] if not rw.get_relations().is_empty() else "?"
+	var r2: bool = rw._rel_ctl.connect_nodes("c1", "c2", "auto")
+	var rel_kind_after: String = rw._rel_ctl.get_relations()[-1]["kind"] if not rw._rel_ctl.get_relations().is_empty() else "?"
 	log.append("connect c1↔c2(auto) 返回=%s 解析kind=%s" % [r2, rel_kind_after])
 	var v2: int = rw.get_verdict()
 	log.append("建立矛盾关系后 verdict=%d (期望0)" % v2)
 	if v2 != 0: ok = false; print("REL_FAIL 矛盾关系未触发 CONTRADICTORY, v=", v2)
 
 	# 3) 清除关系 → 复位为 VERIFIED(3)
-	rw.clear_relations()
+	rw._rel_ctl.clear_relations()
 	var v3: int = rw.get_verdict()
 	log.append("clear_relations 后 verdict=%d (期望3)" % v3)
 	if v3 != 3: ok = false; print("REL_FAIL clear_relations 未复位, v=", v3)
 
 	# 4) 仅关联 2 条 + 1 条 支持关系 → VERIFIED(3)
-	rw._toggle_association("c3")   # 取消 c3，剩余 c1,c2 关联(2条)
-	var r4: bool = rw.connect_nodes("c1", "H1", "support")
+	rw._clue_ctl._toggle_association("c3")   # 取消 c3，剩余 c1,c2 关联(2条)
+	var r4: bool = rw._rel_ctl.connect_nodes("c1", "H1", "support")
 	var v4: int = rw.get_verdict()
 	log.append("关联2+支持关系1 verdict=%d (期望3) support关系返回=%s" % [v4, r4])
 	if v4 != 3: ok = false; print("REL_FAIL 支持关系未计入支持信号, v=", v4)
 
 	# 5) 反对关系 → CONTRADICTORY(0)
-	var r5: bool = rw.connect_nodes("c4", "H1", "oppose")
+	var r5: bool = rw._rel_ctl.connect_nodes("c4", "H1", "oppose")
 	var v5: int = rw.get_verdict()
 	log.append("反对关系 verdict=%d (期望0) oppose返回=%s" % [v5, r5])
 	if v5 != 0: ok = false; print("REL_FAIL 反对关系未触发 CONTRADICTORY, v=", v5)
@@ -72,17 +72,17 @@ func _initialize() -> void:
 	if persisted.size() < 1: ok = false; print("REL_FAIL 关系未持久化进 state_store")
 
 	# 7) 重复/自连被拒
-	var dup: bool = rw.connect_nodes("c1", "H1", "support")   # 已存在
-	var selfc: bool = rw.connect_nodes("c1", "c1", "support")  # 自连
+	var dup: bool = rw._rel_ctl.connect_nodes("c1", "H1", "support")   # 已存在
+	var selfc: bool = rw._rel_ctl.connect_nodes("c1", "c1", "support")  # 自连
 	log.append("重复连接返回=%s (期望false) 自连返回=%s (期望false)" % [dup, selfc])
 	if dup != false or selfc != false: ok = false; print("REL_FAIL 重复/自连未被拒绝 dup=", dup, " self=", selfc)
 
 	# 8) 非矛盾线索↔线索 → relate（不影响判定，且不引入矛盾）
-	rw.clear_relations()
-	rw._toggle_association("c3")   # 重新关联 c3 → 此时 _associated=3 应 VERIFIED(3)
+	rw._rel_ctl.clear_relations()
+	rw._clue_ctl._toggle_association("c3")   # 重新关联 c3 → 此时 _associated=3 应 VERIFIED(3)
 	var v8_pre: int = rw.get_verdict()
-	rw.connect_nodes("c3", "c4", "auto")
-	var kinds: Array = rw.get_relations()
+	rw._rel_ctl.connect_nodes("c3", "c4", "auto")
+	var kinds: Array = rw._rel_ctl.get_relations()
 	var rel_kind2: String = kinds[0]["kind"] if not kinds.is_empty() else "?"
 	var v8: int = rw.get_verdict()
 	log.append("relate 前 verdict=%d (期望3)；c3↔c4(auto) kind=%s (期望relate) 后 verdict=%d (期望3)" % [v8_pre, rel_kind2, v8])

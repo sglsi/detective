@@ -51,7 +51,7 @@ func _sample_data() -> Dictionary:
 	var persons := [{"id":"NPC_HOP","name":"霍普"},{"id":"NPC_DRE","name":"德雷伯"}]
 	return {"clues":clues,"hypo":hypo,"relations":relations,"persons":persons,
 		"focus_person":"NPC_HOP","difficulty":1,"editable":true,"verdict":-1,
-		"state_store":{"graph_focus":"NPC_HOP"},"on_tag":Callable(),"on_add_edge":Callable(),
+		"state_store":{"graph_focus":"NPC_HOP","graph_placed_clues":["c1","c2"]},"on_tag":Callable(),"on_add_edge":Callable(),
 		"on_remove_relation":Callable(),"on_close":Callable()}
 
 
@@ -61,7 +61,7 @@ func _run() -> void:
 	_chk(gv._node_views.has("H1"), "折叠前含推断 H1")
 	_chk(gv._node_views.has("c1") and gv._node_views.has("c2"), "折叠前含线索 c1/c2")
 	_chk(gv._fold_controls.has("H1"), "推断 H1 有折叠控件")
-	_chk(gv._fold_count("H1") == 2, "H1 折叠控件计数=2（直接外层线索数）")
+	_chk(gv._fold._fold_count("H1") == 2, "H1 折叠控件计数=2（直接外层线索数）")
 	_chk(not gv._fold_controls.has("c1"), "线索 c1 是叶子，无折叠控件")
 	_chk(gv._fold_controls.has("conclusion"), "结论有折叠控件（外层为推断）")
 	_chk(gv._fold_controls.has("NPC_HOP"), "焦点人物有折叠控件（外层为线索）")
@@ -72,7 +72,7 @@ func _run() -> void:
 	_chk(not gv._node_views.has("c2"), "折叠 H1 后线索 c2 被隐藏")
 	_chk(gv._node_views.has("H1"), "折叠根 H1 自身仍可见")
 	_chk(gv._fold_controls.has("H1"), "折叠后根 H1 仍可见，折叠控件保留（呈 +N 折叠态）")
-	_chk(gv._fold_glyph("H1") == "+2", "折叠后 H1 控件字形为 +2")
+	_chk(gv._fold._fold_glyph("H1") == "+2", "折叠后 H1 控件字形为 +2")
 
 	gv.toggle_fold("H1")
 	_chk(gv._node_views.has("c1") and gv._node_views.has("c2"), "展开 H1 后线索恢复可见")
@@ -82,7 +82,7 @@ func _run() -> void:
 	var ev := InputEventMouseButton.new()
 	ev.button_index = MOUSE_BUTTON_LEFT
 	ev.pressed = true
-	gv2._on_fold_control_gui(ev, "H1")
+	gv2._fold._on_fold_control_gui(ev, "H1")
 	_chk(gv2._folded_nodes.has("H1"), "点击折叠控件后 H1 被折叠")
 	_chk(gv2._dragging == false, "点击折叠控件未触发节点拖动(_dragging=false)")
 	gv2.queue_free()
@@ -112,7 +112,7 @@ func _run() -> void:
 
 	# ---- E) 旧键 graph_folded_persons 迁移为 graph_folded_nodes ----
 	var mig_data := _sample_data()
-	mig_data["state_store"] = {"graph_folded_persons": {"NPC_HOP": true}}
+	mig_data["state_store"] = {"graph_folded_persons": {"NPC_HOP": true}, "graph_placed_clues": ["c1", "c2"]}
 	var gv6 := _mk_controller(mig_data)
 	_chk(gv6._folded_nodes.has("NPC_HOP"), "旧键 graph_folded_persons 迁移进 _folded_nodes")
 	_chk(not gv6._node_views.has("c1"), "旧键迁移后焦点人物关联线索被隐藏")

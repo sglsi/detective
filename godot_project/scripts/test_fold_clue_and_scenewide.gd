@@ -1,6 +1,6 @@
 extends Control
 
-## 聚焦回归：任务3（线索可折叠收起自身）+ 任务5（案件级大墙进入新场景不再自动折叠隐藏旧线索）
+## 聚焦回归：任务3（线索可折叠收起自身）+ 任务5（案件级大墙进入新场景【自动折叠到每条推理链最上层节点】）
 ## 运行：godot --headless "res://scenes/test_fold_clue_and_scenewide.tscn" --path <proj>
 ## 本测试作为 Control 节点运行（autoload 已绑定，get_root 可用）。
 
@@ -56,7 +56,9 @@ func _ready() -> void:
 	gv.toggle_fold("c1")
 	_chk("c1" in _ids(gv), "任务3·再次展开后 c1 恢复可见")
 
-	# ---- 任务5：案件级大墙（case_wide）进入新场景不再自动折叠隐藏旧线索 ----
+	# ---- 任务5：案件级大墙（case_wide）进入新场景【自动折叠到每条推理链最上层节点】 ----
+	# 需求变更：旧「不自动折叠、交玩家手动」已移除（用户规则5）。改为开墙即按层级折叠，
+	# 只露有关系的顶层节点；上一场景携带内容折叠到其顶层、本场景新内容完整可见，玩家点击展开。
 	var gv2 = load("res://scripts/clue/graph_view_controller.gd").new()
 	var d2 := {
 		"clues": [
@@ -67,16 +69,20 @@ func _ready() -> void:
 		"persons": [{"id":"p_old","name":"旧人物"},{"id":"p_new","name":"新人物"}],
 		"focus_person": "p_new",
 		"relations": [{"from":"c_old","to":"h1","kind":"support"},{"from":"p_old","to":"h1","kind":"support"}],
-		"state_store": {},
+		# 本场景新线索 c_new 已拖入画布（放置）→ 成为图谱节点；旧场景线索 c_old 凭关系进入图谱。
+		"state_store": {"graph_placed_clues": ["c_new"]},
 		"editable": true,
 		"case_wide": true,
 		"auto_fold": true
 	}
 	_build(gv2, d2)
-	_chk(gv2._fold._compute_hidden().is_empty(), "任务5·case_wide 进入新场景不自动折叠（隐藏集为空）")
-	_chk("c_old" in _ids(gv2), "任务5·旧场景线索 c_old 完整可见（不被收起）")
-	_chk("c_new" in _ids(gv2), "任务5·新场景线索 c_new 完整可见")
-	_chk("p_old" in _ids(gv2), "任务5·旧人物节点 p_old 完整可见")
+	var hidden2: Dictionary = gv2._fold._compute_hidden()
+	_chk(not hidden2.is_empty(), "任务5·case_wide 进入新场景自动折叠到链顶层（隐藏集非空）")
+	_chk("p_old" in _ids(gv2), "任务5·旧场景顶层人物 p_old 作为折叠根仍可见（折叠≠消失）")
+	_chk(not ("c_old" in _ids(gv2)), "任务5·旧场景线索 c_old 被折叠收起（隐藏于 p_old 子树，不散列单列）")
+	_chk(not ("h1" in _ids(gv2)), "任务5·旧场景推断 h1 被折叠收起（隐藏于 p_old 子树）")
+	_chk("c_new" in _ids(gv2), "任务5·本场景新线索 c_new 完整可见（不被旧内容遮住）")
+	_chk("p_new" in _ids(gv2), "任务5·本场景新人物 p_new 完整可见")
 
 	print("FOLD_CLUE_SCENEWIDE_RESULT: PASS=%d FAIL=%d" % [_pass, _fail])
 	queue_free()

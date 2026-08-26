@@ -52,7 +52,7 @@ func run_test() -> void:
 		ok = false; msgs.append("P0_B_FAIL: 线索缺三级标签字段")
 
 	# 断言3：观察星按本场景条数(local=2==expected=2 → 3星)，不被全案池(3条)抬高
-	wall._update_star_rating()
+	wall._state_ctl._update_star_rating()
 	var obs_star: int = wall._last_stars.get("observation", 0)
 	if obs_star != 3:
 		ok = false; msgs.append("P0_C_FAIL: 观察星应为3(本场景满收)，实际=%d" % obs_star)
