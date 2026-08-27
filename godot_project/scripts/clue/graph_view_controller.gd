@@ -2442,7 +2442,7 @@ func _derive_hypo(cid: String, hid: String) -> void:
 	if hd.is_empty():
 		_ui_toast("未找到推断定义：" + hid)
 		return
-	adopt_candidate(hd, false)   # 正向推导：不自动连带该推断的其他 gate 线索（玩家逐个拖线索驱动）
+	adopt_candidate(hd, false, cid)   # 正向推导：不自动连带该推断的其他 gate 线索（玩家逐个拖线索驱动）；锚定到来源线索 cid 落点防叠加
 	# 线索不在 gate_clue_ids（仅 relation_tags 命中）时补连 support 边
 	if not any_edge(cid, hid) and not _relations.any(func(r): return r.get("from", "") == cid and r.get("to", "") == hid):
 		_edge._add_edge(cid, hid, "support", "green", false)
@@ -2496,10 +2496,10 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 			break
 	if not existed:
 		_derived_conclusions.append({"id": con_id, "hid": hid, "text": custom_text})
-		# 放置节点：画布中部随机偏移，避免与现有节点重叠
+		# 放置节点：锚定到父推断 hid（推出该结论的推断），螺旋碰撞检测避免与现有节点叠加
 		if not _node_center.has(nid):
-			var base: Vector2 = _canvas.size * 0.5
-			var pos: Vector2 = _layout._clamp_to_canvas(base + Vector2(randf_range(-90, 90), -170 + randf_range(-30, 30)))
+			var base: Vector2 = _node_center.get(hid, _canvas.size * 0.5)
+			var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "conclusion", _node_center)
 			_node_center[nid] = pos
 			var nps: Dictionary = _state_store.get("graph_node_positions", {})
 			nps[nid] = pos
@@ -2546,7 +2546,7 @@ func _close_detail_card() -> void:
 		_detail_card = null
 
 
-func adopt_candidate(cand: Dictionary, auto_link_gates: bool = true) -> void:
+func adopt_candidate(cand: Dictionary, auto_link_gates: bool = true, anchor_id: String = "") -> void:
 	if _state != State.EDITABLE:
 		_ui_toast("推理墙已封存，仅可浏览")
 		return
@@ -2560,10 +2560,16 @@ func adopt_candidate(cand: Dictionary, auto_link_gates: bool = true) -> void:
 			"sub": "推断", "data": {"correct": cand.get("kind", "true") == "true", "candidate": true, "adopt_desc": cand.get("adopt_desc", "")}}
 		_graph_nodes.append(placed)
 		var base: Vector2 = _canvas.size * 0.5
-		var jitter: Vector2 = Vector2(-40 + (_graph_nodes.size() % 5) * 24, -30 + (_graph_nodes.size() % 4) * 22)
-		var pos: Vector2 = _layout._clamp_to_canvas(base + jitter)
+		var savedp: Dictionary = _state_store.get("graph_node_positions", {})
+		# 锚定到触发线索（前向推导由 _derive_hypo 传 cid），否则回退画布中心
+		if anchor_id != "" and _node_center.has(anchor_id):
+			base = _node_center[anchor_id]
+		elif anchor_id != "" and savedp.has(anchor_id):
+			base = savedp[anchor_id]
+		# 螺旋碰撞检测：避免与现有节点叠加（替代旧 5×4 抖动网格）
+		var pos: Vector2 = _layout._find_non_overlapping_position(base, hid, "hypo", _node_center)
 		_node_center[hid] = pos
-		var nps: Dictionary = _state_store.get("graph_node_positions", {})
+		var nps: Dictionary = savedp
 		nps[hid] = pos
 		_state_store["graph_node_positions"] = nps
 	# ② 补充连接缺失的支撑证据：默认开启（候选面板一键采纳）；正向推导 _derive_hypo 传 false，
