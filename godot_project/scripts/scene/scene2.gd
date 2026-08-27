@@ -140,7 +140,13 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"CL2-3","text":"凶手穿方头靴（关键体貌）","kind":"true","dir":"affirm","subject":["凶手"],"object":["方头靴","靴"],"gate_hypo_ids":["H2-03"],
 			 "adopt_desc":"两组脚印主组为方头靴：锁定凶手身份的关键体貌结论。"},
 			{"id":"CL2-M1","text":"凶手是身材矮小的少年","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["矮小","少年"],"gate_hypo_ids":["H2-M1"],
-			 "reject_desc":"小步漆皮靴与方头靴主组矛盾：凶手并非矮小少年。"}
+			 "reject_desc":"小步漆皮靴与方头靴主组矛盾：凶手并非矮小少年。"},
+			{"id":"CL2-1M","text":"凶手徒步踏泥大步进入花园","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["徒步","泥地","大步"],"gate_hypo_ids":["H2-01"],
+			 "reject_desc":"并行车轮印与碾轧花草说明是乘马车抵达，非徒步大步进入。"},
+			{"id":"CL2-2M","text":"凶手身材矮小、体格瘦弱","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["矮小","瘦弱"],"gate_hypo_ids":["H2-02"],
+			 "reject_desc":"现场大步幅与翻越/搬运动作均指向高大强壮者，与矮小瘦弱矛盾。"},
+			{"id":"CL2-3M","text":"凶手穿小步漆皮靴","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["漆皮靴","小步"],"gate_hypo_ids":["H2-03"],
+			 "reject_desc":"主组脚印为方头靴大码，漆皮小步靴属同行者/伪装，非凶手本人。"}
 		],
 		"milestones": [
 			{"id":"S2-1","text":"死亡地点：劳瑞斯顿花园街3号"},

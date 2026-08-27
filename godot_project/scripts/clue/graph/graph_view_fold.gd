@@ -31,6 +31,7 @@ func _ring_depth(kind: String) -> int:
 ## 而把折叠根自身也误收起。故这里优先从 _persons/_hypo/_clues/_graph_nodes 解析，_node_kind 仅作兜底。
 func _kind_of(id: String) -> String:
 	if id == owner._focus_person: return "person"
+	if id.begins_with("conclusion_"): return "conclusion"
 	if id == "conclusion": return "conclusion"
 	if id.begins_with("chain:"): return "chain"
 	for gn in owner._graph_nodes:
@@ -65,8 +66,17 @@ func _build_adjacency() -> Dictionary:
 	for r in owner._relations:
 		link.call(r.get("from", ""), r.get("to", ""))
 	if owner._mode == GraphViewController.ViewMode.MODE_C and owner._focus_person != "":
-		# 结论节点 id 恒为 "conclusion"，直接锚定（避免递归 _node_list）
-		link.call(owner._focus_person, "conclusion")
+		# 多结论节点（id 形如 "conclusion_CL2-1"）逐一锚定到焦点人物（避免递归 _node_list）
+		for _dc in owner._derived_conclusions:
+			var _dnid: String = "conclusion_" + str(_dc.get("id", ""))
+			if _dnid != "":
+				link.call(owner._focus_person, _dnid)
+	# 焦点人物 ↔ 其相关线索（related_npcs）：结构性元数据边，仅用于折叠层级组织，
+	# 不进入 _edge_list（绘制层），故不会在画布产生多余连线（与「移除自动绘制边」不冲突）。
+	for _c in owner._clues:
+		var _rns: Array = _c.get("related_npcs", [])
+		if owner._focus_person != "" and (owner._focus_person in _rns):
+			link.call(owner._focus_person, str(_c.get("id", "")))
 	return adj
 
 
