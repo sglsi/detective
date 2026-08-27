@@ -51,7 +51,9 @@ func _sample_data() -> Dictionary:
 	var persons := [{"id":"NPC_HOP","name":"霍普"},{"id":"NPC_DRE","name":"德雷伯"}]
 	return {"clues":clues,"hypo":hypo,"relations":relations,"persons":persons,
 		"focus_person":"NPC_HOP","difficulty":1,"editable":true,"verdict":-1,
-		"state_store":{"graph_focus":"NPC_HOP","graph_placed_clues":["c1","c2"]},"on_tag":Callable(),"on_add_edge":Callable(),
+		"state_store":{"graph_focus":"NPC_HOP","graph_placed_clues":["c1","c2"],
+			"graph_nodes":[{"id":"H1","kind":"hypo","label":"凶手乘出租马车","sub":"推断","data":{}}],
+			"graph_chosen_conclusion":"C1"},"on_tag":Callable(),"on_add_edge":Callable(),
 		"on_remove_relation":Callable(),"on_close":Callable()}
 
 

@@ -135,7 +135,7 @@ func _on_dock_drop() -> void:
 	var gp := owner.get_viewport().get_mouse_position()
 	if owner._dock and is_instance_valid(owner._dock) and owner._dock.get_global_rect().has_point(gp):
 		return   # 落回线索栏内，视为取消
-	_open_link_suggestions(cid)
+	_open_derive_popup(cid)
 
 
 func _make_dock_preview(cid: String) -> void:
@@ -188,7 +188,8 @@ func _on_dock_toggle() -> void:
 
 
 # ===================== 「推断/结论」建议弹窗 =====================
-func _open_link_suggestions(cid: String) -> void:
+# ===================== 自由连线窗（候选推导窗的次级入口） =====================
+func _open_free_link(cid: String) -> void:
 	_close_link_popup()
 	owner._link_popup_clue_id = cid
 	var popup := Control.new()
@@ -270,6 +271,8 @@ func _open_link_suggestions(cid: String) -> void:
 	pb.pressed.connect(func(): _confirm_link(cid, owner._focus_person, "person"))
 	vb.add_child(pb)
 	for h in owner._hypo.get("battlefield", {}).get("hypotheses", []):
+		if not owner._hypo_preset_visible(h):
+			continue
 		var hb := _mk_link_target("推断：%s" % h.get("text", h.get("id", "?")))
 		var hid: String = h.get("id", "")
 		hb.pressed.connect(func(): _confirm_link(cid, hid, "hypo"))
@@ -286,6 +289,201 @@ func _open_link_suggestions(cid: String) -> void:
 
 	owner.add_child(popup)
 	owner._link_popup = popup
+
+
+# ===================== 正向推导：拖线索候选窗 =====================
+func _open_derive_popup(cid: String) -> void:
+	_close_link_popup()
+	owner._link_popup_clue_id = cid
+	var cands := _derive_candidates(cid)
+	var popup := Control.new()
+	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	popup.z_index = 25
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.45)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.add_child(overlay)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(640, 520)
+	panel.position = (owner.get_viewport_rect().size - Vector2(440, 360)) * 0.5
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
+	ps.border_color = owner.COL_GOLD
+	ps.border_width_left = 2; ps.border_width_right = 2; ps.border_width_top = 2; ps.border_width_bottom = 2
+	ps.set_corner_radius_all(10)
+	panel.add_theme_stylebox_override("panel", ps)
+	popup.add_child(panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	panel.add_child(margin)
+	var scr := ScrollContainer.new()
+	scr.custom_minimum_size = Vector2(488, 420)
+	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scr.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	margin.add_child(scr)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	scr.add_child(vb)
+	var t := Label.new()
+	t.text = "由线索「%s」可推导的推断：" % owner._data._find_clue(cid).get("name", cid)
+	t.add_theme_font_size_override("font_size", 30)
+	t.add_theme_color_override("font_color", owner.COL_GOLD)
+	vb.add_child(t)
+	if cands.is_empty():
+		var hint := Label.new()
+		hint.text = "该线索没有预设的可推导推断。可用「自定义连线…」手动建立关系，或用顶部按钮自行添加推断。"
+		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hint.add_theme_font_size_override("font_size", 26)
+		hint.add_theme_color_override("font_color", owner.COL_GREY)
+		vb.add_child(hint)
+	else:
+		for cnd in cands:
+			var hid: String = str(cnd.get("id", ""))
+			var mislead: bool = str(cnd.get("kind", "true")) != "true"
+			var txt: String = "推断：%s%s" % [cnd.get("text", hid), "（存疑）" if mislead else ""]
+			var b := _mk_link_target(txt)
+			b.pressed.connect(_derive_confirm.bind(cid, hid))
+			vb.add_child(b)
+	var sep := HSeparator.new()
+	vb.add_child(sep)
+	var free_btn := Button.new()
+	free_btn.text = "自定义连线…"
+	free_btn.add_theme_font_size_override("font_size", 26)
+	free_btn.pressed.connect(_on_free_link_btn.bind(cid))
+	vb.add_child(free_btn)
+	var cancel := Button.new()
+	cancel.text = "取消"
+	cancel.add_theme_font_size_override("font_size", 26)
+	cancel.pressed.connect(_close_link_popup)
+	vb.add_child(cancel)
+	owner.add_child(popup)
+	owner._link_popup = popup
+
+
+## 候选口径：主=gate_clue_ids 含该线索；辅=线索 relation_tags 指向的推断（排除矛盾 C2-xx）；难度过滤后排序
+func _derive_candidates(cid: String) -> Array:
+	var hypos: Array = owner._hypo.get("battlefield", {}).get("hypotheses", [])
+	var seen := {}
+	var out := []
+	for h in hypos:
+		if not owner._hypo_preset_visible(h):
+			continue
+		var gates: Array = h.get("gate_clue_ids", [])
+		if gates.has(cid):
+			out.append({"id": h.get("id", ""), "text": h.get("text", ""), "kind": h.get("kind", "true"), "prio": 0})
+			seen[str(h.get("id", ""))] = true
+	for tag in owner._data._find_clue(cid).get("relation_tags", []):
+		var ts := str(tag)
+		if seen.has(ts):
+			continue
+		for h in hypos:
+			if not owner._hypo_preset_visible(h):
+				continue
+			if str(h.get("id", "")) == ts:
+				out.append({"id": ts, "text": h.get("text", ""), "kind": h.get("kind", "true"), "prio": 1})
+				seen[ts] = true
+				break
+	out.sort_custom(func(a, b): return int(a.get("prio", 1)) < int(b.get("prio", 1)))
+	return out
+
+
+func _on_free_link_btn(cid: String) -> void:
+	_close_link_popup()
+	_open_free_link(cid)
+
+
+func _derive_confirm(cid: String, hid: String) -> void:
+	_close_link_popup()
+	owner._derive_hypo(cid, hid)
+
+
+# ===================== 结论候选窗（由推断推导结论） =====================
+func _open_conclusion_popup(hid: String) -> void:
+	_close_link_popup()
+	var cons: Array = owner._hypo.get("battlefield", {}).get("conclusions", [])
+	var cands := []
+	for c in cons:
+		if not _conclusion_preset_visible(c):
+			continue
+		if (c.get("gate_hypo_ids", []) as Array).has(hid):
+			cands.append(c)
+	var popup := Control.new()
+	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	popup.z_index = 25
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.45)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.add_child(overlay)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(640, 460)
+	panel.position = (owner.get_viewport_rect().size - Vector2(440, 320)) * 0.5
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
+	ps.border_color = owner.COL_GOLD
+	ps.border_width_left = 2; ps.border_width_right = 2; ps.border_width_top = 2; ps.border_width_bottom = 2
+	ps.set_corner_radius_all(10)
+	panel.add_theme_stylebox_override("panel", ps)
+	popup.add_child(panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	panel.add_child(margin)
+	var scr := ScrollContainer.new()
+	scr.custom_minimum_size = Vector2(488, 360)
+	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scr.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	margin.add_child(scr)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	scr.add_child(vb)
+	var t := Label.new()
+	t.text = "由推断推导结论："
+	t.add_theme_font_size_override("font_size", 30)
+	t.add_theme_color_override("font_color", owner.COL_GOLD)
+	vb.add_child(t)
+	if cands.is_empty():
+		var hint := Label.new()
+		hint.text = "该推断暂无预设结论。可自由连线连接结论，或自行添加结论节点。"
+		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hint.add_theme_font_size_override("font_size", 26)
+		hint.add_theme_color_override("font_color", owner.COL_GREY)
+		vb.add_child(hint)
+	else:
+		for c in cands:
+			var con_id: String = str(c.get("id", ""))
+			var cmis: bool = str(c.get("kind", "true")) != "true"
+			var ctxt: String = "结论：%s%s" % [c.get("text", con_id), "（存疑）" if cmis else ""]
+			var cb := _mk_link_target(ctxt)
+			cb.pressed.connect(_conclusion_confirm.bind(hid, con_id))
+			vb.add_child(cb)
+	var cancel2 := Button.new()
+	cancel2.text = "取消"
+	cancel2.add_theme_font_size_override("font_size", 26)
+	cancel2.pressed.connect(_close_link_popup)
+	vb.add_child(cancel2)
+	owner.add_child(popup)
+	owner._link_popup = popup
+
+
+## 结论难度过滤：EASY 仅正确 / NORMAL 正确+误导 / HARD 无候选
+func _conclusion_preset_visible(c: Dictionary) -> bool:
+	if owner._difficulty == owner.Diff.HARD:
+		return false
+	if owner._difficulty == owner.Diff.EASY:
+		return str(c.get("kind", "true")) == "true"
+	return true
+
+
+func _conclusion_confirm(hid: String, con_id: String) -> void:
+	_close_link_popup()
+	owner._derive_conclusion(hid, con_id)
 
 
 func _close_link_popup() -> void:
@@ -368,4 +566,4 @@ func _refresh_link_popup_pen() -> void:
 	if owner._link_popup and is_instance_valid(owner._link_popup):
 		var cid := owner._link_popup_clue_id
 		_close_link_popup()
-		_open_link_suggestions(cid)
+		_open_free_link(cid)

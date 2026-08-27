@@ -1091,6 +1091,8 @@ func _on_candidates_pressed() -> void:
 		var is_true: bool = str(hd.get("kind", "true")) == "true" or bool(hd.get("correct", true))
 		if not is_normal and not is_true:
 			continue
+		if is_normal and is_true and str(hd.get("pool", "auto")) == "manual":
+			continue   # 普通模式：被扣留的正确项不进候选面板，须玩家自行补加
 		var card := VBoxContainer.new()
 		card.name = "cand_" + hid
 		var inner := PanelContainer.new()
