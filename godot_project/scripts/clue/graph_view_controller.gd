@@ -1469,7 +1469,7 @@ func place_clue(cid: String, drop_at: Vector2 = Vector2(-1, -1)) -> void:
 		var _nps: Dictionary = _state_store.get("graph_node_positions", {})
 		_nps[cid] = _cp
 		_state_store["graph_node_positions"] = _nps
-	print("[place_clue] cid=", cid, " drop_at=", drop_at, " canvas_pos=", _cp)
+		print("[place_clue] cid=", cid, " drop_at=", drop_at, " canvas_pos=", _cp)
 	_persist_view()
 	_rebuild_graph()
 	_toast_msg("线索已放入图谱（详情卡可移除归还）")
