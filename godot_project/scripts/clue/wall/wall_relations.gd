@@ -262,6 +262,7 @@ func _finish_clue_drag(cid: String) -> void:
 	if not inside_panel and owner._graph_view and is_instance_valid(owner._graph_view):
 		# 落点若命中图上一个节点，place_clue 会在放置线索同时自动建绿实线支持关系
 		owner._graph_view.place_clue(cid, gp)
+		owner._graph_view.open_derive_popup(cid)
 		owner._state_ctl._persist_state()
 		owner._clue_ctl._refresh_clue_list()
 	else:
