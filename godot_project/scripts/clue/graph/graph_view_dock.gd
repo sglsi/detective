@@ -381,7 +381,6 @@ func _on_free_link_btn(cid: String) -> void:
 
 
 func _derive_confirm(cid: String, hid: String) -> void:
-	print("[derive_confirm] clicked cid=", cid, " hid=", hid)
 	_close_link_popup()
 	owner._derive_hypo(cid, hid)
 
