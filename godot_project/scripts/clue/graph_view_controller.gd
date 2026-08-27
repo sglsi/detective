@@ -83,8 +83,13 @@ var _node_center: Dictionary = {}   # id -> Vector2（画布本地中心）
 var _node_kind: Dictionary = {}     # id -> String
 var _node_data: Dictionary = {}     # id -> Dictionary（原始数据）
 var _graph_nodes: Array = []        # 玩家顶栏「添文本框」新增的自定义节点 [{id,kind,label,sub}]（持久化于 state_store["graph_nodes"]）
-var _chosen_conclusion: String = ""   # 玩家推导选中的结论 id（conclusions 数组项）；空=尚未推导出结论
-var _chosen_conclusion_text: String = ""   # 自定义结论文本（con_id="custom" 时使用，玩家手动输入）
+var _chosen_conclusion: String = ""   # （旧单结论遗留字段，仅用于旧存档迁移）玩家推导选中的结论 id
+var _chosen_conclusion_text: String = ""   # （旧单结论遗留字段，仅用于旧存档迁移）自定义结论文本
+# 玩家已推导出的结论列表（多实例）：[{id, hid, text}]
+#   id   = 预设 con_id（如 "CL2-1"）或 "custom_N"（玩家自定义，N 唯一递增）
+#   hid  = 推导该结论所依据的推断 id（用于建 推断→结论 support 边）
+#   text = 自定义结论文本（预设结论此项为空，文本取自 conclusions 数组）
+var _derived_conclusions: Array = []
 var _graph_deleted: Array = []      # 回收站：玩家删除的自定义文本框（state_store["graph_deleted_nodes"]）
 var _edited_texts: Dictionary = {}  # 玩家在详情卡编辑过的节点文本 id -> 新文本（覆盖原生/自定义节点显示，持久化 state_store["graph_edited_texts"]）
 var _edge_list: Array = []          # [{from,to,kind,color,dashed,dotted,always}]
@@ -276,6 +281,12 @@ func build(data: Dictionary) -> void:
 	_edited_texts = (Dictionary(_state_store.get("graph_edited_texts", {})) as Dictionary).duplicate()
 	_chosen_conclusion = str(_state_store.get("graph_chosen_conclusion", ""))
 	_chosen_conclusion_text = str(_state_store.get("graph_chosen_conclusion_text", ""))
+	_derived_conclusions = (Array(_state_store.get("graph_derived_conclusions", [])) as Array).duplicate()
+	# 旧单结论存档迁移：把旧的 graph_chosen_conclusion 迁移为多结论列表的一条记录（仅迁移一次）
+	if _chosen_conclusion != "" and _derived_conclusions.is_empty():
+		_derived_conclusions.append({"id": _chosen_conclusion, "hid": "", "text": _chosen_conclusion_text})
+		_state_store["graph_chosen_conclusion"] = ""
+		_state_store["graph_chosen_conclusion_text"] = ""
 
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
 	# 实时从 Autoload 拉并组装一次（避免 reasoning_wall 提前 _derive 之后又被另一层兜底覆盖，
@@ -767,9 +778,15 @@ func _node_list() -> Array:
 		if chain_id2 != "":
 			list.append({"id": "chain:" + chain_id2, "kind": "chain",
 				"label": "#" + str(chain_id2), "sub": "推理链", "color": COL_GOLD, "data": {}})
-	if _chosen_conclusion != "":
-		list.append({"id": "conclusion", "kind": "conclusion",
-			"label": _conclusion_text(_chosen_conclusion), "sub": "结论", "color": _data._verdict_color(), "data": {}})
+	# 第三圈：结论（多实例——每条已推导结论独立节点，id 形如 "conclusion_CL2-1"）
+	if not _derived_conclusions.is_empty():
+		for _dc in _derived_conclusions:
+			var _dcid: String = str(_dc.get("id", ""))
+			if _dcid == "":
+				continue
+			var _dnid: String = _conclusion_node_id(_dcid)
+			list.append({"id": _dnid, "kind": "conclusion",
+				"label": _conclusion_text(_dcid), "sub": "结论", "color": _data._verdict_color(), "data": {}})
 
 	# 顶栏「添文本框」新增的自定义节点：始终作为独立节点追加进画布（可连线、可移动）
 	for gn in _graph_nodes:
@@ -2153,8 +2170,7 @@ func _persist_view() -> void:
 	_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
 	_state_store["graph_folded_nodes"] = _folded_nodes
 	_state_store["graph_nodes"] = _graph_nodes.duplicate()
-	_state_store["graph_chosen_conclusion"] = _chosen_conclusion
-	_state_store["graph_chosen_conclusion_text"] = _chosen_conclusion_text
+	_state_store["graph_derived_conclusions"] = _derived_conclusions.duplicate()
 	_state_store["graph_edited_texts"] = _edited_texts.duplicate()
 	_state_store["graph_deleted_nodes"] = _state_store.get("graph_deleted_nodes", [])
 	_layout._persist_node_positions()
@@ -2186,8 +2202,11 @@ func _apply_fold_to_roots() -> void:
 		ids[id] = true
 	for gn in _graph_nodes:
 		ids[gn.get("id", "")] = true
-	if _chosen_conclusion != "" and not ids.has("conclusion"):
-		ids["conclusion"] = true
+	if not _derived_conclusions.is_empty():
+		for _dc in _derived_conclusions:
+			var _dnid: String = _conclusion_node_id(str(_dc.get("id", "")))
+			if _dnid != "" and not ids.has(_dnid):
+				ids[_dnid] = true
 	if _focus_person != "" and not ids.has(_focus_person):
 		ids[_focus_person] = true
 	for c in _clues:
@@ -2292,6 +2311,8 @@ func _player_claims() -> Array:
 
 
 func _node_label(id: String) -> String:
+	if id.begins_with("conclusion_"):
+		return _conclusion_text(id.substr("conclusion_".length()))
 	if id == "conclusion":
 		return _conclusion_text(_chosen_conclusion) if _chosen_conclusion != "" else _data._verdict_text()
 	if id.begins_with("chain:"):
@@ -2388,12 +2409,28 @@ func _conclusion_def(cid: String) -> Dictionary:
 
 
 func _conclusion_text(cid: String) -> String:
-	if cid == "custom" and _chosen_conclusion_text != "":
-		return _chosen_conclusion_text
+	if cid.begins_with("custom"):
+		for _d in _derived_conclusions:
+			if str(_d.get("id", "")) == cid:
+				var _t := str(_d.get("text", ""))
+				if _t != "":
+					return _t
+		return _data._verdict_text()
 	var cd := _conclusion_def(cid)
 	if not cd.is_empty():
 		return str(cd.get("text", cid))
 	return _data._verdict_text()
+
+
+## 结论节点 id ↔ 结论 id 互转（多实例：节点 id = "conclusion_" + 结论 id）
+func _conclusion_node_id(con_id: String) -> String:
+	return "conclusion_" + str(con_id)
+
+
+func _conclusion_con_id(nid: String) -> String:
+	if nid.begins_with("conclusion_"):
+		return nid.substr("conclusion_".length())
+	return ""
 
 
 ## 拖线索推导推断：生成推断节点 + 绿 support 边（线索→推断）；已存在节点则仅补边
@@ -2413,47 +2450,73 @@ func _derive_hypo(cid: String, hid: String) -> void:
 	_persist_view()
 	_rebuild_graph()
 	_focus_on(hid)
-	# 正向推导：选推断后若该推断有可推导结论，自动弹结论候选窗（玩家继续选结论，确定推断→结论关系）
+	# 正向推导：选推断后若场景有任意「按难度可见」的预设结论，自动弹结论候选窗（列出全部候选，玩家任选其一）
 	var _cons: Array = _hypo.get("battlefield", {}).get("conclusions", [])
-	var _cnt: int = 0
+	var _has_cand: bool = false
 	for _c in _cons:
-		if _dockctl._conclusion_preset_visible(_c) and (_c.get("gate_hypo_ids", []) as Array).has(hid):
-			_cnt += 1
-	if _cnt > 0:
+		if _dockctl._conclusion_preset_visible(_c):
+			_has_cand = true
+			break
+	if _has_cand:
 		call_deferred("_open_conclusion_choice", hid)
 
 
-## 自定义结论：玩家输入文本生成结论节点（不选预设项）；con_id 用 "custom" 标记
+## 自定义结论：玩家输入文本生成结论节点（不选预设项）；con_id 用 "custom_N" 标记
 func _derive_conclusion_custom(hid: String, text: String) -> void:
 	var t2 := text.strip_edges()
 	if t2 == "":
 		_ui_toast("结论内容不能为空")
 		return
-	_chosen_conclusion_text = t2
-	_derive_conclusion(hid, "custom")
+	var seq: int = 0
+	var cid: String = ""
+	while true:
+		cid = "custom_%d" % seq
+		if not _derived_conclusions.any(func(d): return str(d.get("id", "")) == cid):
+			break
+		seq += 1
+	_add_derived_conclusion(hid, cid, t2)
 
 
-## 由推断推导结论：生成结论节点 + support 边（推断→结论）；结论节点存在则替换文本
+## 由推断推导结论：生成结论节点 + support 边（推断→结论）；结论节点已存在则只补边（多实例，不覆盖旧结论）
 func _derive_conclusion(hid: String, con_id: String) -> void:
 	if _state != State.EDITABLE:
 		_ui_toast("推理墙已封存，仅可浏览")
 		return
-	_chosen_conclusion = con_id
-	if not _node_center.has("conclusion"):
-		var base: Vector2 = _canvas.size * 0.5
-		var pos: Vector2 = _layout._clamp_to_canvas(base + Vector2(0, -120))
-		_node_center["conclusion"] = pos
-		var nps: Dictionary = _state_store.get("graph_node_positions", {})
-		nps["conclusion"] = pos
-		_state_store["graph_node_positions"] = nps
-	if not any_edge(hid, "conclusion") and not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == "conclusion"):
-		_edge._add_edge(hid, "conclusion", "support", "green", false)
+	_add_derived_conclusion(hid, con_id, "")
+
+
+## 统一入口：把一条结论（预设 con_id 或 自定义 custom_N）加入已推导列表，生成独立结论节点并连 support 边。
+## 同一条结论（相同 con_id）只生成唯一节点；从不同推断推导同一结论时只追加对应 support 边。
+func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = "") -> void:
+	var nid: String = _conclusion_node_id(con_id)
+	var existed: bool = false
+	for _d in _derived_conclusions:
+		if str(_d.get("id", "")) == con_id:
+			existed = true
+			break
+	if not existed:
+		_derived_conclusions.append({"id": con_id, "hid": hid, "text": custom_text})
+		# 放置节点：画布中部随机偏移，避免与现有节点重叠
+		if not _node_center.has(nid):
+			var base: Vector2 = _canvas.size * 0.5
+			var pos: Vector2 = _layout._clamp_to_canvas(base + Vector2(randf_range(-90, 90), -170 + randf_range(-30, 30)))
+			_node_center[nid] = pos
+			var nps: Dictionary = _state_store.get("graph_node_positions", {})
+			nps[nid] = pos
+			_state_store["graph_node_positions"] = nps
+	# 确保 推断→结论 support 边（玩家关系，受 _edge_list 绘制）
+	if not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == nid):
+		_edge._add_edge(hid, nid, "support", "green", false)
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
-	_focus_on("conclusion")
-	var cd := _conclusion_def(con_id)
-	var desc: String = str(cd.get("adopt_desc", ""))
+	_focus_on(nid)
+	var desc: String = ""
+	if con_id.begins_with("custom"):
+		desc = custom_text
+	else:
+		var cd := _conclusion_def(con_id)
+		desc = str(cd.get("adopt_desc", ""))
 	if desc != "":
 		_ui_toast(desc if desc.length() <= 120 else desc.substr(0, 117) + "…")
 

@@ -78,7 +78,12 @@ func _compute_common_clues() -> void:
 			owner._common_clues[c.get("id", "")] = true
 
 
-## 证据连线（数据边）派生：玩家关系 + 自动推断（clue.relation_tags→推断 / 推断→结论）
+## 证据连线（数据边）派生：只保留玩家真实建立的关系（_relations）。
+## ⚠️ 已移除两种「全局批量自动边」：
+##   ① clue.relation_tags → 推断 的 support 边（自动、always=false，在默认视图下不绘制，
+##      却会干扰 _derive_hypo 的重复判定，使线索→推断连线不可见，问题3）；
+##   ② 所有推断 → 结论 的 imply 边（不管玩家是否推导都画，导致结论发散多余连线，问题1）。
+## 正向推导时由 _add_derived_conclusion / _derive_hypo 主动写入 _relations，画出来的边即玩家真实建立的边。
 func _derive_edges() -> void:
 	owner._edge_list = []
 	var seen := {}
@@ -95,19 +100,6 @@ func _derive_edges() -> void:
 		var k: String = r.get("kind", "relate")
 		# 用户手动建立的关系常显
 		add.call(r.get("from", ""), r.get("to", ""), k, true, r.get("color_key", ""), r.get("dashed", false))
-
-	# 自动推断：线索 relation_tags 命中某推断节点 → 证据指向
-	var hypo_ids := []
-	for h in owner._hypo.get("battlefield", {}).get("hypotheses", []):
-		hypo_ids.append(h.get("id", ""))
-	for c in owner._clues:
-		for tag in c.get("relation_tags", []):
-			if hypo_ids.has(tag):
-				add.call(c.get("id", ""), tag, "support", false, "", false)
-
-	# 自动推断：所有推断 → 结论（传导），结构性边始终显示
-	for h in owner._hypo.get("battlefield", {}).get("hypotheses", []):
-		add.call(h.get("id", ""), "conclusion", "imply", true, "", false)
 
 
 func _rel_color(kind: String) -> Color:

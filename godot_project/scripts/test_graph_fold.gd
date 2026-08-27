@@ -47,7 +47,9 @@ func _sample_data() -> Dictionary:
 		"title":"马车夫作案","case_name":"血字的研究","chain_id":"2",
 		"battlefield":{"hypotheses":[{"id":"H1","text":"凶手乘出租马车","correct":true}],"contradictions":[]}
 	}
-	var relations := [{"from":"c1","to":"H1","kind":"support"}]
+	# 注意：移除自动数据边后，折叠连通性改由「玩家真实关系」+「焦点人物↔相关线索元数据边」承载。
+	# 故 sample 需显式给出两条线索→推断的玩家 support 边（模拟玩家逐一拖线索推导）。
+	var relations := [{"from":"c1","to":"H1","kind":"support"}, {"from":"c2","to":"H1","kind":"support"}]
 	var persons := [{"id":"NPC_HOP","name":"霍普"},{"id":"NPC_DRE","name":"德雷伯"}]
 	return {"clues":clues,"hypo":hypo,"relations":relations,"persons":persons,
 		"focus_person":"NPC_HOP","difficulty":1,"editable":true,"verdict":-1,
@@ -65,7 +67,12 @@ func _run() -> void:
 	_chk(gv._fold_controls.has("H1"), "推断 H1 有折叠控件")
 	_chk(gv._fold._fold_count("H1") == 2, "H1 折叠控件计数=2（直接外层线索数）")
 	_chk(not gv._fold_controls.has("c1"), "线索 c1 是叶子，无折叠控件")
-	_chk(gv._fold_controls.has("conclusion"), "结论有折叠控件（外层为推断）")
+	var _has_concl := false
+	for _k in gv._node_views.keys():
+		if str(_k).begins_with("conclusion_"):
+			_has_concl = true
+			break
+	_chk(_has_concl, "已推导结论节点存在于图谱（多实例，id 形如 conclusion_C1；新设计结论默认不再自动连一切，故不保证恒有折叠控件）")
 	_chk(gv._fold_controls.has("NPC_HOP"), "焦点人物有折叠控件（外层为线索）")
 
 	gv.toggle_fold("H1")

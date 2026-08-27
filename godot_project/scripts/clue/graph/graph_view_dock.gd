@@ -277,9 +277,13 @@ func _open_free_link(cid: String) -> void:
 		var hid: String = h.get("id", "")
 		hb.pressed.connect(func(): _confirm_link(cid, hid, "hypo"))
 		vb.add_child(hb)
-	var cb := _mk_link_target("结论：%s" % owner._data._verdict_text())
-	cb.pressed.connect(func(): _confirm_link(cid, "conclusion", "conclusion"))
-	vb.add_child(cb)
+	# 多结论节点：列出当前已推导的全部结论作为连线目标（旧单 "conclusion" 节点已弃用）
+	for _dc in owner._derived_conclusions:
+		var _dnid: String = "conclusion_" + str(_dc.get("id", ""))
+		var _ctxt: String = "结论：%s" % owner._conclusion_text(str(_dc.get("id", "")))
+		var _ccb := _mk_link_target(_ctxt)
+		_ccb.pressed.connect(func(): _confirm_link(cid, _dnid, "conclusion"))
+		vb.add_child(_ccb)
 
 	var cancel := Button.new()
 	cancel.text = "取消"
@@ -388,13 +392,14 @@ func _derive_confirm(cid: String, hid: String) -> void:
 # ===================== 结论候选窗（由推断推导结论） =====================
 func _open_conclusion_popup(hid: String) -> void:
 	_close_link_popup()
+	# 候选口径：列出本场景全部结论（按难度过滤），不按 gate_hypo_ids 过滤、不排序、不标注来源，
+	# 随机排列，让玩家从多条里选（含误导项，简单模式仅正确项）。gate_hypo_ids 仅作后台触发口径。
 	var cons: Array = owner._hypo.get("battlefield", {}).get("conclusions", [])
 	var cands := []
 	for c in cons:
-		if not _conclusion_preset_visible(c):
-			continue
-		if (c.get("gate_hypo_ids", []) as Array).has(hid):
+		if _conclusion_preset_visible(c):
 			cands.append(c)
+	cands.shuffle()
 	var popup := Control.new()
 	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	popup.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -428,13 +433,13 @@ func _open_conclusion_popup(hid: String) -> void:
 	vb.add_theme_constant_override("separation", 8)
 	scr.add_child(vb)
 	var t := Label.new()
-	t.text = "由推断推导结论："
+	t.text = "由推断推导结论（任选其一）："
 	t.add_theme_font_size_override("font_size", 30)
 	t.add_theme_color_override("font_color", owner.COL_GOLD)
 	vb.add_child(t)
 	if cands.is_empty():
 		var hint := Label.new()
-		hint.text = "该推断暂无预设结论。可自由连线连接结论，或自行添加结论节点。"
+		hint.text = "该场景暂无可选预设结论。可直接「✍ 自定义结论…」输入你的判断。"
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		hint.add_theme_font_size_override("font_size", 26)
 		hint.add_theme_color_override("font_color", owner.COL_GREY)
@@ -447,13 +452,12 @@ func _open_conclusion_popup(hid: String) -> void:
 			var cb := _mk_link_target(ctxt)
 			cb.pressed.connect(_conclusion_confirm.bind(hid, con_id))
 			vb.add_child(cb)
-		# 仅一个预设结论时，追加「自定义结论」输入入口：让玩家主动选择而非被迫接受唯一项（包括简单模式）
-		if cands.size() == 1:
-			var _cbtn := Button.new()
-			_cbtn.text = "✍ 自定义结论…"
-			_cbtn.add_theme_font_size_override("font_size", 26)
-			_cbtn.pressed.connect(_on_custom_conclusion_pressed.bind(hid))
-			vb.add_child(_cbtn)
+	# 「自定义结论」入口常驻（无论候选多少），让玩家始终保留自定义空间
+	var _cbtn := Button.new()
+	_cbtn.text = "✍ 自定义结论…"
+	_cbtn.add_theme_font_size_override("font_size", 26)
+	_cbtn.pressed.connect(_on_custom_conclusion_pressed.bind(hid))
+	vb.add_child(_cbtn)
 	var cancel2 := Button.new()
 	cancel2.text = "取消"
 	cancel2.add_theme_font_size_override("font_size", 26)
