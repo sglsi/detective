@@ -447,6 +447,13 @@ func _open_conclusion_popup(hid: String) -> void:
 			var cb := _mk_link_target(ctxt)
 			cb.pressed.connect(_conclusion_confirm.bind(hid, con_id))
 			vb.add_child(cb)
+		# 仅一个预设结论时，追加「自定义结论」输入入口：让玩家主动选择而非被迫接受唯一项（包括简单模式）
+		if cands.size() == 1:
+			var _cbtn := Button.new()
+			_cbtn.text = "✍ 自定义结论…"
+			_cbtn.add_theme_font_size_override("font_size", 26)
+			_cbtn.pressed.connect(_on_custom_conclusion_pressed.bind(hid))
+			vb.add_child(_cbtn)
 	var cancel2 := Button.new()
 	cancel2.text = "取消"
 	cancel2.add_theme_font_size_override("font_size", 26)
@@ -463,6 +470,72 @@ func _conclusion_preset_visible(c: Dictionary) -> bool:
 	if owner._difficulty == owner.Diff.EASY:
 		return str(c.get("kind", "true")) == "true"
 	return true
+
+
+func _on_custom_conclusion_pressed(hid: String) -> void:
+	_open_custom_conclusion_popup(hid)
+
+
+## 自定义结论输入窗：玩家输入自己的结论文本（不选预设项）
+func _open_custom_conclusion_popup(hid: String) -> void:
+	_close_link_popup()
+	var popup := Control.new()
+	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	popup.z_index = 25
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.45)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.add_child(overlay)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(560, 190)
+	panel.position = (owner.get_viewport_rect().size - Vector2(360, 120)) * 0.5
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
+	ps.border_color = owner.COL_GOLD
+	ps.border_width_left = 2; ps.border_width_right = 2; ps.border_width_top = 2; ps.border_width_bottom = 2
+	ps.set_corner_radius_all(10)
+	panel.add_theme_stylebox_override("panel", ps)
+	popup.add_child(panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	panel.add_child(margin)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	margin.add_child(vb)
+	var t := Label.new()
+	t.text = "自定义结论（不选预设项）"
+	t.add_theme_font_size_override("font_size", 28)
+	t.add_theme_color_override("font_color", owner.COL_GOLD)
+	vb.add_child(t)
+	var le := LineEdit.new()
+	le.placeholder_text = "输入你的结论…"
+	le.add_theme_font_size_override("font_size", 26)
+	vb.add_child(le)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 10)
+	var ok := Button.new()
+	ok.text = "确定"
+	ok.add_theme_font_size_override("font_size", 24)
+	ok.pressed.connect(_confirm_custom_conclusion.bind(hid, le))
+	hb.add_child(ok)
+	var cc := Button.new()
+	cc.text = "取消"
+	cc.add_theme_font_size_override("font_size", 24)
+	cc.pressed.connect(_close_link_popup)
+	hb.add_child(cc)
+	vb.add_child(hb)
+	owner.add_child(popup)
+	owner._link_popup = popup
+
+
+func _confirm_custom_conclusion(hid: String, le: LineEdit) -> void:
+	var text: String = le.text
+	_close_link_popup()
+	owner._derive_conclusion_custom(hid, text)
 
 
 func _conclusion_confirm(hid: String, con_id: String) -> void:

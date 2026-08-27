@@ -84,6 +84,7 @@ var _node_kind: Dictionary = {}     # id -> String
 var _node_data: Dictionary = {}     # id -> Dictionary（原始数据）
 var _graph_nodes: Array = []        # 玩家顶栏「添文本框」新增的自定义节点 [{id,kind,label,sub}]（持久化于 state_store["graph_nodes"]）
 var _chosen_conclusion: String = ""   # 玩家推导选中的结论 id（conclusions 数组项）；空=尚未推导出结论
+var _chosen_conclusion_text: String = ""   # 自定义结论文本（con_id="custom" 时使用，玩家手动输入）
 var _graph_deleted: Array = []      # 回收站：玩家删除的自定义文本框（state_store["graph_deleted_nodes"]）
 var _edited_texts: Dictionary = {}  # 玩家在详情卡编辑过的节点文本 id -> 新文本（覆盖原生/自定义节点显示，持久化 state_store["graph_edited_texts"]）
 var _edge_list: Array = []          # [{from,to,kind,color,dashed,dotted,always}]
@@ -274,6 +275,7 @@ func build(data: Dictionary) -> void:
 	_graph_deleted = (Array(_state_store.get("graph_deleted_nodes", [])) as Array).duplicate()
 	_edited_texts = (Dictionary(_state_store.get("graph_edited_texts", {})) as Dictionary).duplicate()
 	_chosen_conclusion = str(_state_store.get("graph_chosen_conclusion", ""))
+	_chosen_conclusion_text = str(_state_store.get("graph_chosen_conclusion_text", ""))
 
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
 	# 实时从 Autoload 拉并组装一次（避免 reasoning_wall 提前 _derive 之后又被另一层兜底覆盖，
@@ -647,7 +649,10 @@ func _rebuild_graph() -> void:
 		_node_kind[nd.id] = nd.kind
 		_node_data[nd.id] = nd.data
 	# 同列纵向去重叠：按真实卡片高度硬保证相邻卡片上下边距 ≥15px（不依赖布局/估算，避免任何覆盖）
-	_layout._apply_column_overlap_fix()
+	# 同列纵向去重叠 + 全局跨列去重叠：仅在顶栏「自动排列」时执行（玩家自由放置/拖动不推挤位置）
+	if _use_rank_layout:
+		_layout._apply_column_overlap_fix()
+		_layout._apply_global_overlap_fix()
 	# 创建连线出口折叠控件（XMind 式 −/+N）。设计：圆圈仅当该节点「有关系、有下级」时显示，
 	# 即高一级节点下确实有低一级节点才在其上画圈；无下级的叶子不建，避免任何线索常驻圆圈。
 	for nd in nodes:
@@ -2149,6 +2154,7 @@ func _persist_view() -> void:
 	_state_store["graph_folded_nodes"] = _folded_nodes
 	_state_store["graph_nodes"] = _graph_nodes.duplicate()
 	_state_store["graph_chosen_conclusion"] = _chosen_conclusion
+	_state_store["graph_chosen_conclusion_text"] = _chosen_conclusion_text
 	_state_store["graph_edited_texts"] = _edited_texts.duplicate()
 	_state_store["graph_deleted_nodes"] = _state_store.get("graph_deleted_nodes", [])
 	_layout._persist_node_positions()
@@ -2382,6 +2388,8 @@ func _conclusion_def(cid: String) -> Dictionary:
 
 
 func _conclusion_text(cid: String) -> String:
+	if cid == "custom" and _chosen_conclusion_text != "":
+		return _chosen_conclusion_text
 	var cd := _conclusion_def(cid)
 	if not cd.is_empty():
 		return str(cd.get("text", cid))
@@ -2397,7 +2405,7 @@ func _derive_hypo(cid: String, hid: String) -> void:
 	if hd.is_empty():
 		_ui_toast("未找到推断定义：" + hid)
 		return
-	adopt_candidate(hd)
+	adopt_candidate(hd, false)   # 正向推导：不自动连带该推断的其他 gate 线索（玩家逐个拖线索驱动）
 	# 线索不在 gate_clue_ids（仅 relation_tags 命中）时补连 support 边
 	if not any_edge(cid, hid) and not _relations.any(func(r): return r.get("from", "") == cid and r.get("to", "") == hid):
 		_edge._add_edge(cid, hid, "support", "green", false)
@@ -2405,6 +2413,24 @@ func _derive_hypo(cid: String, hid: String) -> void:
 	_persist_view()
 	_rebuild_graph()
 	_focus_on(hid)
+	# 正向推导：选推断后若该推断有可推导结论，自动弹结论候选窗（玩家继续选结论，确定推断→结论关系）
+	var _cons: Array = _hypo.get("battlefield", {}).get("conclusions", [])
+	var _cnt: int = 0
+	for _c in _cons:
+		if _dockctl._conclusion_preset_visible(_c) and (_c.get("gate_hypo_ids", []) as Array).has(hid):
+			_cnt += 1
+	if _cnt > 0:
+		call_deferred("_open_conclusion_choice", hid)
+
+
+## 自定义结论：玩家输入文本生成结论节点（不选预设项）；con_id 用 "custom" 标记
+func _derive_conclusion_custom(hid: String, text: String) -> void:
+	var t2 := text.strip_edges()
+	if t2 == "":
+		_ui_toast("结论内容不能为空")
+		return
+	_chosen_conclusion_text = t2
+	_derive_conclusion(hid, "custom")
 
 
 ## 由推断推导结论：生成结论节点 + support 边（推断→结论）；结论节点存在则替换文本
@@ -2457,7 +2483,7 @@ func _close_detail_card() -> void:
 		_detail_card = null
 
 
-func adopt_candidate(cand: Dictionary) -> void:
+func adopt_candidate(cand: Dictionary, auto_link_gates: bool = true) -> void:
 	if _state != State.EDITABLE:
 		_ui_toast("推理墙已封存，仅可浏览")
 		return
@@ -2477,8 +2503,9 @@ func adopt_candidate(cand: Dictionary) -> void:
 		var nps: Dictionary = _state_store.get("graph_node_positions", {})
 		nps[hid] = pos
 		_state_store["graph_node_positions"] = nps
-	# ② 补充连接缺失的支撑证据（relation_tags 已覆盖已知关联，这里兜底补齐 gate_clue_ids 中已收集但未连边的线索）
-	if not _data._id_is_clue(hid):
+	# ② 补充连接缺失的支撑证据：默认开启（候选面板一键采纳）；正向推导 _derive_hypo 传 false，
+	#    只连玩家实际拖入的线索，绝不自动连带其他 gate 线索上墙
+	if auto_link_gates and not _data._id_is_clue(hid):
 		for cid in cand.get("gate_clue_ids", []):
 			var cs := str(cid)
 			if not _data._id_is_clue(cs):
