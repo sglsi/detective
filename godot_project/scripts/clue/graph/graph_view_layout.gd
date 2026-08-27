@@ -57,6 +57,41 @@ func _apply_column_overlap_fix() -> void:
 				vv.position = owner._node_center[id2] - vv.size * 0.5
 
 
+## 全局跨列去重叠（仅自动排列时调用）：AABB 相交检测 + 垂直推开，保持各列 x 结构不变
+func _apply_global_overlap_fix() -> void:
+	var ids: Array = owner._node_center.keys()
+	if ids.size() < 2:
+		return
+	ids.sort_custom(func(a, b): return owner._node_center[a].y < owner._node_center[b].y)
+	var rects := {}
+	for id in ids:
+		rects[id] = _node_rect(id)
+	for i in ids.size():
+		var id_a: String = ids[i]
+		var ra: Rect2 = rects[id_a]
+		for j in range(i + 1, ids.size()):
+			var id_b: String = ids[j]
+			var rb: Rect2 = rects[id_b]
+			if ra.intersects(rb):
+				var push: float = ra.end.y - rb.position.y + 15.0
+				owner._node_center[id_b] = Vector2(owner._node_center[id_b].x, owner._node_center[id_b].y + push)
+				rects[id_b] = _node_rect(id_b)
+				var vv: Variant = owner._node_views.get(id_b)
+				if vv != null:
+					vv.position = owner._node_center[id_b] - vv.size * 0.5
+	for id in ids:
+		owner._node_center[id] = _clamp_to_canvas(owner._node_center[id])
+
+
+## 节点卡片 AABB（中心坐标 → Rect2；尺寸按 kind 估算宽 + 文本估算高）
+func _node_rect(id: String) -> Rect2:
+	var c: Vector2 = owner._node_center.get(id, Vector2.ZERO)
+	var k: String = str(owner._node_kind.get(id, "hypo"))
+	var w: float = _node_width_for_kind(k)
+	var h: float = _view_height(owner._node_data.get(id, {}))
+	return Rect2(c - Vector2(w, h) * 0.5, Vector2(w, h))
+
+
 ## 按节点 kind 估算渲染宽度（用于自适应半径防重叠；与 _make_node 卡片尺寸×2 同步）
 func _node_width_for_kind(kind: String) -> float:
 	# 2026-08-21：宽度整体减半（配合文本框自适应窄化，环径估算同步收紧）
