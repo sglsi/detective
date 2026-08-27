@@ -83,6 +83,7 @@ var _node_center: Dictionary = {}   # id -> Vector2（画布本地中心）
 var _node_kind: Dictionary = {}     # id -> String
 var _node_data: Dictionary = {}     # id -> Dictionary（原始数据）
 var _graph_nodes: Array = []        # 玩家顶栏「添文本框」新增的自定义节点 [{id,kind,label,sub}]（持久化于 state_store["graph_nodes"]）
+var _chosen_conclusion: String = ""   # 玩家推导选中的结论 id（conclusions 数组项）；空=尚未推导出结论
 var _graph_deleted: Array = []      # 回收站：玩家删除的自定义文本框（state_store["graph_deleted_nodes"]）
 var _edited_texts: Dictionary = {}  # 玩家在详情卡编辑过的节点文本 id -> 新文本（覆盖原生/自定义节点显示，持久化 state_store["graph_edited_texts"]）
 var _edge_list: Array = []          # [{from,to,kind,color,dashed,dotted,always}]
@@ -272,6 +273,7 @@ func build(data: Dictionary) -> void:
 	_graph_nodes = (Array(_state_store.get("graph_nodes", [])) as Array).duplicate()
 	_graph_deleted = (Array(_state_store.get("graph_deleted_nodes", [])) as Array).duplicate()
 	_edited_texts = (Dictionary(_state_store.get("graph_edited_texts", {})) as Dictionary).duplicate()
+	_chosen_conclusion = str(_state_store.get("graph_chosen_conclusion", ""))
 
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
 	# 实时从 Autoload 拉并组装一次（避免 reasoning_wall 提前 _derive 之后又被另一层兜底覆盖，
@@ -741,12 +743,6 @@ func _node_list() -> Array:
 				"color": _data._clue_color(_p_c), "data": _p_c, "common": _common_clues.has(_p_cid)})
 			_in_list[_p_cid] = true
 		# 第二圈：推断
-		var hypos: Array = _hypo.get("battlefield", {}).get("hypotheses", [])
-		if hypos.is_empty():
-			hypos = [{"id": "H_core", "text": _hypo.get("title", "核心推断"), "correct": true}]
-		for h in hypos:
-			list.append({"id": h.get("id", ""), "kind": "hypo",
-				"label": h.get("text", ""), "sub": "推断", "color": COL_GOLD_LIGHT, "data": h})
 		# 第三圈：推理链 + 结论（结论统一在函数末尾追加一次，避免 MODE_C 下出现两个结论文本框，问题4）
 		var chain_id: String = _hypo.get("chain_id", "")
 		if chain_id != "":
@@ -762,18 +758,13 @@ func _node_list() -> Array:
 			list.append({"id": cid, "kind": "clue",
 				"label": c.get("name", cid), "sub": _data._clue_sub(c),
 				"color": _data._clue_color(c), "data": c, "common": _common_clues.has(cid)})
-		var hypos: Array = _hypo.get("battlefield", {}).get("hypotheses", [])
-		if hypos.is_empty():
-			hypos = [{"id": "H_core", "text": _hypo.get("title", "核心推断"), "correct": true}]
-		for h in hypos:
-			list.append({"id": h.get("id", ""), "kind": "hypo",
-				"label": h.get("text", ""), "sub": "推断", "color": COL_GOLD_LIGHT, "data": h})
 		var chain_id2: String = _hypo.get("chain_id", "")
 		if chain_id2 != "":
 			list.append({"id": "chain:" + chain_id2, "kind": "chain",
 				"label": "#" + str(chain_id2), "sub": "推理链", "color": COL_GOLD, "data": {}})
-	list.append({"id": "conclusion", "kind": "conclusion",
-		"label": _data._verdict_text(), "sub": "结论", "color": _data._verdict_color(), "data": {}})
+	if _chosen_conclusion != "":
+		list.append({"id": "conclusion", "kind": "conclusion",
+			"label": _conclusion_text(_chosen_conclusion), "sub": "结论", "color": _data._verdict_color(), "data": {}})
 
 	# 顶栏「添文本框」新增的自定义节点：始终作为独立节点追加进画布（可连线、可移动）
 	for gn in _graph_nodes:
@@ -2138,6 +2129,7 @@ func _persist_view() -> void:
 	_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
 	_state_store["graph_folded_nodes"] = _folded_nodes
 	_state_store["graph_nodes"] = _graph_nodes.duplicate()
+	_state_store["graph_chosen_conclusion"] = _chosen_conclusion
 	_state_store["graph_edited_texts"] = _edited_texts.duplicate()
 	_state_store["graph_deleted_nodes"] = _state_store.get("graph_deleted_nodes", [])
 	_layout._persist_node_positions()
@@ -2157,12 +2149,10 @@ func _apply_fold_to_roots() -> void:
 		ids[id] = true
 	for gn in _graph_nodes:
 		ids[gn.get("id", "")] = true
-	if not ids.has("conclusion"):
+	if _chosen_conclusion != "" and not ids.has("conclusion"):
 		ids["conclusion"] = true
 	if _focus_person != "" and not ids.has(_focus_person):
 		ids[_focus_person] = true
-	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
-		ids[h.get("id", "")] = true
 	for c in _clues:
 		ids[c.get("id", "")] = true
 	for id in ids:
@@ -2196,7 +2186,7 @@ func add_text_node(kind: String) -> void:
 		seq += 1
 	var labels: Dictionary = {"clue": "线索", "hypo": "推断", "conclusion": "结论", "person": "人物"}
 	var subs: Dictionary = {"clue": "线索", "hypo": "推断", "conclusion": "结论", "person": "人物"}
-	var placed: Dictionary = {"id": nid, "kind": nkid, "label": "【%s】新文本" % labels.get(nkid, "文本"), "sub": subs.get(nkid, "自定义"), "data": {"correct": true}}
+	var placed: Dictionary = {"id": nid, "kind": nkid, "label": "【%s】新文本" % labels.get(nkid, "文本"), "sub": subs.get(nkid, "自定义"), "data": {"correct": true, "player_made": true}}
 	_graph_nodes.append(placed)
 	# 在画布中部放置
 	var base: Vector2 = _canvas.size * 0.5
@@ -2225,6 +2215,78 @@ func _delete_text_node(id: String) -> void:
 	_persist_view()
 	_rebuild_graph()
 
+
+
+
+# ===================== 难度门控：预设假设可见性 =====================
+## 决定 battlefield 假设是否作为【预设节点】自动渲染上墙（配合难度分支设计）：
+##   HARD  —— 不预设任何推断，玩家自行添加；
+##   EASY  —— 仅正确推断（无误导、无扣留项）；
+##   NORMAL—— 正确(auto)+误导 均预设可见；pool=="manual" 的正确项被扣留，须玩家自建。
+func _hypo_preset_visible(hd: Dictionary) -> bool:
+	var kind: String = str(hd.get("kind", "true"))
+	var pool: String = str(hd.get("pool", "auto"))
+	if _difficulty == Diff.HARD:
+		return false
+	if _difficulty == Diff.EASY:
+		return kind == "true"
+	if kind == "true" and pool == "manual":
+		return false
+	return true
+
+
+# ===================== 提交软比对：抽取玩家主张 =====================
+## 返回图谱上所有推断/结论节点的玩家主张：{id,kind,text,support_clues,player_made,dir_derived}
+func _player_claims() -> Array:
+	var out := []
+	for nid in _node_views.keys():
+		var kind: String = _fold._kind_of(nid)
+		if kind != "hypo" and kind != "conclusion":
+			continue
+		var support := []
+		for r in _relations:
+			if str(r.get("to", "")) == str(nid) and str(r.get("kind", "")) in ["support", "weak"]:
+				support.append(str(r.get("from", "")))
+		out.append({"id": str(nid), "kind": kind, "text": _node_label(nid),
+			"support_clues": support, "player_made": _node_player_made(nid),
+			"dir_derived": _derive_dir(_node_label(nid), support)})
+	return out
+
+
+func _node_label(id: String) -> String:
+	if id == "conclusion":
+		return _conclusion_text(_chosen_conclusion) if _chosen_conclusion != "" else _data._verdict_text()
+	if id.begins_with("chain:"):
+		return id
+	for gn in _graph_nodes:
+		if str(gn.get("id", "")) == str(id):
+			return str(gn.get("label", ""))
+	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
+		if str(h.get("id", "")) == str(id):
+			return str(h.get("text", ""))
+	for c in _clues:
+		if str(c.get("id", "")) == str(id):
+			return str(c.get("name", id))
+	for p in _persons:
+		if str(p.get("id", "")) == str(id):
+			return str(p.get("name", id))
+	return str(id)
+
+
+func _node_player_made(id: String) -> bool:
+	for gn in _graph_nodes:
+		if str(gn.get("id", "")) == str(id):
+			return bool(gn.get("data", {}).get("player_made", false))
+	return false
+
+
+## 从节点文本推导方向（启发式）：含否定词→negate，否则 affirm
+func _derive_dir(text: String, support_clues: Array) -> String:
+	var neg := ["不", "非", "否", "≠", "不是", "没有", "无", "未"]
+	for n in neg:
+		if text.find(n) >= 0:
+			return "negate"
+	return "affirm"
 
 
 
@@ -2272,6 +2334,82 @@ func visible_clue_ids() -> Array:
 ## 推断假设(battlefield.hypotheses)已自动渲染为图谱 hypo 节点，relation_tags 已自动连"线索→推断"support 边。
 ## 这里补齐两层增量：① 该候选 id 若尚未作为节点上墙（如困难模式玩家自行补录的候选），则建成 hypo 节点；
 ## ② 把 gate_clue_ids 中「已收集但尚未与其连边」的证据线索补连 support 边，并展示 adopt_desc 详细文案。
+# ===================== 正向推导：线索→推断→结论 =====================
+func _hypo_def(hid: String) -> Dictionary:
+	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
+		if str(h.get("id", "")) == hid:
+			return h
+	return {}
+
+
+func _conclusion_def(cid: String) -> Dictionary:
+	for c in _hypo.get("battlefield", {}).get("conclusions", []):
+		if str(c.get("id", "")) == cid:
+			return c
+	return {}
+
+
+func _conclusion_text(cid: String) -> String:
+	var cd := _conclusion_def(cid)
+	if not cd.is_empty():
+		return str(cd.get("text", cid))
+	return _data._verdict_text()
+
+
+## 拖线索推导推断：生成推断节点 + 绿 support 边（线索→推断）；已存在节点则仅补边
+func _derive_hypo(cid: String, hid: String) -> void:
+	if _state != State.EDITABLE:
+		_ui_toast("推理墙已封存，仅可浏览")
+		return
+	var hd := _hypo_def(hid)
+	if hd.is_empty():
+		_ui_toast("未找到推断定义：" + hid)
+		return
+	adopt_candidate(hd)
+	# 线索不在 gate_clue_ids（仅 relation_tags 命中）时补连 support 边
+	if not any_edge(cid, hid) and not _relations.any(func(r): return r.get("from", "") == cid and r.get("to", "") == hid):
+		_edge._add_edge(cid, hid, "support", "green", false)
+	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
+	_persist_view()
+	_rebuild_graph()
+
+
+## 由推断推导结论：生成结论节点 + support 边（推断→结论）；结论节点存在则替换文本
+func _derive_conclusion(hid: String, con_id: String) -> void:
+	if _state != State.EDITABLE:
+		_ui_toast("推理墙已封存，仅可浏览")
+		return
+	_chosen_conclusion = con_id
+	if not _node_center.has("conclusion"):
+		var base: Vector2 = _canvas.size * 0.5
+		var pos: Vector2 = _layout._clamp_to_canvas(base + Vector2(0, -120))
+		_node_center["conclusion"] = pos
+		var nps: Dictionary = _state_store.get("graph_node_positions", {})
+		nps["conclusion"] = pos
+		_state_store["graph_node_positions"] = nps
+	if not any_edge(hid, "conclusion") and not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == "conclusion"):
+		_edge._add_edge(hid, "conclusion", "support", "green", false)
+	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
+	_persist_view()
+	_rebuild_graph()
+	var cd := _conclusion_def(con_id)
+	var desc: String = str(cd.get("adopt_desc", ""))
+	if desc != "":
+		_ui_toast(desc if desc.length() <= 120 else desc.substr(0, 117) + "…")
+
+
+## 推断详情卡入口：打开结论候选窗（gate_hypo_ids 含该推断的结论）
+func _open_conclusion_choice(hid: String) -> void:
+	_close_detail_card()
+	_dockctl._open_conclusion_popup(hid)
+
+
+func _close_detail_card() -> void:
+	if _detail_card and is_instance_valid(_detail_card):
+		_detail_card.queue_free()
+		_detail_card = null
+
+
 func adopt_candidate(cand: Dictionary) -> void:
 	if _state != State.EDITABLE:
 		_ui_toast("推理墙已封存，仅可浏览")
