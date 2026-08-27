@@ -666,7 +666,6 @@ func _rebuild_graph() -> void:
 
 
 func _node_list() -> Array:
-	print("[node_list] mode=", _mode, " case_wide=", _case_wide, " status=", _status_filter, " placed=", _placed_clues, " clues=", _clues.size())
 	var list := []
 	if _case_wide:
 		var fp: String = _focus_person
@@ -787,10 +786,8 @@ func _node_list() -> Array:
 			if hidden.has(nd.id): continue
 			kept.append(nd)
 		list = kept
-		print("[node_list] hidden=", hidden.keys())
 	var ids2: Array = []
 	for nd2 in list: ids2.append(nd2.get("id", ""))
-	print("[node_list] RESULT=", ids2)
 	return list
 
 
@@ -1474,7 +1471,6 @@ func place_clue(cid: String, drop_at: Vector2 = Vector2(-1, -1)) -> void:
 		var _nps: Dictionary = _state_store.get("graph_node_positions", {})
 		_nps[cid] = _cp
 		_state_store["graph_node_positions"] = _nps
-		print("[place_clue] cid=", cid, " drop_at=", drop_at, " canvas_pos=", _cp)
 	_persist_view()
 	_rebuild_graph()
 	_toast_msg("线索已放入图谱（详情卡可移除归还）")
@@ -2164,9 +2160,21 @@ func _persist_view() -> void:
 ## 层级序：人物/事件=0 最顶 > 结论=1 > 推断=2 > 线索=3 最底（与 graph_view_fold._ring_depth 对齐）。
 ## 仅 case_wide 进入新场景时调用一次，不沿用上一场景折叠/展开态。
 func _apply_fold_to_roots() -> void:
-	var adj := _fold._build_adjacency()
+	# 只基于「玩家真实关系」(_relations) 判链：_edge_list 含 _derive_edges 自动生成的数据预设边
+	# （线索→推断 support、推断→结论 imply always），若纳入会把 conclusion/推断误判为链根，
+	# 折叠后 _compute_hidden 从根 BFS 把全部推断/线索收起（节点"不显示"真因）。
+	var adj := {}
+	var link := func(a: String, b: String) -> void:
+		if a == "" or b == "":
+			return
+		if not adj.has(a): adj[a] = []
+		if not adj.has(b): adj[b] = []
+		if not (b in adj[a]): adj[a].append(b)
+		if not (a in adj[b]): adj[b].append(a)
+	for r in _relations:
+		link.call(r.get("from", ""), r.get("to", ""))
 	var folded := {}
-	# 收集所有已知节点 id（邻接表 + 自定义文本框 + 系统结论/假设 + 线索 + 焦点人物），统一用权威 _kind_of 解析层级
+	# 收集所有已知节点 id（真实邻接 + 自定义文本框 + 结论 + 焦点人物 + 线索），统一用权威 _kind_of 解析层级
 	var ids := {}
 	for id in adj:
 		ids[id] = true
@@ -2182,16 +2190,17 @@ func _apply_fold_to_roots() -> void:
 		if id == "":
 			continue
 		var rd := _fold._ring_depth(_fold._kind_of(id))
-		var has_higher := false
-		var has_lower := false
+		var has_parent := false
+		var has_child := false
 		for nb in adj.get(id, []):
 			var nrd := _fold._ring_depth(_fold._kind_of(nb))
-			if nrd > rd:
-				has_higher = true
-			elif nrd < rd:
-				has_lower = true
-		# 根 = 无更高层父节点 且 有下层子节点 → 折叠隐藏其子树（孤立/叶子不折叠，保持可见）
-		if has_higher and not has_lower:
+			if nrd < rd:
+				has_parent = true
+			elif nrd > rd:
+				has_child = true
+		# 链根 = 无更高层父节点 且 有下层子节点 → 折叠隐藏其子树（孤立/叶子不折叠，保持可见）
+		# 人物/事件（rd=0 最顶）天然满足条件，作为每链的折叠根（收起其下整条玩家链，人物本身仍可见）
+		if not has_parent and has_child:
 			folded[id] = true
 	_folded_nodes = folded
 	_state_store["graph_folded_nodes"] = _folded_nodes
@@ -2395,7 +2404,6 @@ func _derive_hypo(cid: String, hid: String) -> void:
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
-	print("[derive_hypo] cid=", cid, " hid=", hid, " has_view=", _node_views.has(hid), " views=", _node_views.keys())
 	_focus_on(hid)
 
 
@@ -2433,16 +2441,13 @@ func _open_conclusion_choice(hid: String) -> void:
 ## 视图跟随：把画布平移使指定节点中心落在视口中心（推导生成节点后自动跟随，避免节点在视野外）
 func _focus_on(id: String) -> void:
 	if not _node_views.has(id) or not is_instance_valid(_node_views[id]):
-		print("[focus_on] MISSING node id=", id, " views=", _node_views.keys())
 		return
 	if _clip == null or _canvas == null:
-		print("[focus_on] clip/canvas null")
 		return
 	var target: Vector2 = _node_center.get(id, _node_views[id].position + _node_views[id].size * 0.5)
 	var vp_size: Vector2 = get_viewport_rect().size
 	var clip_origin: Vector2 = _clip.get_global_transform().origin
 	_canvas.position = vp_size * 0.5 - clip_origin - target * _zoom
-	print("[focus_on] id=", id, " target=", target, " canvas.position=", _canvas.position)
 	_redraw_all()
 
 

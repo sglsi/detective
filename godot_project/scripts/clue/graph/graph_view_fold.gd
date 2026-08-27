@@ -82,6 +82,9 @@ func _direct_outer_neighbors(id: String) -> Array:
 
 # ===================== 折叠隐藏集（XMind 式） =====================
 ## 从各折叠根 BFS，收起所有圈层更深且可达的外层节点（设计 §4.1）
+## 邻接用完整 _build_adjacency（玩家关系 + 数据预设边 + 恒连 person↔conclusion）：
+## 折叠根由 _apply_fold_to_roots 按「玩家真实关系」判定（无玩家链则不产生折叠根），
+## 故此处完整邻接不会误收；对已折叠根按 XMind 语义收起其整棵外层子树。
 func _compute_hidden() -> Dictionary:
 	var hidden := {}
 	var adj := _build_adjacency()
