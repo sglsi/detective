@@ -344,7 +344,8 @@ func _open_derive_popup(cid: String) -> void:
 		for cnd in cands:
 			var hid: String = str(cnd.get("id", ""))
 			var mislead: bool = str(cnd.get("kind", "true")) != "true"
-			var txt: String = "推断：%s%s" % [cnd.get("text", hid), "（存疑）" if mislead else ""]
+			var _rel_tag: String = "（由此线索推导）" if cnd.get("related", false) else "（弱关联）"
+			var txt: String = "推断：%s%s%s" % [cnd.get("text", hid), _rel_tag, "（存疑）" if mislead else ""]
 			var b := _mk_link_target(txt)
 			b.pressed.connect(_derive_confirm.bind(cid, hid))
 			vb.add_child(b)
@@ -364,30 +365,28 @@ func _open_derive_popup(cid: String) -> void:
 	owner._link_popup = popup
 
 
-## 候选口径：主=gate_clue_ids 含该线索；辅=线索 relation_tags 指向的推断（排除矛盾 C2-xx）；难度过滤后排序
+## 候选口径：列出本场景全部推断（难度过滤后），该线索可推导的（gate_clue_ids/relation_tags 命中）优先并标记
 func _derive_candidates(cid: String) -> Array:
 	var hypos: Array = owner._hypo.get("battlefield", {}).get("hypotheses", [])
-	var seen := {}
-	var out := []
+	var related := {}
 	for h in hypos:
 		if not owner._hypo_preset_visible(h):
 			continue
 		var gates: Array = h.get("gate_clue_ids", [])
 		if gates.has(cid):
-			out.append({"id": h.get("id", ""), "text": h.get("text", ""), "kind": h.get("kind", "true"), "prio": 0})
-			seen[str(h.get("id", ""))] = true
+			related[str(h.get("id", ""))] = 0
 	for tag in owner._data._find_clue(cid).get("relation_tags", []):
 		var ts := str(tag)
-		if seen.has(ts):
+		if not related.has(ts):
+			related[ts] = 1
+	var out := []
+	for h in hypos:
+		if not owner._hypo_preset_visible(h):
 			continue
-		for h in hypos:
-			if not owner._hypo_preset_visible(h):
-				continue
-			if str(h.get("id", "")) == ts:
-				out.append({"id": ts, "text": h.get("text", ""), "kind": h.get("kind", "true"), "prio": 1})
-				seen[ts] = true
-				break
-	out.sort_custom(func(a, b): return int(a.get("prio", 1)) < int(b.get("prio", 1)))
+		var hid: String = str(h.get("id", ""))
+		out.append({"id": hid, "text": h.get("text", ""), "kind": h.get("kind", "true"),
+			"prio": related.get(hid, 2), "related": related.has(hid)})
+	out.sort_custom(func(a, b): return int(a.get("prio", 2)) < int(b.get("prio", 2)))
 	return out
 
 

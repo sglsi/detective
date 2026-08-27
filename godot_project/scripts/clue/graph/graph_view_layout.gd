@@ -98,6 +98,12 @@ func _compute_layout(nodes: Array) -> Dictionary:
 			# 按关系驱动的横向阶梯树（华生示范对齐）：人物→结论→推断→线索 逐列向左/右阶梯铺开，
 			# 人物偏左树向右、偏右树向左（方向不硬性统一）；多人物各成一棵独立子树水平错开不交叉。
 			_relation_tree_layout(nodes, center, saved_pos, out)
+		# 自由放置优先：玩家拖入落点 / 手动拖动过的节点（saved_pos 有记录）保持自身位置，
+		# 不被阶梯树算法打回；未记录节点仍由算法排布。
+		for _id2 in out:
+			var _sp2: Variant = saved_pos.get(_id2, null)
+			if _sp2 is Vector2:
+				out[_id2] = _sp2
 	else:
 		# 模式 B：推理链纵向自上而下（人物在最上，结论→推断/链→线索依次向下逐行排开）
 		out[owner._focus_person] = center

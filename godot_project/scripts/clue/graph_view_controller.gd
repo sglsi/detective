@@ -1497,11 +1497,12 @@ func _unplace_clue_from_graph(cid: String, card: Control) -> void:
 		card.queue_free()
 	if _state_store.has("graph_placed_clues"):
 		_state_store["graph_placed_clues"] = _placed_clues.duplicate()
-	# 让左栏「已收集线索」即时恢复该线索（孤立线索无关系边时也需刷新）
-	if _cb_relations_changed.is_valid():
-		_cb_relations_changed.call(_relations.duplicate())
 	_persist_view()
 	_rebuild_graph()
+	# 左栏「已收集线索」即时恢复：必须先 rebuild（画布节点视图更新）再通知左栏刷新，
+	# 否则 visible_clue_ids() 仍含被删线索，左栏过滤掉它导致需手动切换页面才显示。
+	if _cb_relations_changed.is_valid():
+		_cb_relations_changed.call(_relations.duplicate())
 	_toast_msg("已将该线索从图谱移除，归还到「已收集线索」")
 
 ## 同步线索 associated 标记：参与任意玩家连线 → 实线绿边（已关联视觉反馈）；无连线 → 复位
