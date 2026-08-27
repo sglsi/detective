@@ -1463,9 +1463,24 @@ func place_clue(cid: String, drop_at: Vector2 = Vector2(-1, -1)) -> void:
 			_toast_msg("线索已放入图谱并与目标建立支持关系")
 			return
 	_data._mark_clue_placed(cid)
+	if drop_at.x >= 0.0:
+		var _cp: Vector2 = _canvas.get_global_transform().affine_inverse() * drop_at
+		_node_center[cid] = _cp
+		var _nps: Dictionary = _state_store.get("graph_node_positions", {})
+		_nps[cid] = _cp
+		_state_store["graph_node_positions"] = _nps
 	_persist_view()
 	_rebuild_graph()
 	_toast_msg("线索已放入图谱（详情卡可移除归还）")
+
+
+
+## 正向推导：拖线索入画布后弹「可推导推断」候选窗（wall_relations 拖入路径调用）
+func open_derive_popup(cid: String) -> void:
+	if _state != State.EDITABLE:
+		return
+	if _dockctl != null:
+		_dockctl._open_derive_popup(cid)
 
 func _unplace_clue_from_graph(cid: String, card: Control) -> void:
 	if _state != State.EDITABLE:
@@ -1475,6 +1490,7 @@ func _unplace_clue_from_graph(cid: String, card: Control) -> void:
 		if r.get("from", "") == cid or r.get("to", "") == cid:
 			doomed.append(r)
 	_data._unmark_clue_placed(cid)
+	_placed_clues.erase(cid)
 	for r in doomed:
 		_edge._remove_edge(r.get("from", ""), r.get("to", ""), r.get("kind", "relate"))
 	if is_instance_valid(card):
