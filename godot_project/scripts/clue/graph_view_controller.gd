@@ -1469,6 +1469,7 @@ func place_clue(cid: String, drop_at: Vector2 = Vector2(-1, -1)) -> void:
 		var _nps: Dictionary = _state_store.get("graph_node_positions", {})
 		_nps[cid] = _cp
 		_state_store["graph_node_positions"] = _nps
+	print("[place_clue] cid=", cid, " drop_at=", drop_at, " canvas_pos=", _cp)
 	_persist_view()
 	_rebuild_graph()
 	_toast_msg("线索已放入图谱（详情卡可移除归还）")
@@ -2389,6 +2390,7 @@ func _derive_hypo(cid: String, hid: String) -> void:
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
+	print("[derive_hypo] cid=", cid, " hid=", hid, " has_view=", _node_views.has(hid), " views=", _node_views.keys())
 	_focus_on(hid)
 
 
@@ -2426,13 +2428,16 @@ func _open_conclusion_choice(hid: String) -> void:
 ## 视图跟随：把画布平移使指定节点中心落在视口中心（推导生成节点后自动跟随，避免节点在视野外）
 func _focus_on(id: String) -> void:
 	if not _node_views.has(id) or not is_instance_valid(_node_views[id]):
+		print("[focus_on] MISSING node id=", id, " views=", _node_views.keys())
 		return
 	if _clip == null or _canvas == null:
+		print("[focus_on] clip/canvas null")
 		return
 	var target: Vector2 = _node_center.get(id, _node_views[id].position + _node_views[id].size * 0.5)
 	var vp_size: Vector2 = get_viewport_rect().size
 	var clip_origin: Vector2 = _clip.get_global_transform().origin
 	_canvas.position = vp_size * 0.5 - clip_origin - target * _zoom
+	print("[focus_on] id=", id, " target=", target, " canvas.position=", _canvas.position)
 	_redraw_all()
 
 
