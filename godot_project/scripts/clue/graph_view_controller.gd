@@ -666,6 +666,7 @@ func _rebuild_graph() -> void:
 
 
 func _node_list() -> Array:
+	print("[node_list] mode=", _mode, " case_wide=", _case_wide, " status=", _status_filter, " placed=", _placed_clues, " clues=", _clues.size())
 	var list := []
 	if _case_wide:
 		var fp: String = _focus_person
@@ -786,6 +787,10 @@ func _node_list() -> Array:
 			if hidden.has(nd.id): continue
 			kept.append(nd)
 		list = kept
+		print("[node_list] hidden=", hidden.keys())
+	var ids2: Array = []
+	for nd2 in list: ids2.append(nd2.get("id", ""))
+	print("[node_list] RESULT=", ids2)
 	return list
 
 
