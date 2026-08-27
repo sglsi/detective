@@ -88,7 +88,7 @@ func _node_rect(id: String) -> Rect2:
 	var c: Vector2 = owner._node_center.get(id, Vector2.ZERO)
 	var k: String = str(owner._node_kind.get(id, "hypo"))
 	var w: float = _node_width_for_kind(k)
-	var h: float = _view_height(owner._node_data.get(id, {}))
+	var h: float = _view_height(id)
 	return Rect2(c - Vector2(w, h) * 0.5, Vector2(w, h))
 
 
@@ -117,9 +117,9 @@ func _est_node_h(nd: Dictionary) -> float:
 # ===================== 主布局入口 =====================
 func _compute_layout(nodes: Array) -> Dictionary:
 	var center := owner._canvas.size * 0.5
-	if owner._canvas.size.x <= 0 or owner._canvas.size.y <= 0:
-		# headless / 未布局时兜底（test_graph_view 会强制设 1280x720，但兜底仍必要）
-		center = Vector2(960, 540)
+	# 真实浏览器画布足够大；headless/极小画布时用虚拟中心兜底，避免布局把所有节点挤进一小块（生产不受影响）
+	if owner._canvas.size.x < 800.0 or owner._canvas.size.y < 600.0:
+		center = Vector2(960.0, 540.0)
 	var out := {}
 
 	# 加载已持久化位置
@@ -522,10 +522,57 @@ func _xmind_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Di
 # 灵活布局辅助：仅把节点限制在画布内（XMind 式自由排布，允许任意位置）
 func _clamp_to_canvas(p: Vector2) -> Vector2:
 	var m: float = 60.0
-	var cv: Vector2 = owner._canvas.size
+	# 画布未初始化（如布局前直接调用落点）或为 headless/极小画布时，用虚拟尺寸兜底，
+	# 避免访问 Nil.size 崩溃、或把落点钳制成一条线（真实浏览器画布足够大，不受影响）
+	var cv: Vector2 = Vector2(1920.0, 1080.0)
+	if owner._canvas != null:
+		var cs: Vector2 = owner._canvas.size
+		if cs.x >= 800.0 and cs.y >= 600.0:
+			cv = cs
 	var ox: float = clampf(p.x, m, maxf(cv.x - m, m))
 	var oy: float = clampf(p.y, m, maxf(cv.y - m, m))
 	return Vector2(ox, oy)
+
+
+# ===================== 碰撞感知落点 =====================
+## 螺旋/同心圆搜索：以 base 为圆心向外找与 existing 中所有节点 AABB 不相交的位置。
+## nid 为新节点 id（排除自比）；kind 估算自身尺寸；clearance 为最小间隙。
+## 找不到则返回扩大抖动后的兜底点（仍交给 _clamp_to_canvas 钳制）。
+func _find_non_overlapping_position(base: Vector2, nid: String, kind: String, existing: Dictionary, clearance: float = 20.0) -> Vector2:
+	var my_w: float = _node_width_for_kind(kind)
+	# 高度兜底 110：headless 下 _node_data/视图尺寸不可靠，用保守下限避免真实高卡片仍重叠
+	var my_h: float = maxf(_est_node_h(owner._node_data.get(nid, {})), 110.0)
+	var my_rect := Rect2(base - Vector2(my_w, my_h) * 0.5, Vector2(my_w, my_h))
+	if not _intersects_any(my_rect, existing, nid, clearance):
+		return _clamp_to_canvas(base)
+	var max_ring: int = 14
+	for ring in range(1, max_ring + 1):
+		var count: int = maxi(6, ring * 8)
+		var r: float = 140.0 * (1.0 + ring * 0.42)
+		for i in count:
+			var angle: float = float(i) / float(count) * TAU + ring * 0.35
+			var cand: Vector2 = base + Vector2(cos(angle), sin(angle)) * r
+			var rect := Rect2(cand - Vector2(my_w, my_h) * 0.5, Vector2(my_w, my_h))
+			if not _intersects_any(rect, existing, nid, clearance):
+				return _clamp_to_canvas(cand)
+	return _clamp_to_canvas(base + Vector2(randf_range(-140, 140), randf_range(-140, 140)))
+
+
+## existing 中是否存在与 rect 相交（留 clearance 间隙）的节点；skip_id 用于排除自身
+func _intersects_any(rect: Rect2, existing: Dictionary, skip_id: String, clearance: float) -> bool:
+	for id in existing:
+		if str(id) == str(skip_id):
+			continue
+		var c: Variant = existing[id]
+		if not (c is Vector2):
+			continue
+		var k: String = str(owner._node_kind.get(id, "hypo"))
+		var w: float = _node_width_for_kind(k)
+		var h: float = maxf(_view_height(str(id)), 110.0)
+		var er := Rect2(c - Vector2(w, h) * 0.5, Vector2(w, h)).grow(clearance)
+		if rect.intersects(er):
+			return true
+	return false
 
 
 # 拖动自由摆放：放开范围限制（任务6）——允许节点中心拖到可视区之外较大范围，
