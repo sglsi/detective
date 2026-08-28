@@ -122,17 +122,19 @@ func _compute_layout(nodes: Array) -> Dictionary:
 		center = Vector2(960.0, 540.0)
 	var out := {}
 
-	# 加载已持久化位置
-	var saved_pos: Dictionary = owner._state_store.get("graph_node_positions", {})
+	# 加载已持久化「根锚点」（仅关系树根的位置；子节点全部自动派生）
+	var saved_pos: Dictionary = owner._root_anchor_pos
 
 	if owner._mode == GraphViewController.ViewMode.MODE_C:
 		if owner._use_rank_layout:
-			# 顶栏「自动排列」：严格按 BFS 深度分列 + 同层 barycenter 排序，整洁规范、尽量减少连线交叉
+			# 可选的严格 BFS 分列 + barycenter 减交叉模式（当前顶栏「自动排列」按钮走默认星形）
 			_auto_rank_layout(nodes, center, saved_pos, out)
 		else:
-			# 按关系驱动的横向阶梯树（华生示范对齐）：人物→结论→推断→线索 逐列向左/右阶梯铺开，
-			# 人物偏左树向右、偏右树向左（方向不硬性统一）；多人物各成一棵独立子树水平错开不交叉。
-			_relation_tree_layout(nodes, center, saved_pos, out)
+			# 默认自动布局（第8节 XMind 星形 · A①+B①）：以关系树根（人物/无人物的结论）为画布中心，
+			# 直接子节点（结论）均分左右、子树向外放射生长（结论→推断→线索）；用玩家真实有向边
+			# （support/target + 结论领域 target）构建树，正确处理「推断→推断」同层边，零重叠；
+			# 仅根位置可被玩家手动锁定（_root_anchor_pos），子节点自动派生。
+			_star_tree_layout(nodes, center, saved_pos, out)
 		# 自由放置优先：玩家拖入落点 / 手动拖动过的节点（saved_pos 有记录）保持自身位置，
 		# 不被阶梯树算法打回；未记录节点仍由算法排布。
 		for _id2 in out:
@@ -282,6 +284,219 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 			out[mid2] = _sv3
 	for idf in out:
 		out[idf] = _clamp_to_canvas(out[idf])
+
+
+# ===================== 模式 C 默认：XMind 星形布局（第8节改造 · A①+B①） =====================
+## 以「关系树根」（人物；或无人物的结论）为画布中心；根的直接子节点（结论）均分左/右两侧，
+## 每侧子树向远离中心方向横向生长（结论→推断→线索），连线同侧不跨中心交叉。
+## 仅根节点位置可被玩家手动锁定（持久化到 graph_root_anchors），其余全部自动派生。
+##
+## 树的构建：用玩家真实建立的有向边（_relations 中 support/target，以及结论领域 target 金边）
+## 确定父子关系——from = 推导依据（子），to = 被推导对象（父）。即 父 = r.to，子 = r.from。
+## 这能正确处理「推断→推断」同层级边（如 W-C1+W-C2→W-C3，W-C3 作为 W-C1/W-C2 的父），
+## 而早先按「节点 kind 层级」下降的 BFS 会漏掉这类同层边、把节点丢成孤儿导致重叠。
+## 每个子节点只取一个父：多个候选父时取 ring_depth 更大者（更靠近结论/人物的上层），保持链紧凑。
+## 列分组按 (根, 侧别, 层级) 进行——同列 x 相同（列间 col_gap 错开，绝不 x 重叠），列内按高度堆叠留
+## 15px 间隙，从而保证任意画布尺寸下全节点矩形零重叠；超出画布由 fit_view 缩放看全。
+func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, out: Dictionary) -> void:
+	# 节点种类层（与折叠圈层一致）：人物/事件=0 > 结论=1 > 推断/链=2 > 线索=3
+	var RD := {"person": 0, "event": 0, "conclusion": 1, "hypo": 2, "chain": 2, "clue": 3}
+	var rd_of := func(id: String) -> int:
+		return RD.get(owner._fold._kind_of(id), 3)
+
+	# 收集「子 → 候选父」：仅 support/target 两种有向关系定义推理树（from=子，to=父）
+	var parent_cand := {}
+	var add_parent := func(child: String, parent: String) -> void:
+		if child == "" or parent == "" or child == parent: return
+		if not parent_cand.has(child): parent_cand[child] = []
+		if not (parent in parent_cand[child]): parent_cand[child].append(parent)
+	for r in owner._relations:
+		var k: String = r.get("kind", "")
+		if k != "support" and k != "target": continue
+		add_parent.call(str(r.get("from", "")), str(r.get("to", "")))
+	# 结论领域 target 金边（conclusion → person:XXX）不在 _relations 中，单独补：结论作子、人物作父
+	for _dc in owner._derived_conclusions:
+		var _cid: String = str(_dc.get("id", ""))
+		if _cid == "": continue
+		var _nid: String = "conclusion_" + _cid
+		var _cdef: Dictionary = owner._conclusion_def(_cid)
+		var _tgt: String = _cdef.get("target", "")
+		if _tgt == "": continue
+		var _pid: String = _tgt.substr("person:".length()) if _tgt.begins_with("person:") else _tgt
+		add_parent.call(_nid, _pid)
+
+	# 解析唯一父：多个候选父时取 ring_depth 更大者（更靠近结论/人物的上层），保持推断组合链紧凑
+	var parent_of := {}
+	for ch in parent_cand:
+		var best: String = ""
+		var best_rd: int = -1
+		for p in parent_cand[ch]:
+			var rd: int = rd_of.call(p)
+			if rd > best_rd:
+				best_rd = rd
+				best = p
+		parent_of[ch] = best
+
+	# 父子表 + 根集合（从未作为任何子出现的节点 = 根）
+	var child_map := {}
+	for ch in parent_of:
+		var p: String = parent_of[ch]
+		if not child_map.has(p): child_map[p] = []
+		if not (ch in child_map[p]): child_map[p].append(ch)
+	var has_parent := {}
+	for ch in parent_of: has_parent[ch] = true
+	var roots := []
+	for nd in nodes:
+		if not has_parent.has(nd.id):
+			if not (nd.id in roots): roots.append(nd.id)
+	if roots.is_empty() and not nodes.is_empty():
+		roots = [nodes[0].id]
+
+	# BFS：求 level / root_of（dirv 左右侧在 BFS 后单独确定并沿父子链向下传播，
+	# 避免在 BFS 内用「父 dirv」继承——根 dirv=0 会把已均分的子节点覆盖回中心列）
+	var assigned := {}
+	var level_of := {}
+	var dirv_of := {}
+	var root_of := {}
+	var max_level: int = 0
+	var q := []
+	for r in roots:
+		if assigned.has(r): continue
+		assigned[r] = true
+		root_of[r] = r
+		q.append(r)
+		level_of[r] = 0
+	while q.size() > 0:
+		var rest := []
+		for u in q:
+			for nb in child_map.get(u, []):
+				if assigned.has(nb): continue
+				assigned[nb] = true
+				root_of[nb] = root_of.get(u, roots[0])
+				level_of[nb] = level_of.get(u, 0) + 1
+				max_level = maxi(max_level, level_of[nb])
+				rest.append(nb)
+		q = rest
+	# dirv：根的直接子节点均分左/右两侧，再从这些子节点沿父子链向下传播到整条子树
+	var dirq := []
+	for r in roots:
+		var ch0: Array = child_map.get(r, [])
+		var half_n0: int = ceili(float(ch0.size()) / 2.0)
+		var i0 := 0
+		for c in ch0:
+			dirv_of[c] = -1.0 if float(i0) < float(half_n0) else 1.0
+			i0 += 1
+			dirq.append(c)
+	while dirq.size() > 0:
+		var u = dirq.pop_front()
+		for nb in child_map.get(u, []):
+			dirv_of[nb] = dirv_of.get(u, 0.0)
+			dirq.append(nb)
+
+	# 估算高度（用于同列垂直堆叠留 15px 间隙，保证不重叠）
+	var est_h := {}
+	for nd in nodes: est_h[nd.id] = _est_node_h(nd)
+
+	# 列间距自适应画布宽度与树深：保证最深一列仍落在画布内
+	var m: float = 60.0
+	var half_avail: float = maxf(center.x - m - 90.0, 200.0)
+	var col_gap: float = clampf(half_avail / maxf(float(max_level), 1.0), 165.0, 300.0)
+
+	# 根基准 x：单根→画布中心（可被 saved_root 手动锁定）；多根→水平均布
+	var root_gap: float = 360.0
+	var root_base := {}
+	for i in roots.size():
+		var rid: String = roots[i]
+		var bx: float = center.x
+		if roots.size() > 1:
+			bx = center.x + (float(i) - float(roots.size() - 1) * 0.5) * root_gap
+		var sv: Variant = saved_root.get(rid, null)
+		if sv is Vector2:
+			bx = sv.x
+		root_base[rid] = bx
+
+	# 按 (根, 侧别, 层级) 分列：同列所有节点 x 相同（列间 col_gap 错开，绝不 x 重叠），列内按高度堆叠留 15px
+	var cols := {}
+	for id in assigned:
+		var rk: String = root_of.get(id, roots[0])
+		var d: float = dirv_of.get(id, 0.0)
+		var lv: int = level_of.get(id, 0)
+		var key: String = "%s|%d|%d" % [rk, int(sign(d)), lv]
+		if not cols.has(key): cols[key] = []
+		cols[key].append(id)
+	for key in cols:
+		var lst: Array = cols[key]
+		lst.sort()
+		var total_h: float = 0.0
+		for id in lst: total_h += est_h.get(id, 130.0) as float
+		total_h += 15.0 * (float(lst.size()) - 1.0)
+		var y: float = center.y - total_h * 0.5
+		for id in lst:
+			var h: float = est_h.get(id, 130.0) as float
+			var d: float = dirv_of.get(id, 0.0)
+			var lv: int = level_of.get(id, 0)
+			var bx2: float = root_base.get(root_of.get(id, roots[0]), center.x)
+			var x: float = bx2 + d * float(lv) * col_gap
+			out[id] = Vector2(x, y + h * 0.5)
+			y += h + 15.0
+
+	# 根的最终位置用保存位覆盖（尊重玩家手动锁定，含 y）
+	for r in roots:
+		var sv2: Variant = saved_root.get(r, null)
+		if sv2 is Vector2:
+			out[r] = sv2
+
+	# 孤立（未接入树）节点：保存位优先；否则右侧外围堆叠（120px 行距，互不重叠）
+	var spare := 0
+	var out_keys := {}
+	for k in out: out_keys[k] = true
+	for nd in nodes:
+		if out_keys.has(nd.id): continue
+		var sv3: Variant = saved_root.get(nd.id, null)
+		if sv3 is Vector2:
+			out[nd.id] = sv3
+			continue
+		out[nd.id] = Vector2(center.x + col_gap * 2.0 + 80.0, center.y - 220.0 + float(spare) * 120.0)
+		spare += 1
+
+	# 软钳制：仅防 NaN / 极端值，保留列间距（不收缩到画布 margin，否则深树列会重叠）。超出画布由 fit_view 缩放看全。
+	for idf in out:
+		out[idf] = Vector2(clampf(out[idf].x, -4000.0, 4000.0), clampf(out[idf].y, -4000.0, 4000.0))
+
+
+## 把一组同侧子节点从 root 沿 dirv 方向逐列向外排布（复用 _assign_subtree 递归子树）
+func _assign_side(root: String, group: Array, child_map: Dictionary, sp: Dictionary, est_h: Dictionary, out: Dictionary, dirv: float, col_gap: float) -> void:
+	if group.is_empty(): return
+	var rx: float = out.get(root, Vector2.ZERO).x
+	var ry: float = out.get(root, Vector2.ZERO).y
+	var total := 0.0
+	for c in group: total += sp.get(c, 130.0) as float
+	total += 15.0 * (float(group.size()) - 1.0)
+	var top: float = ry - total * 0.5
+	var cur: float = top
+	for c in group:
+		var h: float = sp.get(c, 130.0) as float
+		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + h, rx + dirv * col_gap, dirv, col_gap)
+		cur += h + 15.0
+
+
+## 节点是否为「关系树根」（手动拖拽时仅根的位置被持久化）
+## 与 _star_tree_layout 同口径：人物恒为根；结论若有领域 target（→人物）或作为 support/target 入边（有父）则为非根；
+## 其余「从未作为有向边 from（即无父）」的节点即为根（如无人物的结论、孤立推断起点）。
+func _is_tree_root(id: String) -> bool:
+	if owner._fold._kind_of(id) == "person":
+		return true
+	# 作为任意 support/target 边的 from（推导依据方）⇒ 有父，非根
+	for r in owner._relations:
+		if r.get("kind", "") in ["support", "target"] and str(r.get("from", "")) == id:
+			return false
+	# 结论领域 target 金边（conclusion → person）→ 挂在人物下，非根
+	if owner._fold._kind_of(id) == "conclusion":
+		var _cid: String = str(id).replace("conclusion_", "")
+		var _cdef: Dictionary = owner._conclusion_def(_cid)
+		if _cdef.get("target", "") != "":
+			return false
+	return true
 
 
 ## 后续遍历收集拓扑序，据此自底向上算子树叶子高
@@ -601,19 +816,17 @@ func _clamp_to_band(pos: Vector2, center: Vector2, kind: String) -> Vector2:
 
 
 # ===================== 位置持久化 =====================
-## 把当前所有节点位置写入 state_store（持久化手动布局，含隐藏节点——见设计 §6）
-## 先用当前可见位置刷新缓存，再写入；隐藏节点位置由 _all_positions 保留（避免展开错位）。
+## 第8节改造（A①+B①）：仅持久化「关系树根」锚点到 graph_root_anchors。
+## 子节点全部由星形布局自动派生，不落盘——保证「手动排序只保留最顶端位置」。
 func _persist_node_positions() -> void:
 	if owner._state_store.is_empty(): return
 	# 仅模式 C 写盘：模式 B 布局（或用户在模式 B 的拖动）不持久化，
 	# 否则会覆盖模式 C 的存档位置 → 重进/切回星型时位置错乱（问题2）。
 	if owner._mode != GraphViewController.ViewMode.MODE_C: return
-	for id in owner._node_center:
-		owner._all_positions[id] = owner._node_center[id]
-	var pos: Dictionary = {}
-	for id in owner._all_positions:
-		var p = owner._all_positions[id]
-		if id == owner._focus_person: continue   # 中心永远画布中央，不存
+	# 第8节改造（A①+B①）：仅持久化「关系树根」锚点到 graph_root_anchors；子节点全部自动派生不落盘
+	var pos := {}
+	for id in owner._root_anchor_pos:
+		var p = owner._root_anchor_pos[id]
 		if p is Vector2:
 			pos[id] = p
-	owner._state_store["graph_node_positions"] = pos
+	owner._state_store["graph_root_anchors"] = pos
