@@ -48,6 +48,7 @@ var _placed_clues: Array = []
 var _auto_fold: bool = false
 var _case_wide: bool = false
 var _manual_nodes: Array = []
+var _root_anchor_pos: Dictionary = {}   # 第8节改造（A①+B①）：仅「关系树根」(人物/无人物的结论) 的位置被手动锁定并持久化
 var _carried_ids: Array = []            # 开墙时已存在（上一场景携带）的节点 id；布局据此与「本场景新内容」分区域放置
 var _scene_clue_ids: Array = []         # 本场景采集页收集到的线索 id（=「本场景新内容」）；布局分离时这些算新，其余算携带
 var _cb_tag: Callable = Callable()
@@ -277,6 +278,7 @@ func build(data: Dictionary) -> void:
 	_did_initial_fit = false
 	_placed_clues = (_state_store.get("graph_placed_clues", []) as Array).duplicate()
 	_manual_nodes = (Array(_state_store.get("graph_manual_nodes", [])) as Array).duplicate()
+	_root_anchor_pos = (Dictionary(_state_store.get("graph_root_anchors", {})) as Dictionary).duplicate()
 	_graph_nodes = (Array(_state_store.get("graph_nodes", [])) as Array).duplicate()
 	_graph_deleted = (Array(_state_store.get("graph_deleted_nodes", [])) as Array).duplicate()
 	_edited_texts = (Dictionary(_state_store.get("graph_edited_texts", {})) as Dictionary).duplicate()
@@ -317,13 +319,16 @@ func build(data: Dictionary) -> void:
 		_folded_nodes[_pid] = true
 	# 需求（跨场景带入·任务）：case_wide（场景二~八）进入新场景时【自动折叠到每条推理链的最上层节点】——
 	# 只露有推理关系的最上层节点（孤立/叶子线索仍可见），玩家点击展开。取代旧「不自动折叠、交玩家手动」策略。
-	# 开墙即重新计算（不沿用上一场景折叠/展开态）；坐标不随携带（清空 graph_node_positions，由布局重排）。
+	# 开墙即重新计算（不沿用上一场景折叠/展开态）；坐标不随携带（清空位置持久化，由星形布局重排）。
 	# 先清空折叠态与坐标，让首次 _rebuild_graph 完整呈现所有节点（正确填充 _node_kind），随后折叠到根。
 	if _auto_fold:
 		if _state_store.has("graph_node_positions"):
 			_state_store.erase("graph_node_positions")
+		if _state_store.has("graph_root_anchors"):
+			_state_store.erase("graph_root_anchors")
 		_folded_nodes = {}
 	_all_positions = {}
+	_root_anchor_pos = {}
 
 	# 升级兜底聚焦（修根因 2026-08-19 v3）：缓存里残留的 "__case__" 一律强制重置为空，
 	# 不论 _persons 是否为空。这样可以让下面的缺省逻辑（如果用户实际有 NPC 线索）落到 NPC 真名。
@@ -1250,27 +1255,10 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
 				_nudge_away_from(id, drop)
 		if moved:
-			if not _manual_nodes.has(id):
-				_manual_nodes.append(id)
-			_state_store["graph_manual_nodes"] = _manual_nodes
-			# 任务9：落到空白处且与其他节点重叠时，沿背离方向轻推避免覆盖
-			if drop == "":
-				var _nn: Control = _node_views.get(id)
-				if _nn and is_instance_valid(_nn):
-					var _sr := Rect2(_nn.position, _nn.size)
-					for _oid in _node_views:
-						if _oid == id: continue
-						var _o: Control = _node_views[_oid]
-						if not is_instance_valid(_o): continue
-						var _or := Rect2(_o.position, _o.size)
-						if _sr.intersects(_or):
-							var _dv: Vector2 = (_nn.position + _nn.size * 0.5) - (_o.position + _o.size * 0.5)
-							if _dv == Vector2.ZERO: _dv = Vector2(0, 1)
-							_dv = _dv.normalized()
-							var _push: float = (_sr.size.y + _or.size.y) * 0.5 + 8.0
-							_nn.position += _dv * _push
-							_sr = Rect2(_nn.position, _nn.size)
-							_node_center[id] = _nn.position + _nn.size * 0.5
+			# 第8节改造（A①+B①）：手动拖拽只保留「关系树根」位置；根记锚点、子节点松手后回弹到自动派生位
+			if _layout._is_tree_root(id):
+				_root_anchor_pos[id] = _node_center[id]
+				_state_store["graph_root_anchors"] = _root_anchor_pos
 	elif not moved:
 		_on_node_clicked(id, _node_kind.get(id, ""))
 	_layout._persist_node_positions()
@@ -1284,6 +1272,9 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 	_drag_id = ""
 	_drag_mode = ""
 	_fold._sync_fold_controls_positions()
+	# 第8节改造（A①+B①）：移动/建关系后整树按星形重排——根锚点保留、子节点回派生位
+	if moved:
+		_rebuild_graph()
 	_redraw_all()
 
 
@@ -1841,14 +1832,12 @@ func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 	_zoom = ns
 	
 
-## 顶栏「自动排列」：一次性切换到 BFS 深度分列 + barycenter 减交叉的规范布局，
-## 重排全部节点并持久化 + 适应画布看全。仅在模式 C（图谱）可用。
+## 顶栏「自动排列」：第8节改造（B①）——按 XMind 星形布局重排全部节点（默认即星形，此按钮=重新星形排列），
+## 仅根位置被保留、子节点自动派生，重排后持久化根锚点 + 适应画布看全。仅在模式 C（图谱）可用。
 func auto_layout() -> void:
 	if _mode != GraphViewController.ViewMode.MODE_C:
 		return
-	_use_rank_layout = true
 	_rebuild_graph()
-	_use_rank_layout = false
 	_persist_view()
 	fit_view()
 
@@ -2571,9 +2560,6 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 					break
 			var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "conclusion", _node_center)
 			_node_center[nid] = pos
-			var nps: Dictionary = _state_store.get("graph_node_positions", {})
-			nps[nid] = pos
-			_state_store["graph_node_positions"] = nps
 	# 确保「触发推断 → 结论」support 边（玩家关系，受 _edge_list 绘制）
 	if hid != "" and _node_center.has(hid) and not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == nid):
 		_edge._add_edge(hid, nid, "support", "green", false)
@@ -2649,18 +2635,12 @@ func adopt_candidate(cand: Dictionary, auto_link_gates: bool = true, anchor_id: 
 			"sub": "推断", "data": {"correct": cand.get("kind", "true") == "true", "candidate": true, "adopt_desc": cand.get("adopt_desc", "")}}
 		_graph_nodes.append(placed)
 		var base: Vector2 = _canvas.size * 0.5
-		var savedp: Dictionary = _state_store.get("graph_node_positions", {})
 		# 锚定到触发线索（前向推导由 _derive_hypo 传 cid），否则回退画布中心
 		if anchor_id != "" and _node_center.has(anchor_id):
 			base = _node_center[anchor_id]
-		elif anchor_id != "" and savedp.has(anchor_id):
-			base = savedp[anchor_id]
-		# 螺旋碰撞检测：避免与现有节点叠加（替代旧 5×4 抖动网格）
+		# 螺旋碰撞检测：避免与现有节点叠加（替代旧 5×4 抖动网格）；最终位置由星形布局在 _rebuild_graph 重排
 		var pos: Vector2 = _layout._find_non_overlapping_position(base, hid, "hypo", _node_center)
 		_node_center[hid] = pos
-		var nps: Dictionary = savedp
-		nps[hid] = pos
-		_state_store["graph_node_positions"] = nps
 	# ② 补充连接缺失的支撑证据：默认开启（候选面板一键采纳）；正向推导 _derive_hypo 传 false，
 	#    只连玩家实际拖入的线索，绝不自动连带其他 gate 线索上墙
 	if auto_link_gates and not _data._id_is_clue(hid):

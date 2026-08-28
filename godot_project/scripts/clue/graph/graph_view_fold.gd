@@ -232,7 +232,8 @@ func _set_folded(id: String, v: bool) -> void:
 				owner._all_positions[s] = owner._node_center[s]
 		if owner._node_center.has(id):
 			owner._all_positions[id] = owner._node_center[id]
-	owner._fold_keep_layout = true
+	# 第8节改造（A①+B①）：折叠/展开后按星形重新自动排布（不保留折叠前的零散位置）
+	owner._fold_keep_layout = false
 	owner._rebuild_graph()
 
 
@@ -272,5 +273,6 @@ func _apply_fold_subtree(id: String, subs: Array) -> void:
 		owner._folded_nodes[s] = true
 	owner._state_store["graph_folded_nodes"] = owner._folded_nodes
 	owner._persist_view()
-	owner._fold_keep_layout = true
+	# 第8节改造（A①+B①）：折叠/展开后按星形重新自动排布（不保留折叠前的零散位置）
+	owner._fold_keep_layout = false
 	owner._rebuild_graph()

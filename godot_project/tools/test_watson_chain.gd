@@ -147,6 +147,40 @@ func _initialize() -> void:
 	else:
 		log.append("g) 无 imply 自动边（结论链仅由玩家/派生 support + target 构成）")
 
+	# ---- 断言 h) 第8节星形布局：人物为根居中、结论左右均分、全节点不重叠 ----
+	if not gv._layout._is_tree_root("NPC_WT"):
+		ok = false; print("FAIL h) 人物 NPC_WT 未被识别为关系树根")
+	if gv._layout._is_tree_root("conclusion_C-A1"):
+		ok = false; print("FAIL h) 结论不应是根（应挂在人物下）")
+	var pc: Vector2 = gv._node_center.get("NPC_WT", Vector2.ZERO)
+	var concl_ids := ["conclusion_C-A1","conclusion_C-MAIN","conclusion_C-C1"]
+	var left := 0; var right := 0
+	for nid in concl_ids:
+		var c: Vector2 = gv._node_center.get(nid, Vector2.ZERO)
+		if c.x < pc.x - 1.0: left += 1
+		elif c.x > pc.x + 1.0: right += 1
+	if left == 0 or right == 0:
+		ok = false; print("FAIL h) 结论未左右均分：left=%d right=%d (person.x=%.0f)" % [left, right, pc.x])
+	else:
+		log.append("h) 人物居中为根；3 条结论左右均分（left=%d right=%d），星形生效" % [left, right])
+	var ids: Array = gv._node_center.keys()
+	var overlap := false
+	for i in ids.size():
+		for j in range(i + 1, ids.size()):
+			var a: String = ids[i]; var b: String = ids[j]
+			var wa: float = gv._layout._node_width_for_kind(gv._node_kind.get(a, "hypo"))
+			var wb: float = gv._layout._node_width_for_kind(gv._node_kind.get(b, "hypo"))
+			var ha := 42.0; var hb := 42.0
+			var ra := Rect2(gv._node_center[a] - Vector2(wa, ha) * 0.5, Vector2(wa, ha))
+			var rb := Rect2(gv._node_center[b] - Vector2(wb, hb) * 0.5, Vector2(wb, hb))
+			if ra.intersects(rb):
+				overlap = true; break
+		if overlap: break
+	if overlap:
+		ok = false; print("FAIL h) 星形布局存在节点重叠")
+	else:
+		log.append("h) 全节点 AABB 不重叠")
+
 	for l in log:
 		print("[WATSON]", l)
 	if ok:
