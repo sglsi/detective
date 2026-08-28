@@ -41,7 +41,7 @@ func _apply_column_overlap_fix() -> void:
 		for i in range(1, arr.size()):
 			var _ha: float = _view_height(arr[i - 1])
 			var _hb: float = _view_height(arr[i])
-			var _min_cy: float = owner._node_center[arr[i - 1]].y + (_ha + _hb) * 0.5 + 15.0
+			var _min_cy: float = owner._node_center[arr[i - 1]].y + (_ha + _hb) * 0.5 + 20.0
 			if owner._node_center[arr[i]].y < _min_cy:
 				owner._node_center[arr[i]] = Vector2(owner._node_center[arr[i]].x, _min_cy)
 		var _cy_after: float = 0.0
@@ -73,7 +73,7 @@ func _apply_global_overlap_fix() -> void:
 			var id_b: String = ids[j]
 			var rb: Rect2 = rects[id_b]
 			if ra.intersects(rb):
-				var push: float = ra.end.y - rb.position.y + 15.0
+				var push: float = ra.end.y - rb.position.y + 20.0
 				owner._node_center[id_b] = Vector2(owner._node_center[id_b].x, owner._node_center[id_b].y + push)
 				rects[id_b] = _node_rect(id_b)
 				var vv: Variant = owner._node_views.get(id_b)
@@ -107,7 +107,7 @@ func _node_width_for_kind(kind: String) -> float:
 func _est_node_h(nd: Dictionary) -> float:
 	var fs: float = 28.0
 	var line_h: float = fs * 1.35
-	var sub_h: float = 22.0 * 1.35
+	var sub_h: float = 0.0   # 2026-08-28：取消状态副标题显示，副标题行高归零
 	var txt: String = str(nd.get("label", ""))
 	var natural: float = maxf(float(txt.length()) * fs, 1.0)
 	var nlines: float = maxf(1.0, ceil(natural / 420.0))
@@ -352,12 +352,29 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 	if roots.is_empty() and not nodes.is_empty():
 		roots = [nodes[0].id]
 
+	# 放射根集合：优先人物根（多人物各成树、互不重叠）；其余「非人物孤立根」
+	# （如删除某关系后变成根的推断/结论）并入首个放射根，统一左右放射，避免多根各自
+	# 左右放射导致相邻子树带重叠（需求2：删除边后根节点不再与既有文本框叠加）。
+	var person_roots := []
+	for r in roots:
+		if owner._fold._kind_of(r) == "person":
+			person_roots.append(r)
+	var emit_roots: Array = person_roots if person_roots.size() > 0 else (roots if roots.size() > 0 else [])
+	var main_root: String = emit_roots[0] if emit_roots.size() > 0 else ""
+	if main_root != "" and not child_map.has(main_root):
+		child_map[main_root] = []
+	for rt in roots:
+		if rt == main_root: continue
+		if owner._fold._kind_of(rt) == "person": continue   # 其他人物根保持独立放射
+		if not (rt in child_map[main_root]):
+			child_map[main_root].append(rt)
+
 	# BFS：标记所有树内节点并求最大深度（用于自适应列间距）
 	var assigned := {}
 	var level_of := {}
 	var max_level: int = 0
 	var q := []
-	for r in roots:
+	for r in emit_roots:
 		if assigned.has(r): continue
 		assigned[r] = true
 		level_of[r] = 0
@@ -373,7 +390,7 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 				max_level = maxi(max_level, lv)
 				rest.append(nb)
 		q = rest
-	# 估算高度（用于同列垂直堆叠留 15px 间隙，保证不重叠）
+	# 估算高度（用于同列垂直堆叠留 20px 间隙，保证不重叠）
 	var est_h := {}
 	for nd in nodes: est_h[nd.id] = _est_node_h(nd)
 	# 估算每棵子树所需垂直带长（含间隙），用于把不同结论分支分配到独立上下扇区，避免同侧堆叠
@@ -386,23 +403,23 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 	var half_avail: float = maxf(center.x - m - 90.0, 200.0)
 	var col_gap: float = clampf(half_avail / maxf(float(max_level), 1.0), 165.0, 300.0)
 
-	# 根位置：单根→画布中心（可被 saved_root 手动锁定）；多根→水平均布
+	# 放射根位置：仅 emit_roots 计 root_gap 均布；非人物孤立根已并入 main_root，不再单独定位
 	var root_gap: float = 360.0
 	var root_pos := {}
-	for i in roots.size():
-		var rid: String = roots[i]
+	for i in emit_roots.size():
+		var rid: String = emit_roots[i]
 		var rp := Vector2(center.x, center.y)
-		if roots.size() > 1:
-			rp.x = center.x + (float(i) - float(roots.size() - 1) * 0.5) * root_gap
+		if emit_roots.size() > 1:
+			rp.x = center.x + (float(i) - float(emit_roots.size() - 1) * 0.5) * root_gap
 		var sv: Variant = saved_root.get(rid, null)
 		if sv is Vector2:
 			rp = sv
 		root_pos[rid] = rp
 		out[rid] = rp
 
-	# 按根的直接子节点分成左右扇区，每子树按带长分配独立上下带：结论星形分布于根四周，
+	# 按放射根的直接子节点分成左右扇区，每子树按带长分配独立上下带：结论星形分布于根四周，
 	# 每条结论子树向同侧同带向外放射生长（推断→线索），避免不同分支垂直堆叠重叠。
-	for r in roots:
+	for r in emit_roots:
 		var rx: float = root_pos[r].x
 		var ry: float = root_pos[r].y
 		var ch0: Array = child_map.get(r, []).duplicate()
@@ -442,13 +459,13 @@ func _assign_side(root: String, group: Array, child_map: Dictionary, sp: Diction
 	var ry: float = out.get(root, Vector2.ZERO).y
 	var total := 0.0
 	for c in group: total += sp.get(c, 130.0) as float
-	total += 15.0 * (float(group.size()) - 1.0)
+	total += 20.0 * (float(group.size()) - 1.0)
 	var top: float = ry - total * 0.5
 	var cur: float = top
 	for c in group:
 		var h: float = sp.get(c, 130.0) as float
 		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + h, rx + dirv * col_gap, dirv, col_gap)
-		cur += h + 15.0
+		cur += h + 20.0
 
 
 ## 节点是否为「关系树根」（手动拖拽时仅根的位置被持久化）
@@ -509,7 +526,7 @@ func _subtree_span_est(u: String, child_map: Dictionary, est_h: Dictionary, memo
 		var sub: float = 0.0
 		for _c in ch:
 			sub += _subtree_span_est(_c, child_map, est_h, memo)
-		s = maxf(s, sub + 15.0 * (float(ch.size()) - 1.0))
+		s = maxf(s, sub + 20.0 * (float(ch.size()) - 1.0))
 	memo[u] = s
 	return s
 
@@ -520,13 +537,13 @@ func _place_side_children(children: Array, root_x: float, root_y: float, dirv: f
 	if children.is_empty(): return
 	var total: float = 0.0
 	for c in children: total += sp.get(c, est_h.get(c, 130.0) as float)
-	total += 15.0 * (float(children.size()) - 1.0)
+	total += 20.0 * (float(children.size()) - 1.0)
 	var top: float = root_y - total * 0.5
 	var cur: float = top
 	for c in children:
 		var span: float = sp.get(c, est_h.get(c, 130.0) as float)
 		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + span, root_x + dirv * col_gap, dirv, col_gap)
-		cur += span + 15.0
+		cur += span + 20.0
 
 
 ## 递归布点：父居其子带中央；子带按各自子树带长精确切分（不足则居中留白），兄弟带间保证 ≥15px，绝不溢出交叠
@@ -542,12 +559,12 @@ func _assign_subtree(u: String, child_map: Dictionary, sp: Dictionary, est_h: Di
 	var totalSpan: float = 0.0
 	for _c in ch:
 		totalSpan += sp.get(_c, 130.0) as float
-	totalSpan += 15.0 * (float(ch.size()) - 1.0)
+	totalSpan += 20.0 * (float(ch.size()) - 1.0)
 	var cur: float = top + maxf(0.0, ((bot - top) - totalSpan) * 0.5)
 	for c in ch:
 		var _h: float = sp.get(c, 130.0) as float
 		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + _h, pxx + dirv * col_gap, dirv, col_gap)
-		cur += _h + 15.0
+		cur += _h + 20.0
 
 
 # ===================== 一键自动排列（顶栏「自动排列」） =====================

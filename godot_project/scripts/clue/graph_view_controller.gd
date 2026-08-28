@@ -51,6 +51,7 @@ var _manual_nodes: Array = []
 var _root_anchor_pos: Dictionary = {}   # 第8节改造（A①+B①）：仅「关系树根」(人物/无人物的结论) 的位置被手动锁定并持久化
 var _carried_ids: Array = []            # 开墙时已存在（上一场景携带）的节点 id；布局据此与「本场景新内容」分区域放置
 var _scene_clue_ids: Array = []         # 本场景采集页收集到的线索 id（=「本场景新内容」）；布局分离时这些算新，其余算携带
+var _deleted_target_edges: Dictionary = {}   # 需求1：玩家删除过的「结论→人物」target 边（key=conclusion_nid, value=person_id）；方案A 自动派生时跳过，使删除可持久
 var _cb_tag: Callable = Callable()
 var _cb_add_edge: Callable = Callable()
 var _cb_remove_relation: Callable = Callable()
@@ -261,6 +262,7 @@ func build(data: Dictionary) -> void:
 	# 「关联正确后即时变色」，无需退出重进。LOCKED 墙关系不可变，实时推算与已定 verdict 一致。
 	_verdict = -1
 	_state_store = data.get("state_store", {})
+	_deleted_target_edges = _state_store.get("graph_deleted_target", {})   # 需求1：恢复已删除的结论→人物边（从持久化 state_store 读）
 	_cb_tag = data.get("on_tag", Callable())
 	_cb_add_edge = data.get("on_add_edge", Callable())
 	_cb_remove_relation = data.get("on_remove_relation", Callable())
@@ -1028,6 +1030,7 @@ func _make_node(nd: Dictionary) -> Control:
 	sub.add_theme_color_override("font_color", sub_col)
 	sub.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(sub)
+	sub.visible = false   # 需求4：取消节点状态副标题显示（已关联/推断/结论/焦点/角色/推理链/自定义等）
 
 	# #1 真实自适应：宽度按文字自然宽度（上限 420=15 汉字×28 字号），高度按换行后真实行数；超过15字才换行
 	var _MAX_W: float = 420.0
@@ -2190,6 +2193,7 @@ func _persist_view() -> void:
 	_state_store["graph_nodes"] = _graph_nodes.duplicate()
 	_state_store["graph_derived_conclusions"] = _derived_conclusions.duplicate()
 	_state_store["graph_edited_texts"] = _edited_texts.duplicate()
+	_state_store["graph_deleted_target"] = _deleted_target_edges   # 需求1：持久化已删除的结论→人物边
 	_state_store["graph_deleted_nodes"] = _state_store.get("graph_deleted_nodes", [])
 	_layout._persist_node_positions()
 
