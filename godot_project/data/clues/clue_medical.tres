@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "medical"
+name = "医务工作者风度"
+description = "华生举手投足间透出医务工作者的沉稳与专业气质，受过系统医学训练"
+category = "痕迹"
+location = "贝克街221B"
+discovery_condition = "点击观察华生举止"
+observation = "举止沉稳专业，带有医务工作者的风度。"
+analysis = "受过系统医学训练，职业军人中的军医。"
+related_clues = []
+related_npcs = ["NPC_WT"]
+timeline_position = 0.5
+importance = 5
+is_key_evidence = false
+state = 0
+discovery_time = ""

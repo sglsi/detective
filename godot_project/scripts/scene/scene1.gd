@@ -45,17 +45,18 @@ func _restore_saved_state() -> bool:
 	var saved_wall_state: Dictionary = ss.get("wall_state", {})
 	if not saved_wall_state.is_empty():
 		_wall_state = saved_wall_state
-	# 兼容旧存档：华生左肩线索早期 id 为 "arm"，现统一为 "shoulder"（与观察器/锚点表一致）。
-	# 只做读取时的就地映射，绝不改写或删除玩家存档文件。
+	# 兼容旧存档：早期华生左肩线索 id 为 "shoulder"（现统一为 "arm"）、合并脸线索 id 为 "face"
+	# （现拆分为 face_dark/face_haggard）。只做读取时的就地映射，绝不改写或删除玩家存档文件。
 	for i in range(saved_ids.size()):
-		if str(saved_ids[i]) == "arm": saved_ids[i] = "shoulder"
+		if str(saved_ids[i]) == "shoulder": saved_ids[i] = "arm"
+		elif str(saved_ids[i]) == "face": saved_ids[i] = "face_dark"
 	if ClueSystem:
 		ClueSystem.clear_source("watson")
 		ClueSystem.clear_source("messenger")
 		for cid in saved_ids:
 			var h = _find_hotspot(cid)
 			if not h.is_empty():
-				var src := "watson" if cid in ["wrist","shoulder","face","pose"] else "messenger"
+				var src := "watson" if cid in ["wrist","arm","face_dark","face_haggard","pose","medical"] else "messenger"
 				ClueSystem.collect_clue_from_catalog(cid, h.get("name", cid), h.get("desc",""), h.get("correct", true), src)
 	_phase = saved_phase
 	# 读到终局阶段时，阻止后续「进入场景二」按钮再次自动存档，避免 identical 重复槽位。
@@ -71,14 +72,14 @@ func _restore_saved_state() -> bool:
 			return true
 		Phase.OBSERVE_WATSON:
 			if _portrait_ctrl: _portrait_ctrl.visible = true
-			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","shoulder","face","pose"])
-			if _watson_obs.get_recorded() >= 4:
+			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","arm","face_dark","face_haggard","pose","medical"])
+			if _watson_obs.get_recorded() >= _watson_obs.needs_count():
 				_on_watson_all_recorded(_watson_obs.get_recorded_clues()); return true
-			_ui.set_dialogue("提示", "已恢复进度 — 华生观察阶段（已收集 "+str(_watson_obs.get_recorded())+"/4 条）\n点击 LOOK 查看剩余标记点")
+			_ui.set_dialogue("提示", "已恢复进度 — 华生观察阶段（已收集 "+str(_watson_obs.get_recorded())+"/"+str(_watson_obs.needs_count())+" 条）\n点击 LOOK 查看剩余标记点")
 			return true
 		Phase.WATSON_REASONING:
 			_phase = Phase.WATSON_REASONING; _wall_auto = false
-			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","shoulder","face","pose"])
+			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","arm","face_dark","face_haggard","pose","medical"])
 			_show_watson_reasoning_wall()
 			return true
 		Phase.MESSENGER_OBSERVE:
@@ -134,7 +135,7 @@ func _phase_name(p: int) -> String:
 		_: return "未知阶段"
 
 func _all_hotspots() -> Array:
-	var w = [{"id":"wrist","name":"肤色黑白分明","desc":"华生手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来"},{"id":"shoulder","name":"右肩损伤","desc":"华生右肩动作略显僵硬——战场负伤留下的旧疾"},{"id":"face","name":"脸部疲惫","desc":"华生面部疲惫、面色黝黑——久病初愈、长途劳顿的痕迹"},{"id":"pose","name":"军人气质","desc":"华生站姿挺拔、气质干练——典型的军人作风"}]
+	var w = [{"id":"wrist","name":"肤色黑白分明","desc":"华生手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来"},{"id":"arm","name":"左臂损伤","desc":"华生左臂动作略显僵硬——战场负伤留下的旧疾"},{"id":"face_dark","name":"脸色黝黑","desc":"华生脸部肤色明显偏深——长期热带日照的痕迹"},{"id":"face_haggard","name":"面容憔悴","desc":"华生面容灰暗、眼窝深陷——久病初愈、长途劳顿的痕迹"},{"id":"pose","name":"军人气质","desc":"华生站姿挺拔、气质干练——典型的军人作风"},{"id":"medical","name":"医务工作者风度","desc":"华生举手投足间透出医务工作者的沉稳与专业气质"}]
 	var m = [{"id":"tattoo","name":"锚形文身","desc":"信使手背上有蓝色锚形文身——皇家海军标志"},{"id":"beard","name":"络腮胡","desc":"信使留着军人式络腮胡"},{"id":"posture","name":"挺拔站姿","desc":"信使站姿挺拔有力"},{"id":"manner","name":"神态平静","desc":"信使神态从容淡定"},{"id":"sleeve","name":"袖口细节","desc":"信使袖口有磨损痕迹"},{"id":"limp","name":"轻微跛行","desc":"信使走路有轻微跛行"}]
 	var r: Array = []
 	r.append_array(w); r.append_array(m)
@@ -180,12 +181,16 @@ func _create_observers() -> void:
 		# 中 watson_teaching.png 的定稿锚点对齐（x=cx-w/2, y=cy-h/2, cx=cx+w/2, cy=cy+h/2）
 		{"id":"wrist","label":"肤色黑白分明","x":580,"y":400,"w":100,"h":60,"desc":"手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来",
 		 "crop":{"x":0.2215,"y":0.5605,"cx":0.4985,"cy":0.7695},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
-		{"id":"shoulder","label":"右肩损伤","x":450,"y":450,"w":100,"h":70,"desc":"右肩动作略显僵硬——战场负伤留下的旧疾",
+		{"id":"arm","label":"左臂损伤","x":450,"y":450,"w":100,"h":70,"desc":"左臂动作略显僵硬——战场负伤留下的旧疾",
 		 "crop":{"x":0.5845,"y":0.3225,"cx":0.7575,"cy":0.4575},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
-		{"id":"face","label":"脸部疲惫","x":520,"y":240,"w":110,"h":70,"desc":"面部疲惫、面色黝黑——久病初愈、长途劳顿的痕迹",
+		{"id":"face_dark","label":"脸色黝黑","x":520,"y":200,"w":110,"h":60,"desc":"脸部肤色明显偏深——长期热带日照的痕迹",
+		 "crop":{"x":0.392,"y":0.040,"cx":0.632,"cy":0.326},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
+		{"id":"face_haggard","label":"面容憔悴","x":520,"y":290,"w":110,"h":60,"desc":"面容灰暗、眼窝深陷——久病初愈的痕迹",
 		 "crop":{"x":0.392,"y":0.040,"cx":0.632,"cy":0.326},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
 		{"id":"pose","label":"军人气质","x":500,"y":600,"w":130,"h":80,"desc":"站姿挺拔、气质干练——典型的军人作风",
 		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"pose"},
+		{"id":"medical","label":"医务工作者风度","x":500,"y":430,"w":120,"h":120,"desc":"举手投足间透出医务工作者的沉稳与专业气质",
+		 "crop":{"x":0.30,"y":0.32,"cx":0.95,"cy":0.95},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"pose"},
 	], tex, _portrait_ctrl, "res://assets/characters/watson/watson_teaching.png")
 	_watson_obs.all_recorded.connect(_on_watson_all_recorded)
 	_watson_obs.clue_recorded.connect(_on_collect_clue.bind("watson"))
@@ -335,7 +340,7 @@ func _do_save(slot: int = -1) -> void:
 	for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
 	data["clue_ids"] = ids
 	for cid in ids:
-		if cid in ["wrist","shoulder","face","pose"]: data["watson_recorded"] += 1
+		if cid in ["wrist","arm","face_dark","face_haggard","pose","medical"]: data["watson_recorded"] += 1
 		else: data["messenger_recorded"] += 1
 	print("[SAVE scene1] phase=", _phase, " data=", data)
 	# 保存不需要选槽位：自动分配（空槽位优先，满则覆盖最旧）
@@ -372,7 +377,7 @@ func _show_mrs_hudson_dialogue() -> void:
 	nodes.append(_dn("h5","福尔摩斯","（微笑，转向玩家视角）这位新朋友显然不相信。不如——你来告诉他我是怎么看出来的？","click",["h5_e","h5_n","h5_h"],"指导"))
 	# 不同难度不同引导：h5 之后分流，难度过滤节点须「链式为 next」(h5_e→h5_n→h5_h→end)，
 	# 引擎 should_show 跳过隐藏变体时才会依次走到第一个可见变体（否则会误判 end 提前结束）。
-	nodes.append(_dn("h5_e","福尔摩斯","（低声）从手腕晒痕、右肩旧伤、脸色疲惫、军人站姿这几处下手，每条都要讲出证据。","click",["h5_n"],"指导",1))
+	nodes.append(_dn("h5_e","福尔摩斯","（低声）从手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、医务工作者风度这几处下手，每条都要讲出证据。","click",["h5_n"],"指导",1))
 	nodes.append(_dn("h5_n","福尔摩斯","（点头）用你观察到的证据，把结论串起来。","click",["h5_h"],"指导",2))
 	nodes.append(_dn("h5_h","福尔摩斯","（什么也没说，只是望着你）……","click",["end"],"从容",3))
 	var res = DialogueResource.new(); res.scene_id="s1_intro"; res.nodes=nodes
@@ -392,16 +397,16 @@ func _show_opening_dialogue() -> void:
 	_phase = Phase.OPENING
 	var nodes: Array[Resource] = []
 	# —— 简单（EASY）：详细引导，逐条点出部位 ——
-	nodes.append(_dn("s0_e","福尔摩斯","看这位朋友——手腕的晒痕、右肩的旧伤、脸色的疲惫、军人的站姿，都在说他刚从战场回来。来，我们把这些一条条看清楚。","click",["s1_e"],"从容"))
-	nodes.append(_dn("s1_e","系统","[新手教程] 第一次观察\n目标：找出 4 条线索（手腕晒痕、右肩旧伤、脸色疲惫、军人站姿）\n操作：可观察点已全部高亮，点击圆圈逐一查看细节","click",["s2_e"],"guide"))
+	nodes.append(_dn("s0_e","福尔摩斯","看这位朋友——手腕的晒痕、左臂的旧伤、脸色的黝黑、面容的憔悴、军人的站姿、医务工作者的风度，都在说他刚从战场回来。来，我们把这些一条条看清楚。","click",["s1_e"],"从容"))
+	nodes.append(_dn("s1_e","系统","[新手教程] 第一次观察\n目标：找出 6 条线索（手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、医务工作者风度）\n操作：可观察点已全部高亮，点击圆圈逐一查看细节","click",["s2_e"],"guide"))
 	nodes.append(_dn("s2_e","系统","所有可观察点已高亮，点击华生身上高亮的圆圈即可。完成后进入推理墙验证。","click",["end"],"guide"))
 	# —— 普通（NORMAL）：标准提示 ——
-	nodes.append(_dn("s0_n","福尔摩斯","证据在你身上: 手腕、右肩、面色、站姿","click",["s1_n"],"从容"))
-	nodes.append(_dn("s1_n","系统","[新手教程] 第一次观察\n目标：找出 4 条线索，证明'华生是阿富汗军医'\n操作：点击华生身上高亮的圆圈，逐一观察细节","click",["s2_n"],"guide"))
+	nodes.append(_dn("s0_n","福尔摩斯","证据在你身上: 手腕、左臂、脸色、面容、站姿、医务工作者的风度","click",["s1_n"],"从容"))
+	nodes.append(_dn("s1_n","系统","[新手教程] 第一次观察\n目标：找出 6 条线索，证明'华生是阿富汗军医'\n操作：点击华生身上高亮的圆圈，逐一观察细节","click",["s2_n"],"guide"))
 	nodes.append(_dn("s2_n","系统","点击华生身上高亮的圆圈。完成后进入推理墙验证。","click",["end"],"guide"))
 	# —— 困难（HARD）：无引导，严格证据 ——
 	nodes.append(_dn("s0_h","福尔摩斯","（审视华生）……证据都在他身上。自己看，别等我喂。","click",["s1_h"],"从容"))
-	nodes.append(_dn("s1_h","系统","[硬核模式] 第一次观察\n目标：凭观察找出 4 条线索\n无任何高亮提示，自行判断华生身上值得注意的细节","click",["s2_h"],"guide"))
+	nodes.append(_dn("s1_h","系统","[硬核模式] 第一次观察\n目标：凭观察找出 6 条线索\n无任何高亮提示，自行判断华生身上值得注意的细节","click",["s2_h"],"guide"))
 	nodes.append(_dn("s2_h","系统","无提示。自行观察华生，找出关键线索后进入推理墙。","click",["end"],"guide"))
 	var res = DialogueResource.new(); res.scene_id="s1_open"; res.nodes=nodes
 	res.easy_start_node="s0_e"; res.normal_start_node="s0_n"; res.hard_start_node="s0_h"
@@ -412,7 +417,7 @@ func _on_opening_end() -> void:
 	if _ui: _ui.set_camera_enabled(true)   # 进入观察：启用摄像机（统览/缩放/拖拽）
 	if _portrait_ctrl: _portrait_ctrl.visible = true
 	_watson_obs.show()
-	_ui.set_dialogue("提示", _observe_hint("华生", true) + "，观察 4 处线索。")
+	_ui.set_dialogue("提示", _observe_hint("华生", true) + "，观察 6 处线索。")
 	_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
 	# 进入观察阶段即自动弹出道具工具栏
 	if _toolbar: _toolbar.show_toolbar()
@@ -432,20 +437,27 @@ func _show_watson_reasoning_wall() -> void:
 	if _portrait_ctrl: _portrait_ctrl.visible = false
 	_phase = Phase.WATSON_REASONING
 	if _ui: _ui.set_camera_enabled(false)   # 推理墙：禁用摄像机
-	var hypo := {"title": "华生刚从阿富汗回来？", "persons": [{"id": "NPC_WT"}], "description": "从华生身上的痕迹（手腕肤色分界、左臂旧伤、面色憔悴、军人站姿）推断其身份与经历。",
+	var hypo := {"title": "华生刚从阿富汗回来？", "persons": [{"id": "NPC_WT"}], "description": "从华生身上的痕迹（手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、医务工作者风度）逐层推断其经历：热带生活→军医→战火负伤→阿富汗服役。",
 		"battlefield": {
 			"hypotheses": [
-				{"id":"W-01","text":"华生肤色黑白分明，有热带晒痕","correct":true},
-				{"id":"W-02","text":"华生右肩有旧伤","correct":true},
-				{"id":"W-03","text":"华生脸部疲惫、面色憔悴","correct":true},
-				{"id":"W-04","text":"华生站姿气质像军人","correct":true},
+				{"id":"W-A1","text":"华生不是原来的肤色（热带晒痕）","correct":true,"gate_clue_ids":["wrist","face_dark"]},
+				{"id":"W-B1","text":"华生是名军医","correct":true,"gate_clue_ids":["pose","medical"]},
+				{"id":"W-C1","text":"华生久病初愈","correct":true,"gate_clue_ids":["face_haggard"]},
+				{"id":"W-C2","text":"华生左臂受过伤","correct":true,"gate_clue_ids":["arm"]},
+				{"id":"W-C3","text":"华生承受过不该有的伤痛","correct":true,"gate_hypo_ids":["W-C1","W-C2"]},
+			],
+			"conclusions": [
+				{"id":"C-A1","text":"华生曾在热带长期生活","correct":true,"gate_hypo_ids":["W-A1"],"target":"person:NPC_WT","adopt_desc":"热带晒痕说明他刚从热带归来。"},
+				{"id":"C-MAIN","text":"华生刚从阿富汗服役归来","correct":true,"gate_hypo_ids":["W-A1","W-B1","W-C3"],"target":"person:NPC_WT","adopt_desc":"晒痕＋军医身份＋战火伤痛，三者闭合指向阿富汗军医。"},
+				{"id":"C-C1","text":"华生参加过战争","correct":true,"gate_hypo_ids":["W-C3"],"target":"person:NPC_WT","adopt_desc":"不该有的伤痛只可能来自战场。"},
 			],
 			"contradictions": [],
 		},
 		"milestones": [
-			{"id":"MW-1","text":"华生刚从阿富汗战场归来"},
-			{"id":"MW-2","text":"华生是军医（右肩旧伤、军人气质）"},
-			{"id":"MW-3","text":"身份可经观察痕迹推断（演绎法初探）"},
+			{"id":"MW-1","text":"华生曾在热带长期生活（晒痕推断）"},
+			{"id":"MW-2","text":"华生是军医（站姿＋医务工作者风度）"},
+			{"id":"MW-3","text":"华生左臂受伤、承受过战火伤痛（参加过战争）"},
+			{"id":"MW-4","text":"华生刚从阿富汗服役归来（多条推断闭合）"},
 		],
 	}
 	_open_wall("watson", hypo, func(v: int):
@@ -557,7 +569,7 @@ func _resume_observe() -> void:
 		_phase = Phase.OBSERVE_WATSON
 		if _portrait_ctrl: _portrait_ctrl.visible = true
 		_watson_obs.show()
-		_ui.set_dialogue("提示", "已回到华生观察 — " + _resume_suffix() + "（" + str(_watson_obs.get_recorded()) + "/4）")
+		_ui.set_dialogue("提示", "已回到华生观察 — " + _resume_suffix() + "（" + str(_watson_obs.get_recorded()) + "/" + str(_watson_obs.needs_count()) + "）")
 		_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
 	elif _phase == Phase.MESSENGER_REASONING:
 		if _messenger_obs.get_recorded() >= _messenger_obs.needs_count():

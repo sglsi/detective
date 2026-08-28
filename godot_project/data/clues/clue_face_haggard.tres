@@ -4,14 +4,14 @@
 
 [resource]
 script = ExtResource("1_clue")
-id = "face"
-name = "华生面色黝黑憔悴"
-description = "华生面色黝黑且憔悴——久病初愈的迹象"
+id = "face_haggard"
+name = "华生面容憔悴"
+description = "华生面容灰暗、眼窝深陷——久病初愈、长途劳顿的痕迹"
 category = "痕迹"
 location = "贝克街221B"
-discovery_condition = "点击观察华生面色"
-observation = "面色黝黑憔悴。"
-analysis = "久病初愈，热带经历。"
+discovery_condition = "点击观察华生面部"
+observation = "面容憔悴，精神不济。"
+analysis = "久病初愈，身体尚未完全恢复。"
 related_clues = []
 related_npcs = ["NPC_WT"]
 timeline_position = 0.3

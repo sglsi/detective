@@ -2007,6 +2007,17 @@ func _show_detail(id: String, kind: String) -> void:
 			var h: Dictionary = _node_data.get(id, {})
 			title.text = "推断：" + h.get("text", id)
 			body.text = "这是你正在考虑的其中一种可能性。"
+			if _state == State.EDITABLE:
+				var chain_btn := Button.new()
+				chain_btn.text = "推导下一层推断 ▾"
+				chain_btn.add_theme_font_size_override("font_size", 26)
+				chain_btn.pressed.connect(func(): _dockctl._open_hypo_derive_popup(id))
+				vb.add_child(chain_btn)
+				var concl_btn := Button.new()
+				concl_btn.text = "推导结论 ▾"
+				concl_btn.add_theme_font_size_override("font_size", 26)
+				concl_btn.pressed.connect(func(): _dockctl._open_conclusion_popup(id))
+				vb.add_child(concl_btn)
 		"person":
 			title.text = "焦点人物：" + _data._person_name(id)
 			body.text = "星型中心。把线索拖到此处即可标注它和这个人的关系。"
@@ -2468,6 +2479,7 @@ func _derive_hypo(cid: String, hid: String) -> void:
 	_persist_view()
 	_rebuild_graph()
 	_focus_on(hid)
+	_sync_conclusion_gate_edges()   # 新推断上墙后，相关结论（gate 含此推断）自动补边，结论链随推导逐步闭合
 	# 正向推导：选推断后若场景有任意「按难度可见」的预设结论，自动弹结论候选窗（列出全部候选，玩家任选其一）
 	var _cons: Array = _hypo.get("battlefield", {}).get("conclusions", [])
 	var _has_cand: bool = false
@@ -2477,6 +2489,40 @@ func _derive_hypo(cid: String, hid: String) -> void:
 			break
 	if _has_cand:
 		call_deferred("_open_conclusion_choice", hid)
+
+
+## 拖推断推导推断（方案B：推断可由多个推断/结论组合推得，如 W-C1+W-C2→W-C3）
+## 生成下一层推断节点 + 绿 support 边（源推断→目标推断）；已存在节点则只补边。
+func _derive_hypo_from_hypo(src_hid: String, dst_hid: String) -> void:
+	if _state != State.EDITABLE:
+		_ui_toast("推理墙已封存，仅可浏览")
+		return
+	var hd: Dictionary = _hypo_def(dst_hid)
+	if hd.is_empty():
+		_ui_toast("未找到推断定义：" + dst_hid)
+		return
+	# 校验：源推断必须是目标推断的 gate 之一（避免随意连）
+	var _gates: Array = hd.get("gate_hypo_ids", [])
+	if not (src_hid in _gates):
+		_ui_toast("该推断不能由当前组合推导")
+		return
+	adopt_candidate(hd, false, src_hid)   # 锚定到源推断落点防叠加
+	if not any_edge(src_hid, dst_hid) and not _relations.any(func(r): return r.get("from", "") == src_hid and r.get("to", "") == dst_hid):
+		_edge._add_edge(src_hid, dst_hid, "support", "green", false)
+	_sync_conclusion_gate_edges()   # 新推断上墙后，相关结论自动补 gate 边
+	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
+	_persist_view()
+	_rebuild_graph()
+	_focus_on(dst_hid)
+	# 同 _derive_hypo：选推断后若场景有可见预设结论，自动弹结论候选窗
+	var _cons: Array = _hypo.get("battlefield", {}).get("conclusions", [])
+	var _has_cand: bool = false
+	for _c in _cons:
+		if _dockctl._conclusion_preset_visible(_c):
+			_has_cand = true
+			break
+	if _has_cand:
+		call_deferred("_open_conclusion_choice", dst_hid)
 
 
 ## 自定义结论：玩家输入文本生成结论节点（不选预设项）；con_id 用 "custom_N" 标记
@@ -2514,17 +2560,26 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 			break
 	if not existed:
 		_derived_conclusions.append({"id": con_id, "hid": hid, "text": custom_text})
-		# 放置节点：锚定到父推断 hid（推出该结论的推断），螺旋碰撞检测避免与现有节点叠加
+		# 放置节点：优先锚定到「结论 gate_hypo_ids 中第一个已上墙的 gate 推断」（使结论落在推理链末端），
+		# 否则回退触发 hid；螺旋碰撞检测避免与现有节点叠加。
 		if not _node_center.has(nid):
 			var base: Vector2 = _node_center.get(hid, _canvas.size * 0.5)
+			var cdef: Dictionary = _conclusion_def(con_id)
+			for g in cdef.get("gate_hypo_ids", []):
+				if _node_center.has(str(g)):
+					base = _node_center[str(g)]
+					break
 			var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "conclusion", _node_center)
 			_node_center[nid] = pos
 			var nps: Dictionary = _state_store.get("graph_node_positions", {})
 			nps[nid] = pos
 			_state_store["graph_node_positions"] = nps
-	# 确保 推断→结论 support 边（玩家关系，受 _edge_list 绘制）
-	if not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == nid):
+	# 确保「触发推断 → 结论」support 边（玩家关系，受 _edge_list 绘制）
+	if hid != "" and _node_center.has(hid) and not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == nid):
 		_edge._add_edge(hid, nid, "support", "green", false)
+	# 方案B：结论可由多个推断/结论共推（gate_hypo_ids）。每次推导后同步所有已推导结论的 gate 边，
+	# 使「结论链」随推断逐步上墙自动闭合（如 C-MAIN 由 W-A1+W-B1+W-C3 共推）。
+	_sync_conclusion_gate_edges()
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
@@ -2533,10 +2588,26 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 	if con_id.begins_with("custom"):
 		desc = custom_text
 	else:
-		var cd := _conclusion_def(con_id)
+		var cd: Dictionary = _conclusion_def(con_id)
 		desc = str(cd.get("adopt_desc", ""))
 	if desc != "":
 		_ui_toast(desc if desc.length() <= 120 else desc.substr(0, 117) + "…")
+
+
+## 方案B：同步所有「已推导结论」的 gate 推断→结论 support 边。
+## 结论定义含 gate_hypo_ids（多个推断/结论共推）时，凡已上墙的 gate 节点都补一条 support 边，
+## 使结论链随推断逐步到位自动闭合；结论尚未推导（节点未生成）或某 gate 尚未上墙时不补，待其到位后再次同步。
+func _sync_conclusion_gate_edges() -> void:
+	for _dc in _derived_conclusions:
+		var _cid: String = str(_dc.get("id", ""))
+		var _nid: String = _conclusion_node_id(_cid)
+		if not _node_center.has(_nid):
+			continue   # 结论节点尚未生成（玩家未推导该结论），跳过
+		var _cdef: Dictionary = _conclusion_def(_cid)
+		for _g in _cdef.get("gate_hypo_ids", []):
+			var _gid: String = str(_g)
+			if _node_center.has(_gid) and not _relations.any(func(r): return r.get("from", "") == _gid and r.get("to", "") == _nid):
+				_edge._add_edge(_gid, _nid, "support", "green", false)
 
 
 ## 推断详情卡入口：打开结论候选窗（gate_hypo_ids 含该推断的结论）
