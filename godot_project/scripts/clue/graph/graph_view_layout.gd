@@ -296,8 +296,8 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 ## 这能正确处理「推断→推断」同层级边（如 W-C1+W-C2→W-C3，W-C3 作为 W-C1/W-C2 的父），
 ## 而早先按「节点 kind 层级」下降的 BFS 会漏掉这类同层边、把节点丢成孤儿导致重叠。
 ## 每个子节点只取一个父：多个候选父时取 ring_depth 更大者（更靠近结论/人物的上层），保持链紧凑。
-## 列分组按 (根, 侧别, 层级) 进行——同列 x 相同（列间 col_gap 错开，绝不 x 重叠），列内按高度堆叠留
-## 15px 间隙，从而保证任意画布尺寸下全节点矩形零重叠；超出画布由 fit_view 缩放看全。
+## 根的直接子节点按左右扇区分派，每子树按估算带长分配独立上下带，再递归向外放射；
+## 同侧多分支不再共享同一垂直列，避免堆叠重叠。超出画布由 fit_view 缩放看全。
 func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, out: Dictionary) -> void:
 	# 节点种类层（与折叠圈层一致）：人物/事件=0 > 结论=1 > 推断/链=2 > 线索=3
 	var RD := {"person": 0, "event": 0, "conclusion": 1, "hypo": 2, "chain": 2, "clue": 3}
@@ -352,99 +352,70 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 	if roots.is_empty() and not nodes.is_empty():
 		roots = [nodes[0].id]
 
-	# BFS：求 level / root_of（dirv 左右侧在 BFS 后单独确定并沿父子链向下传播，
-	# 避免在 BFS 内用「父 dirv」继承——根 dirv=0 会把已均分的子节点覆盖回中心列）
+	# BFS：标记所有树内节点并求最大深度（用于自适应列间距）
 	var assigned := {}
 	var level_of := {}
-	var dirv_of := {}
-	var root_of := {}
 	var max_level: int = 0
 	var q := []
 	for r in roots:
 		if assigned.has(r): continue
 		assigned[r] = true
-		root_of[r] = r
-		q.append(r)
 		level_of[r] = 0
+		q.append(r)
 	while q.size() > 0:
 		var rest := []
 		for u in q:
 			for nb in child_map.get(u, []):
 				if assigned.has(nb): continue
 				assigned[nb] = true
-				root_of[nb] = root_of.get(u, roots[0])
-				level_of[nb] = level_of.get(u, 0) + 1
-				max_level = maxi(max_level, level_of[nb])
+				var lv: int = level_of.get(u, 0) + 1
+				level_of[nb] = lv
+				max_level = maxi(max_level, lv)
 				rest.append(nb)
 		q = rest
-	# dirv：根的直接子节点均分左/右两侧，再从这些子节点沿父子链向下传播到整条子树
-	var dirq := []
-	for r in roots:
-		var ch0: Array = child_map.get(r, [])
-		var half_n0: int = ceili(float(ch0.size()) / 2.0)
-		var i0 := 0
-		for c in ch0:
-			dirv_of[c] = -1.0 if float(i0) < float(half_n0) else 1.0
-			i0 += 1
-			dirq.append(c)
-	while dirq.size() > 0:
-		var u = dirq.pop_front()
-		for nb in child_map.get(u, []):
-			dirv_of[nb] = dirv_of.get(u, 0.0)
-			dirq.append(nb)
-
 	# 估算高度（用于同列垂直堆叠留 15px 间隙，保证不重叠）
 	var est_h := {}
 	for nd in nodes: est_h[nd.id] = _est_node_h(nd)
+	# 估算每棵子树所需垂直带长（含间隙），用于把不同结论分支分配到独立上下扇区，避免同侧堆叠
+	var memo := {}
+	for _nd in nodes:
+		_subtree_span_est(_nd.id, child_map, est_h, memo)
 
 	# 列间距自适应画布宽度与树深：保证最深一列仍落在画布内
 	var m: float = 60.0
 	var half_avail: float = maxf(center.x - m - 90.0, 200.0)
 	var col_gap: float = clampf(half_avail / maxf(float(max_level), 1.0), 165.0, 300.0)
 
-	# 根基准 x：单根→画布中心（可被 saved_root 手动锁定）；多根→水平均布
+	# 根位置：单根→画布中心（可被 saved_root 手动锁定）；多根→水平均布
 	var root_gap: float = 360.0
-	var root_base := {}
+	var root_pos := {}
 	for i in roots.size():
 		var rid: String = roots[i]
-		var bx: float = center.x
+		var rp := Vector2(center.x, center.y)
 		if roots.size() > 1:
-			bx = center.x + (float(i) - float(roots.size() - 1) * 0.5) * root_gap
+			rp.x = center.x + (float(i) - float(roots.size() - 1) * 0.5) * root_gap
 		var sv: Variant = saved_root.get(rid, null)
 		if sv is Vector2:
-			bx = sv.x
-		root_base[rid] = bx
+			rp = sv
+		root_pos[rid] = rp
+		out[rid] = rp
 
-	# 按 (根, 侧别, 层级) 分列：同列所有节点 x 相同（列间 col_gap 错开，绝不 x 重叠），列内按高度堆叠留 15px
-	var cols := {}
-	for id in assigned:
-		var rk: String = root_of.get(id, roots[0])
-		var d: float = dirv_of.get(id, 0.0)
-		var lv: int = level_of.get(id, 0)
-		var key: String = "%s|%d|%d" % [rk, int(sign(d)), lv]
-		if not cols.has(key): cols[key] = []
-		cols[key].append(id)
-	for key in cols:
-		var lst: Array = cols[key]
-		lst.sort()
-		var total_h: float = 0.0
-		for id in lst: total_h += est_h.get(id, 130.0) as float
-		total_h += 15.0 * (float(lst.size()) - 1.0)
-		var y: float = center.y - total_h * 0.5
-		for id in lst:
-			var h: float = est_h.get(id, 130.0) as float
-			var d: float = dirv_of.get(id, 0.0)
-			var lv: int = level_of.get(id, 0)
-			var bx2: float = root_base.get(root_of.get(id, roots[0]), center.x)
-			var x: float = bx2 + d * float(lv) * col_gap
-			out[id] = Vector2(x, y + h * 0.5)
-			y += h + 15.0
-
-	# 根的最终位置用保存位覆盖（尊重玩家手动锁定，含 y）
+	# 按根的直接子节点分成左右扇区，每子树按带长分配独立上下带：结论星形分布于根四周，
+	# 每条结论子树向同侧同带向外放射生长（推断→线索），避免不同分支垂直堆叠重叠。
 	for r in roots:
-		var sv2: Variant = saved_root.get(r, null)
-		if sv2 is Vector2:
-			out[r] = sv2
+		var rx: float = root_pos[r].x
+		var ry: float = root_pos[r].y
+		var ch0: Array = child_map.get(r, []).duplicate()
+		var half_n0: int = ceili(float(ch0.size()) / 2.0)
+		var left_ch := []
+		var right_ch := []
+		for i in ch0.size():
+			if i < half_n0:
+				left_ch.append(ch0[i])
+			else:
+				right_ch.append(ch0[i])
+		_place_side_children(left_ch, rx, ry, -1.0, col_gap, memo, est_h, child_map, out)
+		_place_side_children(right_ch, rx, ry, 1.0, col_gap, memo, est_h, child_map, out)
 
 	# 孤立（未接入树）节点：保存位优先；否则右侧外围堆叠（120px 行距，互不重叠）
 	var spare := 0
@@ -541,6 +512,21 @@ func _subtree_span_est(u: String, child_map: Dictionary, est_h: Dictionary, memo
 		s = maxf(s, sub + 15.0 * (float(ch.size()) - 1.0))
 	memo[u] = s
 	return s
+
+
+## 把根的直接子节点按子树带长分配到根的某一侧（dirv=-1 左 / +1 右），上下交替排布，
+## 使各结论子树占据独立垂直扇区，避免同侧多分支堆叠重叠。
+func _place_side_children(children: Array, root_x: float, root_y: float, dirv: float, col_gap: float, sp: Dictionary, est_h: Dictionary, child_map: Dictionary, out: Dictionary) -> void:
+	if children.is_empty(): return
+	var total: float = 0.0
+	for c in children: total += sp.get(c, est_h.get(c, 130.0) as float)
+	total += 15.0 * (float(children.size()) - 1.0)
+	var top: float = root_y - total * 0.5
+	var cur: float = top
+	for c in children:
+		var span: float = sp.get(c, est_h.get(c, 130.0) as float)
+		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + span, root_x + dirv * col_gap, dirv, col_gap)
+		cur += span + 15.0
 
 
 ## 递归布点：父居其子带中央；子带按各自子树带长精确切分（不足则居中留白），兄弟带间保证 ≥15px，绝不溢出交叠
