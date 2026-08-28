@@ -217,6 +217,19 @@ func _remove_edge(from: String, to: String, kind: String) -> void:
 			target = r
 			break
 	if target.is_empty():
+		# 需求1：结论→人物 的「方案A」自动派生边不在 _relations，需单独处理删除
+		if from.begins_with("conclusion_") and kind == "target":
+			var _in_list := false
+			for _e in owner._edge_list:
+				if _e.get("from", "") == from and _e.get("to", "") == to and _e.get("kind", "") == kind:
+					_in_list = true
+					break
+			if _in_list:
+				owner._deleted_target_edges[from] = to
+				owner._persist_view()
+				owner._rebuild_graph()
+				owner._toast_msg("已删除结论与人物连线（可重连）")
+				return
 		owner._toast_msg("没有这条连线")
 		return
 	var ck: String = target.get("color_key", "")

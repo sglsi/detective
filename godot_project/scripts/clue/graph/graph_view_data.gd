@@ -122,6 +122,9 @@ func _derive_edges() -> void:
 		var _tgt: String = _cdef.get("target", "")
 		if _tgt != "":
 			_tpid = _tgt.substr("person:".length()) if _tgt.begins_with("person:") else _tgt
+		# 需求1：玩家曾手动删除此结论→人物的连线，则不再自动派生（使删除可生效、可持久）
+		if owner._deleted_target_edges.get(_nid, "") == _tpid:
+			continue
 		if _tpid != "" and _tpid != _cid:
 			add.call(_nid, _tpid, "target", true, "gold")
 
