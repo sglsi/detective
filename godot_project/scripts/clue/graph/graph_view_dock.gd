@@ -375,6 +375,15 @@ func _derive_candidates(cid: String) -> Array:
 	for h in hypos:
 		if not owner._hypo_preset_visible(h):
 			continue
+		var gates: Array = h.get("gate_clue_ids", [])
+		var hypo_gates: Array = h.get("gate_hypo_ids", [])
+		# 线索推导候选：仅含「线索 gate」匹配当前线索的推断；
+		# 纯推断组合的推断（仅 gate_hypo_ids、无 gate_clue_ids，如 W-C3）不在线索推导中；
+		# 旧式无线索 gate 的推断（无 gate_hypo_ids）兼容全部可选。
+		if not hypo_gates.is_empty() and gates.is_empty():
+			continue
+		if not gates.is_empty() and not (cid in gates):
+			continue
 		out.append({"id": str(h.get("id", "")), "text": h.get("text", ""), "kind": h.get("kind", "true")})
 	return out
 
@@ -387,6 +396,78 @@ func _on_free_link_btn(cid: String) -> void:
 func _derive_confirm(cid: String, hid: String) -> void:
 	_close_link_popup()
 	owner._derive_hypo(cid, hid)
+
+
+## 方案B：由「推断」推导下一层「推断」（如 W-C1+W-C2→W-C3）。
+## 候选口径：列出 gate_hypo_ids 含源推断 src_hid 的预设推断（难度过滤后），随机排列。
+func _open_hypo_derive_popup(src_hid: String) -> void:
+	_close_link_popup()
+	var hypos: Array = owner._hypo.get("battlefield", {}).get("hypotheses", [])
+	var cands := []
+	for h in hypos:
+		if src_hid in h.get("gate_hypo_ids", []):
+			if owner._hypo_preset_visible(h):
+				cands.append(h)
+	if cands.is_empty():
+		owner._ui_toast("该推断暂无可向下组合推导的推断")
+		return
+	cands.shuffle()
+	var popup := Control.new()
+	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	popup.z_index = 25
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.45)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup.add_child(overlay)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(640, 460)
+	panel.position = (owner.get_viewport_rect().size - Vector2(440, 320)) * 0.5
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
+	ps.border_color = owner.COL_GOLD
+	ps.border_width_left = 2; ps.border_width_right = 2; ps.border_width_top = 2; ps.border_width_bottom = 2
+	ps.set_corner_radius_all(10)
+	panel.add_theme_stylebox_override("panel", ps)
+	popup.add_child(panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	panel.add_child(margin)
+	var scr := ScrollContainer.new()
+	scr.custom_minimum_size = Vector2(488, 360)
+	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scr.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	margin.add_child(scr)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	scr.add_child(vb)
+	var t := Label.new()
+	t.text = "由推断「%s」可组合推导的下一层推断：" % owner._node_label(src_hid)
+	t.add_theme_font_size_override("font_size", 30)
+	t.add_theme_color_override("font_color", owner.COL_GOLD)
+	vb.add_child(t)
+	for c in cands:
+		var hid: String = str(c.get("id", ""))
+		var mislead: bool = str(c.get("kind", "true")) != "true"
+		var txt: String = "推断：%s%s" % [c.get("text", hid), "（存疑）" if mislead else ""]
+		var b := _mk_link_target(txt)
+		b.pressed.connect(_derive_hypo_confirm.bind(src_hid, hid))
+		vb.add_child(b)
+	var cancel := Button.new()
+	cancel.text = "取消"
+	cancel.add_theme_font_size_override("font_size", 26)
+	cancel.pressed.connect(_close_link_popup)
+	vb.add_child(cancel)
+	owner.add_child(popup)
+	owner._link_popup = popup
+
+
+func _derive_hypo_confirm(src_hid: String, dst_hid: String) -> void:
+	_close_link_popup()
+	owner._derive_hypo_from_hypo(src_hid, dst_hid)
 
 
 # ===================== 结论候选窗（由推断推导结论） =====================

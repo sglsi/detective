@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ClueData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/clue_data.gd" id="1_clue"]
+
+[resource]
+script = ExtResource("1_clue")
+id = "face_dark"
+name = "华生脸色黝黑"
+description = "华生脸部肤色明显偏深——长期热带日照留下的晒痕，与手腕分界一致"
+category = "痕迹"
+location = "贝克街221B"
+discovery_condition = "点击观察华生面部"
+observation = "脸色黝黑，与手腕晒痕相互印证。"
+analysis = "热带长期暴露，非原来的肤色。"
+related_clues = []
+related_npcs = ["NPC_WT"]
+timeline_position = 0.3
+importance = 5
+is_key_evidence = false
+state = 0
+discovery_time = ""
