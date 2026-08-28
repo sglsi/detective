@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" font-family="'Microsoft YaHei','PingFang SC',sans-serif">
+  <!-- 背景 -->
+  <rect x="0" y="0" width="1000" height="640" fill="#fbfbfd"/>
+  <text x="500" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">推理墙 · XMind 星形布局参考（结构映射示意）</text>
+  <text x="500" y="50" text-anchor="middle" font-size="12" fill="#888">中心 = 人物/案件主题；结论星型分布于中心两侧；每结论向外生成树形（推断→线索）；左侧右侧各成独立树</text>
+
+  <!-- 连线（先画，置于节点下方） -->
+  <g stroke="#9aa3ad" stroke-width="2" fill="none">
+    <!-- 中心 → 四结论 -->
+    <path d="M500,330 C430,300 380,280 360,210"/>
+    <path d="M500,330 C570,300 620,280 640,210"/>
+    <path d="M500,370 C430,400 380,420 360,450"/>
+    <path d="M500,370 C570,400 620,420 640,450"/>
+    <!-- 左结论 → 推断 → 线索 -->
+    <path d="M300,210 L250,180"/>
+    <path d="M250,180 L150,170"/>
+    <path d="M300,235 L250,255"/>
+    <path d="M250,255 L150,265"/>
+    <path d="M300,450 L250,420"/>
+    <path d="M250,420 L150,410"/>
+    <path d="M300,475 L250,495"/>
+    <path d="M250,495 L150,505"/>
+    <!-- 右结论 → 推断 → 线索 -->
+    <path d="M700,210 L750,180"/>
+    <path d="M750,180 L850,170"/>
+    <path d="M700,235 L750,255"/>
+    <path d="M750,255 L850,265"/>
+    <path d="M700,450 L750,420"/>
+    <path d="M750,420 L850,410"/>
+    <path d="M700,475 L750,495"/>
+    <path d="M750,495 L850,505"/>
+  </g>
+
+  <!-- 中心（案件/人物） -->
+  <g>
+    <rect x="440" y="320" width="120" height="48" rx="8" fill="#d64545"/>
+    <text x="500" y="349" text-anchor="middle" font-size="18" font-weight="bold" fill="#fff">案件中心</text>
+  </g>
+
+  <!-- 左扇：结论（蓝） -->
+  <g>
+    <rect x="240" y="190" width="120" height="40" rx="6" fill="#2f6fb0"/>
+    <text x="300" y="215" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff">结论1 (4)</text>
+    <rect x="240" y="430" width="120" height="40" rx="6" fill="#2f6fb0"/>
+    <text x="300" y="455" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff">结论2 (4)</text>
+  </g>
+  <!-- 右扇：结论 -->
+  <g>
+    <rect x="640" y="190" width="120" height="40" rx="6" fill="#2f6fb0"/>
+    <text x="700" y="215" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff">结论3 (4)</text>
+    <rect x="640" y="430" width="120" height="40" rx="6" fill="#2f6fb0"/>
+    <text x="700" y="455" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff">结论4 (4)</text>
+  </g>
+
+  <!-- 推断（绿） -->
+  <g fill="#3f8f5f">
+    <rect x="150" y="160" width="110" height="34" rx="5"/><text x="205" y="182" text-anchor="middle" font-size="13" fill="#fff">推断 A</text>
+    <rect x="150" y="240" width="110" height="34" rx="5"/><text x="205" y="262" text-anchor="middle" font-size="13" fill="#fff">推断 B</text>
+    <rect x="150" y="400" width="110" height="34" rx="5"/><text x="205" y="422" text-anchor="middle" font-size="13" fill="#fff">推断 C</text>
+    <rect x="150" y="480" width="110" height="34" rx="5"/><text x="205" y="502" text-anchor="middle" font-size="13" fill="#fff">推断 D</text>
+    <rect x="740" y="160" width="110" height="34" rx="5"/><text x="795" y="182" text-anchor="middle" font-size="13" fill="#fff">推断 E</text>
+    <rect x="740" y="240" width="110" height="34" rx="5"/><text x="795" y="262" text-anchor="middle" font-size="13" fill="#fff">推断 F</text>
+    <rect x="740" y="400" width="110" height="34" rx="5"/><text x="795" y="422" text-anchor="middle" font-size="13" fill="#fff">推断 G</text>
+    <rect x="740" y="480" width="110" height="34" rx="5"/><text x="795" y="502" text-anchor="middle" font-size="13" fill="#fff">推断 H</text>
+  </g>
+
+  <!-- 线索（灰） -->
+  <g fill="#6b7785">
+    <rect x="40" y="155" width="100" height="30" rx="5"/><text x="90" y="175" text-anchor="middle" font-size="12" fill="#fff">线索 a</text>
+    <rect x="40" y="255" width="100" height="30" rx="5"/><text x="90" y="275" text-anchor="middle" font-size="12" fill="#fff">线索 b</text>
+    <rect x="40" y="395" width="100" height="30" rx="5"/><text x="90" y="415" text-anchor="middle" font-size="12" fill="#fff">线索 c</text>
+    <rect x="40" y="495" width="100" height="30" rx="5"/><text x="90" y="515" text-anchor="middle" font-size="12" fill="#fff">线索 d</text>
+    <rect x="850" y="155" width="100" height="30" rx="5"/><text x="900" y="175" text-anchor="middle" font-size="12" fill="#fff">线索 e</text>
+    <rect x="850" y="255" width="100" height="30" rx="5"/><text x="900" y="275" text-anchor="middle" font-size="12" fill="#fff">线索 f</text>
+    <rect x="850" y="395" width="100" height="30" rx="5"/><text x="900" y="415" text-anchor="middle" font-size="12" fill="#fff">线索 g</text>
+    <rect x="850" y="495" width="100" height="30" rx="5"/><text x="900" y="515" text-anchor="middle" font-size="12" fill="#fff">线索 h</text>
+  </g>
+
+  <!-- 图例 -->
+  <g font-size="12" fill="#555">
+    <rect x="40" y="585" width="16" height="16" rx="3" fill="#d64545"/><text x="62" y="598">中心(人物/案件)</text>
+    <rect x="190" y="585" width="16" height="16" rx="3" fill="#2f6fb0"/><text x="212" y="598">结论(主干)</text>
+    <rect x="300" y="585" width="16" height="16" rx="3" fill="#3f8f5f"/><text x="322" y="598">推断(树枝)</text>
+    <rect x="410" y="585" width="16" height="16" rx="3" fill="#6b7785"/><text x="432" y="598">线索(叶)</text>
+  </g>
+</svg>
