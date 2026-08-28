@@ -1,7 +1,7 @@
 extends SceneTree
 ## 方案B 华生推理链 headless 验证：完整复现「线索→推断→结论→人物」三层 + 多 gate 共推 + 推断组合推推断。
 ## 覆盖：
-##   1) 线索→推断（gate_clue_ids 过滤，仅匹配线索可选）
+##   1) 线索→推断（列出本场景全部可见预设推断，玩家任选其一；gate 仅作后台触发口径）
 ##   2) 推断→推断（W-C1+W-C2→W-C3，gate_hypo_ids，方案B 新增）
 ##   3) 推断→结论（单 gate，如 W-A1→C-A1）
 ##   4) 结论由多推断共推（C-MAIN 由 W-A1+W-B1+W-C3 共推，_sync_conclusion_gate_edges 自动闭合三线）
@@ -50,13 +50,14 @@ func _initialize() -> void:
 	gv.build({"clues":clues,"hypo":hypo,"persons":[{"id":"NPC_WT","name":"华生"}],"focus_person":"NPC_WT","difficulty":gv.Diff.NORMAL,"editable":true,"state_store":{},"auto_fold":false})
 	log.append("build 完成")
 
-	# ---- 断言 a) 线索→推断候选按 gate_clue_ids 过滤 ----
-	var cand_wrist: Array = gv._dockctl._derive_candidates("wrist")
+	# ---- 断言 a) 线索→推断候选列出本场景全部可见预设推断（不再按 gate_clue_ids 过滤）----
+	var cand_wrist: Array = gv._dockctl._derive_candidates()
 	var cand_ids := cand_wrist.map(func(c): return c.get("id",""))
-	if cand_ids != ["W-A1"]:
-		ok = false; print("FAIL a) wrist 候选=%s 期望[W-A1]" % str(cand_ids))
+	var expect_a := ["W-A1","W-B1","W-C1","W-C2","W-C3"]
+	if cand_ids != expect_a:
+		ok = false; print("FAIL a) wrist 候选=%s 期望全部可见推断%s" % [str(cand_ids), str(expect_a)])
 	else:
-		log.append("a) wrist→[W-A1] gate 过滤生效（W-C3 等不泄漏）")
+		log.append("a) 线索推导候选列出全部 5 条预设推断（含组合推断 W-C3），玩家任选其一")
 
 	# ---- 正向推导全部 5 条推断 ----
 	gv._derive_hypo("wrist", "W-A1")

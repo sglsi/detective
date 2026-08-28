@@ -299,7 +299,7 @@ func _open_free_link(cid: String) -> void:
 func _open_derive_popup(cid: String) -> void:
 	_close_link_popup()
 	owner._link_popup_clue_id = cid
-	var cands := _derive_candidates(cid)
+	var cands := _derive_candidates()
 	var popup := Control.new()
 	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	popup.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -333,7 +333,7 @@ func _open_derive_popup(cid: String) -> void:
 	vb.add_theme_constant_override("separation", 8)
 	scr.add_child(vb)
 	var t := Label.new()
-	t.text = "由线索「%s」可推导的推断：" % owner._data._find_clue(cid).get("name", cid)
+	t.text = "由线索「%s」推导推断（任选其一）：" % owner._data._find_clue(cid).get("name", cid)
 	t.add_theme_font_size_override("font_size", 30)
 	t.add_theme_color_override("font_color", owner.COL_GOLD)
 	vb.add_child(t)
@@ -368,21 +368,14 @@ func _open_derive_popup(cid: String) -> void:
 	owner._link_popup = popup
 
 
-## 候选口径：列出本场景全部推断（难度过滤后），按数据顺序排列（不排序、不标注）
-func _derive_candidates(cid: String) -> Array:
+## 候选口径：列出本场景全部（按难度可见的）预设推断，供玩家任选其一；
+## 不再按 gate_clue_ids / gate_hypo_ids 过滤（与结论候选窗一致：gate 仅作后台触发与正确判定口径，
+## 给玩家自由组链空间）。按数据顺序排列、不排序、不标注来源。
+func _derive_candidates() -> Array:
 	var hypos: Array = owner._hypo.get("battlefield", {}).get("hypotheses", [])
 	var out := []
 	for h in hypos:
 		if not owner._hypo_preset_visible(h):
-			continue
-		var gates: Array = h.get("gate_clue_ids", [])
-		var hypo_gates: Array = h.get("gate_hypo_ids", [])
-		# 线索推导候选：仅含「线索 gate」匹配当前线索的推断；
-		# 纯推断组合的推断（仅 gate_hypo_ids、无 gate_clue_ids，如 W-C3）不在线索推导中；
-		# 旧式无线索 gate 的推断（无 gate_hypo_ids）兼容全部可选。
-		if not hypo_gates.is_empty() and gates.is_empty():
-			continue
-		if not gates.is_empty() and not (cid in gates):
 			continue
 		out.append({"id": str(h.get("id", "")), "text": h.get("text", ""), "kind": h.get("kind", "true")})
 	return out
