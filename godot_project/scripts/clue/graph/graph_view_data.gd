@@ -101,6 +101,30 @@ func _derive_edges() -> void:
 		# 用户手动建立的关系常显
 		add.call(r.get("from", ""), r.get("to", ""), k, true, r.get("color_key", ""), r.get("dashed", false))
 
+	# 方案A：结论→归属人物（target）连线，与折叠层级一致地常显。
+	# 折叠把每条结论链到焦点人物（见 graph_view_fold._build_adjacency），但只进邻接表、不进
+	# _edge_list，故画布从不画这条线——用户看到「神秘嫌疑犯」上有折叠圈却无线。此处补画，
+	# 使折叠圈与归属线对应。优先用结论自身的 target 字段（person:XXX），否则回退焦点人物。
+	# 若玩家已手动建立该结论→某人物的 target 边（方案B），则不重复自动派生（手动更准）。
+	for _dc in owner._derived_conclusions:
+		var _cid: String = str(_dc.get("id", ""))
+		if _cid == "": continue
+		var _nid: String = "conclusion_" + _cid   # 结论节点 id 形如 conclusion_CL2-1
+		var _has_manual_target: bool = false
+		for _r in owner._relations:
+			if _r.get("from", "") == _nid and _r.get("kind", "") == "target":
+				_has_manual_target = true
+				break
+		if _has_manual_target:
+			continue
+		var _tpid: String = owner._focus_person
+		var _cdef: Dictionary = owner._conclusion_def(_cid)
+		var _tgt: String = _cdef.get("target", "")
+		if _tgt != "":
+			_tpid = _tgt.substr("person:".length()) if _tgt.begins_with("person:") else _tgt
+		if _tpid != "" and _tpid != _cid:
+			add.call(_nid, _tpid, "target", true, "gold")
+
 
 func _rel_color(kind: String) -> Color:
 	return color_from_key(kind_to_key(kind))

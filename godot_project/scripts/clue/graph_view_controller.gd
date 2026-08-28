@@ -176,15 +176,16 @@ const VERB_CONTRADICT := "互相矛盾"
 const VERB_RELATE := "可能有联系"
 
 # === 线型 / 颜色键（玩家视角的「确定性 + 关系性质」）===
-# 颜色键 → 颜色（绿=支持 / 橙=矛盾存疑 / 红=反对 / 灰=弱关联）
+# 颜色键 → 颜色（绿=支持 / 橙=矛盾存疑 / 红=反对 / 灰=弱关联 / 金=归属指向）
 const _COLOR_KEYS := {
 	"green": Color(0.4, 0.85, 0.4),
 	"orange": Color(0.95, 0.55, 0.25),
 	"red": Color(0.95, 0.3, 0.3),
 	"grey": Color(0.55, 0.50, 0.42),
+	"gold": Color(0.85, 0.70, 0.30),
 }
-const _KEY_TO_KIND := {"green": "support", "orange": "contradict", "red": "oppose", "grey": "relate"}
-const _KIND_TO_KEY := {"support": "green", "imply": "green", "contradict": "orange", "oppose": "red", "relate": "grey"}
+const _KEY_TO_KIND := {"green": "support", "orange": "contradict", "red": "oppose", "grey": "relate", "gold": "target"}
+const _KIND_TO_KEY := {"support": "green", "imply": "green", "contradict": "orange", "oppose": "red", "relate": "grey", "target": "gold"}
 
 
 func _ready() -> void:
@@ -1182,8 +1183,12 @@ func _handle_connect_click(id: String, kind: String) -> bool:
 		if first_kind == "clue":
 			_tag_person(_connect_first_id, id)
 			_toast_msg("已为线索打上人物标签")
+		elif first_kind in ["hypo", "conclusion", "chain"]:
+			# 方案B：推断/结论/推理链 → 人物，建「归属」边（金色常显）
+			_edge._add_edge(_connect_first_id, id, "target", "gold", false)
+			_toast_msg("已建立%s→%s的归属关系" % [_node_short_label(_connect_first_id), _data._person_name(id)])
 		else:
-			_toast_msg("只能把线索拖到人物头像建关联")
+			_toast_msg("只有线索或推断/结论才能连到人物头像")
 		_connect_first_id = ""
 		_connect_first_kind = ""
 		_redraw_all()
@@ -1192,8 +1197,12 @@ func _handle_connect_click(id: String, kind: String) -> bool:
 		if kind == "clue":
 			_tag_person(id, _connect_first_id)
 			_toast_msg("已为线索打上人物标签")
+		elif kind in ["hypo", "conclusion", "chain"]:
+			# 方案B：人物作为源、推断/结论作为目标，方向仍是「节点→归属人物」
+			_edge._add_edge(id, _connect_first_id, "target", "gold", false)
+			_toast_msg("已建立%s→%s的归属关系" % [_node_short_label(id), _data._person_name(_connect_first_id)])
 		else:
-			_toast_msg("只能把线索拖到人物头像建关联")
+			_toast_msg("只有线索或推断/结论才能连到人物头像")
 		_connect_first_id = ""
 		_connect_first_kind = ""
 		_redraw_all()
@@ -1230,7 +1239,12 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 		if drop != "":
 			var drop_kind: String = _node_kind.get(drop, "")
 			if drop_kind == "person":
-				_tag_person(id, drop)
+				if _node_kind.get(id, "") == "clue":
+					_tag_person(id, drop)
+				else:
+					# 方案B：推断/结论/推理链拖到人物头像 → 建归属边（金色常显）
+					_edge._add_edge(id, drop, "target", "gold", false)
+					_nudge_away_from(id, drop)
 			elif drop_kind in ["hypo", "clue", "conclusion"]:
 				_edge._add_edge(id, drop, _data.key_to_kind(_pen_color_key), _pen_color_key, _pen_dashed)
 				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
@@ -1340,7 +1354,11 @@ func _commit_drag(id: String) -> void:
 		return
 	var drop_kind: String = _node_kind.get(drop, "")
 	if drop_kind == "person":
-		_tag_person(id, drop)
+		if _node_kind.get(id, "") == "clue":
+			_tag_person(id, drop)
+		else:
+			# 方案B：画布内拖拽笔把推断/结论拖到人物 → 建归属边
+			_edge._add_edge(id, drop, "target", "gold", false)
 	elif drop_kind in ["hypo", "clue", "conclusion"]:
 		_edge._add_edge(id, drop, _drag_kind, _drag_color_key, _drag_dashed)
 	else:

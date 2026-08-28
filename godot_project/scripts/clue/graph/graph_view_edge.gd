@@ -57,7 +57,7 @@ func _on_edge_draw() -> void:
 			show = true
 		if not show:
 			continue
-		if e.kind in ["relate", "imply", "support", "oppose", "contradict"]:
+		if e.kind in ["relate", "imply", "support", "oppose", "contradict", "target"]:
 			if e.dashed:
 				_draw_arc_dashed(a, b, e.color, 2)
 			else:
@@ -191,6 +191,7 @@ func _rel_verb(kind: String) -> String:
 		"support": return owner.VERB_SUPPORT
 		"oppose": return owner.VERB_OPPOSE
 		"contradict": return owner.VERB_CONTRADICT
+		"target": return "归属结论"
 		_: return owner.VERB_RELATE
 
 
@@ -371,7 +372,7 @@ func _edge_cycle_kind(e: Dictionary) -> void:
 	if owner._state != GraphViewController.State.EDITABLE:
 		owner._toast_msg("已封存，仅可浏览")
 		return
-	var KINDS: Array[String] = ["relate", "support", "oppose", "contradict"]
+	var KINDS: Array[String] = ["relate", "support", "oppose", "contradict", "target"]
 	var from: String = e.get("from", "")
 	var to: String = e.get("to", "")
 	var old_kind: String = e.get("kind", "relate")

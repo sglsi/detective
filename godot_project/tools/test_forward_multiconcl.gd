@@ -73,11 +73,37 @@ func _initialize() -> void:
 		ok = false; print("FAIL c) relations=%d 期望4 (c201→H2-01, H2-01→CL2-1, c206→H2-02, H2-02→CL2-2)" % gv._relations.size())
 	log.append("c) relations 数=%d" % gv._relations.size())
 
-	# 断言 d) edge_list == relations（无自动批量 imply/support 边）
-	if gv._edge_list.size() != gv._relations.size():
-		ok = false; print("FAIL d) edge_list=%d != relations=%d → 存在多余自动连线!" % [gv._edge_list.size(), gv._relations.size()])
+	# 断言 d) 派生边语义：允许「结论→人物 target」自动边（方案A，每条已派生结论恰 1 条），
+	#           但禁止旧的全局批量自动边（infer→conclusion 的 imply / clue→infer 的 support）。
+	#           故 edge_list = relations + 自动 target 边数；且不允许存在 imply 类自动边。
+	var _auto_target := 0
+	var _bad_auto := 0
+	for e in gv._edge_list:
+		if e.get("kind", "") == "target":
+			_auto_target += 1
+		elif e.get("kind", "") == "imply":
+			_bad_auto += 1
+	var _expect_auto: int = gv._derived_conclusions.size()
+	if gv._edge_list.size() != gv._relations.size() + _expect_auto:
+		ok = false; print("FAIL d) edge_list=%d 期望 relations(%d)+自动target(%d)=%d" % [gv._edge_list.size(), gv._relations.size(), _expect_auto, gv._relations.size() + _expect_auto])
+	elif _bad_auto > 0:
+		ok = false; print("FAIL d) 仍存在 %d 条 imply 自动边（旧违规边未清除）" % _bad_auto)
 	else:
-		log.append("d) edge_list=%d == relations=%d (无多余自动边)" % [gv._edge_list.size(), gv._relations.size()])
+		log.append("d) edge_list=%d = relations(%d)+自动target(%d) 且无 imply 自动边(方案A生效)" % [gv._edge_list.size(), gv._relations.size(), _expect_auto])
+	# 断言 d2) 方案A 功能验证：每条已派生结论都应有 1 条 → focus_person 的 target 归属边
+	var _missing_target := []
+	for _dc in gv._derived_conclusions:
+		var _nid: String = "conclusion_" + str(_dc.get("id", ""))
+		var _has := false
+		for e in gv._edge_list:
+			if e.get("from", "") == _nid and e.get("kind", "") == "target" and e.get("to", "") == gv._focus_person:
+				_has = true; break
+		if not _has:
+			_missing_target.append(_nid)
+	if not _missing_target.is_empty():
+		ok = false; print("FAIL d2) 缺少结论→人物 target 边: %s" % _missing_target)
+	else:
+		log.append("d2) 每条结论均有→%s 的 target 归属边（方案A 连线已显示）" % gv._focus_person)
 
 	# 断言 e) 每条玩家边 always=true（默认 MODE_C 可见）
 	for e in gv._edge_list:
