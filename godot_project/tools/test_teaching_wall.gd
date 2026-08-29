@@ -80,6 +80,10 @@ func _initialize() -> void:
 	await process_frame
 	gv2._rebuild_graph()
 	await process_frame
+	# 新设计：gate 边仅对玩家已放置（上墙）的 gate 推断自动闭合（不再靠自动铺预设）。
+	# 模拟玩家已把三个 gate 推断 W-A1/W-B1/W-C3 推导上墙（写入 _graph_nodes，使其进入 _node_list/_node_center）：
+	for _g in ["W-A1", "W-B1", "W-C3"]:
+		gv2._graph_nodes.append({"id": _g, "kind": "hypo", "label": _g, "sub": "推断", "data": {}})
 	gv2._add_derived_conclusion("W-B1", "C-MAIN")
 	await process_frame
 	var has2 := func(f: String, t: String) -> bool:

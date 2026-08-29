@@ -53,6 +53,10 @@ func _on_edge_draw() -> void:
 			show = true
 		elif owner._mode == GraphViewController.ViewMode.MODE_B:
 			show = true
+		elif owner._dragging:
+			# 问题3：拖拽节点过程中，悬停高亮会丢失，若仍按「仅高亮节点连线可见」规则会导致全部连线瞬间消失。
+			# 拖拽时强制显示所有连线，让玩家在重排时能看清整张关系网。
+			show = true
 		elif owner._highlight_id != "" and (e.from == owner._highlight_id or e.to == owner._highlight_id):
 			show = true
 		if not show:
