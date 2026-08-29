@@ -17,6 +17,10 @@ var _watson_v := 0
 var _messenger_v := 0
 var _watson_clues: Array = []
 var _messenger_clues: Array = []
+# 教学墙状态隔离（需求：华生/信使为独立推理环节，互不携带内容）：各自独立的图谱 state 字典，
+# 均不写入 ClueSystem.case_wall_state（故也不会泄漏到场景二~八）。
+var _watson_wall_state: Dictionary = {}
+var _messenger_wall_state: Dictionary = {}
 var _stars_observe := 1
 var _stars_reason := 1
 var _stars_insight := 1
@@ -31,6 +35,9 @@ func scene_background() -> Texture2D: return load("res://assets/backgrounds/bake
 
 func _ready() -> void:
 	super._ready()
+	# GDScript 类级 Dictionary 默认值是实例间共享的，必须逐实例重建（基类已对 _wall_state 这样做）。
+	_watson_wall_state = {}
+	_messenger_wall_state = {}
 
 ## 恢复存档进度 — 返回 true 表示有存档且已恢复，false 表示新游戏。
 ## 两组观察器分别同步 ClueSystem（单一真相源），并以存档 clue_ids 为权威，
@@ -45,6 +52,13 @@ func _restore_saved_state() -> bool:
 	var saved_wall_state: Dictionary = ss.get("wall_state", {})
 	if not saved_wall_state.is_empty():
 		_wall_state = saved_wall_state
+	# 教学墙状态隔离：两堵墙各自独立恢复（旧存档仅有单一 wall_state，这里兼容忽略，教学进度重新建立即可）
+	var saved_ws: Dictionary = ss.get("wall_state_watson", {})
+	if not saved_ws.is_empty():
+		_watson_wall_state = saved_ws
+	var saved_ms: Dictionary = ss.get("wall_state_messenger", {})
+	if not saved_ms.is_empty():
+		_messenger_wall_state = saved_ms
 	# 兼容旧存档：早期华生左肩线索 id 为 "shoulder"（现统一为 "arm"）、合并脸线索 id 为 "face"
 	# （现拆分为 face_dark/face_haggard）。只做读取时的就地映射，绝不改写或删除玩家存档文件。
 	for i in range(saved_ids.size()):
@@ -334,7 +348,9 @@ func _do_save(slot: int = -1) -> void:
 		_create_notification("游客模式不支持存档 — 请返回主菜单注册/登录")
 		return
 	# 以本场景两个观察器的已记录线索为权威（不读全局 ClueSystem，避免跨轮累计污染存档）
-	var data := {"clue_ids": [], "watson_recorded": 0, "messenger_recorded": 0, "wall_state": _wall_state.duplicate(true)}
+	var data := {"clue_ids": [], "watson_recorded": 0, "messenger_recorded": 0,
+		"wall_state_watson": _watson_wall_state.duplicate(true),
+		"wall_state_messenger": _messenger_wall_state.duplicate(true)}
 	var ids: Array = []
 	for c in _watson_obs.get_recorded_clues(): ids.append(c.get("id",""))
 	for c in _messenger_obs.get_recorded_clues(): ids.append(c.get("id",""))
@@ -463,7 +479,7 @@ func _show_watson_reasoning_wall() -> void:
 	_open_wall("watson", hypo, func(v: int):
 		_watson_v = v
 		_start_messenger_phase()
-	, Callable(self, "_resume_observe"))
+	, Callable(self, "_resume_observe"), true, _watson_wall_state)
 
 func _start_messenger_phase() -> void:
 	if _ui: _ui.reset_camera()   # 华生→信使切换：先归位摄像机，避免残留华生推近放大态挡住信使立绘/操作
@@ -535,13 +551,12 @@ func _show_messenger_reasoning_wall() -> void:
 			{"id":"MM-3","text":"袖口磨损/跛行为干扰项，非身份证据"},
 		],
 	}
-	# #2 修复：信使(教学示范)墙与华生墙共享 _wall_state，华生墙验证后 verified=true 泄漏，
-	# 使信使墙以「已提交」锁定态打开→图谱节点全部不可拖动。每堵墙独立验证，故重置 verified。
-	_wall_state["verified"] = false
+	# 信使(教学示范)墙使用独立 state：不携带华生墙内容；每堵墙独立验证，故重置本墙 verified。
+	_messenger_wall_state["verified"] = false
 	_open_wall("messenger", hypo, func(v: int):
 		_messenger_v = v
 		_calc_stars(); _show_commission_letter_dialogue()
-	, Callable(self, "_resume_observe"))
+	, Callable(self, "_resume_observe"), true, _messenger_wall_state)
 
 ## 信使推理墙假设：仅当当前难度存在干扰线索时才纳入干扰假设（简单模式无干扰）。
 func _messenger_hypotheses() -> Array:
