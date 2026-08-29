@@ -31,6 +31,8 @@ func _on_verify_pressed() -> void:
 	owner._verifying = true
 	var v := owner.get_verdict()
 	owner._last_report = _soft_compare_report()
+	# 提交验证瞬间按玩家最终图谱重算三星并写入 StarRatingSystem，确保评价面板读到最终星级（问题4）
+	owner._state_ctl._update_star_rating()
 
 	# 半透明遮罩，吸收窗口外的点击，并压暗底层推理墙
 	var backdrop := ColorRect.new()
@@ -64,7 +66,7 @@ func _on_verify_pressed() -> void:
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 28)
-	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_top", 0)
 	margin.add_theme_constant_override("margin_right", 28)
 	margin.add_theme_constant_override("margin_bottom", 24)
 	win.add_child(margin)
@@ -195,9 +197,9 @@ func _on_verify_title_gui(event: InputEvent) -> void:
 func _soft_compare_report() -> String:
 	var true_items := []
 	var mislead_items := []
-	if owner._battle is Dictionary and owner._battle.has("hypotheses"):
-		if owner._battle.has("conclusions"):
-			for c in owner._battle["conclusions"]:
+	if owner._battle_current is Dictionary and owner._battle_current.has("hypotheses"):
+		if owner._battle_current.has("conclusions"):
+			for c in owner._battle_current["conclusions"]:
 				var cd2: Dictionary = c
 				if str(cd2.get("kind", "true")) == "true":
 					true_items.append({"id": str(cd2.get("id", "")), "text": str(cd2.get("text", "")),
@@ -206,7 +208,7 @@ func _soft_compare_report() -> String:
 						"adopt_desc": str(cd2.get("adopt_desc", ""))})
 				else:
 					mislead_items.append({"id": str(cd2.get("id", "")), "text": str(cd2.get("text", ""))})
-		for h in owner._battle["hypotheses"]:
+		for h in owner._battle_current["hypotheses"]:
 			var hd: Dictionary = h
 			if str(hd.get("kind", "true")) == "true":
 				true_items.append({"id": str(hd.get("id", "")), "text": str(hd.get("text", "")),

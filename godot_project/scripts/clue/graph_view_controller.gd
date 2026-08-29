@@ -1925,6 +1925,10 @@ func _detail_title_text(id: String, kind: String) -> String:
 		return _data._person_name(id)
 	if kind == "chain":
 		return str(_node_data.get(id, {}).get("label", id))
+	if kind == "conclusion":
+		# 结论详情默认文本取结论实际内容（跨场景携带后仍是场景二所选内容），
+		# 不再回退到实时判定文案「说得通」（问题3）。
+		return _conclusion_text(_conclusion_con_id(id))
 	return _data._verdict_text()
 
 
@@ -2022,7 +2026,7 @@ func _show_detail(id: String, kind: String) -> void:
 			title.text = "焦点人物：" + _data._person_name(id)
 			body.text = "星型中心。把线索拖到此处即可标注它和这个人的关系。"
 		"conclusion":
-			title.text = "当前结论：" + _data._verdict_text()
+			title.text = "当前结论：" + _conclusion_text(_conclusion_con_id(id))
 			body.text = "根据你关联的证据与连线实时推算。点「提交验证」可正式结案。"
 		"chain":
 			title.text = "推理链：" + _node_data.get(id, {}).get("label", id)
@@ -2439,12 +2443,14 @@ func _conclusion_def(cid: String) -> Dictionary:
 
 
 func _conclusion_text(cid: String) -> String:
+	# 跨场景携带：先查玩家已推导记录里携带的文本。场景N 推导的结论带入场景N+1 后，
+	# 该 cid 不在场景N+1 的 battlefield 里，_conclusion_def 查不到 → 不能回退到 verdict 默认文案。
+	for _d in _derived_conclusions:
+		if str(_d.get("id", "")) == cid:
+			var _t := str(_d.get("text", ""))
+			if _t != "":
+				return _t
 	if cid.begins_with("custom"):
-		for _d in _derived_conclusions:
-			if str(_d.get("id", "")) == cid:
-				var _t := str(_d.get("text", ""))
-				if _t != "":
-					return _t
 		return _data._verdict_text()
 	var cd := _conclusion_def(cid)
 	if not cd.is_empty():
@@ -2562,7 +2568,13 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 			existed = true
 			break
 	if not existed:
-		_derived_conclusions.append({"id": con_id, "hid": hid, "text": custom_text})
+		# 预设结论 custom_text 为空时，回填其 battlefield 文本并随 _derived_conclusions 持久化，
+		# 跨场景带入下一场景后仍可取回正确文本（避免落入「说得通」默认文案，问题3）。
+		var _stored_text: String = custom_text
+		if _stored_text == "":
+			var _cd := _conclusion_def(con_id)
+			_stored_text = str(_cd.get("text", ""))
+		_derived_conclusions.append({"id": con_id, "hid": hid, "text": _stored_text})
 		# 放置节点：优先锚定到「结论 gate_hypo_ids 中第一个已上墙的 gate 推断」（使结论落在推理链末端），
 		# 否则回退触发 hid；螺旋碰撞检测避免与现有节点叠加。
 		if not _node_center.has(nid):
