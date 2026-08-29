@@ -432,12 +432,17 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 		# 当前场景专属 battlefield：仅本场景的预设推断/结论，供「拖入线索/推导」弹窗候选列表使用，
 		# 不再把其他场景（scene2~N-1）的推断/结论混进选择项（问题2：一张表污染选择列表）。
 		hypo["current_battlefield"] = cur.get("battlefield", {})
+		# 当前场景专属顶层元数据：并集（get_hypo_union_up_to）不含这些字段，必须取自 cur。
+		# chain_id 是星级提交键——缺失则 submit_chain 守卫直接 return，评价面板三星全空（问题4）。
+		hypo["chain_id"] = cur.get("chain_id", scene_id())
+		hypo["milestones"] = cur.get("milestones", [])
+		hypo["insight_bonus"] = cur.get("insight_bonus", 0)
+		hypo["expected_clues"] = cur.get("expected_clues", local_count)
 	else:
 		hypo = hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
 		hypo["current_battlefield"] = hypo.get("battlefield", {})
-	# 未显式给定 expected_clues 时，用「本场景已收集条数」作观察星分母，避免全案池扩大抬高观察星
-	if not hypo.has("expected_clues"):
-		hypo["expected_clues"] = local_count
+		if not hypo.has("expected_clues"):
+			hypo["expected_clues"] = local_count
 	var cb := on_verify if on_verify.is_valid() else _default_wall_verify
 	# advance 始终传入 _advance_now；是否真正推进由「已验证 + 实时状态」在
 	# _default_wall_verify / _on_back_pressed 中判定，避免开墙时刻的 _wall_auto
