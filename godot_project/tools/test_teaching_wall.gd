@@ -41,12 +41,16 @@ func _initialize() -> void:
 	var fails := 0
 	if not gv._teaching:
 		print("TEACH FAIL _teaching 标志未透传"); fails += 1
-	if not gv._node_center.has("W-B1"):
-		print("TEACH FAIL 节点 W-B1 未上画布"); fails += 1
-	if not gv._node_center.has("conclusion_C-MAIN"):
-		print("TEACH FAIL 结论节点 conclusion_C-MAIN 未上画布"); fails += 1
+	# 教学墙不应预铺 battlefield 的推断/结论（问题1 修复）
+	if gv._node_center.has("W-B1"):
+		print("TEACH FAIL 教学墙不应预铺推断 W-B1"); fails += 1
+	if gv._node_center.has("conclusion_C-MAIN"):
+		print("TEACH FAIL 教学墙不应预铺结论 conclusion_C-MAIN"); fails += 1
 
-	# 模拟玩家唯一选择：从 W-B1 推导 C-MAIN（仅一条边）
+	# 模拟玩家先推导推断 W-B1 上墙，再手动从 W-B1 推导 C-MAIN（应只产生一条边）
+	gv._node_center["W-B1"] = Vector2(500, 400)
+	gv._node_kind["W-B1"] = "hypo"
+	gv._node_data["W-B1"] = {"id": "W-B1", "text": "军医"}
 	gv._add_derived_conclusion("W-B1", "C-MAIN")
 	await process_frame
 
