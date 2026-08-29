@@ -42,9 +42,10 @@ func _on_verify_pressed() -> void:
 	owner.add_child(backdrop)
 
 	# 居中结果窗口（手动计算 position 确保真正居中；PRESET_CENTER 在 add_child 前因 size=0 失效）
+	# 加大尺寸 + 内容区可滚动，避免报告过长把底部「确定」按钮挤出可视区（问题2）。
 	var win := PanelContainer.new()
-	win.custom_minimum_size = Vector2(720, 440)
-	win.size = Vector2(720, 440)
+	win.custom_minimum_size = Vector2(760, 540)
+	win.size = Vector2(760, 540)
 	win.z_index = 20
 	win.name = "VerifyResult"
 	owner.add_child(win)
@@ -70,6 +71,7 @@ func _on_verify_pressed() -> void:
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 16)
+	vb.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.add_child(vb)
 
 	# 标题栏（拖拽手柄）
@@ -116,6 +118,14 @@ func _on_verify_pressed() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.add_child(title)
 
+	# 滚动内容区：报告过长时滚动查看；确定按钮固定在底部始终可见（问题2）
+	var scr := ScrollContainer.new()
+	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scr.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scr.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_child(scr)
+
 	var rep := Label.new()
 	rep.text = owner._last_report
 	rep.add_theme_font_size_override("font_size", 18)
@@ -123,8 +133,7 @@ func _on_verify_pressed() -> void:
 	rep.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rep.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	rep.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rep.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vb.add_child(rep)
+	scr.add_child(rep)
 
 	if v == ReasoningWall.Verdict.VERIFIED:
 		for m in owner._milestones: m["lit"] = true

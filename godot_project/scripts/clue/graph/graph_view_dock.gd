@@ -189,9 +189,10 @@ func _on_dock_toggle() -> void:
 
 # ===================== 「推断/结论」建议弹窗 =====================
 # ===================== 自由连线窗（候选推导窗的次级入口） =====================
-func _open_free_link(cid: String) -> void:
-	_close_link_popup()
-	owner._link_popup_clue_id = cid
+# ===================== 统一可拖拽+可滚动弹窗外壳 =====================
+# 返回 [popup, panel, content_vb]；panel = VBox(标题栏[拖拽手柄+✕] , MarginContainer>ScrollContainer>content_vb)。
+# 调用方只往 content_vb 填内容即可；窗口可拖拽、内容超长可滚动（满足「统一弹窗」要求）。
+func _popup_shell(title_text: String, panel_size: Vector2, scroll_min: Vector2) -> Array:
 	var popup := Control.new()
 	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	popup.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -201,8 +202,9 @@ func _open_free_link(cid: String) -> void:
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	popup.add_child(overlay)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(640, 560)
-	panel.position = (owner.get_viewport_rect().size - Vector2(440, 380)) * 0.5
+	panel.custom_minimum_size = panel_size
+	panel.size = panel_size
+	panel.position = (owner.get_viewport_rect().size - panel_size) * 0.5
 	var ps := StyleBoxFlat.new()
 	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
 	ps.border_color = owner.COL_GOLD
@@ -210,32 +212,78 @@ func _open_free_link(cid: String) -> void:
 	ps.set_corner_radius_all(10)
 	panel.add_theme_stylebox_override("panel", ps)
 	popup.add_child(panel)
+	var root := VBoxContainer.new()
+	panel.add_child(root)
+	# 标题栏（拖动手柄）
+	var title_bar := HBoxContainer.new()
+	title_bar.custom_minimum_size = Vector2(0, 40)
+	title_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	title_bar.add_theme_constant_override("separation", 10)
+	var tbs := StyleBoxFlat.new()
+	tbs.bg_color = Color(0.18, 0.14, 0.08, 1.0)
+	tbs.set_corner_radius_all(6)
+	title_bar.add_theme_stylebox_override("panel", tbs)
+	title_bar.gui_input.connect(_on_popup_title_gui.bind(panel))
+	root.add_child(title_bar)
+	var cap := Label.new()
+	cap.text = title_text
+	cap.add_theme_font_size_override("font_size", 22)
+	cap.add_theme_color_override("font_color", owner.COL_GOLD)
+	cap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_bar.add_child(cap)
+	var xbtn := Button.new()
+	xbtn.text = "✕"
+	xbtn.add_theme_font_size_override("font_size", 18)
+	xbtn.add_theme_color_override("font_color", Color(0.85, 0.55, 0.55))
+	xbtn.custom_minimum_size = Vector2(40, 32)
+	var xcs := StyleBoxFlat.new()
+	xcs.bg_color = Color(0.30, 0.18, 0.18, 0.95)
+	xcs.border_color = Color(0.7, 0.4, 0.4)
+	xcs.set_corner_radius_all(4)
+	xbtn.add_theme_stylebox_override("normal", xcs)
+	xbtn.pressed.connect(_close_link_popup)
+	title_bar.add_child(xbtn)
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 16)
 	margin.add_theme_constant_override("margin_top", 12)
 	margin.add_theme_constant_override("margin_right", 16)
 	margin.add_theme_constant_override("margin_bottom", 12)
-	panel.add_child(margin)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	# 问题Q2：详情卡内容增多，用 ScrollContainer 包裹，保证全部内容可滚动查看、底部按钮可点
+	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(margin)
 	var scr := ScrollContainer.new()
-	scr.custom_minimum_size = Vector2(488, 600)
+	scr.custom_minimum_size = scroll_min
 	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scr.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scr.add_theme_constant_override("separation", 8)
+	scr.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	margin.add_child(scr)
-	var vbw := VBoxContainer.new()
-	vbw.add_theme_constant_override("separation", 8)
-	scr.add_child(vbw)
-	# 下面原 vb 直接改为 vbw
-	vb = vbw
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scr.add_child(vb)
+	return [popup, panel, vb]
 
-	var t := Label.new()
-	t.text = "把线索「%s」连到：" % owner._data._find_clue(cid).get("name", cid)
-	t.add_theme_font_size_override("font_size", 30)
-	t.add_theme_color_override("font_color", owner.COL_GOLD)
-	vb.add_child(t)
+
+func _on_popup_title_gui(event: InputEvent, panel: PanelContainer) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			owner._popup_dragging = true
+			owner._popup_drag_panel = panel
+			owner._popup_drag_offset = owner.get_viewport().get_mouse_position() - panel.global_position
+		else:
+			owner._popup_dragging = false
+
+
+func _open_free_link(cid: String) -> void:
+	_close_link_popup()
+	owner._link_popup_clue_id = cid
+	var _clue_name: String = owner._data._find_clue(cid).get("name", cid)
+	var _shell: Array = _popup_shell("把线索「%s」连到：" % _clue_name, Vector2(640, 560), Vector2(488, 440))
+	var popup: Control = _shell[0]
+	var panel: PanelContainer = _shell[1]
+	var vb: VBoxContainer = _shell[2]
 
 	var pen_row := HBoxContainer.new()
 	vb.add_child(pen_row)
@@ -300,43 +348,11 @@ func _open_derive_popup(cid: String) -> void:
 	_close_link_popup()
 	owner._link_popup_clue_id = cid
 	var cands := _derive_candidates()
-	var popup := Control.new()
-	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.mouse_filter = Control.MOUSE_FILTER_STOP
-	popup.z_index = 25
-	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.45)
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.add_child(overlay)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(640, 520)
-	panel.position = (owner.get_viewport_rect().size - Vector2(440, 360)) * 0.5
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
-	ps.border_color = owner.COL_GOLD
-	ps.border_width_left = 2; ps.border_width_right = 2; ps.border_width_top = 2; ps.border_width_bottom = 2
-	ps.set_corner_radius_all(10)
-	panel.add_theme_stylebox_override("panel", ps)
-	popup.add_child(panel)
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	panel.add_child(margin)
-	var scr := ScrollContainer.new()
-	scr.custom_minimum_size = Vector2(488, 420)
-	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scr.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	margin.add_child(scr)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	scr.add_child(vb)
-	var t := Label.new()
-	t.text = "由线索「%s」推导推断（任选其一）：" % owner._data._find_clue(cid).get("name", cid)
-	t.add_theme_font_size_override("font_size", 30)
-	t.add_theme_color_override("font_color", owner.COL_GOLD)
-	vb.add_child(t)
+	var _clue_name: String = owner._data._find_clue(cid).get("name", cid)
+	var _shell: Array = _popup_shell("由线索「%s」推导推断（任选其一）：" % _clue_name, Vector2(640, 520), Vector2(488, 420))
+	var popup: Control = _shell[0]
+	var panel: PanelContainer = _shell[1]
+	var vb: VBoxContainer = _shell[2]
 	if cands.is_empty():
 		var hint := Label.new()
 		hint.text = "该线索没有预设的可推导推断。可用「自定义连线…」手动建立关系，或用顶部按钮自行添加推断。"
@@ -405,43 +421,10 @@ func _open_hypo_derive_popup(src_hid: String) -> void:
 		owner._ui_toast("该推断暂无可向下组合推导的推断")
 		return
 	cands.shuffle()
-	var popup := Control.new()
-	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.mouse_filter = Control.MOUSE_FILTER_STOP
-	popup.z_index = 25
-	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.45)
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.add_child(overlay)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(640, 460)
-	panel.position = (owner.get_viewport_rect().size - Vector2(440, 320)) * 0.5
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
-	ps.border_color = owner.COL_GOLD
-	ps.border_width_left = 2; ps.border_width_right = 2; ps.border_width_top = 2; ps.border_width_bottom = 2
-	ps.set_corner_radius_all(10)
-	panel.add_theme_stylebox_override("panel", ps)
-	popup.add_child(panel)
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	panel.add_child(margin)
-	var scr := ScrollContainer.new()
-	scr.custom_minimum_size = Vector2(488, 360)
-	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scr.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	margin.add_child(scr)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	scr.add_child(vb)
-	var t := Label.new()
-	t.text = "由推断「%s」可组合推导的下一层推断：" % owner._node_label(src_hid)
-	t.add_theme_font_size_override("font_size", 30)
-	t.add_theme_color_override("font_color", owner.COL_GOLD)
-	vb.add_child(t)
+	var _shell: Array = _popup_shell("由推断「%s」可组合推导的下一层推断：" % owner._node_label(src_hid), Vector2(640, 460), Vector2(488, 360))
+	var popup: Control = _shell[0]
+	var panel: PanelContainer = _shell[1]
+	var vb: VBoxContainer = _shell[2]
 	for c in cands:
 		var hid: String = str(c.get("id", ""))
 		var mislead: bool = str(c.get("kind", "true")) != "true"
@@ -474,43 +457,10 @@ func _open_conclusion_popup(hid: String) -> void:
 		if _conclusion_preset_visible(c):
 			cands.append(c)
 	cands.shuffle()
-	var popup := Control.new()
-	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.mouse_filter = Control.MOUSE_FILTER_STOP
-	popup.z_index = 25
-	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.45)
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.add_child(overlay)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(640, 460)
-	panel.position = (owner.get_viewport_rect().size - Vector2(440, 320)) * 0.5
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
-	ps.border_color = owner.COL_GOLD
-	ps.border_width_left = 2; ps.border_width_right = 2; ps.border_width_top = 2; ps.border_width_bottom = 2
-	ps.set_corner_radius_all(10)
-	panel.add_theme_stylebox_override("panel", ps)
-	popup.add_child(panel)
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	panel.add_child(margin)
-	var scr := ScrollContainer.new()
-	scr.custom_minimum_size = Vector2(488, 360)
-	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scr.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	margin.add_child(scr)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	scr.add_child(vb)
-	var t := Label.new()
-	t.text = "由推断推导结论（任选其一）："
-	t.add_theme_font_size_override("font_size", 30)
-	t.add_theme_color_override("font_color", owner.COL_GOLD)
-	vb.add_child(t)
+	var _shell: Array = _popup_shell("由推断推导结论（任选其一）：", Vector2(640, 460), Vector2(488, 360))
+	var popup: Control = _shell[0]
+	var panel: PanelContainer = _shell[1]
+	var vb: VBoxContainer = _shell[2]
 	if cands.is_empty():
 		var hint := Label.new()
 		hint.text = "该场景暂无可选预设结论。可直接「✍ 自定义结论…」输入你的判断。"
@@ -622,6 +572,8 @@ func _conclusion_confirm(hid: String, con_id: String) -> void:
 
 
 func _close_link_popup() -> void:
+	owner._popup_dragging = false
+	owner._popup_drag_panel = null
 	if owner._link_popup and is_instance_valid(owner._link_popup):
 		owner._link_popup.queue_free()
 		owner._link_popup = null
