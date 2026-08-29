@@ -319,16 +319,14 @@ func build(data: Dictionary) -> void:
 	var _old_fp: Dictionary = _state_store.get("graph_folded_persons", {})
 	for _pid in _old_fp:
 		_folded_nodes[_pid] = true
-	# 需求（跨场景带入·任务）：case_wide（场景二~八）进入新场景时【自动折叠到每条推理链的最上层节点】——
-	# 只露有推理关系的最上层节点（孤立/叶子线索仍可见），玩家点击展开。取代旧「不自动折叠、交玩家手动」策略。
-	# 开墙即重新计算（不沿用上一场景折叠/展开态）；坐标不随携带（清空位置持久化，由星形布局重排）。
-	# 先清空折叠态与坐标，让首次 _rebuild_graph 完整呈现所有节点（正确填充 _node_kind），随后折叠到根。
-	if _auto_fold:
+	# 跨场景累积改造（2026-08-29）：去掉「开墙自动折叠」，改为玩家全程自主折叠（信息缺失主因）。
+	# 进入新场景：位置不随携带（清空坐标，由布局重排）；折叠态保留玩家手动折叠（不清 _folded_nodes）。
+	# 仅 case_wide 全案墙清坐标（非 case_wide 教学墙沿用各自 state）。
+	if _case_wide:
 		if _state_store.has("graph_node_positions"):
 			_state_store.erase("graph_node_positions")
 		if _state_store.has("graph_root_anchors"):
 			_state_store.erase("graph_root_anchors")
-		_folded_nodes = {}
 	_all_positions = {}
 	_root_anchor_pos = {}
 
@@ -359,20 +357,13 @@ func build(data: Dictionary) -> void:
 
 	_create_ui()
 	_rebuild_graph()
-	# 需求（跨场景带入·任务）：case_wide 进入新场景自动折叠到「每条推理链最上层节点」
-	#（只露有推理关系的最上层节点，孤立/叶子线索仍可见），玩家点击展开。
-	# 首次 _rebuild_graph 已完整呈现所有节点（折叠态清空），先记录「携带内容」节点集合，
-	# 供布局与「本场景新拖入内容」分区域放置；随后折叠到根并重建一次。
-	if _auto_fold:
-		# 携带（旧）内容 = 开墙时已存在的所有节点，除「本场景采集页新收集线索」外（那些算新内容，放另一区域）。
-		# 全案大墙 _clues 传入的是全案线索池（含上一场景线索），故必须用 _scene_clue_ids 把本场景新线索剔出，
-		# 否则本场景新线索会被误判为携带内容、与新内容混放在左/上区，违背「新旧分区域」要求。
+	# 跨场景累积改造（2026-08-29）：不再自动折叠（_apply_fold_to_roots 已废弃调用），玩家全程自主折叠。
+	# case_wide 下计算「携带内容」集合（开墙时已存在、非本场景新收集线索），供布局左右分区（纯位置、不隐藏）。
+	if _case_wide:
 		_carried_ids = []
 		for id in _node_kind.keys():
 			if not (id in _scene_clue_ids):
 				_carried_ids.append(id)
-		_apply_fold_to_roots()
-		_rebuild_graph()
 	# 已收集线索栏唯一入口：reasoning_wall 左栏（挂顶层 z=20，显示+选择+拖入放置+放置后消失）。
 	# 这里不再创建图谱自带的第二套 dock（System B），避免"两套已收集线索"冗余。
 	# _create_clue_dock()
@@ -668,10 +659,11 @@ func _rebuild_graph() -> void:
 		_node_kind[nd.id] = nd.kind
 		_node_data[nd.id] = nd.data
 	# 同列纵向去重叠：按真实卡片高度硬保证相邻卡片上下边距 ≥15px（不依赖布局/估算，避免任何覆盖）
-	# 同列纵向去重叠 + 全局跨列去重叠：仅在顶栏「自动排列」时执行（玩家自由放置/拖动不推挤位置）
+	# 跨场景累积改造（2026-08-29）：默认星形布局在高密度「多孤立根并入主根」时也会产生径向重叠，
+	# 全局跨列去重叠必须同样执行以保证「零重叠」硬要求；仅当 AABB 真实相交才下移，玩家自由拖动不推挤。
 	if _use_rank_layout:
 		_layout._apply_column_overlap_fix()
-		_layout._apply_global_overlap_fix()
+	_layout._apply_global_overlap_fix()
 	# 创建连线出口折叠控件（XMind 式 −/+N）。设计：圆圈仅当该节点「有关系、有下级」时显示，
 	# 即高一级节点下确实有低一级节点才在其上画圈；无下级的叶子不建，避免任何线索常驻圆圈。
 	for nd in nodes:
@@ -691,6 +683,7 @@ func _rebuild_graph() -> void:
 
 func _node_list() -> Array:
 	var list := []
+	var _in_list := {}   # 已在列表中的节点 id（函数级作用域，供结论块去重使用）
 	if _case_wide:
 		var fp: String = _focus_person
 		for p in _persons:
@@ -746,7 +739,6 @@ func _node_list() -> Array:
 				"color": _data._clue_color(c), "data": c, "common": common})
 		# 关联线索：被拖拽连到推断/结论/人物但本身未挂焦点人物的线索，也纳入星型视图，
 		# 使其显示为节点并把连线画出来（修复「拖线索后线索不显示、不知是否关联」）。
-		var _in_list := {}
 		for _n in list: _in_list[_n.id] = true
 		# 关联线索：被拖到推断/结论/人物但未挂焦点的线索也纳入（修复拖线索不显示）
 		for c2 in _clues:
@@ -766,7 +758,17 @@ func _node_list() -> Array:
 				"label": _p_c.get("name", _p_cid), "sub": _data._clue_sub(_p_c),
 				"color": _data._clue_color(_p_c), "data": _p_c, "common": _common_clues.has(_p_cid)})
 			_in_list[_p_cid] = true
-		# 第二圈：推断
+		# 第二圈：推断（来自 battlefield.hypotheses；跨场景累积·任务 09：全场景并集始终作为预设节点上墙，
+		# 不再仅当「关系端点」才出现——根治前一场景推断因与人物根断连而不显示的信息缺失）
+		for h in _hypo.get("battlefield", {}).get("hypotheses", []):
+			var hid := str(h.get("id", ""))
+			if hid == "": continue
+			if _in_list.has(hid): continue
+			var _mis := str(h.get("kind", "")) == "mislead"
+			list.append({"id": hid, "kind": "hypo",
+				"label": h.get("text", hid), "sub": "推断",
+				"color": COL_GOLD if _mis else COL_HYPO_BG, "data": h, "mislead": _mis})
+			_in_list[hid] = true
 		# 第三圈：推理链 + 结论（结论统一在函数末尾追加一次，避免 MODE_C 下出现两个结论文本框，问题4）
 		var chain_id: String = _hypo.get("chain_id", "")
 		if chain_id != "":
@@ -786,13 +788,31 @@ func _node_list() -> Array:
 		if chain_id2 != "":
 			list.append({"id": "chain:" + chain_id2, "kind": "chain",
 				"label": "#" + str(chain_id2), "sub": "推理链", "color": COL_GOLD, "data": {}})
-	# 第三圈：结论（多实例——每条已推导结论独立节点，id 形如 "conclusion_CL2-1"）
+	# 第三圈：结论（多实例）—— ① 战场预设结论（battlefield.conclusions，跨场景并集，始终上墙）
+	var _derived_ids := {}
+	for _dc in _derived_conclusions:
+		_derived_ids[str(_dc.get("id", ""))] = true
+	for c in _hypo.get("battlefield", {}).get("conclusions", []):
+		var _cid := str(c.get("id", ""))
+		if _cid == "":
+			continue
+		if _derived_ids.has(_cid):
+			continue   # 与玩家推导结论同 id 去重
+		var _cnid: String = _conclusion_node_id(_cid)
+		if _in_list.has(_cnid):
+			continue
+		list.append({"id": _cnid, "kind": "conclusion",
+			"label": c.get("text", _cid), "sub": "结论", "color": _data._verdict_color(), "data": c})
+		_in_list[_cnid] = true
+	# ② 玩家推导结论（_derived_conclusions）
 	if not _derived_conclusions.is_empty():
 		for _dc in _derived_conclusions:
 			var _dcid: String = str(_dc.get("id", ""))
 			if _dcid == "":
 				continue
 			var _dnid: String = _conclusion_node_id(_dcid)
+			if _in_list.has(_dnid):
+				continue
 			list.append({"id": _dnid, "kind": "conclusion",
 				"label": _conclusion_text(_dcid), "sub": "结论", "color": _data._verdict_color(), "data": {}})
 
@@ -1826,7 +1846,7 @@ func _on_canvas_left_click(viewport_pos: Vector2) -> void:
 
 func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 	var old_scale := _zoom
-	var ns: float = clamp(old_scale * factor, 0.4, 2.5)
+	var ns: float = clamp(old_scale * factor, 0.25, 2.5)
 	# 全局坐标 → 画布本地（含 _clip 契入偏移），与 _on_canvas_left_click 一致
 	var lp := _canvas.get_global_transform().affine_inverse() * mouse_pos
 	_canvas.scale = Vector2(ns, ns)
@@ -1863,7 +1883,7 @@ func fit_view() -> void:
 	var margin := 90.0
 	var vp: Vector2 = _clip.size if _clip != null and _clip.size.x > 0 else Vector2(1280, 760)
 	var ns: float = min((vp.x - margin * 2.0) / max(bbox.x, 1.0), (vp.y - margin * 2.0) / max(bbox.y, 1.0))
-	ns = clamp(ns, 0.35, 1.6)
+	ns = clamp(ns, 0.25, 1.6)
 	_canvas.scale = Vector2(ns, ns)
 	var center_gl := _canvas.get_global_transform().affine_inverse() * (minp + bbox * 0.5)
 	_canvas.position = -center_gl * ns + vp * 0.5

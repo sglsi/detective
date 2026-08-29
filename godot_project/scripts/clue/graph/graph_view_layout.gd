@@ -41,7 +41,7 @@ func _apply_column_overlap_fix() -> void:
 		for i in range(1, arr.size()):
 			var _ha: float = _view_height(arr[i - 1])
 			var _hb: float = _view_height(arr[i])
-			var _min_cy: float = owner._node_center[arr[i - 1]].y + (_ha + _hb) * 0.5 + 20.0
+			var _min_cy: float = owner._node_center[arr[i - 1]].y + (_ha + _hb) * 0.5 + 24.0
 			if owner._node_center[arr[i]].y < _min_cy:
 				owner._node_center[arr[i]] = Vector2(owner._node_center[arr[i]].x, _min_cy)
 		var _cy_after: float = 0.0
@@ -73,7 +73,7 @@ func _apply_global_overlap_fix() -> void:
 			var id_b: String = ids[j]
 			var rb: Rect2 = rects[id_b]
 			if ra.intersects(rb):
-				var push: float = ra.end.y - rb.position.y + 20.0
+				var push: float = ra.end.y - rb.position.y + 24.0
 				owner._node_center[id_b] = Vector2(owner._node_center[id_b].x, owner._node_center[id_b].y + push)
 				rects[id_b] = _node_rect(id_b)
 				var vv: Variant = owner._node_views.get(id_b)
@@ -88,7 +88,10 @@ func _node_rect(id: String) -> Rect2:
 	var c: Vector2 = owner._node_center.get(id, Vector2.ZERO)
 	var k: String = str(owner._node_kind.get(id, "hypo"))
 	var w: float = _node_width_for_kind(k)
-	var h: float = _view_height(id)
+	# 与 _intersects_any / _find_non_overlapping_position 同一碰撞高度模型：用「标签估算高」而非实时视图高——
+	# 去重叠在 _rebuild_graph 同步阶段执行，此时 Control 尚未由引擎完成布局，_view_height 不可靠（回退约 52）；
+	# 用标签估算高（兜底 110）使去重叠与碰撞检测口径一致，彻底消除「修了仍重叠」的时序错配。
+	var h: float = maxf(_est_node_h(owner._node_data.get(id, {})), 110.0)
 	return Rect2(c - Vector2(w, h) * 0.5, Vector2(w, h))
 
 
@@ -226,10 +229,12 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 	for u in assigned:
 		high[u] = 1
 	_collect_high(roots, child_map, high)
-	# 节点估算高度（文字行数×行高 + 副标题 + 内边距），用于垂直带切分保证兄弟间 ≥15px
+	# 节点估算高度（文字行数×行高 + 副标题 + 内边距），用于垂直带切分保证兄弟间 ≥15px。
+	# 跨场景累积改造（2026-08-29）：下限抬到 140，与碰撞模型（max(view_h,110)+clearance 24 ⇒ 需 ≥134
+	# 中心距）对齐；否则估算高度（短标签约 52）远小于真实卡片高，密集兄弟会被带内堆叠压成重叠。
 	var est_h := {}
 	for nd in nodes:
-		est_h[nd.id] = _est_node_h(nd)
+		est_h[nd.id] = maxf(_est_node_h(nd), 140.0)
 	var memo := {}
 	for _nd in nodes:
 		_subtree_span_est(_nd.id, child_map, est_h, memo)
@@ -256,27 +261,28 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		var dirv := 1.0
 		if rx2 >= owner._canvas.size.x * 0.5:
 			dirv = -1.0
-		var _half3: float = maxf(memo.get(r, 130.0) * 0.5, 60.0)
+		var _half3: float = maxf(memo.get(r, 140.0) * 0.5, 60.0)
 		var top2: float = ry2 - _half3
 		var bot2: float = ry2 + _half3
 		_assign_subtree(r, child_map, memo, est_h, out, top2, bot2, rx2, dirv, col_gap)
-	# 孤立（未接入树）节点：保存位优先；携带内容偏左、本场景新内容偏右，分区域放置、保持可见
-	var spare_i := 0
-	var spare_j := 0
-	var out_keys := {}
-	for k in out: out_keys[k] = true
+	# 孤立（未接入树）节点：保存位优先；跨场景带入区分「携带/新」种子区，碰撞感知放置保证零重叠
+	var existing_spare := {}
+	for _k in out:
+		if out[_k] is Vector2:
+			existing_spare[_k] = out[_k]
 	for nd in nodes:
-		if out_keys.has(nd.id): continue
+		if out.has(nd.id): continue
 		var sv: Variant = saved_pos.get(nd.id, null)
 		if sv is Vector2:
 			out[nd.id] = sv
+			existing_spare[nd.id] = sv
 			continue
+		var _kind: String = owner._fold._kind_of(nd.id)
+		var _seed := Vector2(_new_x - 40.0, center.y - 220.0)
 		if _is_cw and (nd.id in owner._carried_ids):
-			out[nd.id] = Vector2(_carried_x + 40.0, center.y - 220.0 + float(spare_i) * 120.0)
-			spare_i += 1
-		else:
-			out[nd.id] = Vector2(_new_x - 40.0, center.y - 220.0 + float(spare_j) * 120.0)
-			spare_j += 1
+			_seed = Vector2(_carried_x + 40.0, center.y - 220.0)
+		out[nd.id] = _find_non_overlapping_position(_seed, nd.id, _kind, existing_spare, 24.0)
+		existing_spare[nd.id] = out[nd.id]
 	# 手动拖动过的节点保持原位，不被自动布局覆盖（保证每个人物/结论/推断/线索都能自由移动）
 	for mid2 in owner._manual_nodes:
 		var _sv3: Variant = saved_pos.get(mid2, null)
@@ -392,7 +398,7 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 		q = rest
 	# 估算高度（用于同列垂直堆叠留 20px 间隙，保证不重叠）
 	var est_h := {}
-	for nd in nodes: est_h[nd.id] = _est_node_h(nd)
+	for nd in nodes: est_h[nd.id] = maxf(_est_node_h(nd), 140.0)
 	# 估算每棵子树所需垂直带长（含间隙），用于把不同结论分支分配到独立上下扇区，避免同侧堆叠
 	var memo := {}
 	for _nd in nodes:
@@ -434,22 +440,28 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 		_place_side_children(left_ch, rx, ry, -1.0, col_gap, memo, est_h, child_map, out)
 		_place_side_children(right_ch, rx, ry, 1.0, col_gap, memo, est_h, child_map, out)
 
-	# 孤立（未接入树）节点：保存位优先；否则右侧外围堆叠（120px 行距，互不重叠）
-	var spare := 0
-	var out_keys := {}
-	for k in out: out_keys[k] = true
+	# 孤立（未接入树）节点：保存位优先；否则碰撞感知螺旋放置，保证与全部已落位节点零重叠。
+	# 固定 120px 行距会因节点高度可变（hypo/conclusion 卡片可能 >120px）在高密度孤立群中重叠；
+	# 改用 _find_non_overlapping_position 复用真实 AABB 碰撞检测（clearance=24）。
+	var existing_spare := {}
+	for _k in out:
+		if out[_k] is Vector2:
+			existing_spare[_k] = out[_k]
 	for nd in nodes:
-		if out_keys.has(nd.id): continue
+		if out.has(nd.id): continue
 		var sv3: Variant = saved_root.get(nd.id, null)
 		if sv3 is Vector2:
 			out[nd.id] = sv3
+			existing_spare[nd.id] = sv3
 			continue
-		out[nd.id] = Vector2(center.x + col_gap * 2.0 + 80.0, center.y - 220.0 + float(spare) * 120.0)
-		spare += 1
+		var _kind: String = owner._fold._kind_of(nd.id)
+		var _seed := Vector2(center.x + col_gap * 2.0 + 80.0, center.y)
+		out[nd.id] = _find_non_overlapping_position(_seed, nd.id, _kind, existing_spare, 24.0)
+		existing_spare[nd.id] = out[nd.id]
 
-	# 软钳制：仅防 NaN / 极端值，保留列间距（不收缩到画布 margin，否则深树列会重叠）。超出画布由 fit_view 缩放看全。
+	# 软钳制：仅防 NaN / 极端值（保留列间距，不收缩到画布 margin，否则深树列会重叠）。超出画布由 fit_view 缩放看全。
 	for idf in out:
-		out[idf] = Vector2(clampf(out[idf].x, -4000.0, 4000.0), clampf(out[idf].y, -4000.0, 4000.0))
+		out[idf] = _clamp_to_canvas(out[idf])
 
 
 ## 把一组同侧子节点从 root 沿 dirv 方向逐列向外排布（复用 _assign_subtree 递归子树）
@@ -458,12 +470,12 @@ func _assign_side(root: String, group: Array, child_map: Dictionary, sp: Diction
 	var rx: float = out.get(root, Vector2.ZERO).x
 	var ry: float = out.get(root, Vector2.ZERO).y
 	var total := 0.0
-	for c in group: total += sp.get(c, 130.0) as float
+	for c in group: total += sp.get(c, 140.0) as float
 	total += 20.0 * (float(group.size()) - 1.0)
 	var top: float = ry - total * 0.5
 	var cur: float = top
 	for c in group:
-		var h: float = sp.get(c, 130.0) as float
+		var h: float = sp.get(c, 140.0) as float
 		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + h, rx + dirv * col_gap, dirv, col_gap)
 		cur += h + 20.0
 
@@ -521,7 +533,7 @@ func _subtree_span_est(u: String, child_map: Dictionary, est_h: Dictionary, memo
 	if memo.has(u):
 		return memo[u]
 	var ch: Array = child_map.get(u, [])
-	var s: float = est_h.get(u, 130.0) as float
+	var s: float = est_h.get(u, 140.0) as float
 	if not ch.is_empty():
 		var sub: float = 0.0
 		for _c in ch:
@@ -536,12 +548,12 @@ func _subtree_span_est(u: String, child_map: Dictionary, est_h: Dictionary, memo
 func _place_side_children(children: Array, root_x: float, root_y: float, dirv: float, col_gap: float, sp: Dictionary, est_h: Dictionary, child_map: Dictionary, out: Dictionary) -> void:
 	if children.is_empty(): return
 	var total: float = 0.0
-	for c in children: total += sp.get(c, est_h.get(c, 130.0) as float)
+	for c in children: total += sp.get(c, est_h.get(c, 140.0) as float)
 	total += 20.0 * (float(children.size()) - 1.0)
 	var top: float = root_y - total * 0.5
 	var cur: float = top
 	for c in children:
-		var span: float = sp.get(c, est_h.get(c, 130.0) as float)
+		var span: float = sp.get(c, est_h.get(c, 140.0) as float)
 		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + span, root_x + dirv * col_gap, dirv, col_gap)
 		cur += span + 20.0
 
@@ -558,11 +570,11 @@ func _assign_subtree(u: String, child_map: Dictionary, sp: Dictionary, est_h: Di
 		return
 	var totalSpan: float = 0.0
 	for _c in ch:
-		totalSpan += sp.get(_c, 130.0) as float
+		totalSpan += sp.get(_c, 140.0) as float
 	totalSpan += 20.0 * (float(ch.size()) - 1.0)
 	var cur: float = top + maxf(0.0, ((bot - top) - totalSpan) * 0.5)
 	for c in ch:
-		var _h: float = sp.get(c, 130.0) as float
+		var _h: float = sp.get(c, 140.0) as float
 		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + _h, pxx + dirv * col_gap, dirv, col_gap)
 		cur += _h + 20.0
 
@@ -739,17 +751,13 @@ func _xmind_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Di
 # ===================== 画布钳制 =====================
 # 灵活布局辅助：仅把节点限制在画布内（XMind 式自由排布，允许任意位置）
 func _clamp_to_canvas(p: Vector2) -> Vector2:
-	var m: float = 60.0
-	# 画布未初始化（如布局前直接调用落点）或为 headless/极小画布时，用虚拟尺寸兜底，
-	# 避免访问 Nil.size 崩溃、或把落点钳制成一条线（真实浏览器画布足够大，不受影响）
-	var cv: Vector2 = Vector2(1920.0, 1080.0)
-	if owner._canvas != null:
-		var cs: Vector2 = owner._canvas.size
-		if cs.x >= 800.0 and cs.y >= 600.0:
-			cv = cs
-	var ox: float = clampf(p.x, m, maxf(cv.x - m, m))
-	var oy: float = clampf(p.y, m, maxf(cv.y - m, m))
-	return Vector2(ox, oy)
+	# 跨场景累积改造（2026-08-29）：画布随内容自适应扩展，节点可向任意方向（含负坐标）自由铺开，
+	# 不再把节点硬钳进固定/半固定视口矩形——早期的下限 60 会把超高墙（跨场景累积后节点极多）
+	# 顶部压塌成一行，反而造成重叠。仅保留极端坐标兜底防 NaN/溢出；内容多少由 fit_view 缩放看全。
+	if not is_finite(p.x) or not is_finite(p.y):
+		return Vector2.ZERO
+	var LIM := 100000.0
+	return Vector2(clampf(p.x, -LIM, LIM), clampf(p.y, -LIM, LIM))
 
 
 # ===================== 碰撞感知落点 =====================
@@ -786,7 +794,7 @@ func _intersects_any(rect: Rect2, existing: Dictionary, skip_id: String, clearan
 			continue
 		var k: String = str(owner._node_kind.get(id, "hypo"))
 		var w: float = _node_width_for_kind(k)
-		var h: float = maxf(_view_height(str(id)), 110.0)
+		var h: float = maxf(_est_node_h(owner._node_data.get(str(id), {})), 110.0)
 		var er := Rect2(c - Vector2(w, h) * 0.5, Vector2(w, h)).grow(clearance)
 		if rect.intersects(er):
 			return true

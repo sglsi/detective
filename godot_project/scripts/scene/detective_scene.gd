@@ -415,7 +415,20 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var local_count: int = clues.size()
 	if ClueSystem != null:
 		local_count = ClueSystem.count_collected(src)
-	var hypo := hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
+	# 跨场景累积改造（2026-08-29，设计文档 09）：案件级大墙（场景二~八）的预设推断/结论节点
+	# 必须取自「全场景并集」，否则前一场景的 H*/CL* 节点缺失、其关系边因找不到端点被丢弃（信息缺失）。
+	# 用 CaseReasoningRegistry 聚合 scene2~8 的 reasoning_hypothesis().battlefield 为一张表；
+	# 标题/描述沿用当前场景（并集本身无有意义标题）。
+	# 场景一教学墙（source=watson/messenger，use_case_wide=false）仍走原 logic：用传入/本场景 hypothesis。
+	var hypo: Dictionary = {}
+	if use_case_wide:
+		var reg_script = load("res://data/case_reasoning_registry.gd")
+		hypo = reg_script.get_hypo_union()
+		var cur: Dictionary = reasoning_hypothesis()
+		hypo["title"] = cur.get("title", "")
+		hypo["description"] = cur.get("description", "")
+	else:
+		hypo = hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
 	# 未显式给定 expected_clues 时，用「本场景已收集条数」作观察星分母，避免全案池扩大抬高观察星
 	if not hypo.has("expected_clues"):
 		hypo["expected_clues"] = local_count
@@ -438,7 +451,9 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 		_wall_state["verdict"] = -1
 	# 跨场景带入·任务：把「本场景采集页收集到的线索 id」传给墙，左栏只显示这些（上一场景未拖入画布的线索下一场景左栏不再出现）
 	var _scene_clue_ids: Array = ClueSystem.get_collected_ids(clue_source()) if ClueSystem and ClueSystem.has_method("get_collected_ids") else []
-	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true, local_count, Callable(self, "_do_save"), use_case_wide, _scene_clue_ids)
+	# 跨场景累积改造：auto_fold 恒 false（去掉开墙自动折叠，玩家自主折叠）；
+	# case_wide 由 use_case_wide 显式指定（场景二~八全案墙列全部人物；场景一教学墙为 false）。
+	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, _wall_state, advance, true, local_count, Callable(self, "_do_save"), false, _scene_clue_ids, use_case_wide)
 
 ## 默认验证回调：展示判定结果；满足「推理阶段」或「线索已收满」则自动推进过渡。
 ## 三级反馈映射（06 §2.3 + 一致性报告 H-3）：已获证实+倾向成立→正确（绿）；
