@@ -66,6 +66,7 @@ var _state_store: Dictionary = {}            # 外部传入的持久化字典引
 var _persist_enabled: bool = false           # 是否启用跨重开持久化（由调用方 setup 时开启）
 var _auto_fold: bool = false                 # 场景切换进入已建立关系的墙时自动折叠既有推理主干
 var _case_wide: bool = false                 # 全案大墙(use_case_wide)：多人物平铺全部已收集线索/推断/结论
+var _teaching: bool = false                   # 教学墙（场景一 watson/messenger）：禁用结论 gate 自动补边，关系由玩家逐个手动建立
 var _scene_clue_ids: Array = []               # 本场景「采集页」收集到的线索 id（跨场景带入·任务：左栏仅显示这些）
 var _verified: bool = false                  # 本次/历史是否已提交过验证（拿到判定）
 var _verified_verdict: int = -1              # 最近一次提交得到的判定
@@ -186,7 +187,7 @@ const _IDENTITY_REVEAL_GATES := {
 }
 
 ## 身份揭示门控（需求2）：判定某 NPC 是否应以"已知人物"出现。live 为当前已收集线索。
-func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable(), auto_fold: bool = false, scene_clue_ids: Array = [], case_wide_override: bool = false) -> void:
+func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable(), auto_fold: bool = false, scene_clue_ids: Array = [], case_wide_override: bool = false, teaching: bool = false) -> void:
 	_state_ctl = WallState.new()
 	_state_ctl.owner = self
 	_clue_ctl = WallClueLibrary.new()
@@ -217,6 +218,7 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	# 解耦：case_wide(全案墙·列全部人物) 与 auto_fold(开墙自动折叠) 不再同源。
 	# 跨场景累积改造后 auto_fold 恒 false（玩家自主折叠），case_wide 由调用方显式指定。
 	_case_wide = case_wide_override if case_wide_override else auto_fold
+	_teaching = teaching
 	_scene_clue_ids = scene_clue_ids
 	_battle = hypothesis.get("battlefield", {})
 	_case_name = hypothesis.get("case_name", _case_name)
@@ -937,6 +939,7 @@ func _on_open_graph_view() -> void:
 		"state_store": _state_store,
 		"auto_fold": _auto_fold,
 		"case_wide": _case_wide,
+		"teaching": _teaching,
 		"scene_clue_ids": _scene_clue_ids,
 		"on_tag": Callable(_rel_ctl, "_gv_tag_person"),
 		"on_relations_changed": Callable(self, "_gv_relations_changed"),

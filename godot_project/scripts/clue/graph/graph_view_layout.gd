@@ -229,7 +229,7 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 	for u in assigned:
 		high[u] = 1
 	_collect_high(roots, child_map, high)
-	# 节点估算高度（文字行数×行高 + 副标题 + 内边距），用于垂直带切分保证兄弟间 ≥15px。
+	# 节点估算高度（文字行数×行高 + 副标题 + 内边距），用于垂直带切分；兄弟间距见 _sib_gap（文本框高一半）。
 	# 跨场景累积改造（2026-08-29）：下限抬到 140，与碰撞模型（max(view_h,110)+clearance 24 ⇒ 需 ≥134
 	# 中心距）对齐；否则估算高度（短标签约 52）远小于真实卡片高，密集兄弟会被带内堆叠压成重叠。
 	var est_h := {}
@@ -464,20 +464,29 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 		out[idf] = _clamp_to_canvas(out[idf])
 
 
+## 兄弟节点垂直间距：文本框高度的一半（用户要求；此前硬编码 20px 过窄，卡片几乎贴在一起）。
+## 下限 30 防止极矮节点间距过小。
+func _sib_gap(h: float) -> float:
+	return maxf(h * 0.5, 30.0)
+
+
 ## 把一组同侧子节点从 root 沿 dirv 方向逐列向外排布（复用 _assign_subtree 递归子树）
 func _assign_side(root: String, group: Array, child_map: Dictionary, sp: Dictionary, est_h: Dictionary, out: Dictionary, dirv: float, col_gap: float) -> void:
 	if group.is_empty(): return
 	var rx: float = out.get(root, Vector2.ZERO).x
 	var ry: float = out.get(root, Vector2.ZERO).y
 	var total := 0.0
-	for c in group: total += sp.get(c, 140.0) as float
-	total += 20.0 * (float(group.size()) - 1.0)
+	var _gap_sum := 0.0
+	for c in group:
+		total += sp.get(c, 140.0) as float
+		_gap_sum += _sib_gap(sp.get(c, 140.0))
+	total += _gap_sum
 	var top: float = ry - total * 0.5
 	var cur: float = top
 	for c in group:
 		var h: float = sp.get(c, 140.0) as float
 		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + h, rx + dirv * col_gap, dirv, col_gap)
-		cur += h + 20.0
+		cur += h + _sib_gap(h)
 
 
 ## 节点是否为「关系树根」（手动拖拽时仅根的位置被持久化）
@@ -528,7 +537,7 @@ func _collect_high(roots: Array, child_map: Dictionary, high: Dictionary) -> voi
 		high[u] = s
 
 
-## 子树所需垂直带长（递归）：父带 ≥ max(自身估高, Σ子带长 + 兄弟间隙15)，保证后代不溢出、兄弟不交叠
+## 子树所需垂直带长（递归）：父带 ≥ max(自身估高, Σ子带长 + Σ兄弟间距(_sib_gap))，保证后代不溢出、兄弟不交叠
 func _subtree_span_est(u: String, child_map: Dictionary, est_h: Dictionary, memo: Dictionary) -> float:
 	if memo.has(u):
 		return memo[u]
@@ -536,9 +545,11 @@ func _subtree_span_est(u: String, child_map: Dictionary, est_h: Dictionary, memo
 	var s: float = est_h.get(u, 140.0) as float
 	if not ch.is_empty():
 		var sub: float = 0.0
+		var _gap_sum: float = 0.0
 		for _c in ch:
 			sub += _subtree_span_est(_c, child_map, est_h, memo)
-		s = maxf(s, sub + 20.0 * (float(ch.size()) - 1.0))
+			_gap_sum += _sib_gap(est_h.get(_c, 140.0) as float)
+		s = maxf(s, sub + _gap_sum)
 	memo[u] = s
 	return s
 
@@ -548,14 +559,17 @@ func _subtree_span_est(u: String, child_map: Dictionary, est_h: Dictionary, memo
 func _place_side_children(children: Array, root_x: float, root_y: float, dirv: float, col_gap: float, sp: Dictionary, est_h: Dictionary, child_map: Dictionary, out: Dictionary) -> void:
 	if children.is_empty(): return
 	var total: float = 0.0
-	for c in children: total += sp.get(c, est_h.get(c, 140.0) as float)
-	total += 20.0 * (float(children.size()) - 1.0)
+	var _gap_sum: float = 0.0
+	for c in children:
+		total += sp.get(c, est_h.get(c, 140.0) as float)
+		_gap_sum += _sib_gap(est_h.get(c, 140.0) as float)
+	total += _gap_sum
 	var top: float = root_y - total * 0.5
 	var cur: float = top
 	for c in children:
 		var span: float = sp.get(c, est_h.get(c, 140.0) as float)
 		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + span, root_x + dirv * col_gap, dirv, col_gap)
-		cur += span + 20.0
+		cur += span + _sib_gap(span)
 
 
 ## 递归布点：父居其子带中央；子带按各自子树带长精确切分（不足则居中留白），兄弟带间保证 ≥15px，绝不溢出交叠

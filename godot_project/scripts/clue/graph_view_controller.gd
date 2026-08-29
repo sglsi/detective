@@ -47,6 +47,7 @@ var _state_store: Dictionary = {}
 var _placed_clues: Array = []
 var _auto_fold: bool = false
 var _case_wide: bool = false
+var _teaching: bool = false                   # 教学墙（场景一 watson/messenger）：禁用结论 gate 自动补边，关系由玩家逐个手动建立
 var _manual_nodes: Array = []
 var _root_anchor_pos: Dictionary = {}   # 第8节改造（A①+B①）：仅「关系树根」(人物/无人物的结论) 的位置被手动锁定并持久化
 var _carried_ids: Array = []            # 开墙时已存在（上一场景携带）的节点 id；布局据此与「本场景新内容」分区域放置
@@ -273,6 +274,7 @@ func build(data: Dictionary) -> void:
 	_show_toolbar = data.get("show_toolbar", false)
 	_auto_fold = data.get("auto_fold", false)
 	_case_wide = data.get("case_wide", false)
+	_teaching = data.get("teaching", false)
 	_scene_clue_ids = data.get("scene_clue_ids", [])
 
 	# 视图记忆恢复（09 R-3）：读 SaveGame/state_store
@@ -2492,7 +2494,8 @@ func _derive_hypo(cid: String, hid: String) -> void:
 	_persist_view()
 	_rebuild_graph()
 	_focus_on(hid)
-	_sync_conclusion_gate_edges()   # 新推断上墙后，相关结论（gate 含此推断）自动补边，结论链随推导逐步闭合
+	if not _teaching:
+		_sync_conclusion_gate_edges()   # 新推断上墙后，相关结论（gate 含此推断）自动补边，结论链随推导逐步闭合（教学墙由玩家手动建立，不自动补）
 	# 正向推导：选推断后若场景有任意「按难度可见」的预设结论，自动弹结论候选窗（列出全部候选，玩家任选其一）
 	var _cons: Array = _hypo.get("battlefield", {}).get("conclusions", [])
 	var _has_cand: bool = false
@@ -2522,7 +2525,8 @@ func _derive_hypo_from_hypo(src_hid: String, dst_hid: String) -> void:
 	adopt_candidate(hd, false, src_hid)   # 锚定到源推断落点防叠加
 	if not any_edge(src_hid, dst_hid) and not _relations.any(func(r): return r.get("from", "") == src_hid and r.get("to", "") == dst_hid):
 		_edge._add_edge(src_hid, dst_hid, "support", "green", false)
-	_sync_conclusion_gate_edges()   # 新推断上墙后，相关结论自动补 gate 边
+	if not _teaching:
+		_sync_conclusion_gate_edges()   # 新推断上墙后，相关结论自动补 gate 边（教学墙不自动补）
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
@@ -2589,7 +2593,10 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 		_edge._add_edge(hid, nid, "support", "green", false)
 	# 方案B：结论可由多个推断/结论共推（gate_hypo_ids）。每次推导后同步所有已推导结论的 gate 边，
 	# 使「结论链」随推断逐步上墙自动闭合（如 C-MAIN 由 W-A1+W-B1+W-C3 共推）。
-	_sync_conclusion_gate_edges()
+	# 教学墙（_teaching）不自动补：玩家从某推断推导结论时只建该「推断→结论」一条边，
+	# 其余 gate 推断→同一结论的边由玩家按需手动建立（避免「选一条却画出多条」）。
+	if not _teaching:
+		_sync_conclusion_gate_edges()
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
