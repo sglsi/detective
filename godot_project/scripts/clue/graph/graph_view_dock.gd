@@ -270,7 +270,7 @@ func _open_free_link(cid: String) -> void:
 	var pb := _mk_link_target("★ %s（星型归属）" % pname)
 	pb.pressed.connect(func(): _confirm_link(cid, owner._focus_person, "person"))
 	vb.add_child(pb)
-	for h in owner._hypo.get("battlefield", {}).get("hypotheses", []):
+	for h in owner._hypo_current.get("hypotheses", []):
 		if not owner._hypo_preset_visible(h):
 			continue
 		var hb := _mk_link_target("推断：%s" % h.get("text", h.get("id", "?")))
@@ -372,7 +372,7 @@ func _open_derive_popup(cid: String) -> void:
 ## 不再按 gate_clue_ids / gate_hypo_ids 过滤（与结论候选窗一致：gate 仅作后台触发与正确判定口径，
 ## 给玩家自由组链空间）。按数据顺序排列、不排序、不标注来源。
 func _derive_candidates() -> Array:
-	var hypos: Array = owner._hypo.get("battlefield", {}).get("hypotheses", [])
+	var hypos: Array = owner._hypo_current.get("hypotheses", [])
 	var out := []
 	for h in hypos:
 		if not owner._hypo_preset_visible(h):
@@ -395,7 +395,7 @@ func _derive_confirm(cid: String, hid: String) -> void:
 ## 候选口径：列出 gate_hypo_ids 含源推断 src_hid 的预设推断（难度过滤后），随机排列。
 func _open_hypo_derive_popup(src_hid: String) -> void:
 	_close_link_popup()
-	var hypos: Array = owner._hypo.get("battlefield", {}).get("hypotheses", [])
+	var hypos: Array = owner._hypo_current.get("hypotheses", [])
 	var cands := []
 	for h in hypos:
 		if src_hid in h.get("gate_hypo_ids", []):
@@ -468,7 +468,7 @@ func _open_conclusion_popup(hid: String) -> void:
 	_close_link_popup()
 	# 候选口径：列出本场景全部结论（按难度过滤），不按 gate_hypo_ids 过滤、不排序、不标注来源，
 	# 随机排列，让玩家从多条里选（含误导项，简单模式仅正确项）。gate_hypo_ids 仅作后台触发口径。
-	var cons: Array = owner._hypo.get("battlefield", {}).get("conclusions", [])
+	var cons: Array = owner._hypo_current.get("conclusions", [])
 	var cands := []
 	for c in cons:
 		if _conclusion_preset_visible(c):

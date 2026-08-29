@@ -37,6 +37,7 @@ var _dockctl: GraphViewDock   # 左线索栏 dock 逻辑（注意：_dock 已用
 # === 入参数据（由推理墙传入，本控制器只读 + 通过回调回写）===
 var _clues: Array = []
 var _hypo: Dictionary = {}
+var _hypo_current: Dictionary = {}   # 当前场景专属 battlefield（仅本场景预设推断/结论），供弹窗候选列表；与 _hypo（跨场景并集，供 def 检索）分离
 var _relations: Array = []          # [{from, to, kind}]  kind∈ support/oppose/contradict/relate
 var _persons: Array = []            # [{id, name}]
 var _focus_person: String = ""
@@ -254,6 +255,8 @@ var _export_panel: Control = null    # 导出结果面板
 func build(data: Dictionary) -> void:
 	_clues = data.get("clues", [])
 	_hypo = data.get("hypo", {})
+	# 当前场景专属 battlefield（来自调用方传入的 current_battlefield）；缺省回退到 _hypo.battlefield（教学/测试兼容）。
+	_hypo_current = data.get("current_battlefield", _hypo.get("battlefield", {}))
 	_relations = data.get("relations", [])
 	_persons = data.get("persons", [])
 	_focus_person = data.get("focus_person", "")
@@ -760,21 +763,10 @@ func _node_list() -> Array:
 				"label": _p_c.get("name", _p_cid), "sub": _data._clue_sub(_p_c),
 				"color": _data._clue_color(_p_c), "data": _p_c, "common": _common_clues.has(_p_cid)})
 			_in_list[_p_cid] = true
-		# 第二圈：推断（来自 battlefield.hypotheses；跨场景累积·任务 09：当前场景及之前的并集始终作为预设节点上墙，
-		# 不再仅当「关系端点」才出现——根治前一场景推断因与人物根断连而不显示的信息缺失）。
-		# 教学墙（watson/messenger）不预铺推断：由玩家从线索手动推导，避免教学墙一打开就铺满推断/结论。
-		if _teaching:
-			pass
-		else:
-			for h in _hypo.get("battlefield", {}).get("hypotheses", []):
-				var hid := str(h.get("id", ""))
-				if hid == "": continue
-				if _in_list.has(hid): continue
-				var _mis := str(h.get("kind", "")) == "mislead"
-				list.append({"id": hid, "kind": "hypo",
-					"label": h.get("text", hid), "sub": "推断",
-					"color": COL_GOLD if _mis else COL_HYPO_BG, "data": h, "mislead": _mis})
-				_in_list[hid] = true
+		# 第二圈：推断——不再自动铺 battlefield 预设节点。
+		# 画布保持干净（仅线索节点 + 玩家已建节点 + 自定义文本框），推断/结论由玩家从「拖入线索/推导」弹窗
+		# 手动创建（adopt_candidate 写入持久化 _graph_nodes，跨场景经 case_wall_state 携带）。
+		# 这样场景二及之后不再一开墙就铺满其他场景的推断/结论（问题1/2）。
 		# 第三圈：推理链 + 结论（结论统一在函数末尾追加一次，避免 MODE_C 下出现两个结论文本框，问题4）
 		var chain_id: String = _hypo.get("chain_id", "")
 		if chain_id != "":
@@ -794,25 +786,8 @@ func _node_list() -> Array:
 		if chain_id2 != "":
 			list.append({"id": "chain:" + chain_id2, "kind": "chain",
 				"label": "#" + str(chain_id2), "sub": "推理链", "color": COL_GOLD, "data": {}})
-	# 第三圈：结论（多实例）—— ① 战场预设结论（battlefield.conclusions，当前场景及之前并集，始终上墙）。
-	# 教学墙不预铺结论：结论由玩家从推断手动推导后动态加入（_derived_conclusions）。
-	var _derived_ids := {}
-	for _dc in _derived_conclusions:
-		_derived_ids[str(_dc.get("id", ""))] = true
-	for c in _hypo.get("battlefield", {}).get("conclusions", []):
-		if _teaching:
-			continue
-		var _cid := str(c.get("id", ""))
-		if _cid == "":
-			continue
-		if _derived_ids.has(_cid):
-			continue   # 与玩家推导结论同 id 去重
-		var _cnid: String = _conclusion_node_id(_cid)
-		if _in_list.has(_cnid):
-			continue
-		list.append({"id": _cnid, "kind": "conclusion",
-			"label": c.get("text", _cid), "sub": "结论", "color": _data._verdict_color(), "data": c})
-		_in_list[_cnid] = true
+	# 第三圈：结论——不再自动铺 battlefield 预设结论（画布清干净；
+	# 结论由玩家从「推断推导结论」弹窗手动推导后动态加入 _derived_conclusions，跨场景经 case_wall_state 携带）。
 	# ② 玩家推导结论（_derived_conclusions）
 	if not _derived_conclusions.is_empty():
 		for _dc in _derived_conclusions:
@@ -2504,7 +2479,7 @@ func _derive_hypo(cid: String, hid: String) -> void:
 	if not _teaching:
 		_sync_conclusion_gate_edges()   # 新推断上墙后，相关结论（gate 含此推断）自动补边，结论链随推导逐步闭合（教学墙由玩家手动建立，不自动补）
 	# 正向推导：选推断后若场景有任意「按难度可见」的预设结论，自动弹结论候选窗（列出全部候选，玩家任选其一）
-	var _cons: Array = _hypo.get("battlefield", {}).get("conclusions", [])
+	var _cons: Array = _hypo_current.get("conclusions", [])
 	var _has_cand: bool = false
 	for _c in _cons:
 		if _dockctl._conclusion_preset_visible(_c):
@@ -2539,7 +2514,7 @@ func _derive_hypo_from_hypo(src_hid: String, dst_hid: String) -> void:
 	_rebuild_graph()
 	_focus_on(dst_hid)
 	# 同 _derive_hypo：选推断后若场景有可见预设结论，自动弹结论候选窗
-	var _cons: Array = _hypo.get("battlefield", {}).get("conclusions", [])
+	var _cons: Array = _hypo_current.get("conclusions", [])
 	var _has_cand: bool = false
 	for _c in _cons:
 		if _dockctl._conclusion_preset_visible(_c):
@@ -2602,11 +2577,13 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 	# 使「结论链」随推断逐步上墙自动闭合（如 C-MAIN 由 W-A1+W-B1+W-C3 共推）。
 	# 教学墙（_teaching）不自动补：玩家从某推断推导结论时只建该「推断→结论」一条边，
 	# 其余 gate 推断→同一结论的边由玩家按需手动建立（避免「选一条却画出多条」）。
-	if not _teaching:
-		_sync_conclusion_gate_edges()
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
+	# 必须在 _rebuild_graph 之后同步：结论节点此刻才进入 _node_center，
+	# 否则 _sync_conclusion_gate_edges 会因「结论节点尚未生成」跳过（旧设计靠自动铺预设掩盖此顺序 bug）。
+	if not _teaching:
+		_sync_conclusion_gate_edges()
 	_focus_on(nid)
 	var desc: String = ""
 	if con_id.begins_with("custom"):

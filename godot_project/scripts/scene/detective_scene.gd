@@ -423,13 +423,18 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var hypo: Dictionary = {}
 	if use_case_wide:
 		var reg_script = load("res://data/case_reasoning_registry.gd")
-		# 跨场景累积：只取「当前场景及之前」的预设推断/结论并集，避免场景二打开就铺出 scene2~8 全部节点。
+		# 跨场景累积：只取「当前场景及之前」的预设推断/结论并集，供 _hypo（def 检索/携带节点文本回退）使用，
+		# 保证跨场景携带的预设节点在下一场景仍能取到正确文本（_conclusion_def/_hypo_def）。
 		hypo = reg_script.get_hypo_union_up_to(scene_id())
 		var cur: Dictionary = reasoning_hypothesis()
 		hypo["title"] = cur.get("title", "")
 		hypo["description"] = cur.get("description", "")
+		# 当前场景专属 battlefield：仅本场景的预设推断/结论，供「拖入线索/推导」弹窗候选列表使用，
+		# 不再把其他场景（scene2~N-1）的推断/结论混进选择项（问题2：一张表污染选择列表）。
+		hypo["current_battlefield"] = cur.get("battlefield", {})
 	else:
 		hypo = hypothesis if not hypothesis.is_empty() else reasoning_hypothesis()
+		hypo["current_battlefield"] = hypo.get("battlefield", {})
 	# 未显式给定 expected_clues 时，用「本场景已收集条数」作观察星分母，避免全案池扩大抬高观察星
 	if not hypo.has("expected_clues"):
 		hypo["expected_clues"] = local_count
