@@ -186,7 +186,7 @@ const _IDENTITY_REVEAL_GATES := {
 }
 
 ## 身份揭示门控（需求2）：判定某 NPC 是否应以"已知人物"出现。live 为当前已收集线索。
-func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable(), auto_fold: bool = false, scene_clue_ids: Array = []) -> void:
+func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable(), auto_fold: bool = false, scene_clue_ids: Array = [], case_wide_override: bool = false) -> void:
 	_state_ctl = WallState.new()
 	_state_ctl.owner = self
 	_clue_ctl = WallClueLibrary.new()
@@ -214,7 +214,9 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_on_advance = on_advance
 	_on_persist = on_persist
 	_auto_fold = auto_fold
-	_case_wide = auto_fold
+	# 解耦：case_wide(全案墙·列全部人物) 与 auto_fold(开墙自动折叠) 不再同源。
+	# 跨场景累积改造后 auto_fold 恒 false（玩家自主折叠），case_wide 由调用方显式指定。
+	_case_wide = case_wide_override if case_wide_override else auto_fold
 	_scene_clue_ids = scene_clue_ids
 	_battle = hypothesis.get("battlefield", {})
 	_case_name = hypothesis.get("case_name", _case_name)
