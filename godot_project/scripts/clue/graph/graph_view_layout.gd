@@ -464,10 +464,10 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 		out[idf] = _clamp_to_canvas(out[idf])
 
 
-## 兄弟节点垂直间距：文本框高度的一半（用户要求；此前硬编码 20px 过窄，卡片几乎贴在一起）。
-## 下限 30 防止极矮节点间距过小。
+## 兄弟节点垂直间距：取文本框高度的 0.35（折中：此前 20px 过窄贴在一起，0.5h 在节点多时又过于松散）。
+## 下限 24 防止极矮节点间距过小。
 func _sib_gap(h: float) -> float:
-	return maxf(h * 0.5, 30.0)
+	return maxf(h * 0.35, 24.0)
 
 
 ## 把一组同侧子节点从 root 沿 dirv 方向逐列向外排布（复用 _assign_subtree 递归子树）

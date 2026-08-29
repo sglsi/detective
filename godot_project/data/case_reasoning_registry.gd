@@ -28,6 +28,10 @@ const SCENE_SCRIPTS := [
 	"res://scripts/scene/scene8.gd",
 ]
 
+## 场景顺序，用于「只取当前场景及之前」的过滤（跨场景累积：场景N = 场景2..N 的并集，
+## 避免场景二一打开就铺出 scene2~8 全部节点）。
+const SCENE_ORDER := ["scene2", "scene3", "scene4", "scene5", "scene6", "scene7", "scene8"]
+
 static var _nodes_by_id: Dictionary = {}   # id -> 节点 dict（推断或结论）
 static var _scene_of: Dictionary = {}      # id -> 来源场景 id（对照/检索）
 static var _hyps: Array = []               # 推断节点列表（去重）
@@ -79,6 +83,34 @@ static func get_hypo_union() -> Dictionary:
 		"title": "",
 		"description": "",
 		"battlefield": {"hypotheses": _hyps.duplicate(true), "conclusions": _cons.duplicate(true)}
+	}
+
+## 只取到指定场景（含）为止的并集。跨场景累积语义：场景N 开墙时带入场景2..N 的预设推断/结论，
+## 而不是全案 2~8 全部铺出（场景二不应看到场景八的推断）。
+## scene_id 不在 SCENE_ORDER 中时返回空并集（安全兜底）。
+static func get_hypo_union_up_to(scene_id: String) -> Dictionary:
+	_ensure_built()
+	var allowed: Dictionary = {}
+	var include := false
+	for sid in SCENE_ORDER:
+		if sid == scene_id:
+			include = true
+		if include:
+			allowed[sid] = true
+	var hyps: Array = []
+	var cons: Array = []
+	for h in _hyps:
+		var hid: String = str(h.get("id", ""))
+		if allowed.has(_scene_of.get(hid, "")):
+			hyps.append(h.duplicate(true))
+	for c in _cons:
+		var cid: String = str(c.get("id", ""))
+		if allowed.has(_scene_of.get(cid, "")):
+			cons.append(c.duplicate(true))
+	return {
+		"title": "",
+		"description": "",
+		"battlefield": {"hypotheses": hyps, "conclusions": cons}
 	}
 
 ## 全部推断+结论节点（去重后，深拷贝）。

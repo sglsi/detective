@@ -423,7 +423,8 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var hypo: Dictionary = {}
 	if use_case_wide:
 		var reg_script = load("res://data/case_reasoning_registry.gd")
-		hypo = reg_script.get_hypo_union()
+		# 跨场景累积：只取「当前场景及之前」的预设推断/结论并集，避免场景二打开就铺出 scene2~8 全部节点。
+		hypo = reg_script.get_hypo_union_up_to(scene_id())
 		var cur: Dictionary = reasoning_hypothesis()
 		hypo["title"] = cur.get("title", "")
 		hypo["description"] = cur.get("description", "")

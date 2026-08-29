@@ -760,17 +760,21 @@ func _node_list() -> Array:
 				"label": _p_c.get("name", _p_cid), "sub": _data._clue_sub(_p_c),
 				"color": _data._clue_color(_p_c), "data": _p_c, "common": _common_clues.has(_p_cid)})
 			_in_list[_p_cid] = true
-		# 第二圈：推断（来自 battlefield.hypotheses；跨场景累积·任务 09：全场景并集始终作为预设节点上墙，
-		# 不再仅当「关系端点」才出现——根治前一场景推断因与人物根断连而不显示的信息缺失）
-		for h in _hypo.get("battlefield", {}).get("hypotheses", []):
-			var hid := str(h.get("id", ""))
-			if hid == "": continue
-			if _in_list.has(hid): continue
-			var _mis := str(h.get("kind", "")) == "mislead"
-			list.append({"id": hid, "kind": "hypo",
-				"label": h.get("text", hid), "sub": "推断",
-				"color": COL_GOLD if _mis else COL_HYPO_BG, "data": h, "mislead": _mis})
-			_in_list[hid] = true
+		# 第二圈：推断（来自 battlefield.hypotheses；跨场景累积·任务 09：当前场景及之前的并集始终作为预设节点上墙，
+		# 不再仅当「关系端点」才出现——根治前一场景推断因与人物根断连而不显示的信息缺失）。
+		# 教学墙（watson/messenger）不预铺推断：由玩家从线索手动推导，避免教学墙一打开就铺满推断/结论。
+		if _teaching:
+			pass
+		else:
+			for h in _hypo.get("battlefield", {}).get("hypotheses", []):
+				var hid := str(h.get("id", ""))
+				if hid == "": continue
+				if _in_list.has(hid): continue
+				var _mis := str(h.get("kind", "")) == "mislead"
+				list.append({"id": hid, "kind": "hypo",
+					"label": h.get("text", hid), "sub": "推断",
+					"color": COL_GOLD if _mis else COL_HYPO_BG, "data": h, "mislead": _mis})
+				_in_list[hid] = true
 		# 第三圈：推理链 + 结论（结论统一在函数末尾追加一次，避免 MODE_C 下出现两个结论文本框，问题4）
 		var chain_id: String = _hypo.get("chain_id", "")
 		if chain_id != "":
@@ -790,11 +794,14 @@ func _node_list() -> Array:
 		if chain_id2 != "":
 			list.append({"id": "chain:" + chain_id2, "kind": "chain",
 				"label": "#" + str(chain_id2), "sub": "推理链", "color": COL_GOLD, "data": {}})
-	# 第三圈：结论（多实例）—— ① 战场预设结论（battlefield.conclusions，跨场景并集，始终上墙）
+	# 第三圈：结论（多实例）—— ① 战场预设结论（battlefield.conclusions，当前场景及之前并集，始终上墙）。
+	# 教学墙不预铺结论：结论由玩家从推断手动推导后动态加入（_derived_conclusions）。
 	var _derived_ids := {}
 	for _dc in _derived_conclusions:
 		_derived_ids[str(_dc.get("id", ""))] = true
 	for c in _hypo.get("battlefield", {}).get("conclusions", []):
+		if _teaching:
+			continue
 		var _cid := str(c.get("id", ""))
 		if _cid == "":
 			continue
