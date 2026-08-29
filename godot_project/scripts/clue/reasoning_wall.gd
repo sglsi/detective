@@ -53,6 +53,7 @@ var _last_stars: Dictionary = {"observation": 1, "reasoning": 1, "insight": 1}
 
 # === 战场状态 ===
 var _battle: Dictionary = {}
+var _battle_current: Dictionary = {}   # 当前场景专属 battlefield（仅本场景预设推断/结论），供验证报告比对；与 _battle（跨场景并集）分离
 var _battle_hypo_states: Dictionary = {}     # id -> 0未定/1采纳/2排除
 var _battle_contra_states: Dictionary = {}   # id -> bool
 var _battle_hypo_btns: Dictionary = {}
@@ -221,6 +222,7 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_teaching = teaching
 	_scene_clue_ids = scene_clue_ids
 	_battle = hypothesis.get("battlefield", {})
+	_battle_current = hypothesis.get("current_battlefield", hypothesis.get("battlefield", {}))
 	_case_name = hypothesis.get("case_name", _case_name)
 	_chain_id = hypothesis.get("chain_id", "")
 	_expected_clues = hypothesis.get("expected_clues", _clues.size())
@@ -940,6 +942,7 @@ func _on_open_graph_view() -> void:
 		"auto_fold": _auto_fold,
 		"case_wide": _case_wide,
 		"teaching": _teaching,
+		"current_battlefield": _hypothesis.get("current_battlefield", {}),
 		"scene_clue_ids": _scene_clue_ids,
 		"on_tag": Callable(_rel_ctl, "_gv_tag_person"),
 		"on_relations_changed": Callable(self, "_gv_relations_changed"),

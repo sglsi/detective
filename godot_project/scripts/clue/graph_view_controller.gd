@@ -227,6 +227,10 @@ var _dock_start: Vector2 = Vector2.ZERO
 # === 「推断/结论」建议弹窗 ===
 var _link_popup: Control = null
 var _link_popup_clue_id: String = ""
+# 弹窗统一拖动（与验证窗口同款拖拽机制）：标题栏按下置位，_input 中实时跟手
+var _popup_dragging := false
+var _popup_drag_panel: PanelContainer = null
+var _popup_drag_offset: Vector2 = Vector2.ZERO
 
 # === 图谱内拖拽笔（落点建关系时使用）===
 var _drag_color_key: String = "green"
@@ -256,7 +260,7 @@ func build(data: Dictionary) -> void:
 	_clues = data.get("clues", [])
 	_hypo = data.get("hypo", {})
 	# 当前场景专属 battlefield（来自调用方传入的 current_battlefield）；缺省回退到 _hypo.battlefield（教学/测试兼容）。
-	_hypo_current = data.get("current_battlefield", _hypo.get("battlefield", {}))
+	_hypo_current = data.get("current_battlefield", data.get("hypo", {}).get("current_battlefield", _hypo.get("battlefield", {})))
 	_relations = data.get("relations", [])
 	_persons = data.get("persons", [])
 	_focus_person = data.get("focus_person", "")
@@ -2700,6 +2704,15 @@ func _clear_drag_preview() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# === 弹窗拖动（统一可拖拽窗口）— 优先于节点/连线拖动处理 ===
+	if _popup_dragging and _popup_drag_panel and is_instance_valid(_popup_drag_panel):
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+			_popup_dragging = false
+			return
+		if event is InputEventMouseMotion:
+			_popup_drag_panel.global_position = get_viewport().get_mouse_position() - _popup_drag_offset
+			get_viewport().set_input_as_handled()
+			return
 	# === 节点拖动（move / edge）— 必须在 dock 拖动前处理 ===
 	if _dragging and _drag_id != "":
 		if event is InputEventMouseMotion:
