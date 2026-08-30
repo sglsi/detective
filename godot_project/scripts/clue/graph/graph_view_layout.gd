@@ -330,6 +330,20 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 		if _tgt == "": continue
 		var _pid: String = _tgt.substr("person:".length()) if _tgt.begins_with("person:") else _tgt
 		add_parent.call(_nid, _pid)
+	# 人物↔其相关线索（related_npcs）结构边：与 _build_adjacency 同口径。
+	# 使「把线索拖到人物上打标签」的线索归入对应人物子树——此前这类线索靠下方「孤立根统一并入主根」的
+	# hack 才能挂到人物下，而该 hack 会把「完全孤立（未连线也未打标签）的线索」也并入人物、导致人物一拖
+	# 孤立线索就跟着移动（不符合玩家预期）。改为显式从 related_npcs 建父子边：
+	#   - 已打标签的线索 → 经此获得父节点 → 正确挂在对应人物下（功能保留）；
+	#   - 完全孤立的线索 → 此处无父 → 最终走 L443 孤立落位 → 保持独立、不随人物拖动移动。
+	for _rc in owner._clues:
+		var _rcid: String = str(_rc.get("id", ""))
+		if _rcid == "": continue
+		for _p in _rc.get("related_npcs", []):
+			# 用 _fold._kind_of 解析（与布局其余 kind 判定一致，且不依赖 _node_kind 时序）：
+			# 该 NPC 确实作为人物节点在图上才连（_node_kind 在 _compute_layout 时尚未回填，不可用）。
+			if owner._fold._kind_of(_p) == "person":
+				add_parent.call(_rcid, _p)
 
 	# 解析唯一父：多个候选父时取 ring_depth 更大者（更靠近结论/人物的上层），保持推断组合链紧凑
 	var parent_of := {}
@@ -372,6 +386,11 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 	for rt in roots:
 		if rt == main_root: continue
 		if owner._fold._kind_of(rt) == "person": continue   # 其他人物根保持独立放射
+		# ⚠️ 修复（孤立线索独立性）：孤立「线索」不再并入主根——已打标签的线索已通过上方
+		# related_npcs 结构边获得父节点（挂在对应人物下）；完全孤立的线索应独立、不随人物拖动移动。
+		# 仅推断/结论/链类孤立根并入主根，保持「删除关系后变成根的推断/结论」统一左右放射、
+		# 避免多根各自放射导致相邻子树带重叠（原意图保留）。
+		if owner._fold._kind_of(rt) == "clue": continue
 		if not (rt in child_map[main_root]):
 			child_map[main_root].append(rt)
 
