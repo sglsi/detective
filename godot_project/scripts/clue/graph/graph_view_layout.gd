@@ -99,7 +99,7 @@ func _node_rect(id: String) -> Rect2:
 func _node_width_for_kind(kind: String) -> float:
 	# 2026-08-21：宽度整体减半（配合文本框自适应窄化，环径估算同步收紧）
 	match kind:
-		"clue":       return 160.0
+		"clue":       return 320.0   # 需求6：线索文本框宽度加倍（160→320），碰撞估算同步放宽避免重叠
 		"hypo":       return 140.0
 		"conclusion": return 160.0
 		"chain":      return 125.0
@@ -305,57 +305,8 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 ## 根的直接子节点按左右扇区分派，每子树按估算带长分配独立上下带，再递归向外放射；
 ## 同侧多分支不再共享同一垂直列，避免堆叠重叠。超出画布由 fit_view 缩放看全。
 func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, out: Dictionary) -> void:
-	# 节点种类层（与折叠圈层一致）：人物/事件=0 > 结论=1 > 推断/链=2 > 线索=3
-	var RD := {"person": 0, "event": 0, "conclusion": 1, "hypo": 2, "chain": 2, "clue": 3}
-	var rd_of := func(id: String) -> int:
-		return RD.get(owner._fold._kind_of(id), 3)
-
-	# 收集「子 → 候选父」：仅 support/target 两种有向关系定义推理树（from=子，to=父）
-	var parent_cand := {}
-	var add_parent := func(child: String, parent: String) -> void:
-		if child == "" or parent == "" or child == parent: return
-		if not parent_cand.has(child): parent_cand[child] = []
-		if not (parent in parent_cand[child]): parent_cand[child].append(parent)
-	for r in owner._relations:
-		var k: String = r.get("kind", "")
-		if k != "support" and k != "target": continue
-		add_parent.call(str(r.get("from", "")), str(r.get("to", "")))
-	# 结论领域 target 金边（conclusion → person:XXX）不在 _relations 中，单独补：结论作子、人物作父
-	for _dc in owner._derived_conclusions:
-		var _cid: String = str(_dc.get("id", ""))
-		if _cid == "": continue
-		var _nid: String = "conclusion_" + _cid
-		var _cdef: Dictionary = owner._conclusion_def(_cid)
-		var _tgt: String = _cdef.get("target", "")
-		if _tgt == "": continue
-		var _pid: String = _tgt.substr("person:".length()) if _tgt.begins_with("person:") else _tgt
-		add_parent.call(_nid, _pid)
-	# 人物↔其相关线索（related_npcs）结构边：与 _build_adjacency 同口径。
-	# 使「把线索拖到人物上打标签」的线索归入对应人物子树——此前这类线索靠下方「孤立根统一并入主根」的
-	# hack 才能挂到人物下，而该 hack 会把「完全孤立（未连线也未打标签）的线索」也并入人物、导致人物一拖
-	# 孤立线索就跟着移动（不符合玩家预期）。改为显式从 related_npcs 建父子边：
-	#   - 已打标签的线索 → 经此获得父节点 → 正确挂在对应人物下（功能保留）；
-	#   - 完全孤立的线索 → 此处无父 → 最终走 L443 孤立落位 → 保持独立、不随人物拖动移动。
-	for _rc in owner._clues:
-		var _rcid: String = str(_rc.get("id", ""))
-		if _rcid == "": continue
-		for _p in _rc.get("related_npcs", []):
-			# 用 _fold._kind_of 解析（与布局其余 kind 判定一致，且不依赖 _node_kind 时序）：
-			# 该 NPC 确实作为人物节点在图上才连（_node_kind 在 _compute_layout 时尚未回填，不可用）。
-			if owner._fold._kind_of(_p) == "person":
-				add_parent.call(_rcid, _p)
-
-	# 解析唯一父：多个候选父时取 ring_depth 更大者（更靠近结论/人物的上层），保持推断组合链紧凑
-	var parent_of := {}
-	for ch in parent_cand:
-		var best: String = ""
-		var best_rd: int = -1
-		for p in parent_cand[ch]:
-			var rd: int = rd_of.call(p)
-			if rd > best_rd:
-				best_rd = rd
-				best = p
-		parent_of[ch] = best
+	# 收集「子 → 候选父」并解析唯一父（抽为 _build_parent_of，布局与拖拽子树计算共用口径）
+	var parent_of := _build_parent_of()
 
 	# 父子表 + 根集合（从未作为任何子出现的节点 = 根）
 	var child_map := {}
@@ -385,14 +336,11 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 		child_map[main_root] = []
 	for rt in roots:
 		if rt == main_root: continue
-		if owner._fold._kind_of(rt) == "person": continue   # 其他人物根保持独立放射
-		# ⚠️ 修复（孤立线索独立性）：孤立「线索」不再并入主根——已打标签的线索已通过上方
-		# related_npcs 结构边获得父节点（挂在对应人物下）；完全孤立的线索应独立、不随人物拖动移动。
-		# 仅推断/结论/链类孤立根并入主根，保持「删除关系后变成根的推断/结论」统一左右放射、
-		# 避免多根各自放射导致相邻子树带重叠（原意图保留）。
-		if owner._fold._kind_of(rt) == "clue": continue
-		if not (rt in child_map[main_root]):
-			child_map[main_root].append(rt)
+		if owner._fold._kind_of(rt) == "person": continue   # 其它人物根各自独立放射
+		# 需求：推断/结论/链类的孤立根（删除关系后变根、或本就无父）也不再并入主根，
+		# 各自独立散布（碰撞感知落位），与孤立线索一致；避免「删除关系后变成根的推断/结论」
+		# 被强行并入主根放射带，也避免它们随人物拖动而移动。
+		continue
 
 	# BFS：标记所有树内节点并求最大深度（用于自适应列间距）
 	var assigned := {}
@@ -527,6 +475,75 @@ func _is_tree_root(id: String) -> bool:
 	return true
 
 
+## 推理树「唯一父」映射（布局与拖拽子树计算共用口径）：from=子，to=父；
+## 多个候选父取 ring_depth 更大者（更靠近结论/人物的上层），保持推断组合链紧凑。
+func _build_parent_of() -> Dictionary:
+	var RD := {"person": 0, "event": 0, "conclusion": 1, "hypo": 2, "chain": 2, "clue": 3}
+	var rd_of := func(id: String) -> int:
+		return RD.get(owner._fold._kind_of(id), 3)
+	var parent_cand := {}
+	var add_parent := func(child: String, parent: String) -> void:
+		if child == "" or parent == "" or child == parent: return
+		if not parent_cand.has(child): parent_cand[child] = []
+		if not (parent in parent_cand[child]): parent_cand[child].append(parent)
+	for r in owner._relations:
+		var k: String = r.get("kind", "")
+		if k != "support" and k != "target": continue
+		add_parent.call(str(r.get("from", "")), str(r.get("to", "")))
+	# 结论领域 target 金边（conclusion → person:XXX）不在 _relations 中，单独补：结论作子、人物作父
+	for _dc in owner._derived_conclusions:
+		var _cid: String = str(_dc.get("id", ""))
+		if _cid == "": continue
+		var _nid: String = "conclusion_" + _cid
+		var _cdef: Dictionary = owner._conclusion_def(_cid)
+		var _tgt: String = _cdef.get("target", "")
+		if _tgt == "": continue
+		var _pid: String = _tgt.substr("person:".length()) if _tgt.begins_with("person:") else _tgt
+		add_parent.call(_nid, _pid)
+	# 人物↔其相关线索（related_npcs）结构边：与 _build_adjacency 同口径。
+	# 使「把线索拖到人物上打标签」的线索归入对应人物子树；完全孤立线索此处无父→保持独立。
+	for _rc in owner._clues:
+		var _rcid: String = str(_rc.get("id", ""))
+		if _rcid == "": continue
+		for _p in _rc.get("related_npcs", []):
+			if owner._fold._kind_of(_p) == "person":
+				add_parent.call(_rcid, _p)
+	var parent_of := {}
+	for ch in parent_cand:
+		var best: String = ""
+		var best_rd: int = -1
+		for p in parent_cand[ch]:
+			var rd: int = rd_of.call(p)
+			if rd > best_rd:
+				best_rd = rd
+				best = p
+		parent_of[ch] = best
+	return parent_of
+
+
+## 拖拽子树：返回 id 的全部后代（不含自身），沿 _build_parent_of 的同款有向父子边 BFS。
+## 用于「拖动结论/推断时其分枝/叶子随之一并移动」（需求3）。
+func _descendants(id: String) -> Array:
+	var parent_of := _build_parent_of()
+	var child_map := {}
+	for ch in parent_of:
+		var p: String = parent_of[ch]
+		if not child_map.has(p): child_map[p] = []
+		if not (ch in child_map[p]): child_map[p].append(ch)
+	var out: Array = []
+	var seen := {}
+	seen[id] = true
+	var q := [id]
+	while q.size() > 0:
+		var u: String = q.pop_back()
+		for c in child_map.get(u, []):
+			if seen.has(c): continue
+			seen[c] = true
+			out.append(c)
+			q.append(c)
+	return out
+
+
 ## 后续遍历收集拓扑序，据此自底向上算子树叶子高
 func _collect_high(roots: Array, child_map: Dictionary, high: Dictionary) -> void:
 	var order := []
@@ -598,6 +615,10 @@ func _assign_subtree(u: String, child_map: Dictionary, sp: Dictionary, est_h: Di
 		out[u] = Vector2(out[u].x, mid_y)
 	else:
 		out[u] = Vector2(pxx, mid_y)
+	# 需求3/5：叠加本节点的相对偏移（相对「父派生位」）。父已含偏移→子随父移动；
+	# 结论/推断被手动拖动后，其偏移相对父派生位，故人物移动时结论仍跟随（不脱离父）。
+	var off: Vector2 = owner._node_offsets.get(u, Vector2.ZERO)
+	out[u] += off
 	var ch: Array = child_map.get(u, [])
 	if ch.is_empty():
 		return
@@ -605,10 +626,14 @@ func _assign_subtree(u: String, child_map: Dictionary, sp: Dictionary, est_h: Di
 	for _c in ch:
 		totalSpan += sp.get(_c, 140.0) as float
 	totalSpan += 20.0 * (float(ch.size()) - 1.0)
-	var cur: float = top + maxf(0.0, ((bot - top) - totalSpan) * 0.5)
+	# 子树整体随本节点偏移平移：x 取本节点最终 x，y 带整体下移 off.y（需求3/5）
+	var base_x: float = out[u].x
+	var band_top: float = top + off.y
+	var band_bot: float = bot + off.y
+	var cur: float = band_top + maxf(0.0, ((band_bot - band_top) - totalSpan) * 0.5)
 	for c in ch:
 		var _h: float = sp.get(c, 140.0) as float
-		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + _h, pxx + dirv * col_gap, dirv, col_gap)
+		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + _h, base_x + dirv * col_gap, dirv, col_gap)
 		cur += _h + 20.0
 
 
