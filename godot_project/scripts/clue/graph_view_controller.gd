@@ -51,6 +51,7 @@ var _case_wide: bool = false
 var _teaching: bool = false                   # 教学墙（场景一 watson/messenger）：禁用结论 gate 自动补边，关系由玩家逐个手动建立
 var _manual_nodes: Array = []
 var _root_anchor_pos: Dictionary = {}   # 第8节改造（A①+B①）：仅「关系树根」(人物/无人物的结论) 的位置被手动锁定并持久化
+var _node_offsets: Dictionary = {}      # 需求3/5：非根节点（结论/推断）相对「父派生位」的偏移；拖动后保持随父移动
 var _carried_ids: Array = []            # 开墙时已存在（上一场景携带）的节点 id；布局据此与「本场景新内容」分区域放置
 var _scene_clue_ids: Array = []         # 本场景采集页收集到的线索 id（=「本场景新内容」）；布局分离时这些算新，其余算携带
 var _deleted_target_edges: Dictionary = {}   # 需求1：玩家删除过的「结论→人物」target 边（key=conclusion_nid, value=person_id）；方案A 自动派生时跳过，使删除可持久
@@ -112,6 +113,8 @@ var _drag_hover := ""              # 拖拽中命中的目标节点 id（问题1
 var _drag_from := Vector2.ZERO
 var _drag_kind := ""
 var _drag_mode := ""              # "move" 或 "edge"（_drag_kind 是关系 kind support/oppose）
+var _drag_prestart_pos: Vector2 = Vector2.ZERO   # 拖动起点（算子树平移 delta）
+var _drag_subtree: Array = []                         # 拖动节点的整棵子树（实时随拖平移，需求3）
 var _drag_offset := Vector2.ZERO   # move 模式专用，鼠标按下时在画布内相对节点 top-left 的偏移
 var _drag_start := Vector2.ZERO    # 鼠标按下的全局位置（move 抖动阈值用）
 var _drag_preview: Control = null
@@ -302,6 +305,7 @@ func build(data: Dictionary) -> void:
 	_placed_clues = (_state_store.get("graph_placed_clues", []) as Array).duplicate()
 	_manual_nodes = (Array(_state_store.get("graph_manual_nodes", [])) as Array).duplicate()
 	_root_anchor_pos = (Dictionary(_state_store.get("graph_root_anchors", {})) as Dictionary).duplicate()
+	_node_offsets = (Dictionary(_state_store.get("graph_node_offsets", {})) as Dictionary).duplicate()   # 需求3/5
 	_graph_nodes = (Array(_state_store.get("graph_nodes", [])) as Array).duplicate()
 	_graph_deleted = (Array(_state_store.get("graph_deleted_nodes", [])) as Array).duplicate()
 	_edited_texts = (Dictionary(_state_store.get("graph_edited_texts", {})) as Dictionary).duplicate()
@@ -458,6 +462,14 @@ func _create_ui() -> void:
 	_fold_layer.z_index = 3
 	_fold_layer.draw.connect(_fold._on_fold_draw)
 	_canvas.add_child(_fold_layer)
+
+	# 需求4：放大三个绘制图层矩形（±200000），避免画布平移/缩放使图层矩形离开视口被 Godot 裁剪，
+	# 导致「关系连线 / 折叠圆圈 / 高亮圈」在画布中心移出显示区时整体消失。最终绘制仍由 _clip 裁剪到可视区。
+	for _ly in [_hint_layer, _edge_layer, _fold_layer]:
+		_ly.offset_left = -200000.0
+		_ly.offset_top = -200000.0
+		_ly.offset_right = 200000.0
+		_ly.offset_bottom = 200000.0
 
 	if _show_toolbar:
 		_toolbar = _create_toolbar()
@@ -909,6 +921,7 @@ func _make_node(nd: Dictionary) -> Control:
 	elif is_concl: _base_w = 160.0; _base_h = 160.0
 	elif is_chain: _base_w = 125.0; _base_h = 120.0
 	elif is_hypo: _base_w = 140.0; _base_h = 130.0
+	elif is_clue: _base_w = 320.0; _base_h = 130.0   # 需求6：线索文本框宽度加倍（160→320）
 	else: _base_w = 160.0; _base_h = 130.0
 	# 卡片尺寸在标签建立后按真实文字测量（见文末 _size_card_to_text 调用）
 
@@ -1050,14 +1063,14 @@ func _make_node(nd: Dictionary) -> Control:
 	sub.visible = false   # 需求4：取消节点状态副标题显示（已关联/推断/结论/焦点/角色/推理链/自定义等）
 
 	# #1 真实自适应：宽度按文字自然宽度（上限 420=15 汉字×28 字号），高度按换行后真实行数；超过15字才换行
-	var _MAX_W: float = 420.0
+	var _cap: float = 840.0 if is_clue else 420.0   # 需求6：线索文本框封顶宽度加倍（420→840）
 	# 自然宽度：autowrap 下 get_minimum_size 只返回换行约束宽（460→230），须临时关 autowrap 量单行真实宽
 	var _prev_wrap: TextServer.AutowrapMode = lab.autowrap_mode
 	lab.autowrap_mode = TextServer.AUTOWRAP_OFF
 	var _nat := lab.get_minimum_size()
 	lab.autowrap_mode = _prev_wrap
 	var _sm := sub.get_minimum_size()
-	var _wrap_w := clampf(maxf(_nat.x, _sm.x), 0.0, _MAX_W)
+	var _wrap_w := clampf(maxf(_nat.x, _sm.x), 0.0, _cap)
 	lab.custom_minimum_size = Vector2(_wrap_w, 0)   # 设定换行宽度，高度自适应
 	var _lm := lab.get_minimum_size()
 	var _inner_w: float
@@ -1068,9 +1081,9 @@ func _make_node(nd: Dictionary) -> Control:
 	else:
 		# 字体未就绪（极少见，如 headless 首帧）回退字符估算
 		var _nl := float(str(nd.get("label", "")).length())
-		_inner_w = clampf(maxf(_base_w, 30.0 + _nl * 28.0), _base_w, _MAX_W)
+		_inner_w = clampf(maxf(_base_w, 30.0 + _nl * 28.0), _base_w, _cap)
 		_inner_h = _base_h
-	var _nw := clampf(_inner_w + 18.0, _base_w, _MAX_W + 18.0)
+	var _nw := clampf(_inner_w + 18.0, _base_w, _cap + 18.0)
 	var _nh := _inner_h + 12.0
 	card.custom_minimum_size = Vector2(_nw, _nh)
 	card.size = Vector2(_nw, _nh)
@@ -1175,6 +1188,9 @@ func _on_node_gui(event: InputEvent, id: String, kind: String) -> void:
 				_drag_mode = "move"
 				_drag_offset = mouse_canvas - n.position
 				_drag_start = get_viewport().get_mouse_position()
+				# 需求3：记录拖动起点与整棵子树（根节点无偏移机制→子树置空，由布局自动跟随）
+				_drag_prestart_pos = _node_center.get(id, Vector2.ZERO)
+				_drag_subtree = [] if _layout._is_tree_root(id) else _layout._descendants(id)
 	else:
 		# 释放：在 _input 里 commit（覆盖 gui_input 边界问题）
 		pass
@@ -1279,6 +1295,13 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 			if _layout._is_tree_root(id):
 				_root_anchor_pos[id] = _node_center[id]
 				_state_store["graph_root_anchors"] = _root_anchor_pos
+			else:
+				# 需求3/5：非根节点（结论/推断）拖动→只记录「本节点」相对「父派生位」的偏移；
+				# 其子树位置由布局自动从父最终位派生（_assign_subtree 叠加偏移并整体平移子树），
+				# 故无需为每个后代单独记偏移，避免重复位移；人物移动时结论仍跟随（不脱离父）。
+				var _d: Vector2 = _node_center.get(id, Vector2.ZERO) - _drag_prestart_pos
+				_node_offsets[id] = _node_offsets.get(id, Vector2.ZERO) + _d
+				_state_store["graph_node_offsets"] = _node_offsets.duplicate()
 	elif not moved:
 		_on_node_clicked(id, _node_kind.get(id, ""))
 	_layout._persist_node_positions()
@@ -1858,6 +1881,7 @@ func auto_layout() -> void:
 	if _mode != GraphViewController.ViewMode.MODE_C:
 		return
 	_use_rank_layout = true
+	_node_offsets = {}   # 一键自动排列：清空手动相对偏移，重排即回到整洁层级（需求3/5 复位）
 	_rebuild_graph()
 	_use_rank_layout = false
 	_persist_view()
@@ -2217,6 +2241,7 @@ func _persist_view() -> void:
 	_state_store["graph_derived_conclusions"] = _derived_conclusions.duplicate()
 	_state_store["graph_edited_texts"] = _edited_texts.duplicate()
 	_state_store["graph_deleted_target"] = _deleted_target_edges   # 需求1：持久化已删除的结论→人物边
+	_state_store["graph_node_offsets"] = _node_offsets.duplicate()   # 需求3/5：非根节点相对偏移持久化
 	_state_store["graph_deleted_nodes"] = _state_store.get("graph_deleted_nodes", [])
 	_layout._persist_node_positions()
 
@@ -2747,8 +2772,15 @@ func _input(event: InputEvent) -> void:
 					var new_pos: Vector2 = mouse_canvas - _drag_offset
 					var new_center: Vector2 = new_pos + n.size * 0.5
 					var clamped: Vector2 = _layout._clamp_free(new_center)
+					# 需求3：拖动中同步平移整个子树（分枝/叶子）随本节点一并移动
+					var _delta: Vector2 = clamped - _node_center.get(_drag_id, clamped)
 					n.position = clamped - n.size * 0.5
 					_node_center[_drag_id] = clamped
+					for _sd in _drag_subtree:
+						var _sv: Variant = _node_views.get(_sd)
+						if _sv != null and is_instance_valid(_sv):
+							_node_center[_sd] = _node_center.get(_sd, Vector2.ZERO) + _delta
+							_sv.position = _node_center[_sd] - _sv.size * 0.5
 					# 拖拽命中提示：拖到其它节点范围时，把拖拽节点缩小并置顶，
 					# 让玩家直观感知两者可建立联系
 				# ⚠️ 修复（任务1）：_drop_node_except/_nearest_node_except 期望「视口全局坐标」
