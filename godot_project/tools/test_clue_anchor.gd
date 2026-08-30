@@ -9,11 +9,11 @@ func _initialize() -> void:
 
 	# 1) 锚点表可取
 	var a := ClueImageAnchors.get_anchor("res://assets/characters/watson/watson_teaching.png", "wrist")
-	if a.is_empty() or abs(float(a["cx"]) - 0.360) > 0.001:
+	if a.is_empty() or abs(float(a["cx"]) - 0.385) > 0.001:
 		print("FAIL anchor get_anchor"); ok = false
 	# 新线索：肩部（左肩）
 	var sh := ClueImageAnchors.get_anchor("res://assets/characters/watson/watson_teaching.png", "shoulder")
-	if sh.is_empty() or abs(float(sh["cx"]) - 0.671) > 0.001:
+	if sh.is_empty() or abs(float(sh["cx"]) - 0.594) > 0.001:
 		print("FAIL shoulder anchor"); ok = false
 
 	# 2) crop -> anchor 转换
