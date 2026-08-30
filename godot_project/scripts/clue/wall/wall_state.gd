@@ -127,16 +127,18 @@ func _derive_persons() -> Array:
 		for p in c.get("related_npcs", []):
 			if not seen.has(p):
 				seen[p] = true
-				# 身份揭示门控：未满足揭示条件（如霍普未收到电报）时仍保留人物中心，
-				# 但以「神秘嫌疑犯」占位居替，避免提前暴露真名（需求2）且不让人物消失（需求4）。
-				var npc_name: String = _npc_display_name(p) if _identity_revealed(p, owner._clues) else "神秘嫌疑犯"
+				# 身份揭示门控：未满足揭示条件时仍保留人物中心，但以占位名居替，
+				# 避免提前暴露真名（需求2）且不让人物消失（需求4）。
+				var npc_name: String = _npc_display_name(p) if _identity_revealed(p, owner._clues) else owner._masked_name(p)
 				out.append({"id": p, "name": npc_name})
 	var extra: Array = owner._hypothesis.get("persons", [])
 	for p in extra:
 		var pid: String = p.get("id", "") if p is Dictionary else str(p)
 		if not seen.has(pid):
 			seen[pid] = true
-			out.append({"id": pid, "name": _npc_display_name(pid)})
+			# extra persons 同样要走身份门控，否则配置里的真名会绕过线索揭示流程提前暴露。
+			var npc_name: String = _npc_display_name(pid) if _identity_revealed(pid, owner._clues) else owner._masked_name(pid)
+			out.append({"id": pid, "name": npc_name})
 	return out
 
 

@@ -185,7 +185,19 @@ const _NPC_DISPLAY_NAMES := {
 # 才揭晓；此前现场线索（c203-206 等）虽真实关联他，但不得提前显示「霍普」。
 const _IDENTITY_REVEAL_GATES := {
 	"NPC_HOP": ["C_SOTCB_501", "C_SOTCB_502"],
+	"NPC_DRE": ["c304"],  # 场景三名片夹与两封信才揭示被害人姓名
 }
+
+# === 身份未揭示时的占位名（需求2/问题3）：未满足揭示门控的 NPC 不暴露真名，用占位名替代。
+# 同一案里可能有多人同时未揭示（如场景二：嫌疑人霍普 + 被害人德雷伯），用不同占位区分，
+# 避免两个人物都显示成「神秘嫌疑犯」造成混淆。被害人用「死者」、其余默认「神秘嫌疑犯」。
+const _NPC_MASKED_NAMES := {
+	"NPC_DRE": "死者",
+}
+
+## 取某 NPC 未揭示身份时的占位显示名。
+func _masked_name(pid: String) -> String:
+	return _NPC_MASKED_NAMES.get(pid, "神秘嫌疑犯")
 
 ## 身份揭示门控（需求2）：判定某 NPC 是否应以"已知人物"出现。live 为当前已收集线索。
 func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: Callable = Callable(), difficulty: int = Diff.NORMAL, on_continue: Callable = Callable(), state_store: Dictionary = {}, on_advance: Callable = Callable(), persist: bool = false, local_clue_count: int = -1, on_persist: Callable = Callable(), auto_fold: bool = false, scene_clue_ids: Array = [], case_wide_override: bool = false, teaching: bool = false) -> void:
