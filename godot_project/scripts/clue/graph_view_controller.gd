@@ -161,7 +161,19 @@ const _NPC_DISPLAY_NAMES := {
 #   人物中心不得提前显示「霍普」。
 const _IDENTITY_REVEAL_GATES := {
 	"NPC_HOP": ["C_SOTCB_501", "C_SOTCB_502"],
+	"NPC_DRE": ["c304"],
 }
+
+# === 身份未揭示时的占位名（需求2）：未满足揭示门控的 NPC 不暴露真名，用占位名替代。
+# 同一案里可能有多人同时未揭示（如场景二：嫌疑人霍普 + 被害人德雷伯），用不同占位区分，
+# 避免两个人物都显示成「神秘嫌疑犯」造成混淆。被害人用「死者」、其余默认「神秘嫌疑犯」。
+const _NPC_MASKED_NAMES := {
+	"NPC_DRE": "死者",
+}
+
+## 取某 NPC 未揭示身份时的占位显示名。
+func _masked_name(pid: String) -> String:
+	return _NPC_MASKED_NAMES.get(pid, "神秘嫌疑犯")
 
 # === 圈层距离带（自由拖动 + 排序约束）===
 # 单位像素（画布坐标）。约束：核心 < 结论/链 < 推断 < 线索（递增距离）。
@@ -314,8 +326,8 @@ func build(data: Dictionary) -> void:
 				for p in c.get("related_npcs", []):
 					if not seen.has(p):
 						seen[p] = true
-						# 身份揭示门控占位：未揭示身份的人物仍保留，但用「神秘嫌疑犯」占位居替（同 reasoning_wall._derive_persons）
-						var npc_name: String = _NPC_DISPLAY_NAMES.get(p, p) if _data._identity_revealed(p, live) else "神秘嫌疑犯"
+						# 身份揭示门控占位：未揭示身份的人物仍保留，但用占位名居替（同 reasoning_wall._derive_persons）
+						var npc_name: String = _NPC_DISPLAY_NAMES.get(p, p) if _data._identity_revealed(p, live) else _masked_name(p)
 						out.append({"id": p, "name": npc_name})
 			if not out.is_empty():
 				print("[graph_view] build 时 _persons 兜底拉取 persons.size=%d" % out.size())
