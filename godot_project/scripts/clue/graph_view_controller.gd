@@ -783,11 +783,8 @@ func _node_list() -> Array:
 		# 画布保持干净（仅线索节点 + 玩家已建节点 + 自定义文本框），推断/结论由玩家从「拖入线索/推导」弹窗
 		# 手动创建（adopt_candidate 写入持久化 _graph_nodes，跨场景经 case_wall_state 携带）。
 		# 这样场景二及之后不再一开墙就铺满其他场景的推断/结论（问题1/2）。
-		# 第三圈：推理链 + 结论（结论统一在函数末尾追加一次，避免 MODE_C 下出现两个结论文本框，问题4）
-		var chain_id: String = _hypo.get("chain_id", "")
-		if chain_id != "":
-			list.append({"id": "chain:" + chain_id, "kind": "chain",
-				"label": "#" + str(chain_id), "sub": "推理链", "color": COL_GOLD, "data": {}})
+		# 第三圈：结论——MODE_C 下不显示 chain 节点，避免无意义的棕色空框占位且误触切换到 MODE_B。
+		# chain 节点仅在 MODE_B（推理链视图）作为层级根显示。
 	else:
 		# 模式 B：分层
 		var clues := _clues.filter(func(c): return c.get("associated", false))
@@ -1855,12 +1852,14 @@ func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 	_zoom = ns
 	
 
-## 顶栏「自动排列」：第8节改造（B①）——按 XMind 星形布局重排全部节点（默认即星形，此按钮=重新星形排列），
-## 仅根位置被保留、子节点自动派生，重排后持久化根锚点 + 适应画布看全。仅在模式 C（图谱）可用。
+## 顶栏「自动排列」：第8节改造（B①）——按 BFS 深度分列 + barycenter 减交叉的严格层级布局重排全部节点，
+## 人物在右、结论→推断/链→线索逐列向左阶梯铺开，重排后持久化根锚点 + 适应画布看全。仅在模式 C（图谱）可用。
 func auto_layout() -> void:
 	if _mode != GraphViewController.ViewMode.MODE_C:
 		return
+	_use_rank_layout = true
 	_rebuild_graph()
+	_use_rank_layout = false
 	_persist_view()
 	fit_view()
 
