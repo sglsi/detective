@@ -179,11 +179,11 @@ func _build_ui() -> void:
 	_setup_toolbar()
 	var tex = load("res://assets/characters/watson/watson_teaching.png")
 	if tex:
-		# 华生立绘（1024 正方图）：高度按信使显示高的 6/7 缩放，后统一放大 4/3。
-		# 现框 724x724(box=712) contain 显示约 712。站位：门框(源图x336)与壁炉(源图x330)
-		# 交界处≈场景 x625 → 立绘中心 x625 → pos.x = 625-724/2 = 263。
-		# 脚底对齐三尊共同地面线 y≈920 → box 高712，脚底=pos.y+6+712 → pos.y=202。
-		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(263, 202), Vector2(724, 724), false)
+		# 华生立绘（1024 正方图）：显示高与福尔摩斯一致（福尔摩斯框 373x843 contain 显示高≈831）。
+		# 正方图须框 ≥831 → (843,843) box=831 contain 显示 831。站位：门框(源x336)与壁炉(源x330)
+		# 交界处≈场景 x625 → pos.x = 625-843/2 ≈ 203。
+		# 脚底对齐三尊共同地面线 y≈920 → box 高831，脚底=pos.y+6+831 → pos.y=83。
+		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(203, 83), Vector2(843, 843), false)
 		# 默认隐藏：仅在 OBSERVE_WATSON 阶段显示
 		if _portrait_ctrl: _portrait_ctrl.visible = false
 	# 信使立绘（默认隐藏，MESSENGER_OBSERVE 阶段显示）
