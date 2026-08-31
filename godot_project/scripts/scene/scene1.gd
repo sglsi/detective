@@ -31,7 +31,10 @@ var _talk_active := false
 ## ⚠️ 曾误挂 crime_scene_1920x1080.jpg（命案现场），与场景三「劳瑞斯顿花园街3号·室内」
 ## 内容撞车，玩家在场景一会看到场景三的现场图。换图时注意与各场景所在地对应：
 ##   scene1 贝克街221B室内 / scene2 花园外景 / scene3 命案现场室内。
-func scene_background() -> Texture2D: return load("res://assets/backgrounds/baker_street_parlor.jpg")
+func scene_background() -> Texture2D: return load("res://assets/backgrounds/screen01-sofa01.png")
+
+# 华生观察及之后阶段使用「开门(门廊视角)」背景
+func _opendoor_bg() -> Texture2D: return load("res://assets/backgrounds/screen01-opendoor.png")
 
 func _ready() -> void:
 	super._ready()
@@ -76,6 +79,9 @@ func _restore_saved_state() -> bool:
 	# 读到终局阶段时，阻止后续「进入场景二」按钮再次自动存档，避免 identical 重复槽位。
 	_suppress_terminal_save = _is_terminal_phase(saved_phase)
 	_create_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
+	# 读档恢复到「华生观察及其后」阶段时，使用开门(门廊视角)背景
+	if saved_phase >= Phase.OBSERVE_WATSON:
+		_ui.set_scene_background(_opendoor_bg())
 
 	match saved_phase:
 		Phase.MRS_HUDSON:
@@ -169,7 +175,11 @@ func _build_ui() -> void:
 	_setup_toolbar()
 	var tex = load("res://assets/characters/watson/watson_teaching.png")
 	if tex:
-		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(160, 350), Vector2(280, 360), false)
+		# 华生立绘（1024 正方图）：高度按信使显示高的 6/7 缩放。
+		# 信使 contain 后显示约 620 高 → 华生 = 620*6/7 ≈ 531。1024 正方图 contain sc≈531/1024，
+		# 需框 ≥531 → 543 框(box=531) contain 后高≈531、宽≈531。
+		# 框底对齐信使脚底 y≈923 → 框 y = 923-531 = 392。
+		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(150, 392), Vector2(543, 543), false)
 		# 默认隐藏：仅在 OBSERVE_WATSON 阶段显示
 		if _portrait_ctrl: _portrait_ctrl.visible = false
 	# 信使立绘（默认隐藏，MESSENGER_OBSERVE 阶段显示）
@@ -430,6 +440,8 @@ func _show_opening_dialogue() -> void:
 
 func _on_opening_end() -> void:
 	_phase = Phase.OBSERVE_WATSON
+	# 进入华生观察阶段起切换到「从门廊向内看」背景（含之后信使观察等全部阶段）
+	if _ui: _ui.set_scene_background(load("res://assets/backgrounds/screen01-opendoor.png"))
 	if _ui: _ui.set_camera_enabled(true)   # 进入观察：启用摄像机（统览/缩放/拖拽）
 	if _portrait_ctrl: _portrait_ctrl.visible = true
 	_watson_obs.show()
