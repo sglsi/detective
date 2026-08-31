@@ -463,13 +463,14 @@ func _create_ui() -> void:
 	_fold_layer.draw.connect(_fold._on_fold_draw)
 	_canvas.add_child(_fold_layer)
 
-	# 需求4：放大三个绘制图层矩形（±200000），避免画布平移/缩放使图层矩形离开视口被 Godot 裁剪，
-	# 导致「关系连线 / 折叠圆圈 / 高亮圈」在画布中心移出显示区时整体消失。最终绘制仍由 _clip 裁剪到可视区。
+	# 修正（2026-08-31）：此前为「防画布平移缩放使图层矩形离开视口被裁剪」曾把三个绘制图层的
+	# offset 设为 ±200000。但 Control.draw 以自身 rect 左上角为局部绘制原点，offset 会把绘制原点
+	# 平移 -200000，使连线/折叠圆圈/高亮圈渲染到「节点坐标 +(-200000)」处（远偏出画布），而节点本体
+	# 直接以 _node_center 定位仍在原位——表现为「连线与圆圈不显示、高亮圈错位」。
+	# 绘制调用默认不被 rect 裁剪（clip_contents=false），故无需放大 offset；绘制原点回到 _canvas 原点
+	# 即与节点 _node_center 对齐。显式关闭裁剪，确保平移/缩放后内容始终可绘制。
 	for _ly in [_hint_layer, _edge_layer, _fold_layer]:
-		_ly.offset_left = -200000.0
-		_ly.offset_top = -200000.0
-		_ly.offset_right = 200000.0
-		_ly.offset_bottom = 200000.0
+		_ly.clip_contents = false
 
 	if _show_toolbar:
 		_toolbar = _create_toolbar()
@@ -2407,6 +2408,50 @@ func _node_player_made(id: String) -> bool:
 		if str(gn.get("id", "")) == str(id):
 			return bool(gn.get("data", {}).get("player_made", false))
 	return false
+
+
+## 派生节点（推断/结论）是否正确（kind=true；自定义结论/未知返回 true，不参与扣分）。
+## 供推理墙判定/评分区分「正确 vs 误导」推导（修复：选错误导项也拉低评分）。
+func _derived_node_correct(id: String) -> bool:
+	if id.begins_with("conclusion_"):
+		var cid: String = id.substr("conclusion_".length())
+		var cd: Dictionary = _conclusion_def(cid)
+		if not cd.is_empty():
+			return str(cd.get("kind", "true")) == "true"
+		return true   # 自定义结论 custom_N：玩家自述，默认正确
+	# 推断：battlefield.hypotheses 的 kind 优先；玩家自建/采纳的推断在 _graph_nodes.data.correct
+	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
+		if str(h.get("id", "")) == id:
+			return str(h.get("kind", "true")) == "true"
+	for gn in _graph_nodes:
+		if str(gn.get("id", "")) == id:
+			return bool(gn.get("data", {}).get("correct", true))
+	return true
+
+
+## 玩家图谱上「已采纳/自建」的推断与结论节点正确性统计（供推理墙三星·推理星计入）。
+## 仅统计玩家实际建立的节点（_graph_nodes 中采纳的推断 / _derived_conclusions 中推导的结论）；
+## 场景预设自动渲染、但玩家未采纳的 hypo 不计入。返回 {correct, total}。
+func _derived_claim_correctness() -> Dictionary:
+	var correct := 0; var total := 0
+	var seen := {}
+	for _d in _derived_conclusions:
+		var _cid: String = str(_d.get("id", ""))
+		if _cid == "" or seen.has(_cid): continue
+		seen[_cid] = true
+		total += 1
+		var cd: Dictionary = _conclusion_def(_cid)
+		if cd.is_empty() or str(cd.get("kind", "true")) == "true":
+			correct += 1
+	for gn in _graph_nodes:
+		var gid: String = str(gn.get("id", ""))
+		var gk: String = str(gn.get("kind", "hypo"))
+		if gk != "hypo" or seen.has(gid): continue
+		seen[gid] = true
+		total += 1
+		if bool(gn.get("data", {}).get("correct", true)):
+			correct += 1
+	return {"correct": correct, "total": total}
 
 
 ## 从节点文本推导方向（启发式）：含否定词→negate，否则 affirm

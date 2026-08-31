@@ -117,6 +117,20 @@ func _est_node_h(nd: Dictionary) -> float:
 	return nlines * line_h + sub_h + 2.0 + 12.0
 
 
+## 一个线索文本框的高度（需求3）：取当前所有 clue 节点视图的最大实测高；
+## 无可测时回退估算高/基准高 130。用于把列间距(col_gap)下限抬到「≥ 一个线索文本框高度」。
+func _clue_box_height() -> float:
+	var h := 130.0   # 线索卡 _base_h 基准；长线索按文本实测更高
+	for id in owner._node_center:
+		if str(owner._node_kind.get(str(id), "")) == "clue":
+			var v = owner._node_views.get(str(id))
+			if v != null and v.size.y > 1.0:
+				h = maxf(h, v.size.y)
+			else:
+				h = maxf(h, _est_node_h(owner._node_data.get(str(id), {})))
+	return h
+
+
 # ===================== 主布局入口 =====================
 func _compute_layout(nodes: Array) -> Dictionary:
 	var center := owner._canvas.size * 0.5
@@ -239,7 +253,7 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 	for _nd in nodes:
 		_subtree_span_est(_nd.id, child_map, est_h, memo)
 	# 人物定位：保存位优先（人物可自由拖动）；多人物水平错开
-	var col_gap: float = 300.0
+	var col_gap: float = maxf(_clue_box_height(), 300.0)   # 需求3：列间距下限 = 一个线索文本框高度
 	# 跨场景带入·任务：上一场景携带内容偏左、本场景新内容偏右，建立关系前分区域放置（建立关系后自然并入同一层级树）
 	var _is_cw := owner._case_wide and not owner._carried_ids.is_empty()
 	var _carried_x: float = center.x - 380.0
@@ -374,7 +388,7 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 	# 列间距自适应画布宽度与树深：保证最深一列仍落在画布内
 	var m: float = 60.0
 	var half_avail: float = maxf(center.x - m - 90.0, 200.0)
-	var col_gap: float = clampf(half_avail / maxf(float(max_level), 1.0), 165.0, 300.0)
+	var col_gap: float = maxf(_clue_box_height(), clampf(half_avail / maxf(float(max_level), 1.0), 165.0, 300.0))   # 需求3：下限≥一个线索文本框高度
 
 	# 放射根位置：仅 emit_roots 计 root_gap 均布；非人物孤立根已并入 main_root，不再单独定位
 	var root_gap: float = 360.0
@@ -687,7 +701,7 @@ func _auto_rank_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out
 			rank[id0] = ISOLATED
 		graph_max = maxi(graph_max, rank[id0])
 	# 列 x：人物最右，向外逐列向左（参考示范「线索→推论→人物」由左及右汇聚）
-	var col_gap := 300.0
+	var col_gap := maxf(_clue_box_height(), 300.0)   # 需求3：列间距下限 = 一个线索文本框高度
 	var right_x: float = center.x + float(graph_max) * col_gap * 0.5
 	# 同列按保存顺序/深度稳定初序
 	var by_rank := {}

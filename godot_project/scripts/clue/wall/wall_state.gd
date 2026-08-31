@@ -43,10 +43,17 @@ func _contradiction_signals() -> int:
 
 func _support_signals() -> int:
 	var n := owner._associated
+	# 修复（问题2）：支撑目标若是误导型派生节点（推断/结论 kind=false），该支撑边不计入判定强度——
+	# 给错误推导（误导推断/伪结论）建支撑边，不该让案件「倾向成立/已证实」。
+	# 结论落盘时会生成 推断→结论 的 support 边（to=conclusion_X），故此处一并覆盖结论正确性。
+	var gv = owner._graph_view
 	for r in owner._relations:
 		if r.get("dashed", false):
 			continue
-		if r.kind == "support":
+		if r.get("kind", "") == "support":
+			var to_id: String = str(r.get("to", ""))
+			if gv != null and gv.has_method("_derived_node_correct") and not gv._derived_node_correct(to_id):
+				continue
 			n += 1
 	return n
 
@@ -187,17 +194,26 @@ func _update_star_rating() -> void:
 	elif missing >= 1:
 		observe_stars = 2
 
-	# 2) 推理之星：按已关联线索的正确比例（4/4→3⭐ / 3/4→2⭐ / ≤2/4→1⭐），错误无惩罚
+	# 2) 推理之星：已关联线索正确比例 × 玩家派生推导(推断/结论)正确比例 综合。
+	# 采纳/推导误导项(kind=false)会拉低推理星——修复（问题2）：选错推理链评分不同。
 	var correct_assoc := 0; var total_assoc := 0
 	for c in owner._clues:
 		if c.get("associated", false):
 			total_assoc += 1
 			if c.get("correct", true): correct_assoc += 1
+	# 派生推导正确性：_graph_view._derived_claim_correctness() 返回 {correct,total}
+	# （_derived_conclusions 中推导的结论 + _graph_nodes 中采纳/自建的推断，按各自 kind 判定）
+	var gv = owner._graph_view
+	var der := {"correct": 0, "total": 0}
+	if gv != null and gv.has_method("_derived_claim_correctness"):
+		der = gv._derived_claim_correctness()
+	var total_reason := total_assoc + int(der.get("total", 0))
+	var correct_reason := correct_assoc + int(der.get("correct", 0))
 	var reasoning_stars := 1
-	if total_assoc > 0:
-		if correct_assoc == total_assoc:
+	if total_reason > 0:
+		if correct_reason == total_reason:
 			reasoning_stars = 3
-		elif correct_assoc * 4 >= 3 * total_assoc:   # 正确比例 ≥ 3/4
+		elif correct_reason * 4 >= 3 * total_reason:   # 正确比例 ≥ 3/4
 			reasoning_stars = 2
 		else:
 			reasoning_stars = 1
