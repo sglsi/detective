@@ -179,26 +179,27 @@ func _build_ui() -> void:
 	_setup_toolbar()
 	var tex = load("res://assets/characters/watson/watson_teaching.png")
 	if tex:
-		# 华生立绘（1024 正方图）：高度按信使显示高的 6/7 缩放。
-		# 信使 contain 后显示约 620 高 → 华生 = 620*6/7 ≈ 531。1024 正方图 contain sc≈531/1024，
-		# 需框 ≥531 → 543 框(box=531) contain 后高≈531、宽≈531。
-		# 框底对齐信使脚底 y≈923 → 框 y = 923-531 = 392。
-		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(150, 392), Vector2(543, 543), false)
+		# 华生立绘（1024 正方图）：高度按信使显示高的 6/7 缩放，后统一放大 4/3。
+		# 现框 724x724(box=712) contain 显示约 712。站位：门框(源图x336)与壁炉(源图x330)
+		# 交界处≈场景 x625 → 立绘中心 x625 → pos.x = 625-724/2 = 263。
+		# 脚底对齐三尊共同地面线 y≈920 → box 高712，脚底=pos.y+6+712 → pos.y=202。
+		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(263, 202), Vector2(724, 724), false)
 		# 默认隐藏：仅在 OBSERVE_WATSON 阶段显示
 		if _portrait_ctrl: _portrait_ctrl.visible = false
 	# 信使立绘（默认隐藏，MESSENGER_OBSERVE 阶段显示）
 	var mtex = load("res://assets/characters/messenger/messenger_portrait.png")
 	if mtex:
-		# 新图 808x1920（竖图，宽高比 0.421）。_make_portrait 用 EXPAND_IGNORE_SIZE + 手动 contain。
-		# 框 280x632 按高 contain 显示约 266x632（比旧 220 框的 208x494 明显放大）；
-		# 向下移动一个屏幕小腿长度(~131px)，使信使从"踩在椅子上"落到地面，脚底约 y=973。
-		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(1300, 291), Vector2(280, 632), false)
+		# 新图 808x1920（竖图，宽高比 0.421），放大 4/3 后框 373x843(box=361x831)。
+		# 站「门框前、桌子旁」：门框右竖边(源x572→场景1073)与桌子左缘(源x634→场景1189)
+		# 之间的空档，立绘中心 x≈1100 → pos.x = 1100-373/2 ≈ 913。
+		# 脚底对齐三尊共同地面线 y≈920 → box 高831，脚底=pos.y+6+831 → pos.y=83。
+		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(913, 83), Vector2(373, 843), false)
 		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false  # MESSENGER_OBSERVE 阶段才显示（_start_messenger_phase）
 	# 福尔摩斯全身立绘（新竖图 391x1024，透明底）：仅开场（华生线索收集前）阶段显示。
-	# 大小与信使一致——同用 280x632 框，竖图 contain 后显示高约 620，脚底对齐 y≈923 → 框 y=291。
+	# 放大 4/3 后框 373x843；开场 sofa 场景左侧窗旁，脚底保持 y≈923 → pos.y=923-6-831=86。
 	var htex = load("res://assets/characters/holmes/holmes_fullbody.png")
 	if htex:
-		_holmes_portrait_ctrl = _ui.add_portrait(htex, "福尔摩斯", Vector2(210, 291), Vector2(280, 632), false)
+		_holmes_portrait_ctrl = _ui.add_portrait(htex, "福尔摩斯", Vector2(210, 86), Vector2(373, 843), false)
 		# 默认显示：开场阶段（sofa 场景）即可见，进入华生观察（_on_opening_end）时隐藏
 
 ## 场景一用 UI 内部对话标签渲染观察层，不需要占位标签
