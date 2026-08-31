@@ -13,6 +13,7 @@ var _watson_obs: ClueObserver
 var _messenger_obs: ClueObserver
 var _portrait_ctrl: Control = null   # 华生立绘控件（仅在 OBSERVE_WATSON 阶段显示）
 var _messenger_portrait_ctrl: Control = null  # 信使立绘控件（仅在 MESSENGER_OBSERVE 阶段显示）
+var _holmes_portrait_ctrl: Control = null  # 福尔摩斯全身立绘控件（仅在开场[MRS_HUDSON/OPENING]阶段显示）
 var _watson_v := 0
 var _messenger_v := 0
 var _watson_clues: Array = []
@@ -79,9 +80,12 @@ func _restore_saved_state() -> bool:
 	# 读到终局阶段时，阻止后续「进入场景二」按钮再次自动存档，避免 identical 重复槽位。
 	_suppress_terminal_save = _is_terminal_phase(saved_phase)
 	_create_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
-	# 读档恢复到「华生观察及其后」阶段时，使用开门(门廊视角)背景
+	# 读档恢复到「华生观察及其后」阶段时，使用开门(门廊视角)背景，福尔摩斯全身立绘隐藏（仅开场显示）
 	if saved_phase >= Phase.OBSERVE_WATSON:
 		_ui.set_scene_background(_opendoor_bg())
+		if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = false
+	else:
+		if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = true
 
 	match saved_phase:
 		Phase.MRS_HUDSON:
@@ -190,6 +194,12 @@ func _build_ui() -> void:
 		# 向下移动一个屏幕小腿长度(~131px)，使信使从"踩在椅子上"落到地面，脚底约 y=973。
 		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(1300, 291), Vector2(280, 632), false)
 		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false  # MESSENGER_OBSERVE 阶段才显示（_start_messenger_phase）
+	# 福尔摩斯全身立绘（新竖图 391x1024，透明底）：仅开场（华生线索收集前）阶段显示。
+	# 大小与信使一致——同用 280x632 框，竖图 contain 后显示高约 620，脚底对齐 y≈923 → 框 y=291。
+	var htex = load("res://assets/characters/holmes/holmes_fullbody.png")
+	if htex:
+		_holmes_portrait_ctrl = _ui.add_portrait(htex, "福尔摩斯", Vector2(210, 291), Vector2(280, 632), false)
+		# 默认显示：开场阶段（sofa 场景）即可见，进入华生观察（_on_opening_end）时隐藏
 
 ## 场景一用 UI 内部对话标签渲染观察层，不需要占位标签
 func _create_dummy_labels() -> void:
@@ -443,6 +453,8 @@ func _on_opening_end() -> void:
 	# 进入华生观察阶段起切换到「从门廊向内看」背景（含之后信使观察等全部阶段）
 	if _ui: _ui.set_scene_background(load("res://assets/backgrounds/screen01-opendoor.png"))
 	if _ui: _ui.set_camera_enabled(true)   # 进入观察：启用摄像机（统览/缩放/拖拽）
+	# 福尔摩斯全身立绘仅属于开场（sofa 场景），华生观察开始时隐藏
+	if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = false
 	if _portrait_ctrl: _portrait_ctrl.visible = true
 	_watson_obs.show()
 	_ui.set_dialogue("提示", _observe_hint("华生", true) + "，观察 6 处线索。")
