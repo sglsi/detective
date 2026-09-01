@@ -6,38 +6,50 @@ extends DetectiveScene
 
 enum Phase { ARRIVAL, DETECTIVE_DIALOGUE, OBSERVE, REASONING, TRANSITION }
 
-const HOTSPOTS = [
-	# ── 勘查对象A：车轮印迹（08稿 六步闭环 Step1-3+6）──
-	# 2026-08-12 修复：场景可视区 y 范围为 50~850（dialogue_bar 从 850 开始），
-	# 因此热点 bottom 必须 < 850，否则圆圈被 clip_contents 裁掉、点击也被 bar 吞掉。
-	# 当前分布：c201/c205/c206 放在前景底部（仍处可视区内），其余按车道位置保留。
-	# 每个热点都带 image+anchor，点击后像场景1一样弹出背景放大框+底部线索说明。
-	{"id":"c201","attribute_tags":["直接物证"],"label":"碾轧的花草","x":180,"y":800,"w":150,"h":42,
+# ── 2026-09 场景二重构：三张新实拍图取代原合成图 sc_02_garden.png ──
+# 流程：街道勘查(车辙/马蹄印 c201-204, sc02_street) → 房屋外墙转场(福尔摩斯旁白 ≥5s, sc02_facade)
+#      → 花园通道勘查(脚印 c205-206, sc02_path) → 推理。
+# street/path 已裁为 16:9(1024×576)，STRETCH_KEEP_ASPECT_COVERED 铺满 1920×1080 无裁切，
+# 故热点 svg 坐标 ×1920/1080 即 1920×1080 场景坐标，且锚点归一化 = 场景归一化一一对应。
+# 可视区 y 50~850（dialogue_bar 从 850 开始），热点 bottom 必须 < 850。
+
+const STREET_HOTSPOTS = [
+	# ── 勘查对象A：车轮印迹（街道图 · 车行道中部地带）──
+	{"id":"c201","attribute_tags":["直接物证"],"label":"碾轧的花草","x":501,"y":173,"w":150,"h":42,
 	 "desc":"路边草地被压过了——两道平行的印子，草地上有两道平行的凹痕，像是车轮碾轧留下的。有马车在此停靠过。","tool":"none",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c201","relation_tags":["H2-01"]},
-	{"id":"c202","attribute_tags":["直接物证"],"label":"平行车轮印","x":880,"y":660,"w":150,"h":42,
+	 "image":"res://assets/scenes/sc02_street.png","anchor":"c201","relation_tags":["H2-01"]},
+	{"id":"c202","attribute_tags":["直接物证"],"label":"平行车轮印","x":885,"y":649,"w":150,"h":42,
 	 "desc":"用卷尺测量：轴距约3.8英尺，轮宽约2英寸，压痕最深处约1.2英寸。查知识库·伦敦马车类型：出租四轮马车轴距约3.8~4.0英尺，车身较窄以适应伦敦小巷——这是一辆出租马车。伦敦的出租马车为了钻小巷，轴距都做窄了，私家马车不会这么窄。","tool":"卷尺",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c202","relation_tags":["H2-01"]},
-	# ── 勘查对象B：马蹄印迹（08稿 六步闭环）──
-	{"id":"c203","attribute_tags":["直接物证"],"label":"右前蹄新蹄铁","x":1200,"y":700,"w":150,"h":42,
+	 "image":"res://assets/scenes/sc02_street.png","anchor":"c202","relation_tags":["H2-01"]},
+	{"id":"c203","attribute_tags":["直接物证"],"label":"右前蹄新蹄铁","x":1000,"y":821,"w":150,"h":42,
 	 "desc":"放大镜下：四个蹄铁磨损程度不同——右前蹄铁特别新，边缘锐利，亮得像刚从铁匠铺出来的；其余三个有不同程度磨损。这匹马的右前蹄铁是最近换的。","tool":"none",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c203","relation_tags":["C2-03"]},
-	{"id":"c204","attribute_tags":["直接物证"],"label":"马蹄印迹零乱","x":760,"y":790,"w":150,"h":42,
+	 "image":"res://assets/scenes/sc02_street.png","anchor":"c203","relation_tags":["C2-03"]},
+	{"id":"c204","attribute_tags":["直接物证"],"label":"马蹄印迹零乱","x":770,"y":789,"w":150,"h":42,
 	 "desc":"蹄印方向散乱，有迂回和停顿痕迹，非正常行进路线——如果有人驾驭，马不会走得这么乱。赶车的不在车上，马曾无人看管：马车夫很可能进了那栋房子。","tool":"none",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c204","relation_tags":["H2-01","C2-02"]},
-	# ── 勘查对象C：步伐距离（08稿 六步闭环）──
-	{"id":"c205","attribute_tags":["直接物证"],"label":"两组不同脚印","x":1000,"y":800,"w":150,"h":42,
-	 "desc":"泥地里有两组明显不同的脚印，部分叠在另一部分上面（有先后顺序），且都在警察脚印之下——案发当晚有两个人来过。放大镜下：大步子的脚印是方头靴，小步子是漆皮靴。方头靴多为干体力活的人穿，漆皮靴多为体面人士。","tool":"卷尺",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c205","relation_tags":["H2-03","C2-01"]},
-	{"id":"c206","attribute_tags":["直接物证"],"label":"步伐距离差异","x":1280,"y":790,"w":150,"h":42,
-	 "desc":"卷尺测量：大步子步幅约4.5英尺，小步子约3.5英尺。查知识库·步态与身高（步幅约为身高的0.45倍）：步幅4.5英尺→身高约6英尺（183cm）的大个子；步幅3.5英尺→身高约5英尺4英寸（163cm）。步幅骗不了人。","tool":"卷尺",
-	 "image":"res://assets/scenes/sc_02_garden.png","anchor":"c206","relation_tags":["H2-02"]},
+	 "image":"res://assets/scenes/sc02_street.png","anchor":"c204","relation_tags":["H2-01","C2-02"]},
 ]
+
+# ── 勘查对象C：步伐距离（花园通道图 · 中央通道）──
+const PATH_HOTSPOTS = [
+	{"id":"c205","attribute_tags":["直接物证"],"label":"两组不同脚印","x":731,"y":584,"w":150,"h":42,
+	 "desc":"泥地里有两组明显不同的脚印，部分叠在另一部分上面（有先后顺序），且都在警察脚印之下——案发当晚有两个人来过。放大镜下：大步子的脚印是方头靴，小步子是漆皮靴。方头靴多为干体力活的人穿，漆皮靴多为体面人士。","tool":"卷尺",
+	 "image":"res://assets/scenes/sc02_path.png","anchor":"c205","relation_tags":["H2-03","C2-01"]},
+	{"id":"c206","attribute_tags":["直接物证"],"label":"步伐距离差异","x":923,"y":735,"w":150,"h":42,
+	 "desc":"卷尺测量：大步子步幅约4.5英尺，小步子约3.5英尺。查知识库·步态与身高（步幅约为身高的0.45倍）：步幅4.5英尺→身高约6英尺（183cm）的大个子；步幅3.5英尺→身高约5英尺4英寸（163cm）。步幅骗不了人。","tool":"卷尺",
+	 "image":"res://assets/scenes/sc02_path.png","anchor":"c206","relation_tags":["H2-02"]},
+]
+
+const STAGE_STREET := "street"
+const STAGE_PATH := "path"
+
+var _street_obs: ClueObserver
+var _path_obs: ClueObserver
+var _stage: String = STAGE_STREET
 
 # ===== 框架配置 =====
 func scene_id() -> String: return "scene2"
 func clue_source() -> String: return "garden"
-func hotspots() -> Array: return HOTSPOTS
+func hotspots() -> Array: return STREET_HOTSPOTS + PATH_HOTSPOTS
 func scene_title() -> String: return "劳瑞斯顿花园街 3号"
 func scene_time_text() -> String: return "DAY 1 上午11:15"
 @export var procedural_bg: bool = false
@@ -45,7 +57,7 @@ func scene_time_text() -> String: return "DAY 1 上午11:15"
 func use_procedural_background() -> bool: return procedural_bg
 func wants_atmosphere() -> bool: return false
 
-func scene_background() -> Texture2D: return load("res://assets/scenes/sc_02_garden.png")
+func scene_background() -> Texture2D: return load("res://assets/scenes/sc02_street.png")
 
 # ===== 阶段 / 进度判断 =====
 func _is_terminal_phase(p: int) -> bool:
@@ -82,8 +94,80 @@ func _npc_talk_text(gc: int) -> String:
 		5: return "福尔摩斯：\"看看这些脚印——仔细数，有几种不同的？用卷尺量量大步子的前后距离，一个人的步幅和他的身高有关系。\""
 		_: return "福尔摩斯：\"外面能看的差不多了。把线索摆上推理墙，串起来。\""
 
-func _no_evidence_msg() -> String: return "尚未发现任何证据。请先勘查花园。"
-func _journal_empty_hint() -> String: return "去花园勘查现场痕迹"
+func _no_evidence_msg() -> String: return "尚未发现任何证据。请先勘查街道与花园。"
+func _journal_empty_hint() -> String: return "去勘查现场痕迹"
+
+# ===== 双阶段观察器：街道勘查(c201-204) → 花园通道勘查(c205-206) =====
+func _create_observers() -> void:
+	_stage = STAGE_STREET
+	_street_obs = _make_place_observer("street_observer", STREET_HOTSPOTS)
+	_path_obs = _make_place_observer("path_observer", PATH_HOTSPOTS)
+	if DifficultyManager and DifficultyManager.auto_reveal_clues and STREET_HOTSPOTS.size() > 0:
+		_street_obs.show()
+
+func _make_place_observer(oname: String, list: Array) -> ClueObserver:
+	var o := ClueObserver.new()
+	o.name = oname
+	add_child(o)
+	var filtered: Array = list
+	if DifficultyManager:
+		filtered = DifficultyManager.filter_hotspots_by_difficulty(filtered)
+	o.setup(self, _obs_text_lbl, _obs_speaker_lbl, filtered, null, null, "",
+		_ui.get_world_layer() if _ui else null, _ui.get_world_offset() if _ui else Vector2.ZERO)
+	o.hotspot_clicked.connect(_on_hotspot_seen)
+	o.clue_recorded.connect(_on_clue_recorded)
+	o.all_recorded.connect(_on_all_done)
+	return o
+
+func _current_observer() -> ClueObserver:
+	return _street_obs if _stage == STAGE_STREET else _path_obs
+
+func _begin_observe(target_noun: String) -> void:
+	_stage = STAGE_STREET
+	_ui.set_scene_background(load("res://assets/scenes/sc02_street.png"))
+	_current_observer().show()
+	_ui.set_dialogue("提示", _observe_hint(target_noun) + _observe_warn_suffix() + "\n左侧 LOOK 可重新激活标记；收集完全部线索后打开推理墙整理。")
+
+func _advance_blocked(is_mouse: bool) -> bool:
+	if _wall_instance and is_instance_valid(_wall_instance): return true
+	if _modal_panel and is_instance_valid(_modal_panel): return true
+	if _toolbar and _toolbar.has_method("_is_overlay_active") and _toolbar._is_overlay_active(): return true
+	var cur := _current_observer()
+	if cur and cur.has_method("is_active") and cur.is_active() and _in_observe_phase(): return true
+	return false
+
+func _observe_hint(_noun: String, _person: bool = false) -> String:
+	if _stage == STAGE_STREET:
+		return "🔍 街道勘查 — " + ("所有可观察点已高亮，点击街道草地与路面上的车辙、马蹄印圆圈" if (DifficultyManager and DifficultyManager.auto_reveal_clues) else "点击街道草地与路面上的车辙、马蹄印标记点")
+	return "🔍 花园通道勘查 — " + ("所有可观察点已高亮，点击通道上的两组脚印圆圈" if (DifficultyManager and DifficultyManager.auto_reveal_clues) else "点击通道上的两组脚印标记点")
+
+func _street_owned_ids() -> Array:
+	var r: Array = []
+	for h in STREET_HOTSPOTS: r.append(h["id"])
+	return r
+
+func _path_owned_ids() -> Array:
+	var r: Array = []
+	for h in PATH_HOTSPOTS: r.append(h["id"])
+	return r
+
+func _on_all_done(_clues_arr: Array) -> void:
+	var cur := _current_observer()
+	if cur and cur.has_method("hide"): cur.hide()
+	if _stage == STAGE_STREET:
+		await _street_to_path_transition()
+	else:
+		_on_observe_complete()
+
+## 街道勘查完成 → 房屋外墙转场（旁白停留 ≥5 秒）→ 切花园通道背景并激活脚印观察器
+func _street_to_path_transition() -> void:
+	_ui.set_scene_background(load("res://assets/scenes/sc02_facade.png"))
+	_ui.set_dialogue("福尔摩斯", "让我们详细勘察一下案发现场周边，看看能不能发现一些有价值的线索。", "思考")
+	await get_tree().create_timer(5.0).timeout
+	_stage = STAGE_PATH
+	_ui.set_scene_background(load("res://assets/scenes/sc02_path.png"))
+	_current_observer().show()
+	_ui.set_dialogue("提示", "街道痕迹已记录。雨后的花园通道还藏着脚步的秘密——注意这两组脚印的大小差异与步幅差距。")
 
 # ===== 全部线索收集完成 =====
 func _on_observe_complete() -> void:
@@ -158,7 +242,7 @@ func reasoning_hypothesis() -> Dictionary:
 		],
 	},
 	"chain_id": scene_id(),
-	"expected_clues": HOTSPOTS.size(),
+	"expected_clues": STREET_HOTSPOTS.size() + PATH_HOTSPOTS.size(),
 	"insight_bonus": 0
 }
 
@@ -174,7 +258,7 @@ func casebook_steps() -> Array:
 	return ["抵达案发现场", "听取警长汇报", "勘查花园痕迹", "推理墙验证"]
 
 func casebook_done_flags() -> Array:
-	return [_phase >= Phase.DETECTIVE_DIALOGUE, _phase >= Phase.OBSERVE, _clues.size() >= HOTSPOTS.size(), _phase >= Phase.REASONING]
+	return [_phase >= Phase.DETECTIVE_DIALOGUE, _phase >= Phase.OBSERVE, _clues.size() >= STREET_HOTSPOTS.size() + PATH_HOTSPOTS.size(), _phase >= Phase.REASONING]
 
 func inventory_items() -> Array:
 	return ["🔍 放大镜（初始）", "📏 卷尺（场景二解锁）", "🧪 化学试剂盒"]
@@ -254,11 +338,21 @@ func _apply_restored_phase(p: int, ids: Array, _clues_arr: Array) -> bool:
 			_show_detective_dialogue(); return true
 		Phase.OBSERVE:
 			_phase = Phase.OBSERVE
-			if _clues.size() >= HOTSPOTS.size():
+			var total := STREET_HOTSPOTS.size() + PATH_HOTSPOTS.size()
+			if _clues.size() >= total:
 				# 死局防御：线索已集齐但阶段还停在勘查——all_recorded 不会再触发
 				_enter_reasoning(); return true
-			_ui.restore_observer(_obs, ids, _owned_ids())
-			_ui.set_dialogue("提示", "已恢复进度 — 花园勘查阶段（已收集 " + str(_clues.size()) + "/" + str(HOTSPOTS.size()) + " 条）")
+			# 按已收集数决定恢复在哪一子阶段：<4 → 街道勘查；≥4（街道已集齐）→ 花园通道勘查
+			if _clues.size() >= STREET_HOTSPOTS.size():
+				_stage = STAGE_PATH
+				_ui.set_scene_background(load("res://assets/scenes/sc02_path.png"))
+				_ui.restore_observer(_path_obs, ids, _path_owned_ids())
+				_ui.set_dialogue("提示", "已恢复进度 — 花园通道勘查阶段（已收集 " + str(_clues.size()) + "/" + str(total) + " 条）")
+			else:
+				_stage = STAGE_STREET
+				_ui.set_scene_background(load("res://assets/scenes/sc02_street.png"))
+				_ui.restore_observer(_street_obs, ids, _street_owned_ids())
+				_ui.set_dialogue("提示", "已恢复进度 — 街道勘查阶段（已收集 " + str(_clues.size()) + "/" + str(total) + " 条）")
 			return true
 		Phase.REASONING:
 			_phase = Phase.REASONING; _wall_auto = true; _open_wall(); return true
