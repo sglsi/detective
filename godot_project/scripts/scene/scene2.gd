@@ -444,21 +444,21 @@ func _show_scene2_verdict_dialogue(v: int, advance: bool) -> void:
 	var nodes: Array[Resource] = []
 	match v:
 		3:  # VERIFIED —— 总结式四档，对齐「三条线指向同一个人」
-			nodes.append(_mk_node("v1","福尔摩斯","（点头）不错。三条不同方向的线索，同时指向同一个人——这就是回溯推理。","click",["v2"],"认可"))
+			nodes.append(_mk_node("v1","福尔摩斯","（点头）不错。三条不同方向的线索，同时指向同一个人——这就是回溯推理。","click",["v2"],[],"认可"))
 			if diff == DifficultyManager.Difficulty.EASY:
-				nodes.append(_mk_node("v2","福尔摩斯","第一——车轮印轴距3.8英尺，符合伦敦出租四轮马车，私家马车不会这么窄；第二——右前蹄铁是新的，这匹马最近被特别关照过；第三——马蹄印零乱，赶车的人不在车上，他下了车。","click",["v3"],"指导"))
-				nodes.append(_mk_node("v3","福尔摩斯","把这三条串起来：一辆出租马车、一匹刚换过蹄铁的马、一个不在车上的车夫——他进了那栋空房子。记住：一条线可能是巧合，两条线可能是偶然，三条线指向同一个人，就是答案。","click",["v4"],"哲理"))
-				nodes.append(_mk_node("v4","华生","（在小本子上记）三条线——同一个方向——就是答案……","click",["end"],"思考"))
+				nodes.append(_mk_node("v2","福尔摩斯","第一——车轮印轴距3.8英尺，符合伦敦出租四轮马车，私家马车不会这么窄；第二——右前蹄铁是新的，这匹马最近被特别关照过；第三——马蹄印零乱，赶车的人不在车上，他下了车。","click",["v3"],[],"指导"))
+				nodes.append(_mk_node("v3","福尔摩斯","把这三条串起来：一辆出租马车、一匹刚换过蹄铁的马、一个不在车上的车夫——他进了那栋空房子。记住：一条线可能是巧合，两条线可能是偶然，三条线指向同一个人，就是答案。","click",["v4"],[],"哲理"))
+				nodes.append(_mk_node("v4","华生","（在小本子上记）三条线——同一个方向——就是答案……","click",["end"],[],"思考"))
 			else:
-				nodes.append(_mk_node("v2","华生","（在小本子上记）三条线指向同一个人……","click",["end"],"思考"))
+				nodes.append(_mk_node("v2","华生","（在小本子上记）三条线指向同一个人……","click",["end"],[],"思考"))
 		2:  # SUPPORTED
-			nodes.append(_mk_node("v1","福尔摩斯","方向对了，但你的链子有一环只是'可能'。进去之后，室内的证据会替你补上。","click",["end"],"从容"))
+			nodes.append(_mk_node("v1","福尔摩斯","方向对了，但你的链子有一环只是'可能'。进去之后，室内的证据会替你补上。","click",["end"],[],"从容"))
 		1:  # INSUFFICIENT
-			nodes.append(_mk_node("v1","福尔摩斯","你下的结论，跑得比证据快了。先回去把轴距、蹄铁、脚印重新看一遍。","click",["end"],"从容"))
+			nodes.append(_mk_node("v1","福尔摩斯","你下的结论，跑得比证据快了。先回去把轴距、蹄铁、脚印重新看一遍。","click",["end"],[],"从容"))
 		_:  # CONTRADICTORY(0)
-			nodes.append(_mk_node("v1","福尔摩斯","你的链子自己打架了。马车、蹄铁、脚印指向的不是一个人。推翻重来。","click",["end"],"从容"))
+			nodes.append(_mk_node("v1","福尔摩斯","你的链子自己打架了。马车、蹄铁、脚印指向的不是一个人。推翻重来。","click",["end"],[],"从容"))
 	if nodes.is_empty():
-		nodes.append(_mk_node("v1","福尔摩斯","（看着推理墙）再想想。","click",["end"],"从容"))
+		nodes.append(_mk_node("v1","福尔摩斯","（看着推理墙）再想想。","click",["end"],[],"从容"))
 	_start_dialogue(nodes, "v1", _on_scene2_verdict_end.bind(advance))
 
 func _on_scene2_verdict_end(advance: bool) -> void:
