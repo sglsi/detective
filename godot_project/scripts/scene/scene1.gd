@@ -234,7 +234,7 @@ func _create_observers() -> void:
 
 	_messenger_obs = ClueObserver.new(); _messenger_obs.name = "messenger_observer"; add_child(_messenger_obs)
 	var mess_tex = load("res://assets/characters/messenger/messenger_portrait.png")
-	_messenger_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, DifficultyManager.filter_hotspots_by_difficulty([
+	var mhot := DifficultyManager.filter_hotspots_by_difficulty([
 		# 热点位置与新全身立绘 560,343/150,447（等比 0.75）对齐，观察时仍用 spritesheet 细节图
 		{"id":"tattoo","label":"手背锚文身","x":590,"y":628,"w":68,"h":30,"desc":"蓝色锚形文身 -> 海军标志","correct":true,
 		 "crop":{"x":0.16,"y":0.39,"cx":0.46,"cy":0.59},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"tattoo"},
@@ -248,7 +248,13 @@ func _create_observers() -> void:
 		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"sleeve"},
 		{"id":"limp","label":"走路略跛","x":598,"y":726,"w":68,"h":34,"desc":"右腿略跛 -> 干扰:扭伤","correct":false,
 		 "crop":{"x":0.4905,"y":0.7800,"cx":0.7005,"cy":0.98768},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"limp"},
-	]), mess_tex, _messenger_portrait_ctrl, "res://assets/characters/messenger/messenger_portrait.png")
+	])
+	# 困难模式 70% 深度干扰项：信使口袋露出半张药房收据（看似线索，实际只是感冒药）— 08 §阶段2 L545
+	if DifficultyManager.current_difficulty == DifficultyManager.Difficulty.HARD and randf() < 0.7:
+		mhot.append({"id":"receipt","label":"半张药房收据","x":622,"y":600,"w":62,"h":32,
+			"desc":"信使口袋露出半张药房收据——看似线索，实际只是感冒药","correct":false,
+			"crop":{"x":0.62,"y":0.62,"cx":0.80,"cy":0.82},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"receipt"})
+	_messenger_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, mhot, mess_tex, _messenger_portrait_ctrl, "res://assets/characters/messenger/messenger_portrait.png")
 	_messenger_obs.all_recorded.connect(_on_messenger_all_recorded)
 	_messenger_obs.clue_recorded.connect(_on_collect_clue.bind("messenger"))
 	_messenger_obs.hotspot_clicked.connect(_on_obs_hotspot_to_tool)
@@ -407,11 +413,12 @@ func _show_mrs_hudson_dialogue() -> void:
 	_dm.dialogue_ended.connect(_on_mrs_hudson_end)
 	var nodes: Array[Resource] = []
 	nodes.append(_dn("h0","赫德森太太","福尔摩斯先生，茶来了。哦，华生医生，欢迎您。","click",["h1"]))
-	nodes.append(_dn("h1","福尔摩斯","（上下打量华生，停顿）……阿富汗军医。","click",["h2"],"自信"))
-	nodes.append(_dn("h2","华生","（一愣）什么？","click",["h3"],"吃惊"))
-	nodes.append(_dn("h3","福尔摩斯","我说，你是一名刚从阿富汗回来的军医。我说对了吗？","click",["h4"],"从容"))
-	nodes.append(_dn("h4","华生","您……您怎么知道的？我们刚认识不到十秒钟。","click",["h5"],"惊讶"))
-	nodes.append(_dn("h5","福尔摩斯","（微笑，转向玩家视角）这位新朋友显然不相信。不如——你来告诉他我是怎么看出来的？","click",["h5_e","h5_n","h5_h"],"指导"))
+	nodes.append(_dn("h1","福尔摩斯","（上下打量华生，停顿两秒，把雪茄从嘴边拿开）您好，我是福尔摩斯，您应该是从阿富汗刚回来不久吧。","click",["h2"],"自信"))
+	nodes.append(_dn("h2","华生","（愣住）什么？","click",["h3"],"吃惊"))
+	nodes.append(_dn("h3","福尔摩斯","（平静地）确切的说，您是阿富汗军医。我说对了吗？","click",["h4"],"从容"))
+	nodes.append(_dn("h4","华生","（惊讶得差点从椅子上站起来）您——您怎么知道？我们才刚见面不到十秒！","click",["h5"],"惊讶"))
+	nodes.append(_dn("h5","福尔摩斯","（没回答华生，转向玩家，眼神里多了一点兴致）你看这位新朋友——他不相信自己的眼睛。不如你来做个见证，替我告诉他：我是怎么看出来的？","click",["h_w"],"指导"))
+	nodes.append(_dn("h_w","华生","（小声嘟囔）……我更想知道你是怎么看出来的。","click",["h5_e","h5_n","h5_h"],"思考"))
 	# 不同难度不同引导：h5 之后分流，难度过滤节点须「链式为 next」(h5_e→h5_n→h5_h→end)，
 	# 引擎 should_show 跳过隐藏变体时才会依次走到第一个可见变体（否则会误判 end 提前结束）。
 	nodes.append(_dn("h5_e","福尔摩斯","（低声）从手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、医务工作者风度这几处下手，每条都要讲出证据。","click",["h5_n"],"指导",1))
@@ -503,8 +510,32 @@ func _show_watson_reasoning_wall() -> void:
 	}
 	_open_wall("watson", hypo, func(v: int):
 		_watson_v = v
-		_start_messenger_phase()
+		_show_watson_verdict_dialogue(v)
 	, Callable(self, "_resume_observe"), true, _watson_wall_state)
+
+## 华生墙验证后四档回应（08 §阶段1 验证段 L386/L398-406）：
+## VERIFIED 含逐特征详解 + 伟大人物名言；低于 VERIFIED 给简短回应。播完进信使阶段。
+func _show_watson_verdict_dialogue(v: int) -> void:
+	if _ui: _ui.set_camera_enabled(false)   # 验证回应：禁用摄像机
+	_dm = DialogueManager.new(); add_child(_dm)
+	_dm.dialogue_advanced.connect(_on_line)
+	_dm.dialogue_ended.connect(_on_watson_verdict_end)
+	var nodes: Array[Resource] = []
+	if v >= 3:
+		nodes.append(_dn("wv1","福尔摩斯","你刚才做得不错。让我告诉你，我是怎么看出来的——","click",["wv2"],"从容"))
+		nodes.append(_dn("wv2","福尔摩斯","手腕的晒痕、左臂的旧伤，说明他在热带扛过枪；脸色的黝黑、面容的憔悴，是久病初愈又长途劳顿；军人的站姿、医务工作者的风度，拼在一起——阿富汗军医。","click",["wv3"],"从容"))
+		nodes.append(_dn("wv3","福尔摩斯","记住：对一个伟大人物来说，任何事情都不是微不足道的。","click",["wv4"],"哲理"))
+		nodes.append(_dn("wv4","福尔摩斯","（点了一下头）不错。你已经摸到门道了。","click",["wv5"],"认可"))
+		nodes.append(_dn("wv5","华生","（在小本子上记）福尔摩斯认可了——这可不容易。","click",["end"],"思考"))
+	else:
+		nodes.append(_dn("wv1","福尔摩斯","（没评价，只递过放大镜）方向是对的，但还有关键的细节你漏掉了。需要在后续多加练习？","click",["wv2"],"从容"))
+		nodes.append(_dn("wv2","华生","（合上笔记）别急，我陪你。","click",["end"],"思考"))
+	var res = DialogueResource.new(); res.scene_id="s1_watson_verdict"; res.nodes=nodes
+	res.easy_start_node="wv1"; res.normal_start_node="wv1"; res.hard_start_node="wv1"
+	_dm.dialogue_resource=res; _dm.start_dialogue()
+
+func _on_watson_verdict_end() -> void:
+	_start_messenger_phase()
 
 func _start_messenger_phase() -> void:
 	if _ui: _ui.reset_camera()   # 华生→信使切换：先归位摄像机，避免残留华生推近放大态挡住信使立绘/操作
@@ -558,6 +589,12 @@ func _on_messenger_dialogue_end() -> void:
 	_messenger_obs.show()   # 正式激活观察（开放点击；reveal_hints 在 m3 画的提示圈保留，已记录线索不重复显示）
 	_ui.set_dialogue("提示", _observe_hint("信使", true) + ("。注意分辨干扰项！" if DifficultyManager.mislead_chance > 0.0 else "。"))
 	_ui.set_dialogue_color(Color(0.5,0.9,0.5))
+	# 普通模式 70% 中途提示 / 30% 误导强调（08 §阶段2 信使观察 L526-527，接 DifficultyManager.should_show_hint）
+	if DifficultyManager.current_difficulty == DifficultyManager.Difficulty.NORMAL:
+		if DifficultyManager.should_show_hint():
+			_ui.set_dialogue("🔎 中途提示", "袖口那个磨损……可能只是穿久了。别被它带偏。", "提示")
+		else:
+			_ui.set_dialogue("🔎 注意", "等等，他走路好像有点跛？也许藏着什么。", "提示")
 	if _toolbar: _toolbar.show_toolbar()   # 观察阶段弹出道具工具栏
 
 func _show_messenger_reasoning_wall() -> void:
@@ -580,8 +617,34 @@ func _show_messenger_reasoning_wall() -> void:
 	_messenger_wall_state["verified"] = false
 	_open_wall("messenger", hypo, func(v: int):
 		_messenger_v = v
-		_calc_stars(); _show_commission_letter_dialogue()
+		_show_messenger_verdict_dialogue(v)
 	, Callable(self, "_resume_observe"), true, _messenger_wall_state)
+
+## 信使墙验证后四档回应（08 §阶段2 验证四档 L536-538/L549）：
+## VERIFIED 普通/困难差异化台词；SUPPORTED/INSUFFICIENT 简短；CONTRADICTORY 通用回退。
+func _show_messenger_verdict_dialogue(v: int) -> void:
+	if _ui: _ui.set_camera_enabled(false)   # 验证回应：禁用摄像机
+	_dm = DialogueManager.new(); add_child(_dm)
+	_dm.dialogue_advanced.connect(_on_line)
+	_dm.dialogue_ended.connect(_on_messenger_verdict_end)
+	var nodes: Array[Resource] = []
+	var line := ""
+	match v:
+		3:
+			line = "（微微点头）还行。" if DifficultyManager.current_difficulty == DifficultyManager.Difficulty.HARD else "不错。你已经学会区分信号和噪音了。"
+		2:
+			line = "方向对了。但有些无关的东西，你还得学会过滤。"
+		1:
+			line = "还不够。再仔细看看——关键的特征就在眼前。"
+		_:
+			line = "你的证据和结论对不上——推翻重来，别急。"
+	nodes.append(_dn("mv1","福尔摩斯",line,"click",["end"],"从容"))
+	var res = DialogueResource.new(); res.scene_id="s1_messenger_verdict"; res.nodes=nodes
+	res.easy_start_node="mv1"; res.normal_start_node="mv1"; res.hard_start_node="mv1"
+	_dm.dialogue_resource=res; _dm.start_dialogue()
+
+func _on_messenger_verdict_end() -> void:
+	_calc_stars(); _show_commission_letter_dialogue()
 
 ## 信使推理墙假设：仅当当前难度存在干扰线索时才纳入干扰假设（简单模式无干扰）。
 func _messenger_hypotheses() -> Array:
@@ -722,9 +785,16 @@ func _show_commission_letter_dialogue() -> void:
 	_dm.dialogue_advanced.connect(_on_line)
 	_dm.dialogue_ended.connect(_on_commission_ended)
 	var nodes: Array[Resource] = []
-	nodes.append(_dn("cl0","福尔摩斯","信使留下的，是葛莱森警长的委托信。花园街3号，一具男尸，无外伤——像是中毒。","click",["cl1"],"从容"))
-	nodes.append(_dn("cl1","华生","所以真正的案子，从这一刻开始。","click",["cl2"],"思考"))
-	nodes.append(_dn("cl2","system","📜 案件委托信已解锁 — 记入侦探笔记（来源：案件委托）","click",["end"],"guide"))
+	nodes.append(_dn("cl0","福尔摩斯","信使留下的，是葛莱森警长的委托信。布瑞克斯顿路尽头、劳瑞斯顿花园街三号，一具男尸，无外伤——像是中毒。","click",["cl1"],"从容"))
+	nodes.append(_dn("cl1","系统","〔葛莱森警长来信 · 全文〕\n\n亲爱的福尔摩斯先生：\n\n昨夜，在布瑞克斯顿路的尽头、劳瑞斯顿花园街三号发生了一件凶杀案。今晨两点左右，巡逻警察忽见该处有灯光，因素悉该房无人居住，故而怀疑出了什么问题。该巡警发现房门大开，前室空无一物，内有男尸一具。该尸衣着整齐，袋中装有名片，上有“伊诺克·J.德雷伯，美国俄亥俄州克利夫兰”字样。既无被抢劫迹象，亦未发现任何能说明致死原因之证据。屋中虽有几处血迹，但死者身上并无伤痕。死者如何在空屋里遇害，我等百思不得其解，深感此案棘手之至。希望阁下在十二点之前惠临，我将在此恭候。在接信回示前，现场一切均将保持原状。如果不能莅临，亦必将详情告之，倘蒙指教，不胜感激之至。\n\n您忠实的　特白厄斯·葛莱森","click",["cl2"],"信件"))
+	nodes.append(_dn("cl2","福尔摩斯","葛莱森是苏格兰场首屈一指的能干人物。中士，请转告葛莱森警长，我会在十二点之前到达。","click",["cl3"],"从容"))
+	nodes.append(_dn("cl3","信使","好的，谢谢！福尔摩斯先生，那我就先告辞了。","click",["cl4"],"平静"))
+	nodes.append(_dn("cl4","福尔摩斯","（对玩家，眼神锐利）准备好了吗？一场真正的探案开始了。","click",["cl5"],"从容"))
+	nodes.append(_dn("cl5","福尔摩斯","（略微踱步，思考状）空屋、男尸、没有伤痕、墙上有血字……葛莱森说他们百思不得其解。","click",["cl6"],"思考"))
+	nodes.append(_dn("cl6","福尔摩斯","（看向玩家）你怎么看？先别急着回答——到了现场，让证据说话。","click",["cl7"],"从容"))
+	nodes.append(_dn("cl7","华生","（在一旁兴奋）听起来是个大案子！福尔摩斯，我们什么时候出发？","click",["cl8"],"好奇"))
+	nodes.append(_dn("cl8","福尔摩斯","（拿起帽子）现在就出发。但记住三条原则：第一，先观察再动手；第二，每样东西都值得量一量、记一记；第三，在有全部证据之前，不要急于下结论。","click",["cl9"],"自信"))
+	nodes.append(_dn("cl9","系统","【推理墙解锁新功能】案件推理链已创建（空链，等待玩家填充）\n【侦探笔记新增】案件档案：血字的研究 · 劳瑞斯顿花园街三号","click",["end"],"guide"))
 	var res = DialogueResource.new(); res.scene_id="s1_letter"; res.nodes=nodes
 	res.easy_start_node="cl0"; res.normal_start_node="cl0"; res.hard_start_node="cl0"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
