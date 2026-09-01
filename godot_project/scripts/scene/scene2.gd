@@ -7,7 +7,7 @@ extends DetectiveScene
 enum Phase { ARRIVAL, DETECTIVE_DIALOGUE, OBSERVE, REASONING, TRANSITION }
 
 # ── 2026-09 场景二重构：三张新实拍图取代原合成图 sc_02_garden.png ──
-# 流程：街道勘查(车辙/马蹄印 c201-204, sc02_street) → 房屋外墙转场(福尔摩斯旁白 ≥5s, sc02_facade)
+# 流程：街道勘查(车辙/马蹄印 c201-204, sc02_street) → 房屋外墙转场(福尔摩斯由远及近推镜演出, sc02_facade)
 #      → 花园通道勘查(脚印 c205-206, sc02_path) → 推理。
 # street/path 已裁为 16:9(1024×576)，STRETCH_KEEP_ASPECT_COVERED 铺满 1920×1080 无裁切，
 # 故热点 svg 坐标 ×1920/1080 即 1920×1080 场景坐标，且锚点归一化 = 场景归一化一一对应。
@@ -167,11 +167,24 @@ func _on_all_done(_clues_arr: Array) -> void:
 	else:
 		_on_observe_complete()
 
-## 街道勘查完成 → 房屋外墙转场（旁白停留 ≥5 秒）→ 切花园通道背景并激活脚印观察器
+## 街道勘查完成 → 房屋外墙转场（图2）：福尔摩斯「由远及近」推镜演出（方案A）──
+## 远全景(reset_camera, zoom=1.0) → 推近房屋(focus_world_point 1.7) → 门廊特写(2.6)，
+## 三段旁白对应「街对面看 → 走近几步 → 到门廊下」；演出期间锁相机输入避免与推镜打架；
+## 结束 reset_camera 回统览再切图3，保证花园通道热点坐标对齐。
 func _street_to_path_transition() -> void:
 	_ui.set_scene_background(load("res://assets/scenes/sc02_facade.png"))
-	_ui.set_dialogue("福尔摩斯", "让我们详细勘察一下案发现场周边，看看能不能发现一些有价值的线索。", "思考")
-	await get_tree().create_timer(5.0).timeout
+	_ui.set_camera_enabled(false)            # 演出期间锁住玩家拖拽/滚轮，避免与推镜打架
+	_ui.reset_camera()                        # 远：全景 zoom=1.0
+	_ui.set_dialogue("福尔摩斯", "（站在街对面）劳瑞斯顿花园街三号……先从远处看个全貌。", "从容")
+	await get_tree().create_timer(0.45).timeout   # 让镜头先稳到全景（远）
+	_ui.focus_world_point(Vector2(960, 540), 1.7)   # 中：走近几步，推近房屋
+	_ui.set_dialogue("福尔摩斯", "（走近几步）外墙很干净——没有撬锁、没有破窗。凶手是被人请进来的，或者自己有钥匙。", "思考")
+	await get_tree().create_timer(1.7).timeout
+	_ui.focus_world_point(Vector2(960, 640), 2.6)   # 近：到门廊下，推近细节
+	_ui.set_dialogue("福尔摩斯", "（到门廊下）但门廊下的泥地……留下了我们感兴趣的东西。先记着，屋里才是重头戏。", "从容")
+	await get_tree().create_timer(1.7).timeout
+	_ui.reset_camera()                        # 回统览，避免镜头偏移导致图3热点错位
+	_ui.set_camera_enabled(true)
 	_stage = STAGE_PATH
 	_ui.set_scene_background(load("res://assets/scenes/sc02_path.png"))
 	_current_observer().show()
