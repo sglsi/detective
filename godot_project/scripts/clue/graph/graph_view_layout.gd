@@ -421,13 +421,13 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 		_place_side_children(left_ch, rx, ry, -1.0, col_gap, memo, est_h, child_map, out)
 		_place_side_children(right_ch, rx, ry, 1.0, col_gap, memo, est_h, child_map, out)
 
-	# 孤立（未接入树）节点：保存位优先；否则碰撞感知螺旋放置，保证与全部已落位节点零重叠。
-	# 固定 120px 行距会因节点高度可变（hypo/conclusion 卡片可能 >120px）在高密度孤立群中重叠；
-	# 改用 _find_non_overlapping_position 复用真实 AABB 碰撞检测（clearance=24）。
+	# 孤立（未接入树）节点：保存位优先；否则按 kind 分层垂直整齐排列（替代原随机螺旋），
+	# 使默认星形布局下无关系节点也不乱飞，与「自动排列」视觉规则一致。
 	var existing_spare := {}
 	for _k in out:
 		if out[_k] is Vector2:
 			existing_spare[_k] = out[_k]
+	# 先处理保存位/手动位
 	for nd in nodes:
 		if out.has(nd.id): continue
 		var sv3: Variant = saved_root.get(nd.id, null)
@@ -435,10 +435,27 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 			out[nd.id] = sv3
 			existing_spare[nd.id] = sv3
 			continue
-		var _kind: String = owner._fold._kind_of(nd.id)
-		var _seed := Vector2(center.x + col_gap * 2.0 + 80.0, center.y)
-		out[nd.id] = _find_non_overlapping_position(_seed, nd.id, _kind, existing_spare, 24.0)
-		existing_spare[nd.id] = out[nd.id]
+	# 剩余孤立节点按 kind 分组、分层排列
+	var isolated_by_kind := {}
+	for nd in nodes:
+		if out.has(nd.id): continue
+		var k: String = owner._fold._kind_of(nd.id)
+		if not isolated_by_kind.has(k):
+			isolated_by_kind[k] = []
+		isolated_by_kind[k].append(nd.id)
+	var kind_col := {"conclusion": 1.0, "hypo": 2.0, "chain": 2.0, "clue": 3.0, "person": 0.0, "event": 0.0}
+	var ROW_H := 130.0
+	for k in isolated_by_kind:
+		var ids: Array = isolated_by_kind[k]
+		if ids.is_empty(): continue
+		var col_idx: float = kind_col.get(k, 3.0)
+		var base_x: float = center.x + col_idx * col_gap
+		var total_h: float = maxf(0.0, float(ids.size() - 1)) * ROW_H
+		var top_y: float = center.y - total_h * 0.5
+		for i in ids.size():
+			var nid: String = ids[i]
+			out[nid] = Vector2(base_x, top_y + float(i) * ROW_H)
+			existing_spare[nid] = out[nid]
 
 	# 软钳制：仅防 NaN / 极端值（保留列间距，不收缩到画布 margin，否则深树列会重叠）。超出画布由 fit_view 缩放看全。
 	for idf in out:
