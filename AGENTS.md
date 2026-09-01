@@ -474,3 +474,12 @@ NO other objects, isolated, game asset
   - `_mk_hint_box(true)` 返回 StyleBoxFlat 用作提示卡样式（无重名，本轮新增）。
 
 - **回归**：`p12`/`p16`/`q6`/`test_auto_layout`/`p0` 全过；`q5`（Q5_OK，exit=99 是非零标记 PASS 惯例）；`test_case_panorama` 的"无人物注入 FAIL"为注入数据差异，非产品 bug。改 multi `scripts/clue/*` + scene 数据后必须 `rm .godot && --import && --export-release "Web"`。
+
+#### 2026-09 场景二三图背景重构（detective 双观察器）
+
+- **背景三图（完全替换旧合成图 `sc_02_garden.png`）**：`assets/scenes/sc02_street.png`(1024×576)、`sc02_facade.png`(2303×1631)、`sc02_path.png`(1024×576)；原件已备份为 `sc02_*_raw.png`（勿删）。三张均为真实照片。
+- **观察流程两段**：`_street_obs`(sc02_street, c201-204 车辙/马蹄印) → 收满 → **房屋正面转场**（`set_scene_background(sc02_facade)` + 福尔摩斯旁白，`await 5.0s`）→ `_path_obs`(sc02_path, c205-206 脚印) → 收满 → `_on_observe_complete()` 推理。
+- **scene2.gd 覆盖点**：`_create_observers`（建 `_street_obs`/`_path_obs`，地点类 setup + `_ui.get_world_layer()/get_world_offset()`，label 用基类 `_obs_text_lbl`/`_obs_speaker_lbl`）；`_current_observer`（按 `_stage` 返回）；`_begin_observe`（重置 `_stage`+背景）；`_on_all_done`（street→await 转场+切 path 背景+`_path_obs.show()`；path→`_on_observe_complete`）；`_apply_restored_phase` OBSERVE 按 `_clues.size()>=STREET.size()` 分 street/path 恢复并切背景 + `restore_observer` 喂各自 id 子集。
+- **常量改动**：旧 `HOTSPOTS` 已拆为 `STREET_HOTSPOTS`/`PATH_HOTSPOTS`，`hotspots()` 返回拼接；任何用到"总线索数"处必须写 `STREET_HOTSPOTS.size() + PATH_HOTSPOTS.size()`，勿引用已删除的 `HOTSPOTS`。
+- **坐标基准**：16:9 裁剪图经 `set_scene_background`(STRETCH_KEEP_ASPECT_COVERED) 铺满 1920×1080 无裁切 → 锚点归一化 cx*1920/cy*1080 即场景坐标。热点 cx,cy：c201(0.30,0.18) c202(0.50,0.62) c203(0.56,0.78) c204(0.44,0.75) c205(0.42,0.56) c206(0.52,0.70)。
+- **锚点表**（`data/clue_image_anchors.gd`）新增 `sc02_street.png`{c201-204} 与 `sc02_path.png`{c205-206}（cx/cy 同热点，w/h≈0.20）。印痕为真实照片地面纹理，热点按语义估算，预览若偏移可微调 cx/cy。
