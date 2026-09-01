@@ -30,7 +30,7 @@ const STREET_HOTSPOTS = [
 	# ── Q3 困难观察级干扰（巡逻警马蹄印）：correct=false，简单模式过滤剔除、普通30%、困难70%概率出现 ──
 	{"id":"c207","attribute_tags":["直接物证"],"label":"另一组蹄印","x":560,"y":470,"w":150,"h":42,
 	 "desc":"泥地里另有一组蹄印——蹄铁磨损均匀，大小也与那匹马不同。这是巡逻警马的蹄印：警方昨夜到场后留下的，并非凶手来时的痕迹。别把它和凶手的马蹄印混为一谈。","tool":"none",
-	 "image":"res://assets/scenes/sc02_street.png","anchor":"c207","relation_tags":[],"correct":false},
+	 "image":"res://assets/scenes/sc02_street.png","anchor":"c207","relation_tags":[],"correct":false,"silent":true},
 ]
 
 # ── 勘查对象C：步伐距离（花园通道图 · 中央通道）──
@@ -44,7 +44,7 @@ const PATH_HOTSPOTS = [
 	# ── Q3 困难观察级干扰（巡警脚印）：correct=false，简单剔除、普通30%、困难70%概率出现 ──
 	{"id":"c208","attribute_tags":["直接物证"],"label":"规整的靴印","x":540,"y":470,"w":150,"h":42,
 	 "desc":"通道上还有一组规整的靴印，鞋头圆钝、步幅均匀——这是巡警来回勘查时留下的，案发之后才踩上去的。它与凶手的大步方头靴、小步漆皮靴都不是一回事。","tool":"none",
-	 "image":"res://assets/scenes/sc02_path.png","anchor":"c208","relation_tags":[],"correct":false},
+	 "image":"res://assets/scenes/sc02_path.png","anchor":"c208","relation_tags":[],"correct":false,"silent":true},
 ]
 
 const STAGE_STREET := "street"
