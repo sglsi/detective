@@ -13,6 +13,7 @@ var _watson_obs: ClueObserver
 var _messenger_obs: ClueObserver
 var _portrait_ctrl: Control = null   # 华生立绘控件（仅在 OBSERVE_WATSON 阶段显示）
 var _messenger_portrait_ctrl: Control = null  # 信使立绘控件（仅在 MESSENGER_OBSERVE 阶段显示）
+var _holmes_portrait_ctrl: Control = null  # 福尔摩斯全身立绘控件（仅在开场[MRS_HUDSON/OPENING]阶段显示）
 var _watson_v := 0
 var _messenger_v := 0
 var _watson_clues: Array = []
@@ -31,7 +32,10 @@ var _talk_active := false
 ## ⚠️ 曾误挂 crime_scene_1920x1080.jpg（命案现场），与场景三「劳瑞斯顿花园街3号·室内」
 ## 内容撞车，玩家在场景一会看到场景三的现场图。换图时注意与各场景所在地对应：
 ##   scene1 贝克街221B室内 / scene2 花园外景 / scene3 命案现场室内。
-func scene_background() -> Texture2D: return load("res://assets/backgrounds/baker_street_parlor.jpg")
+func scene_background() -> Texture2D: return load("res://assets/backgrounds/screen01-sofa01.png")
+
+# 华生观察及之后阶段使用「开门(门廊视角)」背景
+func _opendoor_bg() -> Texture2D: return load("res://assets/backgrounds/screen01-opendoor.png")
 
 func _ready() -> void:
 	super._ready()
@@ -76,6 +80,12 @@ func _restore_saved_state() -> bool:
 	# 读到终局阶段时，阻止后续「进入场景二」按钮再次自动存档，避免 identical 重复槽位。
 	_suppress_terminal_save = _is_terminal_phase(saved_phase)
 	_create_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
+	# 读档恢复到「华生观察及其后」阶段时，使用开门(门廊视角)背景，福尔摩斯全身立绘隐藏（仅开场显示）
+	if saved_phase >= Phase.OBSERVE_WATSON:
+		_ui.set_scene_background(_opendoor_bg())
+		if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = false
+	else:
+		if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = true
 
 	match saved_phase:
 		Phase.MRS_HUDSON:
@@ -169,17 +179,28 @@ func _build_ui() -> void:
 	_setup_toolbar()
 	var tex = load("res://assets/characters/watson/watson_teaching.png")
 	if tex:
-		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(160, 350), Vector2(280, 360), false)
+		# 华生立绘（1024 正方图）：显示高与福尔摩斯一致（福尔摩斯框 373x843 contain 显示高≈831）。
+		# 正方图须框 ≥831 → (843,843) box=831 contain 显示 831。站位：门框(源x336)与壁炉(源x330)
+		# 交界处≈场景 x625 → pos.x = 625-843/2 ≈ 203。
+		# 脚底对齐三尊共同地面线 y≈920 → box 高831，脚底=pos.y+6+831 → pos.y=83。
+		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(203, 83), Vector2(843, 843), false)
 		# 默认隐藏：仅在 OBSERVE_WATSON 阶段显示
 		if _portrait_ctrl: _portrait_ctrl.visible = false
 	# 信使立绘（默认隐藏，MESSENGER_OBSERVE 阶段显示）
 	var mtex = load("res://assets/characters/messenger/messenger_portrait.png")
 	if mtex:
-		# 新图 808x1920（竖图，宽高比 0.421）。_make_portrait 用 EXPAND_IGNORE_SIZE + 手动 contain。
-		# 框 280x632 按高 contain 显示约 266x632（比旧 220 框的 208x494 明显放大）；
-		# 向下移动一个屏幕小腿长度(~131px)，使信使从"踩在椅子上"落到地面，脚底约 y=973。
-		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(1300, 291), Vector2(280, 632), false)
+		# 新图 808x1920（竖图，宽高比 0.421），放大 4/3 后框 373x843(box=361x831)。
+		# 站「门框前、桌子旁」：门框右竖边(源x572→场景1073)与桌子左缘(源x634→场景1189)
+		# 之间的空档，立绘中心 x≈1100 → pos.x = 1100-373/2 ≈ 913。
+		# 脚底对齐三尊共同地面线 y≈920 → box 高831，脚底=pos.y+6+831 → pos.y=83。
+		_messenger_portrait_ctrl = _ui.add_portrait(mtex, "信使", Vector2(913, 83), Vector2(373, 843), false)
 		if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false  # MESSENGER_OBSERVE 阶段才显示（_start_messenger_phase）
+	# 福尔摩斯全身立绘（新竖图 391x1024，透明底）：仅开场（华生线索收集前）阶段显示。
+	# 放大 4/3 后框 373x843；开场 sofa 场景左侧窗旁，脚底保持 y≈923 → pos.y=923-6-831=86。
+	var htex = load("res://assets/characters/holmes/holmes_fullbody.png")
+	if htex:
+		_holmes_portrait_ctrl = _ui.add_portrait(htex, "福尔摩斯", Vector2(210, 86), Vector2(373, 843), false)
+		# 默认显示：开场阶段（sofa 场景）即可见，进入华生观察（_on_opening_end）时隐藏
 
 ## 场景一用 UI 内部对话标签渲染观察层，不需要占位标签
 func _create_dummy_labels() -> void:
@@ -194,13 +215,13 @@ func _create_observers() -> void:
 		# crop 为「锚点表缺失时」的回退取景，数值已与 clue_image_anchors.gd
 		# 中 watson_teaching.png 的定稿锚点对齐（x=cx-w/2, y=cy-h/2, cx=cx+w/2, cy=cy+h/2）
 		{"id":"wrist","label":"肤色黑白分明","x":580,"y":400,"w":100,"h":60,"desc":"手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来",
-		 "crop":{"x":0.2215,"y":0.5605,"cx":0.4985,"cy":0.7695},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
+		 "crop":{"x":0.275,"y":0.318,"cx":0.495,"cy":0.558},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
 		{"id":"arm","label":"左臂损伤","x":450,"y":450,"w":100,"h":70,"desc":"左臂动作略显僵硬——战场负伤留下的旧疾",
-		 "crop":{"x":0.5845,"y":0.3225,"cx":0.7575,"cy":0.4575},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
+		 "crop":{"x":0.494,"y":0.142,"cx":0.694,"cy":0.342},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
 		{"id":"face_dark","label":"脸色黝黑","x":520,"y":200,"w":110,"h":60,"desc":"脸部肤色明显偏深——长期热带日照的痕迹",
-		 "crop":{"x":0.392,"y":0.040,"cx":0.632,"cy":0.326},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
+		 "crop":{"x":0.401,"y":0.036,"cx":0.601,"cy":0.256},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
 		{"id":"face_haggard","label":"面容憔悴","x":520,"y":290,"w":110,"h":60,"desc":"面容灰暗、眼窝深陷——久病初愈的痕迹",
-		 "crop":{"x":0.392,"y":0.040,"cx":0.632,"cy":0.326},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
+		 "crop":{"x":0.401,"y":0.036,"cx":0.601,"cy":0.256},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
 		{"id":"pose","label":"军人气质","x":500,"y":600,"w":130,"h":80,"desc":"站姿挺拔、气质干练——典型的军人作风",
 		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"pose"},
 		{"id":"medical","label":"医务工作者风度","x":500,"y":430,"w":120,"h":120,"desc":"举手投足间透出医务工作者的沉稳与专业气质",
@@ -430,7 +451,11 @@ func _show_opening_dialogue() -> void:
 
 func _on_opening_end() -> void:
 	_phase = Phase.OBSERVE_WATSON
+	# 进入华生观察阶段起切换到「从门廊向内看」背景（含之后信使观察等全部阶段）
+	if _ui: _ui.set_scene_background(load("res://assets/backgrounds/screen01-opendoor.png"))
 	if _ui: _ui.set_camera_enabled(true)   # 进入观察：启用摄像机（统览/缩放/拖拽）
+	# 福尔摩斯全身立绘仅属于开场（sofa 场景），华生观察开始时隐藏
+	if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = false
 	if _portrait_ctrl: _portrait_ctrl.visible = true
 	_watson_obs.show()
 	_ui.set_dialogue("提示", _observe_hint("华生", true) + "，观察 6 处线索。")
