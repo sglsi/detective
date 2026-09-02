@@ -176,6 +176,7 @@ const _COLOR_LABELS := {"green": "支持", "orange": "矛盾存疑", "red": "反
 # 时才走第二级。直接在这里把 name 填中文，中心永远显示真名，不再依赖下游 fallback。
 const _NPC_DISPLAY_NAMES := {
 	"NPC_WT": "华生",
+	"KILLER": "凶手",
 		"NPC_MSG": "信使",
 	"NPC_HOP": "霍普",
 	"NPC_DRE": "德雷伯",

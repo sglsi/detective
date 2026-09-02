@@ -17,7 +17,7 @@ const STREET_HOTSPOTS = [
 	# ── 勘查对象A：车轮印迹（街道图 · 车行道中部地带）──
 	{"id":"c201","attribute_tags":["直接物证"],"label":"碾轧的花草","x":1307,"y":735,"w":150,"h":42,
 	 "desc":"路边草地被压过了——两道平行的印子，草地上有两道平行的凹痕，像是车轮碾轧留下的。有马车在此停靠过。","tool":"none",
-	 "image":"res://assets/scenes/sc02_street.png","anchor":"c201","relation_tags":["H2-01"]},
+	 "image":"res://assets/scenes/sc02_street.png","anchor":"c201","relation_tags":["H2-01"],"related_npcs":["KILLER"]},
 	{"id":"c202","attribute_tags":["直接物证"],"label":"平行车轮印","x":885,"y":649,"w":150,"h":42,
 	 "desc":"用卷尺测量：轴距约3.8英尺，轮宽约2英寸，压痕最深处约1.2英寸。查知识库·伦敦马车类型：出租四轮马车轴距约3.8~4.0英尺，车身较窄以适应伦敦小巷——这是一辆出租马车。伦敦的出租马车为了钻小巷，轴距都做窄了，私家马车不会这么窄。","tool":"卷尺",
 	 "image":"res://assets/scenes/sc02_street.png","anchor":"c202","relation_tags":["H2-01"]},
@@ -238,19 +238,19 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"C2-03","text":"一只马蹄铁是新的、其余三只是旧的","correct":true}
 		],
 		"conclusions": [
-			{"id":"CL2-1","text":"凶手乘出租马车抵达现场","kind":"true","dir":"affirm","subject":["凶手"],"object":["出租马车","马车"],"gate_hypo_ids":["H2-01"],
+			{"id":"CL2-1","text":"凶手乘出租马车抵达现场","kind":"true","dir":"affirm","subject":["凶手"],"object":["出租马车","马车"],"gate_hypo_ids":["H2-01"],"target":"person:KILLER",
 			 "adopt_desc":"马车碾轧花草+并行车轮印推导：凶手乘出租马车抵达花园街3号。"},
-			{"id":"CL2-2","text":"凶手是高大强壮的成年男性","kind":"true","dir":"affirm","subject":["凶手"],"object":["高大","强壮","成年"],"gate_hypo_ids":["H2-02","H2-04"],
+			{"id":"CL2-2","text":"凶手是高大强壮的成年男性","kind":"true","dir":"affirm","subject":["凶手"],"object":["高大","强壮","成年"],"gate_hypo_ids":["H2-02","H2-04"],"target":"person:KILLER",
 			 "adopt_desc":"步幅推算身高、动作推断体格：凶手为高大强壮的成年男性。"},
-			{"id":"CL2-3","text":"凶手穿方头靴（关键体貌）","kind":"true","dir":"affirm","subject":["凶手"],"object":["方头靴","靴"],"gate_hypo_ids":["H2-03"],
+			{"id":"CL2-3","text":"凶手穿方头靴（关键体貌）","kind":"true","dir":"affirm","subject":["凶手"],"object":["方头靴","靴"],"gate_hypo_ids":["H2-03"],"target":"person:KILLER",
 			 "adopt_desc":"两组脚印主组为方头靴：锁定凶手身份的关键体貌结论。"},
-			{"id":"CL2-M1","text":"凶手是身材矮小的少年","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["矮小","少年"],"gate_hypo_ids":["H2-M1"],
+			{"id":"CL2-M1","text":"凶手是身材矮小的少年","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["矮小","少年"],"gate_hypo_ids":["H2-M1"],"target":"person:KILLER",
 			 "reject_desc":"小步漆皮靴与方头靴主组矛盾：凶手并非矮小少年。"},
-			{"id":"CL2-1M","text":"凶手徒步踏泥大步进入花园","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["徒步","泥地","大步"],"gate_hypo_ids":["H2-01"],
+			{"id":"CL2-1M","text":"凶手徒步踏泥大步进入花园","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["徒步","泥地","大步"],"gate_hypo_ids":["H2-01"],"target":"person:KILLER",
 			 "reject_desc":"并行车轮印与碾轧花草说明是乘马车抵达，非徒步大步进入。"},
-			{"id":"CL2-2M","text":"凶手身材矮小、体格瘦弱","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["矮小","瘦弱"],"gate_hypo_ids":["H2-02"],
+			{"id":"CL2-2M","text":"凶手身材矮小、体格瘦弱","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["矮小","瘦弱"],"gate_hypo_ids":["H2-02"],"target":"person:KILLER",
 			 "reject_desc":"现场大步幅与翻越/搬运动作均指向高大强壮者，与矮小瘦弱矛盾。"},
-			{"id":"CL2-3M","text":"凶手穿小步漆皮靴","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["漆皮靴","小步"],"gate_hypo_ids":["H2-03"],
+			{"id":"CL2-3M","text":"凶手穿小步漆皮靴","kind":"mislead","dir":"affirm","subject":["凶手"],"object":["漆皮靴","小步"],"gate_hypo_ids":["H2-03"],"target":"person:KILLER",
 			 "reject_desc":"主组脚印为方头靴大码，漆皮小步靴属同行者/伪装，非凶手本人。"}
 		],
 		"milestones": [
