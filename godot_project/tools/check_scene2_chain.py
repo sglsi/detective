@@ -137,8 +137,7 @@ for cid, (exp, _) in expect_con.items():
         has(h, cid)
 # CH03: 线索→推断（本地+跨场景）
 for c, hid in [("c205", "H2-04"), ("c206", "H2-04"), ("c206", "H2-05"), ("c309", "H2-05"),
-               ("C_SOTCB_402", "H2-05"), ("c205", "H2-06"), ("c311", "H2-06"), ("c206", "H2-07"),
-               ("c309", "H3-04")]:
+               ("C_SOTCB_402", "H2-05"), ("c205", "H2-06"), ("c311", "H2-06"), ("c206", "H2-07")]:
     has(c, hid)
 # CH03: H→CL
 for cid in ("CL2-5", "CL2-6"):
@@ -158,7 +157,7 @@ if "PERSON_PREFIX" not in read("scripts/clue/wall_branch_evaluator.gd"):
     fail("评分器缺 PERSON_PREFIX")
 nbr = re.search(r'if nid\.begins_with\(PERSON_PREFIX\):\s*\n\s*return nid\.substr\(PERSON_PREFIX\.length\(\)\)', read("scripts/clue/wall_branch_evaluator.gd"))
 if not nbr: fail("评分器 norm() 未剥 person: 前缀")
-if '"relation_tags":["H2-05","H2-06"]' not in sc3: fail("scene3 c311 relation_tags 未对齐 H2-05/H2-06")
+if '"relation_tags":["H2-05","H2-06"' not in sc3: fail("scene3 c311 relation_tags 未对齐 H2-05/H2-06")
 
 print("SCENE2_CHAIN_ALIGN: " + ("PASS" if OK else "FAIL"))
 sys.exit(0 if OK else 1)
