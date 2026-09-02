@@ -177,7 +177,8 @@ const _COLOR_LABELS := {"green": "支持", "orange": "矛盾存疑", "red": "反
 const _NPC_DISPLAY_NAMES := {
 	"NPC_WT": "华生",
 	"KILLER": "凶手",
-		"NPC_MSG": "信使",
+	"NPC_MSG": "信使",
+	"NPC_SERGEANT": "海军军士",
 	"NPC_HOP": "霍普",
 	"NPC_DRE": "德雷伯",
 	"NPC_LUCY": "露西",
