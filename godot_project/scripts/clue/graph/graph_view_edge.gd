@@ -166,6 +166,13 @@ func _add_edge(from: String, to: String, kind: String, color_key: String = "", d
 	if owner._state != GraphViewController.State.EDITABLE:
 		owner._toast_msg("已封存，仅可浏览")
 		return
+	# 人物节点恒为关系树根（父）：若出现「人物 → 其它节点」的边，交换 from/to，
+	# 保证人物永远是 to（父 / 归属目标）。否则人物会成为某节点的子、失去放射根地位，
+	# 导致 _star_tree_layout 整树根错位、排列混乱（信使墙 / 场景二墙均因此出现拖拽不跟随）。
+	if owner._fold._kind_of(from) == "person" and owner._fold._kind_of(to) != "person":
+		var _sw: String = from
+		from = to
+		to = _sw
 	if from == to:
 		owner._toast_msg("线索不能指向自己")
 		return

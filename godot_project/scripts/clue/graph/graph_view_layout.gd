@@ -539,6 +539,13 @@ func _build_parent_of() -> Dictionary:
 		for _p in _rc.get("related_npcs", []):
 			if owner._fold._kind_of(_p) == "person":
 				add_parent.call(_rcid, _p)
+	# 兜底：强制人物节点恒为关系树根。任何路径（含预设数据 / 历史存档）若把人物写成子(from)，
+	# 都剔除其父子候选，保证 person 永远是放射根、下游子树从人物派生。
+	# 此前「人物恒为根」仅写于 _is_tree_root 注释、未在树构建中真正落地，导致玩家手动连
+	# 「人物 → 推断」反向边、或 case_wide 预设边方向异常时整墙根错位、拖拽不跟随。
+	for _pc in parent_cand.keys():
+		if owner._fold._kind_of(_pc) == "person":
+			parent_cand.erase(_pc)
 	var parent_of := {}
 	for ch in parent_cand:
 		var best: String = ""
