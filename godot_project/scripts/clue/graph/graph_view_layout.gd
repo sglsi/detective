@@ -641,33 +641,33 @@ func _place_side_children(children: Array, root_x: float, root_y: float, dirv: f
 
 ## 递归布点：父居其子带中央；子带按各自子树带长精确切分（不足则居中留白），兄弟带间保证 ≥15px，绝不溢出交叠
 func _assign_subtree(u: String, child_map: Dictionary, sp: Dictionary, est_h: Dictionary, out: Dictionary, top: float, bot: float, pxx: float, dirv: float, col_gap: float) -> void:
-	var mid_y: float = (top + bot) * 0.5
-	# 规则2：被玩家手动拖动并锚定的节点(人物/结论/推断)，钉在手动位，其后代据此派生(向上不动)。
-	# 放在递归最前，确保自顶向下经过它时，其整条下游子树都从手动位生长，而非从父派生位。
-	if u in owner._manual_nodes and owner._root_anchor_pos.has(u):
-		out[u] = owner._root_anchor_pos[u]
-	elif out.has(u):
-		out[u] = Vector2(out[u].x, mid_y)
-	else:
-		out[u] = Vector2(pxx, mid_y)
-	# 需求3/5：叠加本节点的相对偏移（相对「父派生位」）。父已含偏移→子随父移动；
-	# 结论/推断被手动拖动后，其偏移相对父派生位，故人物移动时结论仍跟随（不脱离父）。
-	var off: Vector2 = owner._node_offsets.get(u, Vector2.ZERO)
-	out[u] += off
 	var ch: Array = child_map.get(u, [])
-	if ch.is_empty():
-		return
 	var totalSpan: float = 0.0
 	for _c in ch:
-		totalSpan += sp.get(_c, 140.0) as float
-	totalSpan += 20.0 * (float(ch.size()) - 1.0)
-	# 子树整体随本节点偏移平移：x 取本节点最终 x，y 带整体下移 off.y（需求3/5）
+		totalSpan += sp.get(_c, est_h.get(_c, 140.0) as float) as float
+	totalSpan += 20.0 * maxf(float(ch.size()) - 1.0, 0.0)
+	# 规则2（思傅 2026-09-02 最终裁定）：被玩家手动拖动的节点(人物/结论/推断)钉在手动位，
+	# 且整条下游子树从手动位重新生长(向上不动)。关键：手动分支必须把下游 band 的 top/bot 重置为
+	# 以「手动位.y」居中，而非沿用传入的(基于父=人物派生位)top/bot——否则下游只 x 跟着、y 仍锚定人物。
+	# 效果：拖 1→2/3/4/5/6 随 1；拖 2→3/4/5/6 随 2；拖 3→4/5/6 随 3；拖 4(叶子)→仅 4 自己动。
+	if u in owner._manual_nodes and owner._root_anchor_pos.has(u):
+		out[u] = owner._root_anchor_pos[u]
+		top = out[u].y - totalSpan * 0.5
+		bot = out[u].y + totalSpan * 0.5
+	elif out.has(u):
+		out[u] = Vector2(out[u].x, (top + bot) * 0.5)
+	else:
+		out[u] = Vector2(pxx, (top + bot) * 0.5)
+	var off: Vector2 = owner._node_offsets.get(u, Vector2.ZERO)
+	out[u] += off
+	if ch.is_empty():
+		return
 	var base_x: float = out[u].x
 	var band_top: float = top + off.y
 	var band_bot: float = bot + off.y
 	var cur: float = band_top + maxf(0.0, ((band_bot - band_top) - totalSpan) * 0.5)
 	for c in ch:
-		var _h: float = sp.get(c, 140.0) as float
+		var _h: float = sp.get(c, est_h.get(c, 140.0) as float) as float
 		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + _h, base_x + dirv * col_gap, dirv, col_gap)
 		cur += _h + 20.0
 
