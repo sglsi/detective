@@ -49,9 +49,13 @@ const PERSON_PREFIX := "person:"
 
 
 ## 节点 id 归一化：结论节点在画布上形如 "conclusion_CL3-1"，真相表里写作 "CL3-1"。
+## 人物节点画布上是裸 id（"KILLER"），真相表里写作 "person:KILLER" —— 一并剥前缀对齐
+## （2026-09-02：修复场景一练习墙人物边永不命中的隐性错位）。
 static func norm(nid: String) -> String:
 	if nid.begins_with(CONCL_PREFIX):
 		return nid.substr(CONCL_PREFIX.length())
+	if nid.begins_with(PERSON_PREFIX):
+		return nid.substr(PERSON_PREFIX.length())
 	return nid
 
 
