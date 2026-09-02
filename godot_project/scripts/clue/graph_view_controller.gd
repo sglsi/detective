@@ -155,7 +155,7 @@ const _NPC_DISPLAY_NAMES := {
 	"NPC_LUCY": "露西",
 	"NPC_STAN": "斯丹格森",
 	"NPC_LANCE": "兰斯",
-	"KILLER": "凶手",
+	"KILLER": "马车夫",
 	"NPC_MSG": "信使",
 	"NPC_SERGEANT": "海军军士",
 }

@@ -94,54 +94,64 @@ static func branches() -> Array:
 
 		# ───────────────────────── 场景二 ─────────────────────────
 		{
-			"id": "CH02", "name": "马车印迹", "scene": "scene2", "core": true,
+			"id": "CH02", "name": "马车与车夫行踪", "scene": "scene2", "core": true,
+			# 台词库§18 推理链#2：出租马车 / 右前蹄铁新换 / 马曾无人看管 → 三线合一「车夫进屋」（假设级）
 			"nodes": [
 				{"id": "c201", "layer": "clue"}, {"id": "c202", "layer": "clue"},
 				{"id": "c203", "layer": "clue"}, {"id": "c204", "layer": "clue"},
-				{"id": "H2-01", "layer": "hypo"},
-				{"id": "CL2-1", "layer": "concl"},
+				{"id": "H2-01", "layer": "hypo"}, {"id": "H2-02", "layer": "hypo"},
+				{"id": "H2-03", "layer": "hypo"},
+				{"id": "CL2-1", "layer": "concl"}, {"id": "CL2-2", "layer": "concl"},
+				{"id": "CL2-3", "layer": "concl"}, {"id": "CL2-4", "layer": "concl"},
 			],
 			"edges": [
 				{"from": "c201", "to": "H2-01", "kind": "support"},
 				{"from": "c202", "to": "H2-01", "kind": "support"},
-				{"from": "c203", "to": "H2-01", "kind": "support"},
-				{"from": "c204", "to": "H2-01", "kind": "support"},
+				{"from": "c203", "to": "H2-02", "kind": "support"},
+				{"from": "c204", "to": "H2-03", "kind": "support"},
 				{"from": "H2-01", "to": "CL2-1", "kind": "support"},
+				{"from": "H2-02", "to": "CL2-2", "kind": "support"},
+				{"from": "H2-03", "to": "CL2-3", "kind": "support"},
+				{"from": "H2-01", "to": "CL2-4", "kind": "support"},
+				{"from": "H2-02", "to": "CL2-4", "kind": "support"},
+				{"from": "H2-03", "to": "CL2-4", "kind": "support"},
 			],
 			"misleads": [
-				{"id": "H2-M2", "expect": "negate"},   # 凶手徒步踏泥大步进入花园
+				{"id": "H2-M2", "expect": "negate"},   # 来客徒步踏泥大步进入花园
 			],
 		},
 		{
-			"id": "CH03", "name": "凶手特征（多场景综合）", "scene": "scene2", "core": true,
+			"id": "CH03", "name": "来客特征（多场景综合）", "scene": "scene2", "core": true,
+			# 台词库§18 推理链#3：夜间来客两人 / 高个约6英尺 / 高个穿方头靴（范围估计，不作定论）
 			"nodes": [
 				{"id": "c205", "layer": "clue"}, {"id": "c206", "layer": "clue"},
 				{"id": "c311", "layer": "clue"},
 				{"id": "c309", "layer": "clue"},          # 血字离地6英尺 → 身高精确化锚点
 				{"id": "C_SOTCB_402", "layer": "clue"},   # 醉汉身高6英尺+（场景四交叉验证）
-				{"id": "H2-02", "layer": "hypo"}, {"id": "H2-03", "layer": "hypo"},
 				{"id": "H2-04", "layer": "hypo"}, {"id": "H2-05", "layer": "hypo"},
+				{"id": "H2-06", "layer": "hypo"}, {"id": "H2-07", "layer": "hypo"},
 				{"id": "H3-04", "layer": "hypo"},         # 右手指甲长（墙粉刮痕）
-				{"id": "CL2-2", "layer": "concl"}, {"id": "CL2-3", "layer": "concl"},
+				{"id": "CL2-5", "layer": "concl"}, {"id": "CL2-6", "layer": "concl"},
 			],
 			"edges": [
-				{"from": "c206", "to": "H2-02", "kind": "support"},
-				{"from": "c309", "to": "H2-02", "kind": "support"},
-				{"from": "C_SOTCB_402", "to": "H2-02", "kind": "support"},
-				{"from": "c205", "to": "H2-03", "kind": "support"},
-				{"from": "c311", "to": "H2-03", "kind": "support"},
+				{"from": "c205", "to": "H2-04", "kind": "support"},
 				{"from": "c206", "to": "H2-04", "kind": "support"},
 				{"from": "c206", "to": "H2-05", "kind": "support"},
+				{"from": "c309", "to": "H2-05", "kind": "support"},
+				{"from": "C_SOTCB_402", "to": "H2-05", "kind": "support"},
+				{"from": "c205", "to": "H2-06", "kind": "support"},
+				{"from": "c311", "to": "H2-06", "kind": "support"},
+				{"from": "c206", "to": "H2-07", "kind": "support"},
 				{"from": "c309", "to": "H3-04", "kind": "support"},
-				{"from": "H2-02", "to": "CL2-2", "kind": "support"},
-				{"from": "H2-04", "to": "CL2-2", "kind": "support"},
-				{"from": "H2-03", "to": "CL2-3", "kind": "support"},
+				{"from": "H2-04", "to": "CL2-5", "kind": "support"},
+				{"from": "H2-05", "to": "CL2-6", "kind": "support"},
+				{"from": "H2-06", "to": "CL2-6", "kind": "support"},
 			],
 			"misleads": [
-				{"id": "H2-M1", "expect": "negate"},   # 凶手是身材矮小的报童
-				{"id": "CL2-M1", "expect": "negate"},  # 凶手是身材矮小的少年
-				{"id": "CL2-2M", "expect": "negate"},  # 凶手身材矮小、体格瘦弱
-				{"id": "CL2-3M", "expect": "negate"},  # 凶手穿小步漆皮靴
+				{"id": "H2-M1", "expect": "negate"},   # 来的是身材矮小的报童
+				{"id": "CL2-M1", "expect": "negate"},  # 来客是身材矮小的少年
+				{"id": "CL2-2M", "expect": "negate"},  # 来客身材矮小、体格瘦弱
+				{"id": "CL2-3M", "expect": "negate"},  # 高个子穿小步漆皮靴
 			],
 		},
 
