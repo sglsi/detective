@@ -181,7 +181,46 @@ func _update_milestone_ui() -> void:
 	owner._milestone_lbl.text = "结论里程碑：%s  已确认事实 %d/%d" % [blocks, lit, owner._milestone_total]
 
 
-# ===================== 三星评价（v4.0 三维离散判定） =====================
+# ===================== 分枝（推理链）计分 · 统一评分源 =====================
+## 裁定 3：四档 verdict 与三星评价共用同一个评分源，杜绝「两套口径各说各话」。
+## 说明：WallBranchEvaluator 是纯数据引擎（不依赖场景树），此处只做「取快照 → 调引擎」。
+## 旧口径（只看有没有连边、支持≥3 即已证实）已废弃：乱连也能拿好评的根源就在那里。
+func _evaluate_branch() -> Dictionary:
+	var gv = owner._graph_view
+	if gv == null or not is_instance_valid(gv):
+		return {}
+	if not gv.has_method("snapshot_player_work"):
+		return {}
+	var snap: Dictionary = gv.snapshot_player_work()
+	var ev = load("res://scripts/clue/wall_branch_evaluator.gd")
+	if ev == null:
+		return {}
+	var res: Dictionary = ev.evaluate(
+		snap.get("relations", []),
+		snap.get("graph_nodes", []),
+		snap.get("derived_conclusions", []),
+		owner._scene_id,
+		owner._practice_mode)
+	owner._last_branch = res
+	return res
+
+
+## 四档判定（由分枝正确率派生）。拿不到快照时退回旧计数口径兜底，保证判定不塌。
+func _branch_verdict() -> int:
+	var res := _evaluate_branch()
+	if res.is_empty():
+		if _contradiction_signals() > 0: return 0
+		if _support_signals() >= 3: return 3
+		if _support_signals() >= 1: return 2
+		return 1
+	return int(res.get("verdict", 1))
+
+
+# ===================== 三星评价（v4.0 三维离散判定 + 分枝计分） =====================
+## 三维分工（2026-09-02 重构，避免「推理正确率」被观察/洞察稀释）：
+##   观察之星 —— 线索收集完整度（缺失条数），与推理对错无关，保留原逻辑
+##   推理之星 —— ★核心改造★ 由分枝（推理链）逐项比对正确率 R 决定：80/55/25 → 3/2/1/0⭐
+##   洞察之星 —— 战场命中比例 + 识破误导项加成（每否定一个误导项 +1，封顶 3⭐）
 func _update_star_rating() -> void:
 	if not owner._star_lbl: return
 	# 1) 观察之星：按缺失条数（缺≥3→1⭐ / 缺1-2→2⭐ / 缺0→3⭐），不区分线索重要性
@@ -194,29 +233,16 @@ func _update_star_rating() -> void:
 	elif missing >= 1:
 		observe_stars = 2
 
-	# 2) 推理之星：已关联线索正确比例 × 玩家派生推导(推断/结论)正确比例 综合。
-	# 采纳/推导误导项(kind=false)会拉低推理星——修复（问题2）：选错推理链评分不同。
-	var correct_assoc := 0; var total_assoc := 0
-	for c in owner._clues:
-		if c.get("associated", false):
-			total_assoc += 1
-			if c.get("correct", true): correct_assoc += 1
-	# 派生推导正确性：_graph_view._derived_claim_correctness() 返回 {correct,total}
-	# （_derived_conclusions 中推导的结论 + _graph_nodes 中采纳/自建的推断，按各自 kind 判定）
-	var gv = owner._graph_view
-	var der := {"correct": 0, "total": 0}
-	if gv != null and gv.has_method("_derived_claim_correctness"):
-		der = gv._derived_claim_correctness()
-	var total_reason := total_assoc + int(der.get("total", 0))
-	var correct_reason := correct_assoc + int(der.get("correct", 0))
+	# 2) 推理之星：由「分枝（推理链）逐项比对正确率」决定（裁定 2 + 第 4 点）。
+	#    计分单元是设计文档 14 条推理链：链内节点与边逐项 0/0.5/1 比对，
+	#    错误边同样进分母 → 连得越滥正确率越低，彻底堵死「乱选也能好评」。
+	#    阈值 80/55/25 → 3/2/1/0⭐；采纳误导项则三星硬条件失败（封顶 2⭐）。
+	var br: Dictionary = _evaluate_branch()
 	var reasoning_stars := 1
-	if total_reason > 0:
-		if correct_reason == total_reason:
-			reasoning_stars = 3
-		elif correct_reason * 4 >= 3 * total_reason:   # 正确比例 ≥ 3/4
-			reasoning_stars = 2
-		else:
-			reasoning_stars = 1
+	var branch_ratio := 0.0
+	if not br.is_empty():
+		branch_ratio = float(br.get("ratio", 0.0))
+		reasoning_stars = int(br.get("stars", 1))
 
 	# 3) 洞察之星：战场命中比例（绕路/重要方向/最优顺序的代理）+ 隐藏线索加成，封顶 3⭐
 	var insight_stars := 1
@@ -236,8 +262,17 @@ func _update_star_rating() -> void:
 					else: insight_stars = 1
 	# 隐藏线索/全追问等洞察加成（场景经 hypothesis.insight_bonus 传入）
 	insight_stars = clampi(insight_stars + owner._insight_bonus, 1, 3)
+	# 识破误导项加成：每否定一个误导项 +1（封顶 3⭐）——奖励「看出陷阱」，与错误无惩罚不冲突
+	if not br.is_empty():
+		var negated: Array = br.get("negated_misleads", [])
+		if not negated.is_empty():
+			insight_stars = clampi(insight_stars + negated.size(), 1, 3)
 
 	owner._last_stars = {"observation": observe_stars, "reasoning": reasoning_stars, "insight": insight_stars}
+	# 练习墙（裁定 5）：明示不计分，不提交 StarRatingSystem
+	if owner._practice_mode:
+		owner._star_lbl.text = "练习墙 · 不计分"
+		return
 	owner._star_lbl.text = "观察%d⭐ 推理%d⭐ 洞察%d⭐" % [observe_stars, reasoning_stars, insight_stars]
 
 	# 提交逐链三星到 StarRatingSystem（幂等覆盖；逐链离散制 v4.0）

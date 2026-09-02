@@ -1077,10 +1077,28 @@ func _show_scene_rating(scene_label: String, next_scene_path: String, on_continu
 		elif pct >= 0.5: grade = "合格侦探"
 		var gl := Label.new(); gl.text = "结局评定：%s（完整度 %.0f%%）" % [grade, pct*100]; gl.add_theme_font_size_override("font_size", 22); gl.add_theme_color_override("font_color", Color(0.92,0.82,0.45))
 		gl.position = Vector2(560, y); gl.size = Vector2(820,36); panel.add_child(gl); y += 46
+		# 每条推理链三星概览（沿用 srs.chains）
 		for cid in srs.chains.keys():
 			var c: Dictionary = srs.chains[cid]
 			var ll := Label.new(); ll.text = "%s：🔍%d 🧠%d 💡%d" % [cid, int(c["observation"]), int(c["reasoning"]), int(c["insight"])]; ll.add_theme_font_size_override("font_size", 15); ll.add_theme_color_override("font_color", Color(0.55,0.50,0.40))
 			ll.position = Vector2(580, y); ll.size = Vector2(800,26); panel.add_child(ll); y += 26
+		# 推理链结论明细（裁定4：最后才告诉玩家每条链做到哪）
+		var blog: Dictionary = srs.get_case_branch_log() if srs.has_method("get_case_branch_log") else {}
+		if not blog.is_empty():
+			var bh := Label.new(); bh.text = "── 推理链结论 ──"; bh.add_theme_font_size_override("font_size", 17); bh.add_theme_color_override("font_color", Color(0.92,0.82,0.45))
+			bh.position = Vector2(580, y); bh.size = Vector2(800,26); panel.add_child(bh); y += 30
+			for sid in blog.keys():
+				var bd: Dictionary = blog[sid]
+				for bp in bd.get("per_branch", []):
+					var bratio: float = float(bp.get("ratio", 0.0))
+					var bstars: int = int(bp.get("stars", 0))
+					var mark: String = "✅" if bstars >= 3 else ("⚠️" if bstars >= 2 else "❌")
+					var btxt: String = "%s %s  %d%%（%d⭐）" % [mark, str(bp.get("name", "")), int(round(bratio*100.0)), bstars]
+					if bool(bp.get("hard_fail", false)):
+						btxt += " · 含被证伪推论"
+					var bl2 := Label.new(); bl2.text = btxt; bl2.add_theme_font_size_override("font_size", 14); bl2.add_theme_color_override("font_color", Color(0.62,0.58,0.48))
+					bl2.position = Vector2(600, y); bl2.size = Vector2(800,24); panel.add_child(bl2); y += 24
+				y += 6
 	# 继续按钮
 	var cont := Button.new(); cont.text = "继续推进"; cont.position = Vector2(760, 980); cont.size = Vector2(400, 64)
 	cont.add_theme_font_size_override("font_size", 26); cont.add_theme_color_override("font_color", Color(0.92,0.84,0.55))
