@@ -604,14 +604,24 @@ func _show_messenger_reasoning_wall() -> void:
 	if _ui: _ui.set_camera_enabled(false)   # 推理墙：禁用摄像机
 	if _toolbar: _toolbar.hide_toolbar()
 	if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false
-	var hypo := {"title": "信使是海军陆战队军士？", "persons": [{"id": "NPC_MSG"}], "description": "从信使身上（锚形文身、络腮胡、挺拔站姿、发号施令神态）推断其军旅身份；注意分辨干扰项（袖口磨损、轻微跛行）。",
+	var hypo := {
+		"title": "信使是海军陆战队军士？",
+		"persons": [
+			{"id": "NPC_MSG", "name": "信使"},
+			{"id": "NPC_SERGEANT", "name": "海军军士"},
+		],
+		"description": "从信使身上（锚形文身、络腮胡、挺拔站姿、发号施令神态）推断其海军陆战队军士身份；注意分辨干扰项（袖口磨损、轻微跛行）。",
 		"battlefield": {
 			"hypotheses": _messenger_hypotheses(),
+			"conclusions": [
+				{"id":"CL1-01","text":"在海军中当兵","kind":"true","dir":"affirm","subject":["信使"],"object":["海军"],"gate_hypo_ids":["M-01","M-02","M-03"],"target":"person:NPC_SERGEANT"},
+				{"id":"CL1-02","text":"当过军士/士官","kind":"true","dir":"affirm","subject":["信使"],"object":["军士","士官"],"gate_hypo_ids":["M-04"],"target":"person:NPC_SERGEANT"},
+			],
 			"contradictions": [],
 		},
 		"milestones": [
-			{"id":"MM-1","text":"信使是海军陆战队军士"},
-			{"id":"MM-2","text":"锚形文身为海军标志（关键证据）"},
+			{"id":"MM-1","text":"信使曾在海军中当兵"},
+			{"id":"MM-2","text":"信使当过军士/士官"},
 			{"id":"MM-3","text":"袖口磨损/跛行为干扰项，非身份证据"},
 		],
 		# 裁定 5：练习墙不计分（信使墙为教学示范，干扰项用于教「信号 vs 噪音」）
@@ -653,14 +663,14 @@ func _on_messenger_verdict_end() -> void:
 ## 信使推理墙假设：仅当当前难度存在干扰线索时才纳入干扰假设（简单模式无干扰）。
 func _messenger_hypotheses() -> Array:
 	var arr := [
-		{"id":"M-01","text":"锚文身=海军标志","correct":true},
-		{"id":"M-02","text":"络腮胡=军人常见","correct":true},
-		{"id":"M-03","text":"站姿挺拔=军事训练","correct":true},
-		{"id":"M-04","text":"发号施令=军士/士官","correct":true},
+		{"id":"M-01","text":"锚文身是海军士兵中的常见标志","correct":true,"gate_clue_ids":["tattoo"]},
+		{"id":"M-02","text":"络腮胡在军人中常见","correct":true,"gate_clue_ids":["beard"]},
+		{"id":"M-03","text":"挺拔站姿是军事训练中形成的肌肉记忆","correct":true,"gate_clue_ids":["posture"]},
+		{"id":"M-04","text":"发号施令中形成的气度","correct":true,"gate_clue_ids":["manner"]},
 	]
 	if DifficultyManager.mislead_chance > 0.0:
-		arr.append({"id":"M-05","text":"袖口磨损=旧衣服（干扰）","correct":false})
-		arr.append({"id":"M-06","text":"轻微跛行=扭伤（干扰）","correct":false})
+		arr.append({"id":"M-05","text":"袖口磨损=旧衣服（干扰）","correct":false,"gate_clue_ids":["sleeve"]})
+		arr.append({"id":"M-06","text":"轻微跛行=扭伤（干扰）","correct":false,"gate_clue_ids":["limp"]})
 	return arr
 
 ## 推理墙「继续收集线索」回调：把玩家从推理墙状态带回未完成的线索收集页面。

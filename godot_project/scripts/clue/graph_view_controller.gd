@@ -156,6 +156,8 @@ const _NPC_DISPLAY_NAMES := {
 	"NPC_STAN": "斯丹格森",
 	"NPC_LANCE": "兰斯",
 	"KILLER": "凶手",
+	"NPC_MSG": "信使",
+	"NPC_SERGEANT": "海军军士",
 }
 
 # === 身份揭示门控（需求2）：某些 NPC 在「揭示名字的证据」被收集前，不得作为已知人物
