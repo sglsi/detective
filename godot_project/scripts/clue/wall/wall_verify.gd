@@ -30,9 +30,13 @@ func _on_verify_pressed() -> void:
 	if owner._verified: return   # 已提交过验证的墙不允许重复提交（顶栏/图谱入口共用）
 	owner._verifying = true
 	var v := owner.get_verdict()
-	owner._last_report = _soft_compare_report()
 	# 提交验证瞬间按玩家最终图谱重算三星并写入 StarRatingSystem，确保评价面板读到最终星级（问题4）
 	owner._state_ctl._update_star_rating()
+	# 裁定4：验证窗口只显示「等级 + 三星 + 一句话」，不暴露错在哪（错处留到场景八全案结论才公布）。
+	# 完整 per_branch 明细缓存进 StarRatingSystem.case_branch_log，供场景八放出。
+	owner._last_report = _build_verify_summary()
+	if not owner._practice_mode and StarRatingSystem != null and not owner._last_branch.is_empty():
+		StarRatingSystem.record_branch_progress(owner._scene_id, owner._last_branch)
 
 	# 半透明遮罩，吸收窗口外的点击，并压暗底层推理墙
 	var backdrop := ColorRect.new()
@@ -120,6 +124,35 @@ func _on_verify_pressed() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.add_child(title)
 
+	# 三星速览（裁定4：验证窗口显「等级 + 三星 + 一句话」）
+	var star_hb := HBoxContainer.new()
+	star_hb.alignment = BoxContainer.ALIGNMENT_CENTER
+	star_hb.add_theme_constant_override("separation", 24)
+	var st: Dictionary = owner._last_stars
+	var dim_names := ["观察", "推理", "洞察"]
+	var dim_keys := ["observation", "reasoning", "insight"]
+	for di in 3:
+		var sv: int = int(st.get(dim_keys[di], 0))
+		var sl := Label.new()
+		var stars_txt := ""
+		for si in 3:
+			stars_txt += "★" if si < sv else "☆"
+		sl.text = "%s %s" % [dim_names[di], stars_txt]
+		sl.add_theme_font_size_override("font_size", 22)
+		sl.add_theme_color_override("font_color", Color(0.95, 0.78, 0.20) if sv > 0 else Color(0.35, 0.30, 0.22))
+		star_hb.add_child(sl)
+	vb.add_child(star_hb)
+
+	# 一句话结论（不暴露错在哪）
+	var oneline := Label.new()
+	oneline.text = str(owner._last_branch.get("summary", "")) if not owner._last_branch.is_empty() else ""
+	oneline.add_theme_font_size_override("font_size", 19)
+	oneline.add_theme_color_override("font_color", owner.COL_GOLD)
+	oneline.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	oneline.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
+	oneline.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_child(oneline)
+
 	# 滚动内容区：报告过长时滚动查看；确定按钮固定在底部始终可见（问题2）
 	var scr := ScrollContainer.new()
 	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -172,6 +205,28 @@ func _on_verify_confirm(v: int) -> void:
 	owner.visible = false
 	owner.queue_free()
 	if owner._on_verify.is_valid(): owner._on_verify.call(v)
+
+
+## 验证窗口文案（裁定4：只显等级 + 三星 + 一句话，不暴露错在哪）。
+## 旧实现用 _soft_compare_report() 逐条列出「哪条证据对/错」——等于当场告诉玩家错处，
+## 与「侦查中不提示错误、最后才公布结论」冲突，故废弃。
+func _build_verify_summary() -> String:
+	var levels := ["矛盾冲突", "证据不足", "倾向成立", "已获证实"]
+	var v := owner.get_verdict()
+	if owner._practice_mode:
+		return "练习墙 · 不计分\n本墙用于熟悉推理操作，不计入案件星级。"
+	var br: Dictionary = owner._last_branch
+	if not br.is_empty():
+		var stars: int = int(br.get("stars", 0))
+		var pct: int = int(round(float(br.get("ratio", 0.0)) * 100.0))
+		var s := "推理链正确率：%d%%（%d 星）\n" % [pct, stars]
+		s += str(br.get("summary", ""))
+		if bool(br.get("hard_fail", false)):
+			s += "\n（有推论被证伪，需复核）"
+		return s
+	# 兜底（拿不到分枝评分时）：退回三维星级展示
+	var st: Dictionary = owner._last_stars
+	return "验证等级：%s\n观察%d⭐ 推理%d⭐ 洞察%d⭐" % [levels[v], st.get("observation", 0), st.get("reasoning", 0), st.get("insight", 0)]
 
 
 # 仅关闭验证结果窗口（不确认验证、不关闭推理墙），保留推理墙继续操作

@@ -2381,6 +2381,33 @@ func _player_claims() -> Array:
 	return out
 
 
+## 玩家产物快照（供 WallBranchEvaluator 分枝计分）。
+## ⚠️ 只吐「玩家真实产物」：_relations（玩家建的边）+ _graph_nodes（玩家采纳/自建的推断）
+## + _derived_conclusions（玩家落盘的结论）。
+## 绝不掺入 _derive_edges() 自动派生的数据预设边——否则玩家什么都不做也满分。
+## 返回深拷贝，避免评分引擎改动污染视图状态。
+func snapshot_player_work() -> Dictionary:
+	var rels: Array = []
+	for r in _relations:
+		rels.append({
+			"from": str(r.get("from", "")),
+			"to": str(r.get("to", "")),
+			"kind": str(r.get("kind", "relate")),
+			"dashed": bool(r.get("dashed", false)),
+		})
+	var nodes: Array = []
+	for gn in _graph_nodes:
+		nodes.append({
+			"id": str(gn.get("id", "")),
+			"kind": str(gn.get("kind", "hypo")),
+			"data": gn.get("data", {}).duplicate(true),
+		})
+	var cons: Array = []
+	for dc in _derived_conclusions:
+		cons.append(dc.duplicate(true) if dc is Dictionary else {"id": str(dc)})
+	return {"relations": rels, "graph_nodes": nodes, "derived_conclusions": cons}
+
+
 func _node_label(id: String) -> String:
 	if id.begins_with("conclusion_"):
 		return _conclusion_text(id.substr("conclusion_".length()))

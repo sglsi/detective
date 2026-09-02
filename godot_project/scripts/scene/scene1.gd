@@ -507,6 +507,8 @@ func _show_watson_reasoning_wall() -> void:
 			{"id":"MW-3","text":"华生左臂受伤、承受过战火伤痛（参加过战争）"},
 			{"id":"MW-4","text":"华生刚从阿富汗服役归来（多条推断闭合）"},
 		],
+		# 裁定 5：练习墙不计分。scene_id 供分枝评分引擎定位到场景一的练习链。
+		"scene_id": "scene1", "practice": true,
 	}
 	_open_wall("watson", hypo, func(v: int):
 		_watson_v = v
@@ -612,6 +614,8 @@ func _show_messenger_reasoning_wall() -> void:
 			{"id":"MM-2","text":"锚形文身为海军标志（关键证据）"},
 			{"id":"MM-3","text":"袖口磨损/跛行为干扰项，非身份证据"},
 		],
+		# 裁定 5：练习墙不计分（信使墙为教学示范，干扰项用于教「信号 vs 噪音」）
+		"scene_id": "scene1", "practice": true,
 	}
 	# 信使(教学示范)墙使用独立 state：不携带华生墙内容；每堵墙独立验证，故重置本墙 verified。
 	_messenger_wall_state["verified"] = false

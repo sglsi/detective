@@ -43,6 +43,11 @@ const MAX_STARS_PER_DIM: int = 3
 # 每条推理链三维星级（各 1-3）
 var chains: Dictionary = {}   # chain_id -> {"observation":int,"reasoning":int,"insight":int}
 
+# 案件推理链明细缓存（裁定4：侦查中验证窗口不暴露错在哪，场景八一次性放全案结论）
+# scene_id -> {"ratio":float,"stars":int,"summary":String,"per_branch":Array}
+# 由推理墙提交验证时写入；仅正式墙（非练习墙）计入。
+var case_branch_log: Dictionary = {}
+
 # 跨链聚合（供 GameManager 进度展示 / 存档兼容；= 各维所有链之和）
 var observation_score: int = 0
 var reasoning_score: int = 0
@@ -83,6 +88,23 @@ func _recalculate_aggregates() -> void:
 
 func has_chain(chain_id: String) -> bool:
 	return chains.has(chain_id)
+
+## 缓存某场景提交验证时的推理链明细（裁定4）：供场景八「结局全案总结」放出结论。
+## detail 应为推理墙 owner._last_branch（含 ratio/stars/summary/per_branch）。
+## scene_id 为空或 detail 为空则忽略；练习墙由调用方自行判断不调用本函数。
+func record_branch_progress(scene_id: String, detail: Dictionary) -> void:
+	if scene_id == "" or detail.is_empty():
+		return
+	case_branch_log[scene_id] = {
+		"ratio": float(detail.get("ratio", 0.0)),
+		"stars": int(detail.get("stars", 0)),
+		"summary": str(detail.get("summary", "")),
+		"hard_fail": bool(detail.get("hard_fail", false)),
+		"per_branch": detail.get("per_branch", []),
+	}
+
+func get_case_branch_log() -> Dictionary:
+	return case_branch_log
 
 func get_chain_stars(chain_id: String) -> Dictionary:
 	if chains.has(chain_id):
@@ -156,3 +178,4 @@ func reset() -> void:
 	insight_score = 0
 	badges.clear()
 	competitive_score = 0
+	case_branch_log.clear()

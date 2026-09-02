@@ -50,6 +50,10 @@ var _expected_clues: int = 0        # 本链应收集线索总数（观察之星
 var _local_clue_count: int = 0       # 本场景已收集条数（案件级大墙下，观察星按此计，不受全案池扩大影响）
 var _insight_bonus: int = 0         # 隐藏线索/全追问等洞察加成（场景经 hypothesis.insight_bonus 传入）
 var _last_stars: Dictionary = {"observation": 1, "reasoning": 1, "insight": 1}
+# ── 分枝计分（2026-09-02）：练习墙标记 + 场景号（决定哪些推理链参与评分）
+var _practice_mode: bool = false    # 练习墙（场景一华生/信使）：不算分、不提交 StarRatingSystem
+var _scene_id: String = ""          # 当前场景号（scene1..scene8），供 WallBranchEvaluator 过滤链
+var _last_branch: Dictionary = {}   # 最近一次分枝评分明细（供验证窗口/案件报告使用）
 
 # === 战场状态 ===
 var _battle: Dictionary = {}
@@ -237,6 +241,10 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_battle_current = hypothesis.get("current_battlefield", hypothesis.get("battlefield", {}))
 	_case_name = hypothesis.get("case_name", _case_name)
 	_chain_id = hypothesis.get("chain_id", "")
+	# 练习墙：教学墙(_teaching) 或 显式 hypothesis.practice —— 裁定 5：练习墙不计分
+	_practice_mode = _teaching or bool(hypothesis.get("practice", false))
+	# 场景号：优先显式 scene_id，回退 chain_id（场景二~八 chain_id 即 scene_id()）
+	_scene_id = str(hypothesis.get("scene_id", "")) if str(hypothesis.get("scene_id", "")) != "" else _chain_id
 	_expected_clues = hypothesis.get("expected_clues", _clues.size())
 	# 案件级大墙：_clues 可能是全案池（跨场景），观察星须按「本场景已收集条数」计，避免被池扩大抬高
 	_local_clue_count = local_clue_count if local_clue_count >= 0 else _clues.size()
@@ -248,13 +256,17 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_on_open_graph_view()    # 图谱=默认主视图（覆盖列表区；左/右/中/底面板已隐藏）
 
 
+## 四档判定（裁定 3：与三星评价共用同一个分枝评分源，杜绝两套口径）。
+## 旧实现只数边（支持≥3 即 VERIFIED，不看对错）→ 乱连也能「已获证实」。
+## 现改为由 WallBranchEvaluator 的逐项比对正确率 R 派生：
+##   R≥80% → VERIFIED / ≥55% → SUPPORTED / ≥25% → INSUFFICIENT；
+##   存在矛盾边或采纳误导项 且 R<80% → CONTRADICTORY（保留独立的矛盾语义）。
 func get_verdict() -> int:
-	# 矛盾信号：误导线索(_contradicting) + 关系中的矛盾/反对（线索↔线索矛盾、线索→假设反对）
-	if _state_ctl._contradiction_signals() > 0: return Verdict.CONTRADICTORY
-	# 支持信号：已关联线索(_associated) + 线索→假设 支持关系
-	if _state_ctl._support_signals() >= 3: return Verdict.VERIFIED
-	if _state_ctl._support_signals() >= 1: return Verdict.SUPPORTED
-	return Verdict.INSUFFICIENT
+	# 安全兜底：未进入完整 setup（如部分 headless 测试直实例化）时退回「证据不足」，
+	# 避免 _state_ctl 为 nil 触发崩溃（旧实现自包含，重构后委托给状态层）。
+	if _state_ctl == null or not is_instance_valid(_state_ctl):
+		return Verdict.INSUFFICIENT
+	return _state_ctl._branch_verdict()
 
 
 ## 关系信号：把「拖拽相互关系」接入验证判定（原判定只看 _associated/_contradicting 计数，
