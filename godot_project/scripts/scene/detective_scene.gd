@@ -443,7 +443,15 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 		hypo["current_battlefield"] = hypo.get("battlefield", {})
 		if not hypo.has("expected_clues"):
 			hypo["expected_clues"] = local_count
-	var cb := on_verify if on_verify.is_valid() else _default_wall_verify
+	# 验证提交回调包装：调用真正的 on_verify 之前同步清空 _wall_instance。
+	# 根因（2026-09-02）：wall_verify._on_verify_confirm 先 owner.queue_free()（延迟到帧末才真正释放）
+	# 再同步调 on_verify 启动验证对话；本帧内 _wall_instance 仍指向未释放的墙，
+	# 基类 _input 的 _advance_blocked(_wall_instance 有效即拦截) 会把验证对话的点击推进吞掉 → 卡死
+	# （场景一因自带 _input 不查该闸门才没暴露）。清空后 _advance_blocked 正确放行，对话可推进。
+	var _inner_verify: Callable = on_verify if on_verify.is_valid() else _default_wall_verify
+	var cb := func(v: int) -> void:
+		_wall_instance = null
+		_inner_verify.call(v)
 	# advance 始终传入 _advance_now；是否真正推进由「已验证 + 实时状态」在
 	# _default_wall_verify / _on_back_pressed 中判定，避免开墙时刻的 _wall_auto
 	# 把「提前开的预览墙」永久锁死为不推进（场景二反复复现的卡死根因）。
