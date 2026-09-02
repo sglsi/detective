@@ -642,7 +642,11 @@ func _place_side_children(children: Array, root_x: float, root_y: float, dirv: f
 ## 递归布点：父居其子带中央；子带按各自子树带长精确切分（不足则居中留白），兄弟带间保证 ≥15px，绝不溢出交叠
 func _assign_subtree(u: String, child_map: Dictionary, sp: Dictionary, est_h: Dictionary, out: Dictionary, top: float, bot: float, pxx: float, dirv: float, col_gap: float) -> void:
 	var mid_y: float = (top + bot) * 0.5
-	if out.has(u):
+	# 规则2：被玩家手动拖动并锚定的节点(人物/结论/推断)，钉在手动位，其后代据此派生(向上不动)。
+	# 放在递归最前，确保自顶向下经过它时，其整条下游子树都从手动位生长，而非从父派生位。
+	if u in owner._manual_nodes and owner._root_anchor_pos.has(u):
+		out[u] = owner._root_anchor_pos[u]
+	elif out.has(u):
 		out[u] = Vector2(out[u].x, mid_y)
 	else:
 		out[u] = Vector2(pxx, mid_y)
