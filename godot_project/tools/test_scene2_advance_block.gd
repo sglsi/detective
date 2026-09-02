@@ -16,7 +16,7 @@ func _run_scenario(tag: String, s, setup_lingering: Callable) -> void:
 	if wall == null:
 		print("%s: FAIL wall未创建" % tag); return
 	for c in wall._clues:
-		wall._toggle_association(c["id"])
+		wall._clue_ctl._toggle_association(c["id"])
 	# 构造「残留浮层」脏状态（模拟新玩过程中开过知识库/工具栏）
 	if setup_lingering.is_valid():
 		setup_lingering.call()

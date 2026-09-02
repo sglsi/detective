@@ -28,7 +28,7 @@ func _initialize() -> void:
 		quit(); return
 
 	for c in wall._clues:
-		wall._toggle_association(c["id"])
+		wall._clue_ctl._toggle_association(c["id"])
 	print("DBG associated=%s verdict=%s _on_verify valid=%s" % [wall._associated, wall.get_verdict(), wall._on_verify.is_valid()])
 
 	var ph_before: int = s._phase

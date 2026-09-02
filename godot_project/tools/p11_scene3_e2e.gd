@@ -84,7 +84,7 @@ func _initialize() -> void:
 		# 模拟玩家关联所有线索
 		for c in wall._clues:
 			if not c.get("associated", false):
-				wall._toggle_association(c["id"])
+				wall._clue_ctl._toggle_association(c["id"])
 		var v2 = wall.get_verdict()
 		log.append("关联全部后 verdict=%d (期望 3=VERIFIED) 关联数=%d" % [v2, wall._associated])
 		if v2 != 3:
@@ -93,10 +93,10 @@ func _initialize() -> void:
 
 		# 触发验证流程：_on_verify_pressed 弹出结果窗口 → 点「确定」(_on_verify_confirm)
 		# 才真正 queue_free 墙 + 触发 _on_verify 回调 → _advance_now → 过渡
-		wall._on_verify_pressed()
+		wall._verify_ctl._on_verify_pressed()
 		await process_frame
 		await process_frame
-		wall._on_verify_confirm(wall.get_verdict())
+		wall._verify_ctl._on_verify_confirm(wall.get_verdict())
 		await process_frame
 		await process_frame
 		await _wait(0.5)

@@ -13,7 +13,7 @@ func _initialize() -> void:
 	for n in all:
 		ids[str(n.get("id",""))] = true
 	var fails := 0
-	for must in ["H2-01", "H3-01", "H2-03"]:   # 推断节点（C-06 属矛盾标记，非节点，不在此列）
+	for must in ["H2-01", "H3-A1", "H2-03"]:   # 推断节点（C-06 属矛盾标记，非节点，不在此列）
 		if not ids.has(must):
 			print("[test_registry] FAIL 缺失节点: " + must)
 			fails += 1
@@ -21,8 +21,8 @@ func _initialize() -> void:
 	for c in cons:
 		concl_ids += str(c.get("id","")) + " "
 	print("[test_registry] 结论id: " + concl_ids)
-	print("[test_registry] H2-01 来源=" + reg_script.scene_of("H2-01") + "  H3-01 来源=" + reg_script.scene_of("H3-01"))
-	if reg_script.scene_of("H2-01") != "scene2" or reg_script.scene_of("H3-01") != "scene3":
+	print("[test_registry] H2-01 来源=" + reg_script.scene_of("H2-01") + "  H3-A1 来源=" + reg_script.scene_of("H3-A1"))
+	if reg_script.scene_of("H2-01") != "scene2" or reg_script.scene_of("H3-A1") != "scene3":
 		print("[test_registry] FAIL scene_of 错误")
 		fails += 1
 	# 校验深拷贝：改返回值不应污染缓存

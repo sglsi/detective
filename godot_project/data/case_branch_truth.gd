@@ -130,7 +130,6 @@ static func branches() -> Array:
 				{"id": "C_SOTCB_402", "layer": "clue"},   # 醉汉身高6英尺+（场景四交叉验证）
 				{"id": "H2-04", "layer": "hypo"}, {"id": "H2-05", "layer": "hypo"},
 				{"id": "H2-06", "layer": "hypo"}, {"id": "H2-07", "layer": "hypo"},
-				{"id": "H3-04", "layer": "hypo"},         # 右手指甲长（墙粉刮痕）
 				{"id": "CL2-5", "layer": "concl"}, {"id": "CL2-6", "layer": "concl"},
 			],
 			"edges": [
@@ -142,7 +141,6 @@ static func branches() -> Array:
 				{"from": "c205", "to": "H2-06", "kind": "support"},
 				{"from": "c311", "to": "H2-06", "kind": "support"},
 				{"from": "c206", "to": "H2-07", "kind": "support"},
-				{"from": "c309", "to": "H3-04", "kind": "support"},
 				{"from": "H2-04", "to": "CL2-5", "kind": "support"},
 				{"from": "H2-05", "to": "CL2-6", "kind": "support"},
 				{"from": "H2-06", "to": "CL2-6", "kind": "support"},
@@ -157,36 +155,97 @@ static func branches() -> Array:
 
 		# ───────────────────────── 场景三 ─────────────────────────
 		{
-			"id": "CH04", "name": "服毒判定", "scene": "scene3", "core": true,
+			"id": "CH04", "name": "服毒判定（场景三 A 组·尸体检验）", "scene": "scene3", "core": true,
+			# 台词库 §18 A 组：无外伤(A1 VERIFIED) + 恐怖表情/暗紫泡沫(A2 SUPPORTED) + 剧烈挣扎(A5 VERIFIED)
+			# → CL3-2 毒杀（四线合一）。A3 心脏病 / A4 被吓死 为 INSUFFICIENT，不入 truth（采纳零分，不封顶）。
 			"nodes": [
 				{"id": "c301", "layer": "clue"}, {"id": "c302", "layer": "clue"},
 				{"id": "c303", "layer": "clue"},
-				{"id": "H3-01", "layer": "hypo"},
-				{"id": "CL3-1", "layer": "concl"},
+				{"id": "H3-A1", "layer": "hypo"}, {"id": "H3-A2", "layer": "hypo"},
+				{"id": "H3-A5", "layer": "hypo"}, {"id": "H3-A6", "layer": "hypo"},
+				{"id": "H3-A7", "layer": "hypo"},
+				{"id": "CL3-2", "layer": "concl"},
 			],
 			"edges": [
-				{"from": "c301", "to": "H3-01", "kind": "support"},
-				{"from": "c302", "to": "H3-01", "kind": "support"},
-				{"from": "H3-01", "to": "CL3-1", "kind": "support"},
+				{"from": "c301", "to": "H3-A1", "kind": "support"},
+				{"from": "c301", "to": "H3-A2", "kind": "support"},
+				{"from": "c302", "to": "H3-A1", "kind": "support"},
+				{"from": "c302", "to": "H3-A2", "kind": "support"},
+				{"from": "c301", "to": "H3-A5", "kind": "support"},
+				{"from": "c301", "to": "H3-A6", "kind": "support"},
+				{"from": "c303", "to": "H3-A7", "kind": "support"},
+				{"from": "H3-A1", "to": "CL3-2", "kind": "support"},
+				{"from": "H3-A2", "to": "CL3-2", "kind": "support"},
+				{"from": "H3-A5", "to": "CL3-2", "kind": "support"},
 			],
 			"misleads": [],
 		},
 		{
-			"id": "CH05", "name": "RACHE 血字", "scene": "scene3", "core": true,
+			"id": "CH05", "name": "RACHE 血字与现场痕迹（场景三 C 组）", "scene": "scene3", "core": true,
+			# 台词库 §18 C 组：血字 RACHE(C1 VERIFIED) + 德语复仇(C2) + 书写者六英尺(C3) + 指甲未修剪(C4)
+			# → CL3-3；现场两人(C5) + 方头靴/漆皮靴(C6) + 方头靴者较高(C7) → CL3-4。
+			# C10「与女人 RACHEL 有关」为 CONTRADICTORY → misleads（采纳封顶 / 否定命中）。
 			"nodes": [
-				{"id": "c309", "layer": "clue"}, {"id": "c307", "layer": "clue"},
-				{"id": "H3-02", "layer": "hypo"}, {"id": "H3-03", "layer": "hypo"},
-				{"id": "CL3-2", "layer": "concl"}, {"id": "CL3-3", "layer": "concl"},
+				{"id": "c309", "layer": "clue"}, {"id": "c311", "layer": "clue"},
+				{"id": "c301", "layer": "clue"},          # 死者指甲 → 反证血字书写者另有其人
+				{"id": "H3-C1", "layer": "hypo"}, {"id": "H3-C2", "layer": "hypo"},
+				{"id": "H3-C3", "layer": "hypo"}, {"id": "H3-C4", "layer": "hypo"},
+				{"id": "H3-C5", "layer": "hypo"}, {"id": "H3-C6", "layer": "hypo"},
+				{"id": "H3-C7", "layer": "hypo"},
+				{"id": "CL3-3", "layer": "concl"}, {"id": "CL3-4", "layer": "concl"},
 			],
 			"edges": [
-				{"from": "c309", "to": "H3-02", "kind": "support"},
-				{"from": "c309", "to": "H3-03", "kind": "support"},
-				{"from": "H3-02", "to": "CL3-2", "kind": "support"},
-				{"from": "H3-03", "to": "CL3-3", "kind": "support"},
+				{"from": "c309", "to": "H3-C1", "kind": "support"},
+				{"from": "c309", "to": "H3-C2", "kind": "support"},
+				{"from": "c309", "to": "H3-C3", "kind": "support"},
+				{"from": "c309", "to": "H3-C4", "kind": "support"},
+				{"from": "c301", "to": "H3-C4", "kind": "support"},
+				{"from": "c309", "to": "H3-C7", "kind": "support"},
+				{"from": "c311", "to": "H3-C3", "kind": "support"},
+				{"from": "c311", "to": "H3-C5", "kind": "support"},
+				{"from": "c311", "to": "H3-C6", "kind": "support"},
+				{"from": "c311", "to": "H3-C7", "kind": "support"},
+				{"from": "H3-C1", "to": "CL3-3", "kind": "support"},
+				{"from": "H3-C2", "to": "CL3-3", "kind": "support"},
+				{"from": "H3-C3", "to": "CL3-3", "kind": "support"},
+				{"from": "H3-C4", "to": "CL3-3", "kind": "support"},
+				{"from": "H3-C5", "to": "CL3-4", "kind": "support"},
+				{"from": "H3-C6", "to": "CL3-4", "kind": "support"},
+				{"from": "H3-C7", "to": "CL3-4", "kind": "support"},
 			],
 			"misleads": [
-				{"id": "CL3-M1", "expect": "negate"},   # RACHE 是女人名 Rachel（预留）
+				{"id": "H3-C10", "expect": "negate"},   # 与一个叫 RACHEL 的女人有关（雷斯垂德观点）
+				{"id": "CL3-M1", "expect": "negate"},   # 同上，结论层
 			],
+		},
+		{
+			"id": "CH06", "name": "死者身份与随身物品（场景三 B 组）", "scene": "scene3", "core": true,
+			# 注：CH06 为原 14 链编号中跳过的空号，此处补作场景三 B 组专链。
+			# 台词库 §18 B 组：德雷伯(B1 VERIFIED) + 克利夫兰(B2 VERIFIED) + 共济会(B3) + 经济良好(B4)
+			# + 回纽约(B5) + 斯特兰森是同伴(B6) → CL3-1 / CL3-5。
+			# B7 斯特兰森涉案 / B8 与女人有关 / B9 仇杀 为 INSUFFICIENT，不入 truth。
+			"nodes": [
+				{"id": "c304", "layer": "clue"}, {"id": "c305", "layer": "clue"},
+				{"id": "c306", "layer": "clue"}, {"id": "c307", "layer": "clue"},
+				{"id": "H3-B1", "layer": "hypo"}, {"id": "H3-B2", "layer": "hypo"},
+				{"id": "H3-B3", "layer": "hypo"}, {"id": "H3-B4", "layer": "hypo"},
+				{"id": "H3-B5", "layer": "hypo"}, {"id": "H3-B6", "layer": "hypo"},
+				{"id": "CL3-1", "layer": "concl"}, {"id": "CL3-5", "layer": "concl"},
+			],
+			"edges": [
+				{"from": "c304", "to": "H3-B1", "kind": "support"},
+				{"from": "c304", "to": "H3-B2", "kind": "support"},
+				{"from": "c304", "to": "H3-B5", "kind": "support"},
+				{"from": "c304", "to": "H3-B6", "kind": "support"},
+				{"from": "c306", "to": "H3-B3", "kind": "support"},
+				{"from": "c305", "to": "H3-B4", "kind": "support"},
+				{"from": "c307", "to": "H3-B6", "kind": "support"},
+				{"from": "H3-B1", "to": "CL3-1", "kind": "support"},
+				{"from": "H3-B2", "to": "CL3-1", "kind": "support"},
+				{"from": "H3-B5", "to": "CL3-5", "kind": "support"},
+				{"from": "H3-B6", "to": "CL3-5", "kind": "support"},
+			],
+			"misleads": [],
 		},
 
 		# ───────────────────────── 场景四 ─────────────────────────

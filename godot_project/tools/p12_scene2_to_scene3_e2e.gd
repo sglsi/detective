@@ -42,8 +42,8 @@ func _initialize() -> void:
 	if s2._phase != s2.Phase.OBSERVE:
 		ok = false; print("P12_FAIL scene2 未进入 OBSERVE, phase=", s2._phase)
 
-	# 真实收集 6 条花园线索
-	for h in s2.HOTSPOTS:
+	# 真实收集花园线索（场景二热点分 STREET/PATH 两组 const）
+	for h in s2.STREET_HOTSPOTS + s2.PATH_HOTSPOTS:
 		s2._obs._record(h["id"], str(h.get("desc", "")))
 		await process_frame
 	log.append("scene2 线索 local=%d cs=%d" % [s2._clues.size(), ClueSystem.get_collected("garden").size()])
