@@ -162,14 +162,27 @@ func _draw_dashed(a: Vector2, b: Vector2, col: Color, w: float) -> void:
 
 
 # ===================== 建边 / 删边 / 改性质（含 UndoRedo） =====================
+## 节点层级（ring_depth）：人物/事件=0 ≥ 结论=1 ≥ 推断/链=2 ≥ 线索=3。
+## 布局约定 from=子（推导依据·低层）、to=父（被推导·高层）；_add_edge 据此自动归一化连线方向。
+func _rd_of_kind(k: String) -> int:
+	match k:
+		"person", "event": return 0
+		"conclusion": return 1
+		"hypo", "chain": return 2
+		"clue": return 3
+		_: return 3
+
 func _add_edge(from: String, to: String, kind: String, color_key: String = "", dashed: bool = false) -> void:
 	if owner._state != GraphViewController.State.EDITABLE:
 		owner._toast_msg("已封存，仅可浏览")
 		return
-	# 人物节点恒为关系树根（父）：若出现「人物 → 其它节点」的边，交换 from/to，
-	# 保证人物永远是 to（父 / 归属目标）。否则人物会成为某节点的子、失去放射根地位，
-	# 导致 _star_tree_layout 整树根错位、排列混乱（信使墙 / 场景二墙均因此出现拖拽不跟随）。
-	if owner._fold._kind_of(from) == "person" and owner._fold._kind_of(to) != "person":
+	# 自动按层级归属（人物 ≥ 结论 ≥ 推断/链 ≥ 线索）：
+	# 约定 from = 子（推导依据·层级低 / ring_depth 高），to = 父（被推导·层级高 / ring_depth 低）。
+	# 玩家手动连线方向任意，此处统一规范：若 from 的层级高于 to（rd 更小），交换二者，
+	# 使 from 始终为低层子节点、to 为高层父节点——即「人物-结论-推断-线索」的放射归属。
+	# 仅「人物↔人物」两端 rd 同为 0 时不交换：其从属嵌套方向由 _build_parent_of 单独处理
+	# （person→person 边约定 from=上级/父、to=下级/子，如 德雷伯→斯特兰森 = 斯特兰森服务于德雷伯）。
+	if _rd_of_kind(owner._fold._kind_of(from)) < _rd_of_kind(owner._fold._kind_of(to)):
 		var _sw: String = from
 		from = to
 		to = _sw

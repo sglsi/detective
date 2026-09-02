@@ -520,7 +520,14 @@ func _build_parent_of() -> Dictionary:
 	for r in owner._relations:
 		var k: String = r.get("kind", "")
 		if k != "support" and k != "target": continue
-		add_parent.call(str(r.get("from", "")), str(r.get("to", "")))
+		var _f := str(r.get("from", "")); var _t := str(r.get("to", ""))
+		var _fk := owner._fold._kind_of(_f); var _tk := owner._fold._kind_of(_t)
+		if _fk == "person" and _tk == "person":
+			# 人物↔人物：约定 from=上级(父)、to=下级(子/下属)。与常规(from=子,to=父)相反，
+			# 故 add_parent(子,父)=add_parent(to,from)。例：德雷伯→斯特兰森 ⇒ 斯特兰森嵌套于德雷伯下。
+			add_parent.call(_t, _f)
+		else:
+			add_parent.call(_f, _t)
 	# 结论领域 target 金边（conclusion → person:XXX）不在 _relations 中，单独补：结论作子、人物作父
 	for _dc in owner._derived_conclusions:
 		var _cid: String = str(_dc.get("id", ""))
@@ -539,13 +546,28 @@ func _build_parent_of() -> Dictionary:
 		for _p in _rc.get("related_npcs", []):
 			if owner._fold._kind_of(_p) == "person":
 				add_parent.call(_rcid, _p)
-	# 兜底：强制人物节点恒为关系树根。任何路径（含预设数据 / 历史存档）若把人物写成子(from)，
-	# 都剔除其父子候选，保证 person 永远是放射根、下游子树从人物派生。
-	# 此前「人物恒为根」仅写于 _is_tree_root 注释、未在树构建中真正落地，导致玩家手动连
-	# 「人物 → 推断」反向边、或 case_wide 预设边方向异常时整墙根错位、拖拽不跟随。
+	# 兜底：人物节点恒为放射根，但允许「人物↔人物」的从属嵌套。
+	# 若某人物的全部父候选都不是人物（即仅被非人物当成子），才强制其为根、剔除非人物父候选，
+	# 防止人物沦为推断/结论/线索之子（旧 bug：整墙根错位、拖拽不跟随）。
+	# 若它确有「人物父候选」（person→person support 边，from=上级父、to=下级子），则保留嵌套，
+	# 使 德雷伯↔斯特兰森 这类从属关系在布局中体现为下级挂在上级之下、并随上级拖动而跟随。
 	for _pc in parent_cand.keys():
 		if owner._fold._kind_of(_pc) == "person":
-			parent_cand.erase(_pc)
+			var _has_person_parent := false
+			for _p in parent_cand[_pc]:
+				if owner._fold._kind_of(_p) == "person":
+					_has_person_parent = true
+					break
+			if _has_person_parent:
+				continue
+			# 无人物父 → 强制为根：剔除非人物父候选
+			var _kept := []
+			for _p in parent_cand[_pc]:
+				if owner._fold._kind_of(_p) != "person":
+					continue
+				_kept.append(_p)
+			if _kept.is_empty():
+				parent_cand.erase(_pc)
 	var parent_of := {}
 	for ch in parent_cand:
 		var best: String = ""
