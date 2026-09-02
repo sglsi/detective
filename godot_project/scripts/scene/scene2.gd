@@ -15,7 +15,7 @@ enum Phase { ARRIVAL, DETECTIVE_DIALOGUE, OBSERVE, REASONING, TRANSITION }
 
 const STREET_HOTSPOTS = [
 	# ── 勘查对象A：车轮印迹（街道图 · 车行道中部地带）──
-	{"id":"c201","attribute_tags":["直接物证"],"label":"碾轧的花草","x":501,"y":173,"w":150,"h":42,
+	{"id":"c201","attribute_tags":["直接物证"],"label":"碾轧的花草","x":1307,"y":735,"w":150,"h":42,
 	 "desc":"路边草地被压过了——两道平行的印子，草地上有两道平行的凹痕，像是车轮碾轧留下的。有马车在此停靠过。","tool":"none",
 	 "image":"res://assets/scenes/sc02_street.png","anchor":"c201","relation_tags":["H2-01"]},
 	{"id":"c202","attribute_tags":["直接物证"],"label":"平行车轮印","x":885,"y":649,"w":150,"h":42,
