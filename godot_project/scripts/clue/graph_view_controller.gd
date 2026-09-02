@@ -1294,16 +1294,26 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
 				_nudge_away_from(id, drop)
 		if moved:
-			# 规则2/3：被拖节点停在玩家手动位；其全部后代从新节点位置重新派生(向上不动)。
-			# 任意有后代的节点都按此处理(人物/结论/推断一律)：把新位置写入布局消费的锚点表
-			# (_root_anchor_pos)，并把节点登记进 _manual_nodes，使 _assign_subtree 递归到它时
-			# 钉在手动位、下游子树据此生长；松手 _rebuild_graph 即重绘。原「非根只记 _node_offsets」
-			# 路径是死代码(布局只读 _root_anchor_pos)，已废弃。
+			# 规则1/2/3：被拖节点(X)停在玩家手动位(新位置钉入 _root_anchor_pos + 登记 _manual_nodes)，
+			# 而其全部后代的「旧手动位」一律清空——让它们从 X 的新位置自动重新派生(向上不动、随上属走)。
+			# 这同时修复两类观感异常：
+			#  · 问题1 人物拖动后，曾被手动拖过的下属仍钉在旧位 → 清掉后代手动位→随人物新位重排；
+			#  · 问题2 拖动结论/推断后，其下属仍相对根(人物)排列而非相对本节点 → 清掉后代手动位后，
+			#    _assign_subtree 以 X(已钉手动位)为锚、下游子树据此生长，下属随本节点走。
+			# 只清 X 的后代，不影响其它分支的手动位；X 自身保持手动位(玩家落点)。
 			_root_anchor_pos[id] = _node_center[id]
 			if not (id in _manual_nodes):
 				_manual_nodes.append(id)
+			for _d in _layout._descendants(id):
+				if _d in _manual_nodes:
+					_manual_nodes.erase(_d)
+				if _root_anchor_pos.has(_d):
+					_root_anchor_pos.erase(_d)
+				if _node_offsets.has(_d):
+					_node_offsets.erase(_d)
 			_state_store["graph_root_anchors"] = _root_anchor_pos
 			_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
+			_state_store["graph_node_offsets"] = _node_offsets.duplicate()
 	elif not moved:
 		_on_node_clicked(id, _node_kind.get(id, ""))
 	_layout._persist_node_positions()
