@@ -1190,8 +1190,10 @@ func _on_node_gui(event: InputEvent, id: String, kind: String) -> void:
 				_drag_offset = mouse_canvas - n.position
 				_drag_start = get_viewport().get_mouse_position()
 				# 需求3：记录拖动起点与整棵子树（根节点无偏移机制→子树置空，由布局自动跟随）
-				_drag_prestart_pos = _node_center.get(id, Vector2.ZERO)
-				_drag_subtree = [] if _layout._is_tree_root(id) else _layout._descendants(id)
+			_drag_prestart_pos = _node_center.get(id, Vector2.ZERO)
+			# 规则1/3：任意有后代的节点（人物/结论/推断）拖动时，其完整下游子树(经父→子有向边 BFS)
+			# 一并随拖刚性平移；向上(父/人物)不动。根节点不再排除——人物拖拽也要带整棵星。
+			_drag_subtree = _layout._descendants(id)
 	else:
 		# 释放：在 _input 里 commit（覆盖 gui_input 边界问题）
 		pass
@@ -1292,17 +1294,16 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
 				_nudge_away_from(id, drop)
 		if moved:
-			# 第8节改造（A①+B①）：手动拖拽只保留「关系树根」位置；根记锚点、子节点松手后回弹到自动派生位
-			if _layout._is_tree_root(id):
-				_root_anchor_pos[id] = _node_center[id]
-				_state_store["graph_root_anchors"] = _root_anchor_pos
-			else:
-				# 需求3/5：非根节点（结论/推断）拖动→只记录「本节点」相对「父派生位」的偏移；
-				# 其子树位置由布局自动从父最终位派生（_assign_subtree 叠加偏移并整体平移子树），
-				# 故无需为每个后代单独记偏移，避免重复位移；人物移动时结论仍跟随（不脱离父）。
-				var _d: Vector2 = _node_center.get(id, Vector2.ZERO) - _drag_prestart_pos
-				_node_offsets[id] = _node_offsets.get(id, Vector2.ZERO) + _d
-				_state_store["graph_node_offsets"] = _node_offsets.duplicate()
+			# 规则2/3：被拖节点停在玩家手动位；其全部后代从新节点位置重新派生(向上不动)。
+			# 任意有后代的节点都按此处理(人物/结论/推断一律)：把新位置写入布局消费的锚点表
+			# (_root_anchor_pos)，并把节点登记进 _manual_nodes，使 _assign_subtree 递归到它时
+			# 钉在手动位、下游子树据此生长；松手 _rebuild_graph 即重绘。原「非根只记 _node_offsets」
+			# 路径是死代码(布局只读 _root_anchor_pos)，已废弃。
+			_root_anchor_pos[id] = _node_center[id]
+			if not (id in _manual_nodes):
+				_manual_nodes.append(id)
+			_state_store["graph_root_anchors"] = _root_anchor_pos
+			_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
 	elif not moved:
 		_on_node_clicked(id, _node_kind.get(id, ""))
 	_layout._persist_node_positions()
