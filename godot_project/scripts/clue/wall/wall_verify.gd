@@ -244,8 +244,6 @@ func _teaching_report() -> String:
 		return "\n".join(lines)
 	var pct: int = int(round(float(br.get("ratio", 0.0)) * 100.0))
 	lines.append("推理链正确率：%d%%（%d 星）· %s" % [pct, int(br.get("stars", 0)), str(br.get("summary", ""))])
-	if owner._bf_ctl != null:
-		lines.append(str(owner._bf_ctl._battle_status_text()))
 	var any_detail := false
 	for b in br.get("per_branch", []):
 		if not bool(b.get("active", false)):
@@ -258,17 +256,59 @@ func _teaching_report() -> String:
 			lines.append("  ✗ 还未产出的推断/结论：%s" % _join_id_items(mn))
 		var me: Array = b.get("missing_edges", [])
 		if not me.is_empty():
-			lines.append("  ✗ 还未连上的线索链：%s" % _join_edge_items(me))
+			lines.append("  ✗ 还未连上的连线（%d 条）：" % me.size())
+			for e in me:
+				if e is Dictionary:
+					lines.append("      · %s → %s（%s）" % [_pretty_id(str(e.get("from", ""))), _pretty_id(str(e.get("to", ""))), _edge_hint(str(e.get("from", "")), str(e.get("to", "")))])
+				else:
+					lines.append("      · %s" % str(e))
 		var re_: Array = b.get("reversed_edges", [])
 		if not re_.is_empty():
-			lines.append("  ⚠ 方向反了（应为箭头方向）：%s" % _join_edge_items(re_))
+			lines.append("  ⚠ 方向反了（连线会自动按 线索→推断→结论→人物 归正，半分）：%s" % _join_edge_items(re_))
 		var ee: Array = b.get("extra_edges", [])
 		if not ee.is_empty():
-			lines.append("  ⚠ 不属于真相链的连线（会拉低正确率）：%s" % _join_edge_items(ee))
+			lines.append("  ⚠ 不属于真相链的连线（会拉低正确率，建议删除）：%s" % _join_edge_items(ee))
 	if not any_detail:
 		lines.append("")
 		lines.append("（还没有可评估的推理内容：先在图谱中连线、采纳推断与结论）")
 	return "\n".join(lines)
+
+
+## 按两端的节点层级给「怎么补上这条连线」的操作提示（交互流程：拖线索弹窗选推断、
+## 推断卡「组合推导/推导结论」、结论连人物）。
+func _edge_hint(f: String, t: String) -> String:
+	var fl := _layer_of(f)
+	var tl := _layer_of(t)
+	match [fl, tl]:
+		["clue", "hypo"]:
+			return "拖入线索「%s」，在弹窗中选择「%s」" % [_pretty_id(f), _pretty_id(t)]
+		["clue", "concl"]:
+			return "拖入线索「%s」后在弹窗中选结论「%s」" % [_pretty_id(f), _pretty_id(t)]
+		["hypo", "hypo"]:
+			return "在推断「%s」的卡上点「组合推导」，选「%s」" % [_pretty_id(f), _pretty_id(t)]
+		["hypo", "concl"]:
+			return "在推断「%s」的卡上点「推导结论」，选「%s」" % [_pretty_id(f), _pretty_id(t)]
+		["concl", "person"]:
+			return "把结论「%s」连线到人物「%s」" % [_pretty_id(f), _pretty_id(t)]
+		_:
+			return "建立连线「%s → %s」" % [_pretty_id(f), _pretty_id(t)]
+
+
+func _layer_of(nid: String) -> String:
+	var id := BranchEval.norm(nid)
+	if nid.begins_with("person:") or owner._NPC_DISPLAY_NAMES.has(id):
+		return "person"
+	for c in owner._clues:
+		if BranchEval.norm(str(c.get("id", ""))) == id:
+			return "clue"
+	if owner._battle_current is Dictionary:
+		for h in owner._battle_current.get("hypotheses", []):
+			if BranchEval.norm(str(h.get("id", ""))) == id:
+				return "hypo"
+		for c2 in owner._battle_current.get("conclusions", []):
+			if BranchEval.norm(str(c2.get("id", ""))) == id:
+				return "concl"
+	return ""
 
 
 func _join_id_items(arr: Array) -> String:

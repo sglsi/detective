@@ -6,6 +6,7 @@ var scripts: Array[String] = [
 	"res://scripts/clue/wall_branch_evaluator.gd",
 	"res://scripts/clue/wall/wall_verify.gd",
 	"res://scripts/clue/wall/wall_state.gd",
+	"res://scripts/clue/reasoning_wall.gd",
 ]
 var idx: int = 0
 var failures: Array[String] = []

@@ -56,8 +56,8 @@ func _report(key: String, ws: Dictionary) -> void:
 		print("EVAL_FAIL")
 		return
 	var r: Dictionary = res as Dictionary
-	print("verdict=%s branch_ratio=%s negated_misleads=%s" % [
-		str(r.get("verdict", "?")), str(r.get("ratio", "?")), str(r.get("negated_misleads", []))])
+	print("verdict=%s branch_ratio=%s insight_ratio=%s negated_misleads=%s" % [
+		str(r.get("verdict", "?")), str(r.get("ratio", "?")), str(r.get("insight_ratio", "?")), str(r.get("negated_misleads", []))])
 	for b in r.get("per_branch", []):
 		if not (b is Dictionary) or not bool((b as Dictionary).get("active", false)):
 			continue

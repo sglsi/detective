@@ -193,6 +193,14 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 		if str(e.get("kind", "")) in ["contradict", "oppose"]:
 			has_contradict = true
 
+	# 洞察（合成层）聚合：非线索层真相边 + 结论节点产出（用户裁定：战场不再作为洞察数据源）
+	var ins_hit := 0.0
+	var ins_truth := 0
+	var produced: Dictionary = {}
+	for bid_key in nodes_of:
+		for pn in nodes_of[bid_key]:
+			produced[norm(str(pn))] = true
+
 	for b in scope:
 		var is_core: bool = bool(b.get("core", false))
 		var bid3: String = str(b.get("id", ""))
@@ -228,7 +236,30 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 			"missing_edges": res.get("missing_edges", []),
 			"reversed_edges": res.get("reversed_edges", []),
 			"extra_edges": res.get("extra_edges", []),
+			"matched_edges": res.get("matched_edges", []),
 		})
+
+		# —— 洞察（合成层）聚合：非线索层的真相边 + 结论节点 ——
+		# 分母 = 真相合成边（matched exact/reversed + missing 全覆盖）+ 真相结论节点（共享去重）
+		# 分子 = exact 1.0 / reversed 0.5 + 产出的结论节点
+		var layer_of: Dictionary = {}
+		for n in b.get("nodes", []):
+			layer_of[norm(str(n.get("id", "")))] = str(n.get("layer", ""))
+		for me in res.get("matched_edges", []):
+			if _is_synthesis_edge(str(me.get("from", "")), str(me.get("to", "")), layer_of):
+				ins_truth += 1
+				ins_hit += float(me.get("weight", 1.0))
+		for me2 in res.get("missing_edges", []):
+			if _is_synthesis_edge(str(me2.get("from", "")), str(me2.get("to", "")), layer_of):
+				ins_truth += 1
+		for n2 in b.get("nodes", []):
+			var nid2: String = norm(str(n2.get("id", "")))
+			if str(n2.get("layer", "")) == "concl":
+				if node_owner_truth.get(nid2, bid3) != bid3:
+					continue
+				ins_truth += 1
+				if nid2 in produced:
+					ins_hit += 1.0
 
 	var ratio: float = sum_hit / sum_max if sum_max > 0.0 else 0.0
 	var hard_fail: bool = not adopted.is_empty()
@@ -249,6 +280,9 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 		"per_branch": per_branch,
 		"sum_hit": sum_hit,
 		"sum_max": sum_max,
+		"insight_hit": ins_hit,
+		"insight_truth": ins_truth,
+		"insight_ratio": (ins_hit / float(ins_truth)) if ins_truth > 0 else -1.0,
 		"practice": practice,
 		"summary": _summary(ratio, stars, hard_fail, practice),
 	}
@@ -299,6 +333,7 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 	var missing_edges: Array = []     # 真相边，玩家未连（任何形式都没命中）
 	var reversed_edges: Array = []    # 玩家连了但方向反的真相边（半分）
 	var extra_edges: Array = []       # 玩家建的、不匹配任何真相边的连线（进分母拉低正确率）
+	var matched_edges: Array = []     # 真相边被命中的记录（weight: 1.0 精确 / 0.5 方向反），供洞察星聚合
 
 	# ① 节点项：只算玩家「主动产出」的（推断/结论）。线索是墙上预置的，不算玩家产出。
 	for n in truth_nodes:
@@ -330,10 +365,12 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 		var ek: String = str(e.get("kind", ""))
 		if truth_edge_map.has(_edge_key(ef, et, ek)):
 			matched_truth[_edge_key(ef, et, ek)] = true
+			matched_edges.append({"from": ef, "to": et, "kind": ek, "weight": 1.0})
 			hit += HIT_EXACT
 		elif truth_edge_map.has(_edge_key(et, ef, ek)):
 			matched_truth[_edge_key(et, ef, ek)] = true
 			reversed_edges.append({"from": et, "to": ef, "kind": ek})
+			matched_edges.append({"from": et, "to": ef, "kind": ek, "weight": 0.5})
 			hit += HIT_REVERSED          # 两端对、方向反 → 半分
 		elif mislead_ids.has(et) and ek == "oppose":
 			hit += HIT_EXACT             # 否定误导项 = 识破，给满分
@@ -356,11 +393,24 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 		"truth": truth, "built": built, "hit": hit,
 		"missing_nodes": missing_nodes, "missing_edges": missing_edges,
 		"reversed_edges": reversed_edges, "extra_edges": extra_edges,
+		"matched_edges": matched_edges,
 	}
 
 
 static func _edge_key(a: String, b: String, kind: String) -> String:
 	return "%s>%s|%s" % [a, b, kind]
+
+
+## 洞察星合成边判定：两端均为非线索层（推断/链/结论/人物）的真相边。
+## 线索→人物（直连证据）与线索→线索不算合成；节点→人物（归属）算。
+static func _is_synthesis_edge(from_id: String, to_id: String, layer_of: Dictionary) -> bool:
+	if from_id.begins_with("person:"):
+		return false
+	if to_id.begins_with("person:"):
+		return true
+	var fl: String = str(layer_of.get(norm(from_id), ""))
+	var tl: String = str(layer_of.get(norm(to_id), ""))
+	return fl != "" and tl != "" and fl != "clue" and tl != "clue"
 
 
 ## 当前场景**及之前**的场景集合（跨场景累积：场景 N 的墙带入场景 2..N）。
