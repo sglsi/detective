@@ -250,37 +250,57 @@ static func branches() -> Array:
 
 		# ───────────────────────── 场景四 ─────────────────────────
 		{
-			"id": "CH07", "name": "醉汉=凶手", "scene": "scene4", "core": true,
+			# 台词库 §18 场景四：主线「醉汉=凶手」。VERIFIED(1/2/3)入 CH08；本链收
+			# SUPPORTED(4/5/7/10/11) → CL4-1 / CL4-2。
+			# H4-06(马鞭)/H4-08(同伙)/H4-09(无关路过) 为 INSUFFICIENT，不入 truth（采纳零分，不封顶）。
+			# 困难模式概率误导"有个女的"(H4-M1) → misleads（采纳 hard_fail，同场景三 C10 模式）。
+			"id": "CH07", "name": "醉汉=凶手（马车夫）", "scene": "scene4", "core": true,
 			"nodes": [
 				{"id": "C_SOTCB_401", "layer": "clue"}, {"id": "C_SOTCB_402", "layer": "clue"},
 				{"id": "C_SOTCB_403", "layer": "clue"}, {"id": "C_SOTCB_404", "layer": "clue"},
-				{"id": "C_SOTCB_405", "layer": "clue"},
-				{"id": "H4-01", "layer": "hypo"},
-				{"id": "CL4-1", "layer": "concl"},
+				{"id": "C_SOTCB_405", "layer": "clue"}, {"id": "C_SOTCB_407", "layer": "clue"},
+				{"id": "H4-03", "layer": "hypo"}, {"id": "H4-04", "layer": "hypo"},
+				{"id": "H4-05", "layer": "hypo"}, {"id": "H4-07", "layer": "hypo"},
+				{"id": "H4-10", "layer": "hypo"}, {"id": "H4-11", "layer": "hypo"},
+				{"id": "CL4-1", "layer": "concl"}, {"id": "CL4-2", "layer": "concl"},
+			],
+			"edges": [
+				{"from": "C_SOTCB_401", "to": "H4-03", "kind": "support"},
+				{"from": "C_SOTCB_402", "to": "H4-04", "kind": "support"},
+				{"from": "C_SOTCB_403", "to": "H4-04", "kind": "support"},
+				{"from": "C_SOTCB_404", "to": "H4-05", "kind": "support"},
+				{"from": "C_SOTCB_401", "to": "H4-07", "kind": "support"},
+				{"from": "C_SOTCB_402", "to": "H4-07", "kind": "support"},
+				{"from": "C_SOTCB_403", "to": "H4-07", "kind": "support"},
+				{"from": "C_SOTCB_407", "to": "H4-10", "kind": "support"},
+				{"from": "C_SOTCB_405", "to": "H4-11", "kind": "support"},
+				{"from": "C_SOTCB_407", "to": "H4-11", "kind": "support"},
+				{"from": "H4-07", "to": "CL4-1", "kind": "support"},
+				{"from": "H4-05", "to": "CL4-1", "kind": "support"},
+				{"from": "H4-10", "to": "CL4-1", "kind": "support"},
+				{"from": "H4-07", "to": "CL4-2", "kind": "support"},
+				{"from": "H4-11", "to": "CL4-2", "kind": "support"},
+			],
+			"misleads": [
+				{"id": "H4-M1", "expect": "negate"},   # 困难模式：醉汉旁边还有一个女人（兰斯证词）
+			],
+		},
+		{
+			# 台词库 §18 场景四：证词时间线（VERIFIED 1/2 + SUPPORTED 12 → CL4-3）。兰斯证词基准线。
+			"id": "CH08", "name": "兰斯证词时间线", "scene": "scene4", "core": false,
+			"nodes": [
+				{"id": "C_SOTCB_401", "layer": "clue"},
+				{"id": "H4-01", "layer": "hypo"}, {"id": "H4-02", "layer": "hypo"},
+				{"id": "H4-12", "layer": "hypo"},
+				{"id": "CL4-3", "layer": "concl"},
 			],
 			"edges": [
 				{"from": "C_SOTCB_401", "to": "H4-01", "kind": "support"},
-				{"from": "C_SOTCB_402", "to": "H4-01", "kind": "support"},
-				{"from": "C_SOTCB_403", "to": "H4-01", "kind": "support"},
-				{"from": "C_SOTCB_404", "to": "H4-01", "kind": "support"},
-				{"from": "C_SOTCB_405", "to": "H4-01", "kind": "support"},
-				{"from": "H4-01", "to": "CL4-1", "kind": "support"},
-			],
-			"misleads": [],
-		},
-		{
-			"id": "CH08", "name": "凶手回来找戒指", "scene": "scene4", "core": false,
-			"nodes": [
-				{"id": "c312", "layer": "clue"}, {"id": "c305", "layer": "clue"},
-				{"id": "C_SOTCB_401", "layer": "clue"}, {"id": "C_SOTCB_405", "layer": "clue"},
-				{"id": "H4-02", "layer": "hypo"},
-				{"id": "CL4-2", "layer": "concl"},
-			],
-			"edges": [
-				{"from": "c312", "to": "H4-02", "kind": "support"},
-				{"from": "c305", "to": "H4-02", "kind": "support"},
 				{"from": "C_SOTCB_401", "to": "H4-02", "kind": "support"},
-				{"from": "H4-02", "to": "CL4-2", "kind": "support"},
+				{"from": "C_SOTCB_401", "to": "H4-12", "kind": "support"},
+				{"from": "H4-01", "to": "CL4-3", "kind": "support"},
+				{"from": "H4-02", "to": "CL4-3", "kind": "support"},
+				{"from": "H4-12", "to": "CL4-3", "kind": "support"},
 			],
 			"misleads": [],
 		},
