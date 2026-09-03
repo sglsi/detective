@@ -65,16 +65,37 @@ func _init() -> void:
 	var r2: Dictionary = Eval.evaluate(e2, n2, c2, scene, false)
 	_expect("T2 只做短链 < 80%（拿不到三星）", float(r2.get("ratio", 0.0)) < 0.80, str(r2.get("ratio")))
 
-	# T3 乱连：完美解 + 一堆错误边（把每条链的节点两两乱连）
+	# T3 乱连：完美解 + 一堆错误边（节点两两乱连）。
+	# 乱连数量随真相池规模缩放（≥40 且 ≥45% 真相项）：固定 40 条在场景四推理链扩容后
+	# 会被更大的分母稀释（ratio 回升破 0.80），用例失去判定力（2026-09-03）。
 	var e3: Array = edges.duplicate()
 	var all_ids: Array = []
+	var total_truth := 0
 	for b in Truth.branches():
 		if str(b.get("scene", "")) == "scene1":
 			continue
+		total_truth += int(b.get("nodes", []).size()) + int(b.get("edges", []).size())
 		for n in b.get("nodes", []):
 			all_ids.append(str(n.get("id", "")))
-	for i in range(mini(40, all_ids.size() - 1)):
-		e3.append({"from": all_ids[i], "to": all_ids[all_ids.size() - 1 - i], "kind": "support", "dashed": false})
+	var known := {}
+	for e0 in e3:
+		known[str(e0.get("from", "")) + ">" + str(e0.get("to", ""))] = true
+	var junk_need := maxi(40, int(float(total_truth) * 0.45))
+	var idn: int = all_ids.size()
+	var added := 0
+	for step in range(1, idn):
+		for i in range(idn - step):
+			var f: String = all_ids[i]
+			var t: String = all_ids[i + step]
+			if known.has(f + ">" + t) or known.has(t + ">" + f):
+				continue
+			e3.append({"from": f, "to": t, "kind": "support", "dashed": false})
+			known[f + ">" + t] = true
+			added += 1
+			if added >= junk_need:
+				break
+		if added >= junk_need:
+			break
 	var r3: Dictionary = Eval.evaluate(e3, nodes, cons, scene, false)
 	_expect("T3 乱连后正确率显著下降", float(r3.get("ratio", 0.0)) < 0.80, str(r3.get("ratio")))
 	_expect("T3 乱连拿不到三星", int(r3.get("stars", 0)) < 3, str(r3.get("stars")))
