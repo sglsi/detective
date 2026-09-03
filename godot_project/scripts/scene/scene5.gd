@@ -1,30 +1,35 @@
 extends DetectiveScene
 ## Scene 5 — 贝克街221B会客厅（等待失主 / 伪装识别）
 ## 双路线入口：消费 GameManager.scene_state["scene4_route"]（场景四行动决策）
-##   A = 发布失物招领 → 完整「伪装识别」六步闭环（Step1 老太婆来访 → Step2 追问 → Step3 笔记
-##       → Step4 知识检索 → Step5 推理墙 → Step6 跟踪脱逃）
-##   B = 追查马车（铁匠铺）→ 跳过 Step1-3，从 Step4 知识检索 / Step5 假设直接进入
+##   A = 发布失物招领 → 完整「伪装识别」六步闭环（Step1 来访 → Step2 追问 → Step3 记录+交付离开
+##       → Step4 知识检索 → Step5 推理墙 → 跟踪决策 → Step6 脱逃 → 阶段末）
+##   B = 追查马车（铁匠铺）→ 跳过 Step1-3，从 Step4 知识检索 / Step5 假设直接进入（授予 508）
 ##   C = 发电报查询 → 电报已发待回，同样跳到 Step4/5（回复于场景六末/七初到达）
 ## 架构：继承统一框架 DetectiveScene，仅覆盖内容钩子；对话节点 clue 触发走
 ## ClueSystem.collect_clue_from_catalog 单一漏斗（与观察器路径一致、幂等）。
 ##
 ## ⚠️ 分支实现说明（根因，同 scene4）：本框架 DialogueManager 的 trigger=="choice" 节点
-## 未被 SceneFramework 连接渲染 → 直接用会卡死。故所有玩家分支（D2 壁炉架 / Step2 追问面板
-## / Step6 跟踪决策 / 路线消费提示）一律用「自定义选项面板」_show_choice_panel，安全不卡死。
+## 未被 SceneFramework 连接渲染 → 直接用会卡死。故所有玩家分支（Step2 追问面板
+## / 跟踪决策 / 路线消费提示）一律用「自定义选项面板」_show_choice_panel，安全不卡死。
 ##
-## 设计依据：02_血字的研究_场景设计与流程 §13（v3.16.0）+ 08_血字的研究_对话台词库 场景五（v3.16.0）
+## 设计依据：08_血字的研究_对话台词库 场景五（2026-09-03 按 4 决策定稿）
+##   · 叙事顺序：方案甲 —— 来访(Step1)→追问(Step2)→记录+交付离开(Step3)→知识检索(Step4)
+##       →推理墙(Step5)→跟踪决策→脱逃(Step6)→阶段末
+##   · 观察点：方案丙 —— 不设独立 hotspot，6 项观察并入 Step3 侦探笔记面板文字
+##   · 跟踪决策：玩家选择（H5-05 跟踪 / H5-06 不跟踪=mislead）+ 困难模式底线补救
+##   · 线索表：新增 C_SOTCB_508 铁匠铺证词（B 路线专属，H5-09 gate）
 ##
 ## 红线修正（根因，非表面）：旧实现按 03_关卡设计稿 §3.6 把场景五写成「黄页查马车 + 维金斯回报」，
 ## 与 02/08 最新稿「老太婆伪装识别 + 贝克街分队 + 苏格兰场竞争暗线」完全不符。本版按 02/08 权威重写，
-## 线索 501-507 含义随之重定（501 马车公司 / 502 霍普身份 / 503 老太婆=伪装 / 504 葛莱森电报
-## / 505 福尔摩斯补充电报 / 506 贝克街分队 / 507 老太婆说辞）。
+## 线索 501-508 含义随之重定（501 马车公司 / 502 霍普身份 / 503 老太婆=伪装 / 504 葛莱森电报
+## / 505 福尔摩斯补充电报 / 506 贝克街分队 / 507 老太婆说辞 / 508 铁匠铺证词）。
 
 enum Phase { ARRIVAL, REASONING, TRANSITION }
 
 ## 本场景线索权威定义（id/name/desc/correct/w）。经 DialogueManager clue 触发 → ClueSystem。
-## 501 马车公司信息（重要）502 霍普身份（关键）503 老太婆=年轻人伪装（关键）
+## 501 马车公司信息（重要）502 霍普身份（关键）503 老太婆=伪装（关键）
 ## 504 葛莱森电报·克利夫兰回电（重要）505 福尔摩斯补充电报（关键）
-## 506 维金斯·贝克街分队（重要·可选）507 老太婆来访说辞（一般·氛围）
+## 506 维金斯·贝克街分队（重要·可选）507 老太婆来访说辞（一般·氛围）508 铁匠铺证词（重要·B专属）
 const CLUES = {
 	"C_SOTCB_501": {"id":"C_SOTCB_501","name":"马车公司信息","desc":"出租马车公司登记显示：那辆棕色马车登记在杰弗森·霍普名下。雷斯垂德查到马车夫方向，或铁匠铺证词指向同一人。","correct":true,"w":5},
 	"C_SOTCB_502": {"id":"C_SOTCB_502","name":"杰弗森·霍普身份","desc":"综合两份电报 + 伪装识破 + 美国背景，凶手身份锁定：杰弗森·霍普——为露西复仇的马车夫。","correct":true,"w":10},
@@ -33,11 +38,12 @@ const CLUES = {
 	"C_SOTCB_505": {"id":"C_SOTCB_505","name":"福尔摩斯补充电报","desc":"福尔摩斯补发补充询问电报，收到更详细回电——德雷伯在克利夫兰有过一段婚约变故，关键身份信息补全。","correct":true,"w":10},
 	"C_SOTCB_506": {"id":"C_SOTCB_506","name":"维金斯·贝克街分队","desc":"一群流浪儿听命于维金斯，灵活、隐秘，能去官方侦探去不了的地方。被委派搜寻霍普。","correct":true,"w":5},
 	"C_SOTCB_507": {"id":"C_SOTCB_507","name":"老太婆来访说辞","desc":"来访者自称'索叶太太'，为女儿赛莉的结婚戒指而来：宏兹迪池区邓肯街十三号、女婿是船上乘务员。说辞细节丰富但疑点间接（地址矛盾等）。","correct":true,"w":2},
+	"C_SOTCB_508": {"id":"C_SOTCB_508","name":"铁匠铺证词","desc":"铁匠证实：右前蹄新换蹄铁，车夫红脸高个、美国西部口音、常在泰晤士河北岸（尤斯顿/霍尔本/大英博物馆）跑活。与画像对上数张，是假设9的 gate。","correct":true,"w":5},
 }
 
 var _route: String = "A"                 # 场景四传来的路线（A/B/C），读档时恢复
 var _asked_directions: Dictionary = {}   # 已追问方向
-var _tracked: bool = false               # Step6 是否选择跟踪
+var _tracked: bool = false               # 跟踪决策：是否选择跟踪（A 路线）
 var _insight_bonus: int = 0              # v4.0 洞察星级加成（全追问累计，封顶由墙处理）
 
 func scene_id() -> String: return "scene5"
@@ -69,32 +75,42 @@ func _journal_empty_hint() -> String: return "查黄页、登启事、问维金�
 func reasoning_hypothesis() -> Dictionary:
 	return {
 		"title": "老太婆是伪装，凶手=杰弗森·霍普（推理战场 M1）",
-		"description": "来领戒指的'老太婆'脱逃揭晓为年轻人伪装；两份电报 + 伪装识破 + 美国背景锁定霍普。\n\n活跃假设：\n· H5-01 老太婆是年轻人男扮女装（强：马车逃走时换装目击）\n· H5-02 凶手=杰弗森·霍普（中：两份电报+伪装识破+美国背景）\n· H5-03 凶手是马车夫（升级，中强：无马鞭+出租马车+伪装跳上马车逃走）\n· H5-04 复仇动机·私人恩怨非政治（中：克利夫兰背景+戒指）\n\n矛盾标记：\n· C5-01 老太婆虚弱 vs 跳上马车敏捷（识破伪装后自动解决）\n· C5-02 凶手缜密 vs 亲自冒险取戒指（场景八揭示：戒指是露西遗物）\n· C5-03 葛莱森政治阴谋论 vs 私人恩怨背景（推翻葛莱森假设的关键）\n· C5-04 雷斯垂德马车夫方向 vs 他查的都是错的（贝克街分队找到正确的人）",
+		"description": "来领戒指的'老太婆'脱逃揭晓为年轻人伪装；两份电报 + 伪装识破 + 美国背景锁定霍普。\n\n活跃假设：\n· H5-01 来者就是普通失主（错：脱逃推翻）\n· H5-02 来者是来占便宜的（错：为戒指冒风险说不通）\n· H5-03 来者和案件有关，是凶手派来的（中：脱逃证明有问题）\n· H5-04 来者就是凶手本人伪装（强：脱逃目击换装）\n· H5-05 应该跟踪她（对：跟踪获得关键验证）\n· H5-06 不用跟踪放她走（误导：错过脱逃验证）\n· H5-07 凶手是马车夫（强：无马鞭+出租马车+伪装跳上马车逃走）\n· H5-08 戒指是凶手故意掉的，引蛇出洞（中：他确实回来找戒指）\n· H5-09 马车夫常在泰晤士河北岸活动（B路线·铁匠铺证词 gate）\n\n矛盾标记：\n· C5-01 老太婆虚弱 vs 跳上马车敏捷（识破伪装后自动解决）\n· C5-02 凶手缜密 vs 亲自冒险取戒指（场景八揭示：戒指是露西遗物）\n· C5-03 葛莱森政治阴谋论 vs 私人恩怨背景（推翻葛莱森假设的关键）\n· C5-04 雷斯垂德马车夫方向 vs 他查的都错（贝克街分队找到正确的人）",
 		"battlefield": {
 			"hypotheses": [
-				{"id":"H5-01","text":"老太婆是年轻人男扮女装","correct":true},
-				{"id":"H5-02","text":"凶手=杰弗森·霍普","correct":true},
-				{"id":"H5-03","text":"凶手是马车夫（升级）","correct":true},
-				{"id":"H5-04","text":"复仇动机·私人恩怨非政治","correct":true}
+				{"id":"H5-01","text":"来者就是普通失主（索叶太太）","correct":false},
+				{"id":"H5-02","text":"来者是来占便宜的（想骗戒指）","correct":false},
+				{"id":"H5-03","text":"来者和案件有关，是凶手派来的","correct":true},
+				{"id":"H5-04","text":"来者就是凶手本人伪装的","correct":true},
+				{"id":"H5-05","text":"应该跟踪她，看她到底是谁","correct":true},
+				{"id":"H5-06","text":"不用跟踪，放她走也没关系","correct":false,"kind":"mislead"},
+				{"id":"H5-07","text":"凶手是马车夫","correct":true},
+				{"id":"H5-08","text":"戒指是凶手故意掉的，引蛇出洞","correct":true},
+				{"id":"H5-09","text":"马车夫常在泰晤士河北岸活动","correct":true,"gate_clue_ids":["C_SOTCB_508"]},
 			],
-		"contradictions": [
-			{"id":"C5-01","text":"老太婆虚弱 vs 跳上马车敏捷","correct":true},
-			{"id":"C5-02","text":"凶手缜密 vs 亲自冒险取戒指","correct":true},
-			{"id":"C5-03","text":"葛莱森政治阴谋论 vs 私人恩怨背景","correct":true},
-			{"id":"C5-04","text":"雷斯垂德马车夫方向 vs 他查的都错","correct":true}
-		],
-		"milestones": [
-			{"id":"S5-1","text":"老太婆为男扮女装"},
-			{"id":"S5-2","text":"凶手=杰弗森·霍普"},
-			{"id":"S5-3","text":"凶手=马车夫（升级）"},
-			{"id":"S5-4","text":"复仇动机（私人恩怨非政治）"},
-		],
-	},
-	# v4.0 三星评价：声明本推理链（逐链离散制）
-	"chain_id": scene_id(),
-	"expected_clues": CLUES.size(),  # 本链应收集线索总数（观察之星缺失条数分母）
-	"insight_bonus": _insight_bonus,  # 五方向全追问 累计加成
-}
+			"conclusions": [
+				{"id":"CL5-1","text":"伪装识破：老太婆是年轻人男扮女装","gate_hypo_ids":["H5-04"],"correct":true},
+				{"id":"CL5-2","text":"凶手=北岸马车夫（杰弗森·霍普）","gate_hypo_ids":["H5-07","H5-09"],"correct":true},
+				{"id":"CL5-3","text":"戒指对凶手非同小可（必回来取）","gate_hypo_ids":["H5-08"],"correct":true},
+			],
+			"contradictions": [
+				{"id":"C5-01","text":"老太婆虚弱 vs 跳上马车敏捷","correct":true},
+				{"id":"C5-02","text":"凶手缜密 vs 亲自冒险取戒指","correct":true},
+				{"id":"C5-03","text":"葛莱森政治阴谋论 vs 私人恩怨背景","correct":true},
+				{"id":"C5-04","text":"雷斯垂德马车夫方向 vs 他查的都错","correct":true},
+			],
+			"milestones": [
+				{"id":"S5-1","text":"老太婆=男扮女装"},
+				{"id":"S5-2","text":"凶手=杰弗森·霍普"},
+				{"id":"S5-3","text":"凶手=马车夫"},
+				{"id":"S5-4","text":"复仇动机（私人恩怨非政治）"},
+			],
+		},
+		# v4.0 三星评价：声明本推理链（逐链离散制）
+		"chain_id": scene_id(),
+		"expected_clues": (7 if _route == "A" else 6),  # A 路线可收 7 条（507+503+501+502+504+505+506）；B/C 收 6 条（无 507/503，有 508）
+		"insight_bonus": _insight_bonus,  # 五方向全追问 累计加成
+	}
 
 func map_locations() -> Array:
 	return [
@@ -142,27 +158,27 @@ func _arrival_A() -> void:
 		_mk_node("a2","福尔摩斯","不用了，赫德森太太。今晚我们可能有客人。","click",["a3"]),
 		_mk_node("a3","系统","（时间流逝：傍晚→天色渐暗→时钟指向八点）「咚、咚、咚」——敲门声。","guide",["a4"]),
 		_mk_node("a4","赫德森太太","（去开门，回身）先生，是一位老太太，说是要领取什么戒指。","click",["a5"]),
-		_mk_node("a5","福尔摩斯","（看向玩家）来了。","click",["a5_e","a5_n","a5_h"]),
-	_mk_node("a5_e","福尔摩斯","（低声）记住——让她说，别打断。地址、丢戒指经过、家庭情况，每条都记下来，破绽往往藏在细节里。","click",["a5_n"],[],"指导",1),
-	_mk_node("a5_n","福尔摩斯","（低声）让她说，别打断。注意她话里前后对不上的地方。","click",["a5_h"],[],"指导",2),
-	_mk_node("a5_h","福尔摩斯","（看向玩家）……看你怎么盘问她了。","click",["a6"],[],"从容",3),
-		_mk_node("a6","华生","（低声）福尔摩斯，你真觉得她和案子有关？万一她就是个普通老太太，只是来领戒指的？","click",["a7"]),
-		_mk_node("a7","福尔摩斯","普通老太太不会在这个时间、用这个地址来领戒指。太巧了——巧得不正常。","click",["a8"]),
+		_mk_node("a5","福尔摩斯","（看向玩家）来了。看你怎么盘问她。","click",["end"]),
 	], "a0", _enter_step1)
 
 func _enter_step1() -> void:
-	# Step1 观察发现 —— 老太婆来访（伪装逼真，无低级破绽）
-	_start_dialogue([
+	# Step1 观察发现 —— 老太婆来访（伪装逼真，无低级破绽；观察项按丙并入 Step3 面板）
+	# 难度分层：简单提示 1-2 疑点 / 普通 70% 概率福尔摩斯皱眉 / 困难不动声色
+	var nodes := [
 		_mk_node("s0","老太婆","（满脸皱纹，背微驼，蹒跚挪入）我是为这件事来的，先生们。（掏出晚报指着广告）广告上说拾得一枚结婚金戒指。这是我女儿赛莉的。","click",["s1"]),
 		_mk_node("s1","老太婆","她去年这个时候结的婚，丈夫在联合公司的船上当乘务员，出海在外。如果他回来发现戒指没了……谁知道会干出什么。","click",["s2"]),
 		_mk_node("s2","老太婆","昨天晚上她去看马戏，应该是在路上不小心丢的。您姓——我姓索叶，女儿姓丹尼斯，女婿叫汤姆·丹尼斯，船上的乘务员。","click",["s3"]),
 		_mk_node("s3","华生","（拿起铅笔）您住在哪儿？","click",["s4"]),
 		_mk_node("s4","老太婆","宏兹迪池区，邓肯街十三号。离这儿远着呢。","click",["s5"]),
-		_mk_node("s5","老太婆","（千恩万谢）谢谢，找到戒指，我女儿赛莉一定开心死了……（颤巍巍转身，蹒跚走向门口）","clue",["s6"],[CLUES["C_SOTCB_507"]]),
-		_mk_node("s6","福尔摩斯","（低声）布瑞克斯顿路不在宏兹迪池区和马戏团之间……她怎么一口咬定是女儿的？疑点都是间接的。","click",["end"]),
-	], "s0", _start_panel)
-
-
+	]
+	if _difficulty <= 1:
+		nodes.append(_mk_node("s5","福尔摩斯","（低声）她姓索叶、女儿姓丹尼斯、女婿是船员——说得太周全。一个真失主被问到才答，她像背课文。","click",["s6"]))
+		nodes.append(_mk_node("s6","华生","（低声）而且布瑞克斯顿路不在宏兹迪池和马戏团之间，她一口咬定是女儿的，也蹊跷。","click",["end"]))
+	elif _difficulty == 2 and randf() < 0.7:
+		nodes.append(_mk_node("s5","福尔摩斯","（微微皱眉，没说话——但你看得出，他盯住了老太婆的每一个字）","click",["end"]))
+	else:
+		nodes.append(_mk_node("s5","福尔摩斯","（不动声色，只看着她）……先记下来。","click",["end"]))
+	_start_dialogue(nodes, "s0", _start_panel)
 
 func _start_panel() -> void:
 	# Step2 工具操作 —— 追问面板（08 场景五·六方向追问；老太婆回答合理、不直接露破绽）
@@ -220,10 +236,16 @@ func _dir_letgo() -> void:
 	], "g0", _start_panel)
 
 func _start_step3() -> void:
-	# Step3 数据记录 —— 侦探笔记（08 场景五·来访者记录 7 项，简化为确认式回顾）
+	# Step3 数据记录 —— 侦探笔记（观察项[丙] + 实际追问项），随后交付戒指+离开（方案甲）
 	if _asked_directions.size() >= 5:
 		_insight_bonus += 1   # v4.0 洞察之星加成：五方向全追问
-	# 侦探笔记只记录玩家「实际追问过」的方向，未问的不写进本子
+	var observe_items := [
+		{"name":"观察 · 面部", "desc":"满脸皱纹，眼神浑浊，典型的老人面容——但标准得近乎刻意"},
+		{"name":"观察 · 手部", "desc":"皮肤松弛有老年斑，手指颤抖，就是普通老人的手"},
+		{"name":"观察 · 步态", "desc":"走路缓慢蹒跚，似乎腿脚不便"},
+		{"name":"观察 · 衣着", "desc":"普通深色旧外套，戴着头巾，衣着寒酸"},
+		{"name":"观察 · 声音", "desc":"声音苍老带喘息，说话有些絮叨"},
+	]
 	var testimony := {
 		"ring": {"name":"追问 · 戒指细节", "desc":"普通结婚金戒指，内侧刻字「好像是 L.F.」——她自己都记不清"},
 		"lost": {"name":"追问 · 丢失经过", "desc":"称掏手绢时带落，具体地段说不清，推给「夜里天黑」"},
@@ -232,17 +254,20 @@ func _start_step3() -> void:
 		"doubt": {"name":"质疑 · 地址矛盾", "desc":"布瑞克斯顿路不在宏兹迪池与马戏团之间；被点破后临时改口女儿住培克罕"},
 		"letgo": {"name":"放行 · 未作追问", "desc":"直接归还戒指放其离开，未取得任何口供"},
 	}
-	var items := []
+	var items := observe_items.duplicate()
 	for d in _asked_directions.keys():
 		if testimony.has(d):
 			items.append(testimony[d])
-	if items.is_empty():
-		items.append({"name":"（尚未追问任何方向）", "desc":"本子上还是空白的"})
-	_popup("侦探笔记 · 来访者记录（已追问 " + str(items.size()) + " 项）", items)
+	if _asked_directions.is_empty():
+		items.append({"name":"（尚未追问任何方向）", "desc":"本子上观察项已记，追问项空白"})
+	_popup("侦探笔记 · 来访者记录（观察 " + str(observe_items.size()) + " 项 + 追问 " + str(_asked_directions.size()) + " 项）", items)
+	# 交付戒指 + 离开（方案甲：追问记录后才交付，她拿戒指离开）
 	_start_dialogue([
-		_mk_node("n0","福尔摩斯","把问出来的话理一理——记下的只有我真正问过的那几条，剩下的都是她没说、我也没追的。","click",["n1"]),
-		_mk_node("n1","华生","（合上本子）全是间接疑点，没有实锤。下一步该进知识库、再上推理墙了。","click",["end"]),
-	], "n0", _start_step4)
+		_mk_node("d0","华生","（把戒指递过去）这只戒指显然是您女儿的。我很高兴，现在物归原主了，索叶太太。","click",["d1"]),
+		_mk_node("d1","老太婆","（千恩万谢）谢谢，真是太感谢你们了！找到戒指，我女儿赛莉一定开心死了……","click",["d2"]),
+		_mk_node("d2","老太婆","（接过戒指，颤巍巍转身，蹒跚走向门口）","click",["d3"]),
+		_mk_node("d3","系统","（门在老太婆身后关上。房间里安静了大约五秒）","guide",["end"]),
+	], "d0", _start_step4)
 
 func _start_step4() -> void:
 	# Step4 知识检索（可选 · M2+，08 场景五）：列出可检索领域（弹窗）
@@ -266,7 +291,7 @@ func _arrival_B() -> void:
 		_mk_node("b0","系统","（演出）铁匠铺，炉火通明。","guide",["b1"]),
 		_mk_node("b1","铁匠","右前蹄新换的？嗯……昨天傍晚是有一辆马车来换过掌。","click",["b2"]),
 		_mk_node("b2","福尔摩斯","记得车夫长什么样吗？","click",["b3"]),
-		_mk_node("b3","铁匠","高个子，红脸膛——不是喝酒喝出来的红，是风吹日晒那种红。美国西部口音，嗓门大，人挺随和，跟我聊了半天淘金热。","clue",["b4"],[CLUES["C_SOTCB_501"]]),
+		_mk_node("b3","铁匠","高个子，红脸膛——不是喝酒喝出来的红，是风吹日晒那种红。美国西部口音，嗓门大，人挺随和，跟我聊了半天淘金热。","clue",["b4"],[CLUES["C_SOTCB_508"]]),
 		_mk_node("b4","铁匠","他说主要在泰晤士河北岸跑活——尤斯顿、大英博物馆、霍尔本一带，说那边美国客人多。","click",["b5"]),
 		_mk_node("b5","福尔摩斯","（转向玩家）右前蹄新换的掌，红脸高个的美国马车夫，常在北岸跑活——和咱们手里的画像，对上了几张？","click",["b6"]),
 		_mk_node("b6","系统","（场景切回贝克街）","guide",["b7"]),
@@ -289,18 +314,46 @@ func _enter_reasoning() -> void:
 	_sync_clues()
 	_prompt_think("福尔摩斯", "华生，'老太婆'的说辞全是间接疑点，真正的验证在后面——但我们先把假设摆上墙：她是不是伪装？凶手是不是马车夫霍普？私人恩怨还是政治阴谋？", "自信")
 
-# ===================== 过渡：Step6 跟踪脱逃（A路线）+ 阶段末汇合 =====================
+# ===================== 过渡：跟踪决策（A路线）+ 阶段末汇合 =====================
 
 func _enter_transition() -> void:
 	_phase = Phase.TRANSITION
 	_award()
 	if _route == "A":
-		_start_step6_tracking()
+		_offer_track_decision()
 	else:
 		_start_finale()
 
+func _offer_track_decision() -> void:
+	# Step5 推理墙后：玩家选择是否跟踪（H5-05 跟踪 / H5-06 不跟踪=mislead）
+	_show_choice_panel("她要走了 —— 跟不跟？", [
+		{"text":"🔍 跟踪她，看她到底是谁", "cb": Callable(self, "_on_decide_track")},
+		{"text":"🚪 不跟踪，放她走", "cb": Callable(self, "_on_decide_notrack")},
+	])
+
+func _on_decide_track() -> void:
+	_tracked = true
+	_start_step6_tracking()
+
+func _on_decide_notrack() -> void:
+	_tracked = false
+	# 困难模式底线补救：全程未质疑且未跟踪 → 福尔摩斯主动追问，给一次补救机会
+	if _difficulty >= 3 and not _asked_directions.has("doubt"):
+		_start_dialogue([
+			_mk_node("h0","福尔摩斯","（突然）等等——你不觉得她哪儿不对劲吗？一个老太太，傍晚来领戒指，说得滴水不漏，可地址、路线处处别扭。","click",["h1"]),
+			_mk_node("h1","福尔摩斯","我去追她。你留在这儿——这一次，别放走她。","click",["end"]),
+		], "h0", _show_hardline_choice)
+		return
+	_start_notrack_report()
+
+func _show_hardline_choice() -> void:
+	_show_choice_panel("补救机会", [
+		{"text":"🔍 追上去（转为跟踪）", "cb": Callable(self, "_on_decide_track")},
+		{"text":"🚪 让福尔摩斯自己去（错过跟踪）", "cb": Callable(self, "_start_notrack_report")},
+	])
+
 func _start_step6_tracking() -> void:
-	# Step6 验证修正 —— 跟踪与脱逃（08 场景五·双视角）：玩家选择是否跟踪
+	# Step6 验证修正 —— 跟踪与脱逃（08 场景五·双视角）：玩家选择跟踪后播放
 	_start_dialogue([
 		_mk_node("t0","福尔摩斯","（低声）我跟着她。你留这儿，别睡，等我回来。","click",["t1"]),
 		_mk_node("t1","系统","（街景·夜间跟踪）老太婆没走多远就叫住一辆过路马车：「到宏兹迪池区，邓肯街十三号。」福尔摩斯跟着跳上马车后部。","guide",["t2"]),
@@ -308,34 +361,20 @@ func _start_step6_tracking() -> void:
 		_mk_node("t3","系统","（脱逃揭晓）马车到邓肯街，福尔摩斯先跳下等在暗处。车门打开——车厢空空荡荡，乘客早已踪迹全无。向十三号住户打听：住的是裱糊匠凯斯维克，从没听过什么索叶或丹尼斯。","guide",["t4"]),
 		_mk_node("t4","福尔摩斯","（脸色难看）什么老太婆……该死，咱们两个才是老太婆。被人结结实实耍了一回。他一定是个年轻小伙子，而且精明强干，伪装乱真。","click",["t5"]),
 		_mk_node("t5","福尔摩斯","（眼神重新锐利）不过他也暴露了一件事——宁可冒险回来拿戒指，说明戒指对他非同小可。这张牌，我们没白出。","clue",["end"],[CLUES["C_SOTCB_503"]]),
-	], "t0", _offer_track_choice)
+	], "t0", _start_finale)
 
-func _offer_track_choice() -> void:
-	# 困难模式底线触发后的补救选择（设计 08·玩家全程未怀疑时）；常规流程也允许"未跟踪"分支
-	_show_choice_panel("下一步 · 老太婆已脱逃", [
-		{"text":"🔍 你早就在跟踪了 —— 确认伪装识破（已记录）", "cb": Callable(self, "_on_tracked")},
-		{"text":"😮 我没怀疑她 —— 福尔摩斯自己追出去核实", "cb": Callable(self, "_on_not_tracked")},
-	])
-
-func _on_tracked() -> void:
-	_tracked = true
+func _start_notrack_report() -> void:
+	# 玩家未跟踪：福尔摩斯稍后汇报脱逃（线索仍授予，但玩家错过演出）
 	_start_dialogue([
-		_mk_node("x0","华生","（恍然）所以那'老太婆'……根本就是凶手本人伪装的？他跳上马车的动作，哪像腿脚不便的老人。","click",["end"]),
-	], "x0", _start_finale)
-
-func _on_not_tracked() -> void:
-	_tracked = false
-	_start_dialogue([
-		_mk_node("x0","福尔摩斯","（摇头披上外套）不对劲……太不对劲了。你待着，我去看看。","click",["x1"]),
-		_mk_node("x1","系统","（半小时后）福尔摩斯回来，告诉玩家老太婆脱逃了——车厢空无一人，十三号住户从没听过索叶或丹尼斯。","guide",["end"]),
-	], "x0", _start_finale)
+		_mk_node("n0","系统","（片刻后）福尔摩斯匆匆回来，脸色阴沉。","guide",["n1"]),
+		_mk_node("n1","福尔摩斯","她跑了。我稍慢了一步——等追到邓肯街十三号，车厢里早空了。住户是个裱糊匠，没听过什么索叶、丹尼斯。","click",["n2"]),
+		_mk_node("n2","福尔摩斯","（盯着玩家）你刚才要是肯多问一句、或多跟一步，咱们不至于这么被动。不过——她宁可冒险回来拿戒指，说明戒指对她非同小可。","clue",["end"],[CLUES["C_SOTCB_503"]]),
+	], "n0", _start_finale)
 
 func _start_finale() -> void:
 	# 阶段末汇合：动态总结 + 贝克街分队 + 葛莱森/雷斯垂德竞争暗线 + 双钩子 + 转场景六
-	# A 路线授予 503（脱逃时已授）；此处统一授予 504/505/506/502，B 路线补授 501
+	# A 路线已在脱逃段授予 503；此处统一授予 504/505/506/502，所有路线由雷斯垂德补 501
 	var grants_finale := [CLUES["C_SOTCB_504"], CLUES["C_SOTCB_505"], CLUES["C_SOTCB_506"], CLUES["C_SOTCB_502"]]
-	if _route != "B":
-		grants_finale.append(CLUES["C_SOTCB_501"])   # A/C 路线由雷斯垂德来访补马车公司信息
 	_start_dialogue([
 		_mk_node("f0","福尔摩斯","（在房里踱步）好，现在手里有什么？来领戒指的是伪装，脱逃了；他对伦敦很熟，伪装技术高。","click",["f1"]),
 		_mk_node("f1","福尔摩斯","正规侦探太大张旗鼓，一露面人家就闭嘴。我们需要……更灵活的方式。","click",["f2"]),
@@ -348,7 +387,7 @@ func _start_finale() -> void:
 		_mk_node("f8","葛莱森","（得意）福尔摩斯！我基本破案了——克利夫兰回电，德雷伯是美国人，背景涉仇杀！","clue",["f9"],[CLUES["C_SOTCB_504"]]),
 		_mk_node("f9","福尔摩斯","（接过电报）死者背景是查到了，可凶手是谁你还一点头绪没有。（低声对玩家）葛莱森的政治阴谋论，站不住。","clue",["f10"],[CLUES["C_SOTCB_505"]]),
 		_mk_node("f10","福尔摩斯","（不动声色）我补发了一封补充电报，更详细的回电刚到——德雷伯在克利夫兰有过一段婚约变故。雷斯垂德，你那边呢？","click",["f11"]),
-		_mk_node("f11","雷斯垂德","（神神秘秘）我查到几个可疑马车夫——方向没错吧？凶手就是马车夫！","clue",["f12"],[CLUES["C_SOTCB_501"] if _route != "B" else CLUES["C_SOTCB_501"]]),
+		_mk_node("f11","雷斯垂德","（神神秘秘）我查到几个可疑马车夫——方向没错吧？凶手就是马车夫！","clue",["f12"],[CLUES["C_SOTCB_501"]]),
 		_mk_node("f12","福尔摩斯","（似笑非笑）方向蒙对了，可惜你查的都是错的。不过——凶手是马车夫这判断，算你歪打正着。","click",["f13"]),
 		_mk_node("f13","福尔摩斯","（望向玩家）老太婆到底是谁，我们清楚了；霍普的名字也锁定了。但戒指对他为何这么重要？这一手，我们还有另一手准备。","clue",["f14"],[CLUES["C_SOTCB_502"]]),
 		_mk_node("f14","华生","另一手准备？","click",["end"]),
@@ -367,16 +406,14 @@ func _go_to_next_scene() -> void:
 func _go_to_next_scene_continue() -> void:
 	if GameManager and not GameManager.is_guest and SaveManager:
 		var ids := ClueSystem.get_collected_ids(clue_source()) if ClueSystem else []
-		await SaveSystem.request_save("scene5", Phase.TRANSITION, {"clue_ids": ids, "route": _route})
+		await SaveSystem.request_save("scene5", Phase.TRANSITION, {"clue_ids": ids, "route": _route, "tracked": _tracked})
 	SceneLoader.transition_to("res://scenes/scene6.tscn")
 
-# ===================== 自定义选项面板（安全分支，不依赖对话引擎 choice） =====================
-
-# ===================== 存 / 读档（消费场景四路线，存档带回 route 供恢复） =====================
+# ===================== 存 / 读档（消费场景四路线，存档带回 route/tracked 供恢复） =====================
 func _do_save(slot: int = -1) -> void:
 	var ids := ClueSystem.get_collected_ids(clue_source()) if ClueSystem else []
-	print("[SAVE scene5] _phase=", _phase, " route=", _route, " ids=", ids)
-	await SaveSystem.request_save("scene5", _phase, {"clue_ids": ids, "route": _route}, slot)
+	print("[SAVE scene5] _phase=", _phase, " route=", _route, " tracked=", _tracked, " ids=", ids)
+	await SaveSystem.request_save("scene5", _phase, {"clue_ids": ids, "route": _route, "tracked": _tracked}, slot)
 	_ui.show_notification("✅ 进度已保存")
 
 func _restore_saved_state() -> bool:
@@ -384,6 +421,7 @@ func _restore_saved_state() -> bool:
 	if ss.is_empty(): return false
 	var sp := int(ss.get("phase", 0))
 	_route = ss.get("route", _route)
+	_tracked = ss.get("tracked", false)
 	if GameManager: GameManager.scene_state["scene4_route"] = _route
 	_phase = sp
 	_restore_clues_from_ids(ss.get("clue_ids", []))

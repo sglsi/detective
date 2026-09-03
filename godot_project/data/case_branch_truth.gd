@@ -307,16 +307,38 @@ static func branches() -> Array:
 
 		# ───────────────────────── 场景五 ─────────────────────────
 		{
-			"id": "CH09A", "name": "老太婆伪装", "scene": "scene5", "core": false,
+			# 场景五·核心真相链：老太婆伪装识破（core）
+			"id": "CH09A", "name": "老太婆伪装识破", "scene": "scene5", "core": true,
 			"nodes": [
 				{"id": "C_SOTCB_503", "layer": "clue"}, {"id": "C_SOTCB_507", "layer": "clue"},
-				{"id": "H5-01", "layer": "hypo"},
-				{"id": "CL5-1", "layer": "concl"},
+				{"id": "H5-03", "layer": "hypo"}, {"id": "H5-04", "layer": "hypo"},
+				{"id": "H5-08", "layer": "hypo"},
+				{"id": "CL5-1", "layer": "concl"}, {"id": "CL5-3", "layer": "concl"},
 			],
 			"edges": [
-				{"from": "C_SOTCB_503", "to": "H5-01", "kind": "support"},
-				{"from": "C_SOTCB_507", "to": "H5-01", "kind": "support"},
-				{"from": "H5-01", "to": "CL5-1", "kind": "support"},
+				{"from": "C_SOTCB_507", "to": "H5-03", "kind": "support"},
+				{"from": "C_SOTCB_503", "to": "H5-04", "kind": "support"},
+				{"from": "C_SOTCB_507", "to": "H5-04", "kind": "support"},
+				{"from": "H5-03", "to": "H5-04", "kind": "support"},
+				{"from": "H5-04", "to": "CL5-1", "kind": "support"},
+				{"from": "C_SOTCB_503", "to": "H5-08", "kind": "support"},
+				{"from": "H5-08", "to": "CL5-3", "kind": "support"},
+			],
+			"misleads": [{"id": "H5-06", "expect": "negate"}],
+		},
+		{
+			# 场景五·支撑真相链：凶手=北岸马车夫（B路线铁匠铺证词 gate）
+			"id": "CH09A2", "name": "凶手=北岸马车夫", "scene": "scene5", "core": false,
+			"nodes": [
+				{"id": "C_SOTCB_501", "layer": "clue"}, {"id": "C_SOTCB_508", "layer": "clue"},
+				{"id": "H5-07", "layer": "hypo"}, {"id": "H5-09", "layer": "hypo"},
+				{"id": "CL5-2", "layer": "concl"},
+			],
+			"edges": [
+				{"from": "C_SOTCB_501", "to": "H5-07", "kind": "support"},
+				{"from": "C_SOTCB_508", "to": "H5-09", "kind": "support"},
+				{"from": "H5-07", "to": "CL5-2", "kind": "support"},
+				{"from": "H5-09", "to": "CL5-2", "kind": "support"},
 			],
 			"misleads": [],
 		},
