@@ -2,6 +2,7 @@ extends RefCounted
 class_name WallVerify
 
 const WallCompare = preload("res://scripts/clue/wall/wall_compare.gd")
+const BranchEval = preload("res://scripts/clue/wall_branch_evaluator.gd")
 
 ## 推理墙 · 验证窗口层（拆自 reasoning_wall.gd，Request C 后架构分层）
 ##
@@ -207,14 +208,14 @@ func _on_verify_confirm(v: int) -> void:
 	if owner._on_verify.is_valid(): owner._on_verify.call(v)
 
 
-## 验证窗口文案（裁定4：只显等级 + 三星 + 一句话，不暴露错在哪）。
-## 旧实现用 _soft_compare_report() 逐条列出「哪条证据对/错」——等于当场告诉玩家错处，
-## 与「侦查中不提示错误、最后才公布结论」冲突，故废弃。
+## 验证窗口文案。
+## 正式墙（裁定4）：只显等级 + 三星 + 一句话，不暴露错在哪（错处留到场景八全案结论才公布）。
+## 练习墙（用户 2026-09 拍板）：评价体系照常运行，另附「差在哪」逐项明细——教学墙正该教。
 func _build_verify_summary() -> String:
 	var levels := ["矛盾冲突", "证据不足", "倾向成立", "已获证实"]
 	var v := owner.get_verdict()
 	if owner._practice_mode:
-		return "练习墙 · 不计分\n本墙用于熟悉推理操作，不计入案件星级。"
+		return _teaching_report()
 	var br: Dictionary = owner._last_branch
 	if not br.is_empty():
 		var stars: int = int(br.get("stars", 0))
@@ -227,6 +228,84 @@ func _build_verify_summary() -> String:
 	# 兜底（拿不到分枝评分时）：退回三维星级展示
 	var st: Dictionary = owner._last_stars
 	return "验证等级：%s\n观察%d⭐ 推理%d⭐ 洞察%d⭐" % [levels[v], st.get("observation", 0), st.get("reasoning", 0), st.get("insight", 0)]
+
+
+# ===================== 教学明细反馈（练习墙专用） =====================
+## 逐链列出：缺哪些推断/结论、缺哪些连线、哪些方向反了、哪些连线不属于真相链。
+## 文本翻译顺序：人物（_NPC_DISPLAY_NAMES）→ 线索（_clues.name）→ 战场假设/结论（text）→ 原 id。
+func _teaching_report() -> String:
+	var lines: Array[String] = []
+	lines.append("📘 教学反馈（练习墙 · 不计入案件星级）")
+	var br: Dictionary = owner._last_branch
+	if br.is_empty():
+		var st0: Dictionary = owner._last_stars
+		lines.append("观察%d⭐ 推理%d⭐ 洞察%d⭐" % [int(st0.get("observation", 0)), int(st0.get("reasoning", 0)), int(st0.get("insight", 0))])
+		lines.append("（未能生成分枝评分明细，请确认图谱中已有连线或节点）")
+		return "\n".join(lines)
+	var pct: int = int(round(float(br.get("ratio", 0.0)) * 100.0))
+	lines.append("推理链正确率：%d%%（%d 星）· %s" % [pct, int(br.get("stars", 0)), str(br.get("summary", ""))])
+	if owner._bf_ctl != null:
+		lines.append(str(owner._bf_ctl._battle_status_text()))
+	var any_detail := false
+	for b in br.get("per_branch", []):
+		if not bool(b.get("active", false)):
+			continue
+		any_detail = true
+		lines.append("")
+		lines.append("【%s】命中 %s / 真相 %d 项" % [str(b.get("name", "")), "%g" % float(b.get("hit", 0.0)), int(b.get("truth", 0))])
+		var mn: Array = b.get("missing_nodes", [])
+		if not mn.is_empty():
+			lines.append("  ✗ 还未产出的推断/结论：%s" % _join_id_items(mn))
+		var me: Array = b.get("missing_edges", [])
+		if not me.is_empty():
+			lines.append("  ✗ 还未连上的线索链：%s" % _join_edge_items(me))
+		var re_: Array = b.get("reversed_edges", [])
+		if not re_.is_empty():
+			lines.append("  ⚠ 方向反了（应为箭头方向）：%s" % _join_edge_items(re_))
+		var ee: Array = b.get("extra_edges", [])
+		if not ee.is_empty():
+			lines.append("  ⚠ 不属于真相链的连线（会拉低正确率）：%s" % _join_edge_items(ee))
+	if not any_detail:
+		lines.append("")
+		lines.append("（还没有可评估的推理内容：先在图谱中连线、采纳推断与结论）")
+	return "\n".join(lines)
+
+
+func _join_id_items(arr: Array) -> String:
+	var parts: Array[String] = []
+	for it in arr:
+		parts.append(_pretty_id(str(it)))
+	return "、".join(parts)
+
+
+func _join_edge_items(arr: Array) -> String:
+	var parts: Array[String] = []
+	for e in arr:
+		if e is Dictionary:
+			parts.append("%s → %s" % [_pretty_id(str(e.get("from", ""))), _pretty_id(str(e.get("to", "")))])
+		else:
+			parts.append(str(e))
+	return "、".join(parts)
+
+
+func _pretty_id(pid: String) -> String:
+	var raw := pid.strip_edges()
+	var id := BranchEval.norm(raw)
+	if id == "":
+		return raw
+	if owner._NPC_DISPLAY_NAMES.has(id):
+		return str(owner._NPC_DISPLAY_NAMES.get(id, id))
+	for c in owner._clues:
+		if BranchEval.norm(str(c.get("id", ""))) == id:
+			return str(c.get("name", id))
+	if owner._battle_current is Dictionary:
+		for h in owner._battle_current.get("hypotheses", []):
+			if BranchEval.norm(str(h.get("id", ""))) == id:
+				return str(h.get("text", id))
+		for c2 in owner._battle_current.get("conclusions", []):
+			if BranchEval.norm(str(c2.get("id", ""))) == id:
+				return str(c2.get("text", id))
+	return raw
 
 
 # 仅关闭验证结果窗口（不确认验证、不关闭推理墙），保留推理墙继续操作

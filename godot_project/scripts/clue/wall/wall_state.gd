@@ -269,9 +269,9 @@ func _update_star_rating() -> void:
 			insight_stars = clampi(insight_stars + negated.size(), 1, 3)
 
 	owner._last_stars = {"observation": observe_stars, "reasoning": reasoning_stars, "insight": insight_stars}
-	# 练习墙（裁定 5）：明示不计分，不提交 StarRatingSystem
+	# 练习墙（裁定 5）：评价体系照常运行并展示（教学反馈需要），只是不提交 StarRatingSystem
 	if owner._practice_mode:
-		owner._star_lbl.text = "练习墙 · 不计分"
+		owner._star_lbl.text = "教学评价 观察%d⭐ 推理%d⭐ 洞察%d⭐" % [observe_stars, reasoning_stars, insight_stars]
 		return
 	owner._star_lbl.text = "观察%d⭐ 推理%d⭐ 洞察%d⭐" % [observe_stars, reasoning_stars, insight_stars]
 

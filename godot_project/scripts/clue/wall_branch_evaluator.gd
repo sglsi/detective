@@ -209,6 +209,8 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 				"id": str(b.get("id", "")), "name": str(b.get("name", "")),
 				"core": is_core, "active": false, "ratio": 0.0,
 				"hit": 0.0, "built": 0, "truth": int(res.get("truth", 0)),
+				"missing_nodes": [], "missing_edges": [],
+				"reversed_edges": [], "extra_edges": [],
 			})
 			continue
 
@@ -222,6 +224,10 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 			"id": str(b.get("id", "")), "name": str(b.get("name", "")),
 			"core": is_core, "active": active, "ratio": rb,
 			"hit": hit, "built": built, "truth": t,
+			"missing_nodes": res.get("missing_nodes", []),
+			"missing_edges": res.get("missing_edges", []),
+			"reversed_edges": res.get("reversed_edges", []),
+			"extra_edges": res.get("extra_edges", []),
 		})
 
 	var ratio: float = sum_hit / sum_max if sum_max > 0.0 else 0.0
@@ -289,6 +295,10 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 			truth += 1
 	var built: int = 0
 	var hit: float = 0.0
+	var missing_nodes: Array = []     # 真相要求的推断/结论节点，玩家未产出
+	var missing_edges: Array = []     # 真相边，玩家未连（任何形式都没命中）
+	var reversed_edges: Array = []    # 玩家连了但方向反的真相边（半分）
+	var extra_edges: Array = []       # 玩家建的、不匹配任何真相边的连线（进分母拉低正确率）
 
 	# ① 节点项：只算玩家「主动产出」的（推断/结论）。线索是墙上预置的，不算玩家产出。
 	for n in truth_nodes:
@@ -296,7 +306,10 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 		var layer: String = str(n.get("layer", ""))
 		if layer not in ["hypo", "concl"]:
 			continue
+		if node_owner_truth.get(nid, bid) != bid:
+			continue
 		if not (nid in assigned_nodes):
+			missing_nodes.append(nid)
 			continue
 		built += 1
 		if mislead_ids.has(nid):
@@ -309,23 +322,41 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 	for e in truth_edges:
 		var k := _edge_key(norm(str(e.get("from", ""))), norm(str(e.get("to", ""))), str(e.get("kind", "")))
 		truth_edge_map[k] = e
+	var matched_truth := {}
 	for e in assigned_edges:
 		var ef: String = str(e.get("from", ""))
 		var et: String = str(e.get("to", ""))
 		built += 1
 		var ek: String = str(e.get("kind", ""))
 		if truth_edge_map.has(_edge_key(ef, et, ek)):
+			matched_truth[_edge_key(ef, et, ek)] = true
 			hit += HIT_EXACT
 		elif truth_edge_map.has(_edge_key(et, ef, ek)):
+			matched_truth[_edge_key(et, ef, ek)] = true
+			reversed_edges.append({"from": et, "to": ef, "kind": ek})
 			hit += HIT_REVERSED          # 两端对、方向反 → 半分
 		elif mislead_ids.has(et) and ek == "oppose":
 			hit += HIT_EXACT             # 否定误导项 = 识破，给满分
 		elif mislead_ids.has(ef) and ek == "oppose":
 			hit += HIT_EXACT
 		else:
+			extra_edges.append({"from": ef, "to": et, "kind": ek})
 			hit += HIT_NONE              # 错误边：进分母，不给分（连得越滥正确率越低）
 
-	return {"truth": truth, "built": built, "hit": hit}
+	for e in truth_edges:
+		var tk := _edge_key(norm(str(e.get("from", ""))), norm(str(e.get("to", ""))), str(e.get("kind", "")))
+		if not matched_truth.has(tk):
+			missing_edges.append({
+				"from": str(e.get("from", "")),
+				"to": str(e.get("to", "")),
+				"kind": str(e.get("kind", "")),
+			})
+
+	return {
+		"truth": truth, "built": built, "hit": hit,
+		"missing_nodes": missing_nodes, "missing_edges": missing_edges,
+		"reversed_edges": reversed_edges, "extra_edges": extra_edges,
+	}
 
 
 static func _edge_key(a: String, b: String, kind: String) -> String:
