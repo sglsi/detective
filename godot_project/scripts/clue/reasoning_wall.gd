@@ -89,6 +89,7 @@ var _search_edit: LineEdit = null
 var _filter_sel: OptionButton = null
 var _fold_btn: Button = null
 var _export_btn: Button = null
+var _export_save_btn: Button = null
 var _candidate_btn: Button = null
 var _candidate_panel: PanelContainer = null
 var _notice_lbl: Label = null
@@ -526,6 +527,12 @@ func _create_top_bar() -> Control:
 	export_btn.pressed.connect(_on_export_pressed)
 	row2.add_child(export_btn)
 	_export_btn = export_btn
+
+	var save_btn := _mk_top_btn("🗄 存档", true)
+	save_btn.tooltip_text = "导出最新存档 JSON（诊断/复盘用）"
+	save_btn.pressed.connect(_on_export_save_pressed)
+	row2.add_child(save_btn)
+	_export_save_btn = save_btn
 
 	row2.add_child(_mk_sep())
 
@@ -1245,6 +1252,53 @@ func _on_export_pressed() -> void:
 	if _graph_view and is_instance_valid(_graph_view):
 		_graph_view.export_markdown()
 		# 导出结果由 graph_view 弹一个可复制面板
+
+
+func _on_export_save_pressed() -> void:
+	var slots: Array = SaveManager.get_slot_list_sorted()
+	if slots.is_empty():
+		_show_export_save_panel("没有可用的存档槽位。")
+		return
+	var slot := int(slots[0].get("slot", 0))
+	var f := FileAccess.open(SaveManager.slot_path(slot), FileAccess.READ)
+	if f == null:
+		_show_export_save_panel("存档文件读取失败（槽位 %d）。" % slot)
+		return
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	if parsed == null or not (parsed is Dictionary):
+		_show_export_save_panel("存档解析失败（槽位 %d）。" % slot)
+		return
+	var data: Dictionary = parsed
+	var out := {
+		"slot": slot,
+		"timestamp": data.get("timestamp", ""),
+		"scene_id": data.get("scene_id", ""),
+		"difficulty": data.get("difficulty", ""),
+		"collected_clues": data.get("collected_clues", []),
+		"case_wall_state": data.get("case_wall_state", {}),
+		"scene_state": data.get("scene_state", {}),
+		"star_chains": data.get("star_chains", {}),
+	}
+	var txt := JSON.stringify(out, "\t")
+	if OS.has_feature("web"):
+		var b64 := Marshalls.utf8_to_base64(txt)
+		JavaScriptBridge.eval("var a=document.createElement('a');a.href='data:application/json;base64," + b64 + "';a.download='save_export_slot%d.json';document.body.appendChild(a);a.click();setTimeout(function(){a.remove();},200);" % slot)
+	_show_export_save_panel(txt)
+
+
+func _show_export_save_panel(txt: String) -> void:
+	if _graph_view and is_instance_valid(_graph_view):
+		_graph_view._show_export_panel(txt)
+		return
+	var dlg := AcceptDialog.new()
+	dlg.title = "存档导出"
+	dlg.ok_button_text = "关闭"
+	var te := TextEdit.new()
+	te.text = txt
+	te.custom_minimum_size = Vector2(860, 520)
+	dlg.add_child(te)
+	add_child(dlg)
+	dlg.popup_centered()
 
 
 func _gv_relations_changed(rels: Array) -> void:

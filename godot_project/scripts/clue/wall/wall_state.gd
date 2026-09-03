@@ -220,7 +220,7 @@ func _branch_verdict() -> int:
 ## 三维分工（2026-09-02 重构，避免「推理正确率」被观察/洞察稀释）：
 ##   观察之星 —— 线索收集完整度（缺失条数），与推理对错无关，保留原逻辑
 ##   推理之星 —— ★核心改造★ 由分枝（推理链）逐项比对正确率 R 决定：80/55/25 → 3/2/1/0⭐
-##   洞察之星 —— 战场命中比例 + 识破误导项加成（每否定一个误导项 +1，封顶 3⭐）
+##   洞察之星 —— 跨层合成完整度（推断→结论等合成边+结论节点，2026-09-03 改源）+ 识破误导加成（封顶 3⭐）
 func _update_star_rating() -> void:
 	if not owner._star_lbl: return
 	# 1) 观察之星：按缺失条数（缺≥3→1⭐ / 缺1-2→2⭐ / 缺0→3⭐），不区分线索重要性
@@ -244,22 +244,19 @@ func _update_star_rating() -> void:
 		branch_ratio = float(br.get("ratio", 0.0))
 		reasoning_stars = int(br.get("stars", 1))
 
-	# 3) 洞察之星：战场命中比例（绕路/重要方向/最优顺序的代理）+ 隐藏线索加成，封顶 3⭐
+	# 3) 洞察之星（2026-09-03 用户裁定改源）：战场按钮不再作为数据源（战场保留但不计分），
+	#    改评「跨层合成完整度」——真相链中 推断→推断/推断→结论/结论→人物 的合成边 + 结论节点产出，
+	#    R_insight = 命中合成项 / 真相合成项；阈值 ≥0.8→3⭐ / ≥0.55→2⭐ / 其余 1⭐；
+	#    无合成项（insight_ratio<0）时回退推理星。观察星=收集、推理星=全链正确率、洞察星=高阶合成。
 	var insight_stars := 1
-	if not owner._battle.is_empty():
-		var txt := owner._bf_ctl._battle_status_text()
-		var parts := txt.split("·")
-		if parts.size() >= 2:
-			var hpart := parts[0].strip_edges()  # "推理战场：假设命中 x/y"
-			var cp := hpart.split("/")
-			if cp.size() == 2:
-				var ok := int(cp[0].split(" ")[-1])
-				var tot := int(cp[1])
-				if tot > 0:
-					var ratio2 := float(ok) / tot
-					if ratio2 >= 1.0: insight_stars = 3
-					elif ratio2 >= 0.5: insight_stars = 2
-					else: insight_stars = 1
+	var insight_ratio := -1.0
+	if not br.is_empty():
+		insight_ratio = float(br.get("insight_ratio", -1.0))
+		if insight_ratio >= 0.0:
+			if insight_ratio >= 0.8: insight_stars = 3
+			elif insight_ratio >= 0.55: insight_stars = 2
+		else:
+			insight_stars = reasoning_stars
 	# 隐藏线索/全追问等洞察加成（场景经 hypothesis.insight_bonus 传入）
 	insight_stars = clampi(insight_stars + owner._insight_bonus, 1, 3)
 	# 识破误导项加成：每否定一个误导项 +1（封顶 3⭐）——奖励「看出陷阱」，与错误无惩罚不冲突
