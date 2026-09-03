@@ -18,6 +18,7 @@ func _create_buttons() -> void:
 		{"id": "journal", "text": "📓 笔记", "hint": "侦探笔记"},
 		{"id": "save", "text": "💾 保存", "hint": "保存进度"},
 		{"id": "load", "text": "📂 读取", "hint": "读取存档"},
+		{"id": "export_save", "text": "📤 导出", "hint": "导出最新存档 JSON（诊断用）"},
 	]
 	
 	for i in btn_defs.size():
@@ -88,3 +89,58 @@ func _on_btn_pressed(action: String) -> void:
 					UIManager.show_notification("存档已加载")
 				else:
 					UIManager.show_notification("没有可用的存档")
+		"export_save":
+			_export_latest_save()
+
+## 导出最新存档槽位的 JSON：弹窗展示 + Web 环境自动触发下载。
+## 白名单只带诊断相关键（scene_state 内含场景一 wall_state_watson/messenger），
+## 避免整包过大导致 TextEdit 卡顿与剪贴板截断。
+func _export_latest_save() -> void:
+	var slots: Array = SaveManager.get_slot_list_sorted()
+	if slots.is_empty():
+		UIManager.show_notification("没有可用的存档")
+		return
+	var slot := int(slots[0].get("slot", 0))
+	var f := FileAccess.open(SaveManager.slot_path(slot), FileAccess.READ)
+	if f == null:
+		UIManager.show_notification("存档文件读取失败")
+		return
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	if parsed == null or not (parsed is Dictionary):
+		UIManager.show_notification("存档解析失败")
+		return
+	var data: Dictionary = parsed
+	var out := {
+		"slot": slot,
+		"save_version": data.get("save_version", 0),
+		"timestamp": data.get("timestamp", 0),
+		"case_id": data.get("case_id", ""),
+		"scene_id": data.get("scene_id", ""),
+		"difficulty": data.get("difficulty", ""),
+		"observation_score": data.get("observation_score", 0),
+		"reasoning_score": data.get("reasoning_score", 0),
+		"insight_score": data.get("insight_score", 0),
+		"star_chains": data.get("star_chains", {}),
+		"scene_state": data.get("scene_state", {}),
+		"collected_clues": data.get("collected_clues", []),
+		"case_wall_state": data.get("case_wall_state", {}),
+	}
+	var txt := JSON.stringify(out, "\t")
+	_show_export_dialog(slot, txt)
+
+func _show_export_dialog(slot: int, txt: String) -> void:
+	var dlg := AcceptDialog.new()
+	dlg.title = "存档导出 · 最新槽位 %d" % slot
+	dlg.ok_button_text = "关闭"
+	dlg.size = Vector2(900, 560)
+	var te := TextEdit.new()
+	te.text = txt
+	te.editable = true
+	te.wrap_mode = TextEdit.LINE_WRAPPING_NONE
+	te.custom_minimum_size = Vector2(860, 500)
+	dlg.add_child(te)
+	add_child(dlg)
+	dlg.popup_centered()
+	if OS.has_feature("web"):
+		var b64 := Marshalls.utf8_to_base64(txt)
+		JavaScriptBridge.eval("var a=document.createElement('a');a.href='data:application/json;base64," + b64 + "';a.download='save_export_slot" + str(slot) + ".json';document.body.appendChild(a);a.click();setTimeout(function(){a.remove();},100);")
