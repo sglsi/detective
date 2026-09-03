@@ -23,6 +23,18 @@ func _process(_delta: float) -> bool:
 		quit()
 		return true
 	var data: Dictionary = parsed as Dictionary
+	if str(data.get("kind", "")) == "wall_state_export":
+		var w: Dictionary = data.get("wall", {}) as Dictionary
+		var ws2: Dictionary = w.get("wall_state", {}) as Dictionary
+		if ws2.is_empty():
+			print("（该导出中 wall_state 为空——墙尚未产生连线？）")
+		else:
+			_report("chain=%s source=%s" % [str(w.get("chain_id", "?")), str(w.get("source", "?"))], ws2)
+			var lb: Dictionary = w.get("last_branch", {}) as Dictionary
+			if not lb.is_empty():
+				print("\n[导出时游戏内评分] ratio=%s insight=%s" % [str(lb.get("ratio", "?")), str(lb.get("insight_ratio", "?"))])
+		quit()
+		return true
 	var ss: Dictionary = data.get("scene_state", {})
 	print("slot=%s timestamp=%s scene=%s phase=%s" % [
 		str(data.get("slot", "?")), str(data.get("timestamp", "?")),

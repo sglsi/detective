@@ -912,8 +912,3 @@ func _show_options_panel() -> void:
 	cb.pressed.connect(func(): p.queue_free())
 	f.add_child(cb)
 
-func _input(event: InputEvent) -> void:
-	if not _dm or not _dm.is_active(): return
-	if event is InputEventMouseButton and event.pressed: _dm.advance(); return
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ENTER or event.keycode == KEY_SPACE or event.keycode == KEY_E: _dm.advance()
