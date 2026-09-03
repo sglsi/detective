@@ -104,7 +104,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s2_step1_hard"
 speaker = "system"
-text = "（无提示——自行在场景中寻找可交互的痕迹）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s2_step1_observe_done"]
@@ -112,7 +112,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 1
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（无提示——自行在场景中寻找可交互的痕迹）"
 note_text = ""
 
 
@@ -120,7 +120,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s2_step1_observe_done"
 speaker = "system"
-text = "（等待玩家点击：车轮印 / 马蹄印 / 行人脚印）"
+text = ""
 mood = "neutral"
 trigger = "click"
 next_nodes = ["s2_step2_start"]
@@ -128,7 +128,7 @@ difficulty_filter = 0
 verify_filter = ""
 exploration_step = 1
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（等待玩家点击：车轮印 / 马蹄印 / 行人脚印）"
 note_text = ""
 
 
@@ -184,7 +184,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s2_step2_hard"
 speaker = "system"
-text = "（工具选择界面，无提示）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s2_step3_start"]
@@ -192,7 +192,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 2
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（工具选择界面，无提示）"
 note_text = ""
 
 
@@ -248,7 +248,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s2_step3_hard"
 speaker = "system"
-text = "（空白笔记，自由记录）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s2_step4_prompt"]
@@ -256,7 +256,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 3
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（空白笔记，自由记录）"
 note_text = ""
 
 
@@ -264,7 +264,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s2_step4_prompt"
 speaker = "system"
-text = "（测量与记录完成）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s2_step4_easy", "s2_step4_normal", "s2_step4_hard"]
@@ -272,7 +272,7 @@ difficulty_filter = 0
 verify_filter = ""
 exploration_step = 4
 is_step_entry = true
-stage_direction = ""
+stage_direction = "（测量与记录完成）"
 note_text = ""
 
 
@@ -312,7 +312,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s2_step4_hard"
 speaker = "system"
-text = "（无提示——知识库可自行从菜单打开）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s2_step5_prompt"]
@@ -320,7 +320,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 4
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（无提示——知识库可自行从菜单打开）"
 note_text = ""
 
 
@@ -376,7 +376,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s2_step5_hard"
 speaker = "system"
-text = "（推理墙开启，无任何引导）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s2_hypothesis_choice"]
@@ -384,7 +384,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 5
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（推理墙开启，无任何引导）"
 note_text = ""
 
 
@@ -504,7 +504,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s2_step6_hard"
 speaker = "system"
-text = "（无验证提示，玩家自行判断何时证据充分）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s2_step6_verified", "s2_step6_supported", "s2_step6_insufficient", "s2_step6_contradictory"]
@@ -512,7 +512,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 6
 is_step_entry = true
-stage_direction = ""
+stage_direction = "（无验证提示，玩家自行判断何时证据充分）"
 note_text = ""
 
 

@@ -8,7 +8,7 @@
 script = ExtResource("2_node")
 node_id = "s3_easy_intro"
 speaker = "system"
-text = "（轻引导提示：本案关键在「无伤痕的尸体」与「墙上的血字」。先观察，福尔摩斯会等你先想。）"
+text = ""
 mood = "guide"
 trigger = "auto"
 next_nodes = ["s3_start"]
@@ -16,7 +16,7 @@ difficulty_filter = 1
 verify_filter = ""
 exploration_step = 0
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（轻引导提示：本案关键在「无伤痕的尸体」与「墙上的血字」。先观察，福尔摩斯会等你先想。）"
 note_text = ""
 
 

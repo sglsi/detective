@@ -238,6 +238,8 @@ NO other objects, isolated, game asset
 - Godot Web 构建的 `.wasm` 文件必须以 `application/wasm` MIME 类型提供
 - Web 原型为单文件应用，修改时注意保持内联 CSS/JS 的组织性
 - `start_all.sh` 中使用 `npm install`，在 Coze 环境中应替换为 `pnpm install`
+- **对话 tres 括号内容已清洗（2026-09）**：场景一至四 44 条含括号台词已按台词库规则处理（`tools/clean_dialogue_parens.py` 幂等脚本，28 条改动）——整条演出指示/设计标注的节点 `text=""` + 原文迁 `stage_direction`（该字段仅 `trigger=sfx` 时 emit 且信号无人连接，不上屏；空 text 节点 dialogue_manager 0.15s 自动流转，不会卡对话）；嵌在台词中的指示段剥离后迁入；玩家功能信息/线索内容类括号（`（可记录在线索墙）``（0-10 滑杆）``（身高6英尺+…）``（E.J.D.）`等 16 条）**有意保留**，不是漏网
+- **沙箱回收会还原未提交改动（重要教训）**：沙箱实例被回收重建时，工作区恢复到最近快照，未提交的文件修改与 /tmp 文件全部丢失；一次清洗完成后曾在导出前被整体回滚。对策：重要数据/资源改动完成后**立即验证落盘并尽快提交**（关键数据改动不等阶段末集中提交），一次性脚本放项目 `tools/` 而非 /tmp
 
 ### 像素艺术风格生成器
 
