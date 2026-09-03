@@ -57,9 +57,28 @@ def esc(s: str) -> str:
 
 
 def already_applied(block: str, action) -> bool:
-    """幂等判定：text 已是目标值即视为已应用。"""
+    """幂等判定：text 已是目标值即视为已应用（MIG 目标为空 text）。"""
     m = re.search(r'^text = "(.*)"$', block, re.M)
-    return m is not None and m.group(1) == esc(action[1])
+    got = m.group(1) if m else None
+    if action[0] in ("__MIG__", "MIG"):
+        return got == ""
+    return got == esc(action[1])
+
+
+# 第二轮（2026-09 用户规则升级：对话台词中不留任何括号）——
+# MIG：整条设计标注迁 stage_direction，text 置空
+# RW：内容性括号改写融入句子（保内容去括号）
+# RWSD：剥除句中设计标注迁 sd + 台词改写
+
+# ============================================================
+# 第二轮“一刀切清空全部括号”方案（EDITS2）已被用户否决（2026-02）。
+# 规则维持甄别式：演出指示/设计标注 → 剥除并迁 stage_direction；
+# 玩家功能信息/线索内容 → 有意保留。方向不确定时先问用户再动手。
+# ============================================================
+
+
+def esc(s: str) -> str:
+    return s.replace('"', '\\"')
 
 
 def main() -> int:
@@ -79,10 +98,17 @@ def main() -> int:
                 continue
             _, action = rule
             new_b = b
-            if action[0] == "__MIG__":
+            if action[0] in ("__MIG__", "MIG"):
                 new_b = re.sub(r'^text = ".*"$', 'text = ""', b, flags=re.M)
                 new_b = re.sub(r'^stage_direction = ""$',
                                'stage_direction = "%s"' % esc(action[1]), new_b, flags=re.M)
+            elif action[0] == "RW":
+                new_b = re.sub(r'^text = ".*"$', 'text = "%s"' % esc(action[1]), b, flags=re.M)
+            elif action[0] == "RWSD":
+                new_b = re.sub(r'^text = ".*"$', 'text = "%s"' % esc(action[1]), b, flags=re.M)
+                if action[2]:
+                    new_b = re.sub(r'^stage_direction = ""$',
+                                   'stage_direction = "%s"' % esc(action[2]), new_b, flags=re.M)
             else:
                 new_b = re.sub(r'^text = ".*"$', 'text = "%s"' % esc(action[1]), b, flags=re.M)
                 if action[2]:
