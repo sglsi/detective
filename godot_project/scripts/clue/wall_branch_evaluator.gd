@@ -170,6 +170,20 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 				nodes_of[bid2].append(nid)
 				break
 
+	# ── 共享假说/结论节点去重（按真相归属，避免多链重复计 T）─────────────
+	# 背景：同一 hypo/concl 节点可能出现在多条链的 nodes 里（如 H7-02 同属
+	#   CH09D/CH09E）。节点赋值已「首条链认领」(player_nodes 只归一处)，但 T 仍按
+	#   全链 nodes 累加 → 完美解因节点被多链重复计 T 而永远到不了 100%。
+	#   修复：hypo/concl 节点只在「首次出现」的那条链计入 T，与边的两轮认领同源。
+	var node_owner_truth: Dictionary = {}
+	for b in scope:
+		var bidx: String = str(b.get("id", ""))
+		for n in b.get("nodes", []):
+			if str(n.get("layer", "")) in ["hypo", "concl"]:
+				var nid: String = norm(str(n.get("id", "")))
+				if not node_owner_truth.has(nid):
+					node_owner_truth[nid] = bidx
+
 	# ── 逐链计分 ────────────────────────────────────────────────
 	var per_branch: Array = []
 	var sum_hit := 0.0
@@ -183,7 +197,7 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 		var is_core: bool = bool(b.get("core", false))
 		var bid3: String = str(b.get("id", ""))
 
-		var res := _score_branch(b, nodes_of[bid3], edges_of[bid3])
+		var res := _score_branch(b, nodes_of[bid3], edges_of[bid3], node_owner_truth)
 		var built: int = int(res.get("built", 0))
 		# optional 链「激活」= 至少命中一项（说明玩家真在推这条链），
 		# 而不是「碰过一下」——否则一次误连就激活冷门链开始拖分，与「错误无惩罚」冲突。
@@ -249,20 +263,29 @@ static func _node_set(b: Dictionary) -> Dictionary:
 
 ## 单条链计分：返回 {truth, built, hit}
 ## assigned_nodes / assigned_edges 已由 evaluate 归属好，本函数只做比对。
-static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: Array) -> Dictionary:
+## node_owner_truth 为「hypo/concl 节点 → 其归属链 id」映射（首条链认领），用于
+## 共享节点去重：同一节点出现在多条链时，只在归属链计 T，避免完美解 T 虚高。
+static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: Array,
+		node_owner_truth: Dictionary = {}) -> Dictionary:
 	var truth_nodes: Array = b.get("nodes", [])
 	var truth_edges: Array = b.get("edges", [])
 	var mislead_ids := {}
 	for m in b.get("misleads", []):
 		mislead_ids[norm(str(m.get("id", "")))] = str(m.get("expect", "negate"))
+	var bid: String = str(b.get("id", ""))
 
 	# 真相项数 T = 边数 + **玩家可产出的**节点数（hypo 推断 / concl 结论）。
 	# ⚠️ 线索(clue)与人物(person)不计入 T：线索是观察得来、墙上预置，人物由 related_npcs 自动派生，
 	#    玩家都无法在推理墙里「产出」它们——是否用对了体现在**边**上（连对 c201→H2-01 才算用到 c201）。
 	#    若把线索也算进 T，则 B 永远小于 T，完美解永远到不了 100%（初版实测卡在 67.8%）。
+	# ⚠️ 共享节点去重：hypo/concl 节点若被多条链引用，只在归属链(node_owner_truth)计 T，
+	#    其余链跳过——否则节点被重复计 T 而玩家只产一次，完美解 T>B 永远 != 1.0。
 	var truth: int = truth_edges.size()
 	for n in truth_nodes:
+		var nid: String = norm(str(n.get("id", "")))
 		if str(n.get("layer", "")) in ["hypo", "concl"]:
+			if node_owner_truth.get(nid, bid) != bid:
+				continue
 			truth += 1
 	var built: int = 0
 	var hit: float = 0.0
