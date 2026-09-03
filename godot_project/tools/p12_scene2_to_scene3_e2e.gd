@@ -42,9 +42,12 @@ func _initialize() -> void:
 	if s2._phase != s2.Phase.OBSERVE:
 		ok = false; print("P12_FAIL scene2 未进入 OBSERVE, phase=", s2._phase)
 
-	# 真实收集花园线索（场景二热点分 STREET/PATH 两组 const）
-	for h in s2.STREET_HOTSPOTS + s2.PATH_HOTSPOTS:
-		s2._obs._record(h["id"], str(h.get("desc", "")))
+	# 真实收集花园线索（场景二双观察器：STREET(c201-204)→PATH(c205-206)）
+	for h in s2.STREET_HOTSPOTS:
+		s2._street_obs._record(h["id"], str(h.get("desc", "")))
+		await process_frame
+	for h in s2.PATH_HOTSPOTS:
+		s2._path_obs._record(h["id"], str(h.get("desc", "")))
 		await process_frame
 	log.append("scene2 线索 local=%d cs=%d" % [s2._clues.size(), ClueSystem.get_collected("garden").size()])
 
@@ -61,12 +64,16 @@ func _initialize() -> void:
 	else:
 		for c in wall2._clues:
 			if not c.get("associated", false): wall2._clue_ctl._toggle_association(c["id"])
+		# 新框架 verdict 取决于真实边；按真相表建 scene2 正确边（跨场景持久化到 case_wall_state）
+		_build_correct_edges(wall2, ["scene2"])
 		wall2._verify_ctl._on_verify_pressed()
 		await process_frame
 		await process_frame
 		wall2._verify_ctl._on_verify_confirm(wall2.get_verdict())
 		await process_frame
 		await process_frame
+		# 场景二验证先播「四档回应」对话，其结束回调才 _advance_now 进过渡——推完对话再断言
+		await _advance_dialogue(s2, 10)
 
 	log.append("scene2 验证后 phase=%d (期望 %d=TRANSITION)" % [s2._phase, s2.Phase.TRANSITION])
 	if s2._phase != s2.Phase.TRANSITION:
@@ -132,11 +139,13 @@ func _initialize() -> void:
 		ok = false; print("P12_FAIL scene3 收集完毕后未进入推理墙（用户卡死点）phase=", s3._phase, " 墙=", wall3 != null)
 	else:
 		var n3 = wall3._clues.size()
-		log.append("scene3 推理墙线索数=%d (期望 19 = 6 garden + 13 indoor 全案池；>13 证明跨场景线索已并入)" % n3)
-		if n3 != 19: ok = false; print("P12_FAIL 推理墙线索数=", n3)
+		log.append("scene3 推理墙线索数=%d (期望 21 = 8 garden[含干扰c208] + 13 indoor 全案池；>13 证明跨场景线索已并入)" % n3)
+		if n3 != 21: ok = false; print("P12_FAIL 推理墙线索数=", n3)
 		for c in wall3._clues:
 			if not c.get("associated", false): wall3._clue_ctl._toggle_association(c["id"])
-		log.append("scene3 全关联 verdict=%d (期望 3)" % wall3.get_verdict())
+		# 新框架 verdict 取决于真实边；scene2 边已随 case_wall_state 带入，这里补 scene3 正确边
+		_build_correct_edges(wall3, ["scene3"])
+		log.append("scene3 正确建边后 verdict=%d (期望 3)" % wall3.get_verdict())
 		wall3._verify_ctl._on_verify_pressed()
 		await process_frame
 		await process_frame
@@ -169,6 +178,41 @@ func _advance_dialogue(scene: Node, max_clicks: int) -> void:
 
 func _wait(sec: float) -> void:
 	await create_timer(sec).timeout
+
+## 按 case_branch_truth.gd 给指定场景的链注入「正确玩家边」（详见 p11 同名函数注释）。
+func _build_correct_edges(wall, scenes: Array) -> void:
+	var truth = load("res://data/case_branch_truth.gd")
+	if truth == null:
+		print("P12_WARN case_branch_truth 加载失败，跳过建边"); return
+	var gv = wall._graph_view
+	var seen_node := {}
+	for b in truth.branches():
+		if not (str(b.get("scene", "")) in scenes):
+			continue
+		# 节点：hypo 采纳进 _graph_nodes（evaluator 只认 kind=hypo 的玩家产出）；concl 进 _derived_conclusions
+		for n in b.get("nodes", []):
+			var layer: String = str(n.get("layer", ""))
+			var nid: String = str(n.get("id", ""))
+			if layer != "hypo" and layer != "concl":
+				continue
+			if seen_node.has(nid):
+				continue
+			seen_node[nid] = true
+			if layer == "hypo":
+				gv._graph_nodes.append({"id": nid, "kind": "hypo", "label": nid, "sub": "推断", "data": {"correct": true}})
+			else:
+				gv._derived_conclusions.append({"id": nid, "hid": "", "text": nid})
+		# 边：clue→hypo / hypo→conclusion（truth 写裸 id，画布结论带 conclusion_ 前缀，norm 会归一）
+		for e in b.get("edges", []):
+			var f: String = str(e.get("from", ""))
+			var t: String = str(e.get("to", ""))
+			var kind: String = str(e.get("kind", "support"))
+			var tout: String = t
+			if t.begins_with("CL"):
+				tout = "conclusion_" + t
+			var rec := {"from": f, "to": tout, "kind": kind, "dashed": false}
+			gv._relations.append(rec)
+			wall._relations.append(rec)
 
 ## 递归查找子树内首个文本匹配的 Button（用于点击「侦破过程」评价面板的「继续推进」）
 func _find_button_by_text(node: Node, txt: String) -> Button:

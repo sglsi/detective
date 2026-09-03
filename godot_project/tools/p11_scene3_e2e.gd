@@ -71,25 +71,29 @@ func _initialize() -> void:
 		# 打印场景树子节点，辅助定位
 		_print_children(s3, 0)
 	else:
-		# ---- 模拟「关联全部线索 + 提交验证」----
+		# ---- 模拟「关联全部线索 + 正确建边 + 提交验证」----
+		# ⚠️ 新框架（分枝计分）verdict 取决于 graph_view 快照里的「真实边(_relations)」，
+		# 仅 _toggle_association（关联标记）不产生边 → 正确率 0 → INSUFFICIENT。
+		# 故正确玩家须拖拽建边：这里按 case_branch_truth.gd 的 scene2+scene3 链，
+		# 把真相边直接注入 wall._relations / graph_view._relations，模拟「推理链全部连对」。
 		var n_clues = wall._clues.size()
 		log.append("推理墙线索数=%d" % n_clues)
 		if n_clues != 13:
 			ok = false
 			print("P11_FAIL 推理墙线索数异常：", n_clues)
-		# 直接调用验证回调（_on_verify_pressed 内部 2.5s 后回调，这里绕过点击直接验证回调语义）
-		# 等价逻辑：关联>=3 -> VERIFIED -> on_verify(3) -> _wall_auto 成立 -> _enter_transition
 		var verdict = wall.get_verdict()
-		log.append("初始 verdict（未关联）=%d (期望 1=INSUFFICIENT) 反驳计数器=%d" % [verdict, wall._contradicting])
-		# 模拟玩家关联所有线索
+		log.append("初始 verdict（未建边）=%d (期望 1=INSUFFICIENT) 反驳计数器=%d" % [verdict, wall._contradicting])
+		# 关联全部线索（基础标记，喂 _associated 兜底）
 		for c in wall._clues:
 			if not c.get("associated", false):
 				wall._clue_ctl._toggle_association(c["id"])
+		# 按真相表建正确边（模拟正确玩家）
+		_build_correct_edges(wall, ["scene2", "scene3"])
 		var v2 = wall.get_verdict()
-		log.append("关联全部后 verdict=%d (期望 3=VERIFIED) 关联数=%d" % [v2, wall._associated])
+		log.append("正确建边后 verdict=%d (期望 3=VERIFIED) 关联数=%d 边=%d" % [v2, wall._associated, wall._graph_view._relations.size()])
 		if v2 != 3:
 			ok = false
-			print("P11_FAIL 全关联后 verdict 非 VERIFIED：", v2)
+			print("P11_FAIL 正确建边后 verdict 非 VERIFIED：", v2)
 
 		# 触发验证流程：_on_verify_pressed 弹出结果窗口 → 点「确定」(_on_verify_confirm)
 		# 才真正 queue_free 墙 + 触发 _on_verify 回调 → _advance_now → 过渡
@@ -140,6 +144,43 @@ func _initialize() -> void:
 
 func _wait(sec: float) -> void:
 	await create_timer(sec).timeout
+
+## 按 case_branch_truth.gd 给指定场景的链注入「正确玩家边」：clue→hypo / hypo→conclusion。
+## 结论节点在画布上形如 "conclusion_CL3-1"，真相表写裸 "CL3-1"，这里统一加前缀对齐。
+## 真实玩家靠拖拽建边，这里直接写 _relations（evaluator 只读 _relations），等价于全连对。
+func _build_correct_edges(wall, scenes: Array) -> void:
+	var truth = load("res://data/case_branch_truth.gd")
+	if truth == null:
+		print("P11_WARN case_branch_truth 加载失败，跳过建边"); return
+	var gv = wall._graph_view
+	var seen_node := {}
+	for b in truth.branches():
+		if not (str(b.get("scene", "")) in scenes):
+			continue
+		# 节点：hypo 采纳进 _graph_nodes（evaluator 只认 kind=hypo 的玩家产出）；concl 进 _derived_conclusions
+		for n in b.get("nodes", []):
+			var layer: String = str(n.get("layer", ""))
+			var nid: String = str(n.get("id", ""))
+			if layer != "hypo" and layer != "concl":
+				continue
+			if seen_node.has(nid):
+				continue
+			seen_node[nid] = true
+			if layer == "hypo":
+				gv._graph_nodes.append({"id": nid, "kind": "hypo", "label": nid, "sub": "推断", "data": {"correct": true}})
+			else:
+				gv._derived_conclusions.append({"id": nid, "hid": "", "text": nid})
+		# 边：clue→hypo / hypo→conclusion（truth 写裸 id，画布结论带 conclusion_ 前缀，norm 会归一）
+		for e in b.get("edges", []):
+			var f: String = str(e.get("from", ""))
+			var t: String = str(e.get("to", ""))
+			var kind: String = str(e.get("kind", "support"))
+			var tout: String = t
+			if t.begins_with("CL"):
+				tout = "conclusion_" + t
+			var rec := {"from": f, "to": tout, "kind": kind, "dashed": false}
+			gv._relations.append(rec)
+			wall._relations.append(rec)
 
 func _print_children(node: Node, depth: int) -> void:
 	var pad = ""
