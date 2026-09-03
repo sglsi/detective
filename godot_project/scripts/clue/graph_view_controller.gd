@@ -270,7 +270,7 @@ var _fold_layer: Control = null          # 折叠圆形绘制图层（统一在 
 var _user_excluded := {}             # clue_id -> true（用户标"已排除"）
 var _user_pending := {}              # clue_id -> true（用户标"待查"）
 var _search_match_ids := []          # 当前搜索命中的节点 id 列表
-var _export_panel: Control = null    # 导出结果面板
+var _export_panel: Node = null       # 导出结果窗口（Window，可拖动居中）
 
 
 ## 唯一入口：推理墙调用本方构建图谱视图。data 字段见文件头。
@@ -1786,25 +1786,26 @@ func export_markdown() -> void:
 func _show_export_panel(text: String) -> void:
 	if _export_panel and is_instance_valid(_export_panel):
 		_export_panel.queue_free()
-	_export_panel = Panel.new()
-	_export_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_export_panel.size = Vector2(800, 500)
-	_export_panel.position = Vector2(240, 110)
-	_export_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.08, 0.07, 0.10, 0.98)
-	sb.border_color = COL_GOLD
-	sb.border_width_left = 2; sb.border_width_right = 2; sb.border_width_top = 2; sb.border_width_bottom = 2
-	sb.set_corner_radius_all(8)
-	_export_panel.add_theme_stylebox_override("panel", sb)
-	add_child(_export_panel)
+	var win := Window.new()
+	win.title = "📤 导出（窗口可拖动 · 文本框内 Ctrl+A 全选复制）"
+	win.size = Vector2(860, 580)
+	win.always_on_top = true
+	_export_panel = win
+	add_child(win)
+	win.popup_centered()
+	var mc := MarginContainer.new()
+	mc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mc.add_theme_constant_override("margin_left", 12)
+	mc.add_theme_constant_override("margin_right", 12)
+	mc.add_theme_constant_override("margin_top", 8)
+	mc.add_theme_constant_override("margin_bottom", 12)
+	win.add_child(mc)
 	var vb := VBoxContainer.new()
-	vb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	vb.offset_left = 12; vb.offset_right = -12; vb.offset_top = 12; vb.offset_bottom = -12
-	_export_panel.add_child(vb)
+	vb.add_theme_constant_override("separation", 8)
+	mc.add_child(vb)
 	var title := Label.new()
-	title.text = "📤 导出（可复制）"
-	title.add_theme_font_size_override("font_size", 32)
+	title.text = "导出内容（自动下载文件 · 亦可复制下方文本）"
+	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", COL_GOLD)
 	vb.add_child(title)
 	var edit := TextEdit.new()
@@ -1813,10 +1814,7 @@ func _show_export_panel(text: String) -> void:
 	edit.wrap_enabled = true
 	edit.select_all()
 	vb.add_child(edit)
-	var close_btn := Button.new()
-	close_btn.text = "关闭"
-	close_btn.pressed.connect(func(): _export_panel.queue_free(); _export_panel = null)
-	vb.add_child(close_btn)
+	win.close_requested.connect(func(): _export_panel = null)
 
 
 func undo() -> void:

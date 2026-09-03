@@ -1255,34 +1255,33 @@ func _on_export_pressed() -> void:
 
 
 func _on_export_save_pressed() -> void:
-	var slots: Array = SaveManager.get_slot_list_sorted()
-	if slots.is_empty():
-		_show_export_save_panel("没有可用的存档槽位。")
-		return
-	var slot := int(slots[0].get("slot", 0))
-	var f := FileAccess.open(SaveManager.slot_path(slot), FileAccess.READ)
-	if f == null:
-		_show_export_save_panel("存档文件读取失败（槽位 %d）。" % slot)
-		return
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	if parsed == null or not (parsed is Dictionary):
-		_show_export_save_panel("存档解析失败（槽位 %d）。" % slot)
-		return
-	var data: Dictionary = parsed
+	# 主数据 = 当前墙内存快照（进行中的推理进度不在槽位存档里，槽位只在场景结束时自动写入）
 	var out := {
-		"slot": slot,
-		"timestamp": data.get("timestamp", ""),
-		"scene_id": data.get("scene_id", ""),
-		"difficulty": data.get("difficulty", ""),
-		"collected_clues": data.get("collected_clues", []),
-		"case_wall_state": data.get("case_wall_state", {}),
-		"scene_state": data.get("scene_state", {}),
-		"star_chains": data.get("star_chains", {}),
+		"kind": "wall_state_export",
+		"exported_at": Time.get_datetime_string_from_system(false),
+		"wall": {
+			"source": str(_hypothesis.get("id", "")),
+			"chain_id": _chain_id,
+			"practice_mode": _practice_mode,
+			"wall_state": _state_store.duplicate(true),
+			"battlefield": _battle.duplicate(true),
+			"battle_hypo_states": _battle_hypo_states.duplicate(true),
+			"last_branch": _last_branch.duplicate(true),
+			"last_stars": _last_stars.duplicate(true),
+		},
+		"slots": [],
 	}
+	for i in range(3):
+		var sf := FileAccess.open(SaveManager.slot_path(i), FileAccess.READ)
+		if sf == null:
+			continue
+		var parsed: Variant = JSON.parse_string(sf.get_as_text())
+		if parsed is Dictionary:
+			out["slots"].append({"slot": i, "timestamp": parsed.get("timestamp", ""), "scene_id": parsed.get("scene_id", ""), "save_data": parsed})
 	var txt := JSON.stringify(out, "\t")
 	if OS.has_feature("web"):
 		var b64 := Marshalls.utf8_to_base64(txt)
-		JavaScriptBridge.eval("var a=document.createElement('a');a.href='data:application/json;base64," + b64 + "';a.download='save_export_slot%d.json';document.body.appendChild(a);a.click();setTimeout(function(){a.remove();},200);" % slot)
+		JavaScriptBridge.eval("var a=document.createElement('a');a.href='data:application/json;base64," + b64 + "';a.download='wall_state_export.json';document.body.appendChild(a);a.click();setTimeout(function(){a.remove();},200);" )
 	_show_export_save_panel(txt)
 
 
