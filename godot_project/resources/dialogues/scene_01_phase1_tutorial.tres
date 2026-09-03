@@ -152,7 +152,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_step1_hard"
 speaker = "system"
-text = "（无提示）仔细观察周围环境……"
+text = "仔细观察周围环境……"
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s1_step1_observe_done"]
@@ -160,7 +160,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 1
 is_step_entry = false
-stage_direction = ""
+stage_direction = "无提示"
 note_text = ""
 
 
@@ -168,7 +168,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_step1_observe_done"
 speaker = "system"
-text = "（等待玩家点击华生身上的可交互区域）"
+text = ""
 mood = "neutral"
 trigger = "click"
 next_nodes = ["s1_step2_start"]
@@ -176,7 +176,7 @@ difficulty_filter = 0
 verify_filter = ""
 exploration_step = 1
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（等待玩家点击华生身上的可交互区域）"
 note_text = ""
 
 
@@ -200,7 +200,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_step2_easy"
 speaker = "system"
-text = "系统自动推荐工具：试试放大镜？（放大镜图标高亮闪烁）"
+text = "系统自动推荐工具：试试放大镜？"
 mood = "guide"
 trigger = "auto"
 next_nodes = ["s1_step3_start"]
@@ -208,7 +208,7 @@ difficulty_filter = 1
 verify_filter = ""
 exploration_step = 2
 is_step_entry = false
-stage_direction = ""
+stage_direction = "放大镜图标高亮闪烁"
 note_text = ""
 
 
@@ -232,7 +232,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_step2_hard"
 speaker = "system"
-text = "（工具选择界面，无提示）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s1_step3_start"]
@@ -240,7 +240,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 2
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（工具选择界面，无提示）"
 note_text = ""
 
 
@@ -312,7 +312,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_step4_prompt"
 speaker = "system"
-text = "（4个部位全部记录完成）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s1_step4_easy", "s1_step4_normal", "s1_step4_hard"]
@@ -320,7 +320,7 @@ difficulty_filter = 0
 verify_filter = ""
 exploration_step = 4
 is_step_entry = true
-stage_direction = ""
+stage_direction = "（4个部位全部记录完成）"
 note_text = ""
 
 
@@ -360,7 +360,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_step4_hard"
 speaker = "system"
-text = "（无提示——知识库可自行从菜单打开）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s1_step5_prompt"]
@@ -368,7 +368,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 4
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（无提示——知识库可自行从菜单打开）"
 note_text = ""
 
 
@@ -424,7 +424,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_step5_hard"
 speaker = "system"
-text = "（推理墙打开，无任何引导）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s1_step6_hard"]
@@ -432,7 +432,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 5
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（推理墙打开，无任何引导）"
 note_text = ""
 
 
@@ -456,7 +456,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s1_step6_hard"
 speaker = "system"
-text = "（无验证提示，玩家自行判断）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s1_step6_easy_verified", "s1_step6_supported", "s1_step6_insufficient", "s1_step6_contradictory"]
@@ -464,7 +464,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 6
 is_step_entry = true
-stage_direction = ""
+stage_direction = "（无验证提示，玩家自行判断）"
 note_text = ""
 
 

@@ -8,7 +8,7 @@
 script = ExtResource("2_node")
 node_id = "s4_start"
 speaker = "兰斯警士"
-text = "我已经在局里全都报告过了！……（福尔摩斯把玩半镑金币）那我就从头再讲一遍。"
+text = "我已经在局里全都报告过了！……那我就从头再讲一遍。"
 mood = "不高兴"
 trigger = "auto"
 next_nodes = ["s4_step1_start"]
@@ -16,7 +16,7 @@ difficulty_filter = 0
 verify_filter = ""
 exploration_step = 0
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（福尔摩斯把玩半镑金币）"
 note_text = ""
 
 
@@ -56,7 +56,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s4_step1_normal"
 speaker = "system"
-text = "（同 EASY）夜里两点巡逻发现空屋灯光与尸体，叫来同伴。"
+text = "夜里两点巡逻发现空屋灯光与尸体，叫来同伴。"
 mood = "guide"
 trigger = "auto"
 next_nodes = ["s4_step2_start"]
@@ -64,7 +64,7 @@ difficulty_filter = 2
 verify_filter = ""
 exploration_step = 1
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（同 EASY：夜里两点巡逻发现空屋灯光与尸体，叫来同伴）"
 note_text = ""
 
 
@@ -72,7 +72,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s4_step1_hard"
 speaker = "system"
-text = "（无提示——自行从兰斯叙述中提取有效信息）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s4_step2_start"]
@@ -80,7 +80,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 1
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（无提示——自行从兰斯叙述中提取有效信息）"
 note_text = ""
 
 
@@ -120,7 +120,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s4_step2_normal"
 speaker = "system"
-text = "可选追问方向（70%概率提示）：外貌/衣着/是否持物/有无马车。选对关键问题→获得完整醉汉特征。"
+text = "可选追问方向：外貌/衣着/是否持物/有无马车。选对关键问题→获得完整醉汉特征。"
 mood = "guide"
 trigger = "auto"
 next_nodes = ["s4_step3_start"]
@@ -128,7 +128,7 @@ difficulty_filter = 2
 verify_filter = ""
 exploration_step = 2
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（70%概率提示）"
 note_text = ""
 
 
@@ -136,7 +136,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s4_step2_hard"
 speaker = "system"
-text = "（玩家自行选择追问；无关问题兰斯不再重复）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s4_step3_start"]
@@ -144,7 +144,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 2
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（玩家自行选择追问；无关问题兰斯不再重复）"
 note_text = ""
 
 
@@ -200,7 +200,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s4_step3_hard"
 speaker = "system"
-text = "（空白笔记，自由记录）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s4_step4_prompt"]
@@ -208,7 +208,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 3
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（空白笔记，自由记录）"
 note_text = ""
 
 
@@ -216,7 +216,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s4_step4_prompt"
 speaker = "system"
-text = "（测量与记录完成）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s4_step4_easy", "s4_step4_normal", "s4_step4_hard"]
@@ -224,7 +224,7 @@ difficulty_filter = 0
 verify_filter = ""
 exploration_step = 4
 is_step_entry = true
-stage_direction = ""
+stage_direction = "（测量与记录完成）"
 note_text = ""
 
 
@@ -264,7 +264,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s4_step4_hard"
 speaker = "system"
-text = "（无提示）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s4_step5_prompt"]
@@ -272,7 +272,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 4
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（无提示）"
 note_text = ""
 
 
@@ -328,7 +328,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s4_step5_hard"
 speaker = "system"
-text = "（推理墙开启，无引导）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s4_hypo_choice"]
@@ -336,7 +336,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 5
 is_step_entry = false
-stage_direction = ""
+stage_direction = "（推理墙开启，无引导）"
 note_text = ""
 
 
@@ -456,7 +456,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s4_step6_hard"
 speaker = "system"
-text = "（无验证提示，玩家自行判断何时证据充分）"
+text = ""
 mood = "neutral"
 trigger = "auto"
 next_nodes = ["s4_step6_verified", "s4_step6_supported", "s4_step6_insufficient", "s4_step6_contradictory"]
@@ -464,7 +464,7 @@ difficulty_filter = 3
 verify_filter = ""
 exploration_step = 6
 is_step_entry = true
-stage_direction = ""
+stage_direction = "（无验证提示，玩家自行判断何时证据充分）"
 note_text = ""
 
 
@@ -552,7 +552,7 @@ note_text = ""
 script = ExtResource("2_node")
 node_id = "s4_return_choice"
 speaker = "system"
-text = "醉汉（凶手）返回现场的原因是："
+text = "醉汉返回现场的原因是："
 mood = "guide"
 trigger = "choice"
 next_nodes = ["s4_return_right", "s4_return_b", "s4_return_c", "s4_return_d"]
