@@ -71,7 +71,14 @@ func reasoning_hypothesis() -> Dictionary:
 		"battlefield": {
 			"hypotheses": [
 				{"id":"H6-01","text":"卡彭蒂耶中尉不是凶手","correct":true},
-				{"id":"H6-02","text":"威廉·哈珀证词可信","correct":true}
+				{"id":"H6-02","text":"威廉·哈珀证词可信","correct":true},
+				{"id":"H6-03","text":"卡彭蒂耶太太在隐瞒什么","correct":true},
+				{"id":"H6-04","text":"德雷伯死亡有6小时空白期","correct":true},
+				{"id":"H6-05","text":"卡彭蒂耶中尉是凶手（葛莱森错误结论）","correct":false,"kind":"mislead"},
+				{"id":"H6-06","text":"阿瑟追打德雷伯时失手杀人","correct":false,"kind":"mislead"},
+				{"id":"H6-07","text":"德雷伯跳上的马车有问题","correct":true},
+				{"id":"H6-08","text":"爱莉丝说的是真话","correct":true},
+				{"id":"H6-09","text":"W.H.就是威廉·哈珀","correct":true}
 			],
 		"contradictions": [
 			{"id":"C6-01","text":"身高5.8英尺 vs 凶手6英尺+","correct":true},
@@ -82,6 +89,11 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"S6-1","text":"卡彭蒂耶中尉不是凶手（已排除）"},
 			{"id":"S6-2","text":"威廉·哈珀证词可信"},
 			{"id":"S6-3","text":"木棍非凶器（死者服毒）"},
+		],
+		"conclusions": [
+			{"id":"CL6-1","text":"卡彭蒂耶中尉被排除（体貌不符+不在场证明）","gate_hypo_ids":["H6-01","H6-07"]},
+			{"id":"CL6-2","text":"哈珀证词坐实阿瑟不在场证明","gate_hypo_ids":["H6-02","H6-09"]},
+			{"id":"CL6-3","text":"葛莱森「阿瑟=凶手」论被三组矛盾推翻","gate_hypo_ids":["H6-05","H6-06"]}
 		],
 		},
 		# v4.0 三星评价：声明本推理链（逐链离散制）
@@ -246,6 +258,9 @@ func _gregson_conclusion() -> void:
 			nodes.append(_mk_node("k3","福尔摩斯","（没看葛莱森，转向玩家）你的判断？","click",["k4"]))
 			nodes.append(_mk_node("k4","华生","（低声，犹豫）嗯……动机和时间确实都对上了，可是——我总觉得哪里不对。尸体上明明没有外伤啊……木棍打在心窝上不留痕迹，这可能吗？","click",["k5"]))
 			nodes.append(_mk_node("k5","葛莱森警长","（握拳）走，抓他去！这小子跑不了。","click",["k6"]))
+			# 困难模式概率误导（台词库·70%伪证据）：酒馆老板假证词，强化「阿瑟=凶手」误导
+			if _difficulty == 2 and randf() < 0.7:
+				nodes.append(_mk_node("km","酒馆老板","（从街角探出头，信誓旦旦）警长先生！昨晚半夜，我亲眼瞧见个穿海军制服的小子，鬼鬼祟祟溜回卡彭蒂耶家附近——身板硬朗，准是当兵的没错！","click",["k6"]))
 			nodes.append(_mk_node("k6","系统","（葛莱森带着随从，气势汹汹出发去逮捕卡彭蒂耶中尉）","guide",["end"]))
 			_start_dialogue(nodes, "k0", _arrest_interrogation)
 			return
@@ -311,6 +326,25 @@ func _enter_reasoning() -> void:
 func _enter_transition() -> void:
 	_phase = Phase.TRANSITION
 	_award()
+	# 电报分支（思傅决策甲）：场景四选 C（发电报）→ 场景六末收到克利夫兰回复，直接锁定凶手=杰弗森·霍普
+	if GameManager and GameManager.scene_state.get("scene4_route","") == "C":
+		_play_telegraph_reply()
+		return
+	_start_transition_dialogue()
+
+func _play_telegraph_reply() -> void:
+	if GameManager: GameManager.scene_state["scene6_telegraph_rx"] = true
+	# 线索：凶手全名 + 情敌宿怨（涉及露茜）—— 在抓到他之前就已知道姓名
+	_start_dialogue([
+		_mk_node("t0","系统","（一名分局信使骑马赶到，递来一封刚到的电报）","guide",["t1"]),
+		_mk_node("t1","福尔摩斯","（拆阅，目光一凝）克利夫兰的回电到了。","click",["t2"]),
+		_mk_node("t2","福尔摩斯","（念）『德雷伯，原名埃弗瑞兹·德雷伯，原克利夫兰人。情敌杰弗森·霍普，曾与德雷伯争夺一女子露茜，宿怨极深。霍普近踪不明，疑已赴欧。』","click",["t3"]),
+		_mk_node("t3","华生","（倒吸凉气）杰弗森·霍普……所以凶手的全名，我们提前知道了？","click",["t4"]),
+		_mk_node("t4","福尔摩斯","（折起电报）对。名字我们已经知道——杰弗森·霍普。剩下的，只是让他自己走到灯光下。","click",["t5"]),
+		_mk_node("t5","系统","（场景六末·电报分支已触发：凶手=杰弗森·霍普，情敌宿怨涉及露茜）","guide",["end"]),
+	], "t0", _start_transition_dialogue)
+
+func _start_transition_dialogue() -> void:
 	# 双钩子（08 §12 / 02 §14 §12）：华生台词悬念斯特兰森 → 转场景七
 	_start_dialogue([
 		_mk_node("z0","华生","（走出公寓）葛莱森这下可摔得不轻。那我们接下来找谁？","click",["z1"]),

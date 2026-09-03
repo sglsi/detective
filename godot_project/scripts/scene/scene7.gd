@@ -40,6 +40,7 @@ const DIALOGUE_CLUES = {
 func scene_id() -> String: return "scene7"
 func clue_source() -> String: return "scene7"
 var _insight_bonus: int = 0              # v4.0 洞察星级加成（隐藏线索累计，封顶由墙处理）
+var _telegraph_confirmed: bool = false    # 场景四选C → 场景六末电报回复已确认凶手=杰弗森·霍普
 func hotspots() -> Array: return HOTSPOTS
 func scene_title() -> String: return "郝黎代旅馆"
 func scene_time_text() -> String: return "DAY 2 深夜"
@@ -92,7 +93,15 @@ func reasoning_hypothesis() -> Dictionary:
 				{"id":"H7-01","text":"斯特兰森死于刀伤，非服毒","correct":true},
 				{"id":"H7-02","text":"药丸一毒一无毒（上帝裁决）","correct":true},
 				{"id":"H7-03","text":"两起案件为同一凶手","correct":true},
-				{"id":"H7-04","text":"凶手=杰弗森·霍普","correct":true}
+				{"id":"H7-04","text":"凶手=杰弗森·霍普","correct":true},
+				{"id":"H7-05","text":"凶手从窗户逃走","correct":true},
+				{"id":"H7-06","text":"凶手心理素质极强","correct":true},
+				{"id":"H7-07","text":"凶手是左撇子（刀伤角度误导）","correct":false,"kind":"mislead"},
+				{"id":"H7-08","text":"两案不同凶手（雷斯垂德观）","correct":false,"kind":"mislead"},
+				{"id":"H7-09","text":"凶手爬梯子从窗户进入","correct":true},
+				{"id":"H7-10","text":"凶手是马车夫","correct":true},
+				{"id":"H7-11","text":"药丸就是德雷伯中的毒药","correct":true},
+				{"id":"H7-12","text":"J.H.就是杰弗森·霍普","correct":true}
 			],
 		"contradictions": [
 			{"id":"C7-01","text":"服毒 vs 刀杀（两种杀人方式）","correct":true},
@@ -106,7 +115,12 @@ func reasoning_hypothesis() -> Dictionary:
 			{"id":"S7-3","text":"两起命案为同一凶手"},
 			{"id":"S7-4","text":"凶手=杰弗森·霍普"},
 		],
-	},
+		"conclusions": [
+			{"id":"CL7-1","text":"斯特兰森亦被霍普所杀，两案同一凶手","gate_hypo_ids":["H7-01","H7-03"]},
+			{"id":"CL7-2","text":"药丸一毒一无毒（上帝裁决）","gate_hypo_ids":["H7-02","H7-11"]},
+			{"id":"CL7-3","text":"凶手=杰弗森·霍普","gate_hypo_ids":["H7-04","H7-12"]}
+		],
+		},
 	# v4.0 三星评价：声明本推理链（逐链离散制）
 	"chain_id": scene_id(),
 	"expected_clues": HOTSPOTS.size() + DIALOGUE_CLUES.size(),  # 本链应收集线索总数（观察之星缺失条数分母）
@@ -140,6 +154,8 @@ func options_lines() -> Array:
 
 func _enter_arrival() -> void:
 	_phase = Phase.ARRIVAL
+	# 电报分支（思傅决策甲）：场景四选 C 且场景六末已收到回复 → 凶手姓名提前确认
+	_telegraph_confirmed = GameManager != null and (GameManager.scene_state.get("scene6_telegraph_rx", false) or GameManager.scene_state.get("scene4_route","") == "C")
 	# 对齐 08 稿 场景七·阶段0（L3651-3695）：血迹门缝 + 脸上RACHE + 雷斯垂德困惑"手法变了"
 	_start_dialogue([
 		_mk_node("i0","系统","（场景切换：小乔治街·郝黎代旅馆三楼）一道曲曲弯弯的血迹由302房门下流出，流过走道，汇集在对面墙脚。血还未凝固。","guide",["i1"]),
@@ -173,12 +189,21 @@ func _on_detective_ended() -> void:
 func _witness_dialogue() -> void:
 	# 对齐 08 稿 阶段1·单元B（L4079-4109）：送牛奶孩子目击（大个子/红脸/棕外衣/梯子爬窗）
 	_insight_bonus += 1   # v4.0 洞察之星加成：送奶工目击（隐藏线索 D4 关联）
-	_start_dialogue([
+	var nodes: Array[Resource] = [
 		_mk_node("w0","系统","（走廊外，一个十二三岁、脸上带雀斑的送奶工凑上前来）","guide",["w1"]),
 		_mk_node("w1","送奶工","（抢着说）我看到了！我看到凶手了！旅馆后巷，梯子竖起来靠着三楼开着的窗户——一个人不慌不忙、从从容容地爬了下来！","click",["w2"]),
 		_mk_node("w2","送奶工","我还以为是木匠做活呢。那人是个大个子，红红的脸，身上穿着一件长长的棕色外衣——跟我家隔壁马车夫穿的颜色一模一样！","clue",["w3"],[DIALOGUE_CLUES["C_SOTCB_708"]]),
-		_mk_node("w3","福尔摩斯","（与华生对视）大个子、红脸、棕色长外衣——和兰斯在奥德利大院看到的醉汉，一字不差。是同一只手。","click",["end"]),
-	], "w0", _pill_experiment_choice)
+		_mk_node("w3","福尔摩斯","（与华生对视）大个子、红脸、棕色长外衣——和兰斯在奥德利大院看到的醉汉，一字不差。是同一只手。","click",["w4"]),
+	]
+	# 电报分支确认：凶手姓名提前已知（J.H.=杰弗森·霍普）
+	if _telegraph_confirmed:
+		nodes.append(_mk_node("w4","福尔摩斯","我们已从克利夫兰电报确认——J.H. 就是杰弗森·霍普。送奶工这身描述，正好对上。","click",["end"]))
+	else:
+		nodes.append(_mk_node("w4","华生","（若有所思）J.H.……电报上就这两个字母。这人到底是谁？","click",["end"]))
+	# 困难模式概率误导（台词库·70%伪证据）：雷斯垂德强化「不同凶手论」+ 假第二组脚印
+	if _difficulty == 2 and randf() < 0.7:
+		nodes.append(_mk_node("w5","雷斯垂德警长","（指着走廊）福尔摩斯，你看——这儿还有第二组脚印！两起案子手法差这么多，分明是两个人干的。我敢说斯特兰森是另一个凶手杀的。","click",["end"]))
+	_start_dialogue(nodes, "w0", _pill_experiment_choice)
 
 func _pill_experiment_choice() -> void:
 	# 对齐 08 稿 阶段1·单元C Step6 药丸实验（高潮，L4376-4541）
@@ -202,7 +227,10 @@ func _pill_experiment() -> void:
 func _enter_reasoning() -> void:
 	_phase = Phase.REASONING; _wall_auto = true
 	_sync_clues()
-	_prompt_think("福尔摩斯", "华生，证据齐了：斯特兰森死于刀、窗户可入、木匣两粒药丸（一毒一无毒）、J.H.电报、送奶工的红脸棕外衣。把这若干条摆上推理墙——同一种罕见毒药出现在两个现场，便是铁证。", "自信")
+	var think := "华生，证据齐了：斯特兰森死于刀、窗户可入、木匣两粒药丸（一毒一无毒）、J.H.电报、送奶工的红脸棕外衣。把这若干条摆上推理墙——同一种罕见毒药出现在两个现场，便是铁证。"
+	if _telegraph_confirmed:
+		think += "凶手姓名我们已经从克利夫兰电报确认——杰弗森·霍普。现在只差把他本人请到灯光下。"
+	_prompt_think("福尔摩斯", think, "自信")
 
 func _enter_transition() -> void:
 	_phase = Phase.TRANSITION
