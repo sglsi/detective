@@ -391,7 +391,7 @@ func _do_save(slot: int = -1) -> void:
 	_create_notification("✅ 进度已保存")
 
 # ===== 对话（场景一用显式 next 的 _dn 构造器） =====
-func _dn(id, sp, txt, tri, nxt, mood="neutral", diff_filter: int = 0) -> DialogueNodeResource:
+func _dn(id, sp, txt, tri, nxt, mood="neutral", diff_filter: int = 0, sd: String = "") -> DialogueNodeResource:
 	var n = DialogueNodeResource.new()
 	n.node_id=id; n.speaker=sp; n.text=txt; n.trigger=tri
 	var nn: Array[String] = []
@@ -399,6 +399,7 @@ func _dn(id, sp, txt, tri, nxt, mood="neutral", diff_filter: int = 0) -> Dialogu
 		if s is String: nn.append(s)
 	n.next_nodes = nn
 	n.mood = mood
+	if sd != "": n.stage_direction = sd
 	n.difficulty_filter = diff_filter   # 0=全难度 / 1=EASY / 2=NORMAL / 3=HARD（见 DialogueNodeResource.should_show）
 	return n
 
@@ -413,17 +414,17 @@ func _show_mrs_hudson_dialogue() -> void:
 	_dm.dialogue_ended.connect(_on_mrs_hudson_end)
 	var nodes: Array[Resource] = []
 	nodes.append(_dn("h0","赫德森太太","福尔摩斯先生，茶来了。哦，华生医生，欢迎您。","click",["h1"]))
-	nodes.append(_dn("h1","福尔摩斯","（上下打量华生，停顿两秒，把雪茄从嘴边拿开）您好，我是福尔摩斯，您应该是从阿富汗刚回来不久吧。","click",["h2"],"自信"))
-	nodes.append(_dn("h2","华生","（愣住）什么？","click",["h3"],"吃惊"))
-	nodes.append(_dn("h3","福尔摩斯","（平静地）确切的说，您是阿富汗军医。我说对了吗？","click",["h4"],"从容"))
-	nodes.append(_dn("h4","华生","（惊讶得差点从椅子上站起来）您——您怎么知道？我们才刚见面不到十秒！","click",["h5"],"惊讶"))
-	nodes.append(_dn("h5","福尔摩斯","（没回答华生，转向玩家，眼神里多了一点兴致）你看这位新朋友——他不相信自己的眼睛。不如你来做个见证，替我告诉他：我是怎么看出来的？","click",["h_w"],"指导"))
-	nodes.append(_dn("h_w","华生","（小声嘟囔）……我更想知道你是怎么看出来的。","click",["h5_e","h5_n","h5_h"],"思考"))
+	nodes.append(_dn("h1","福尔摩斯","您好，我是福尔摩斯，您应该是从阿富汗刚回来不久吧。","click",["h2"],"自信",0,"上下打量华生，停顿两秒，把雪茄从嘴边拿开"))
+	nodes.append(_dn("h2","华生","什么？","click",["h3"],"吃惊",0,"愣住"))
+	nodes.append(_dn("h3","福尔摩斯","确切的说，您是阿富汗军医。我说对了吗？","click",["h4"],"从容",0,"平静地"))
+	nodes.append(_dn("h4","华生","您——您怎么知道？我们才刚见面不到十秒！","click",["h5"],"惊讶",0,"惊讶得差点从椅子上站起来"))
+	nodes.append(_dn("h5","福尔摩斯","你看这位新朋友——他不相信自己的眼睛。不如你来做个见证，替我告诉他：我是怎么看出来的？","click",["h_w"],"指导",0,"没回答华生，转向玩家，眼神里多了一点兴致"))
+	nodes.append(_dn("h_w","华生","……我更想知道你是怎么看出来的。","click",["h5_e","h5_n","h5_h"],"思考",0,"小声嘟囔"))
 	# 不同难度不同引导：h5 之后分流，难度过滤节点须「链式为 next」(h5_e→h5_n→h5_h→end)，
 	# 引擎 should_show 跳过隐藏变体时才会依次走到第一个可见变体（否则会误判 end 提前结束）。
-	nodes.append(_dn("h5_e","福尔摩斯","（低声）从手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、医务工作者风度这几处下手，每条都要讲出证据。","click",["h5_n"],"指导",1))
-	nodes.append(_dn("h5_n","福尔摩斯","（点头）用你观察到的证据，把结论串起来。","click",["h5_h"],"指导",2))
-	nodes.append(_dn("h5_h","福尔摩斯","（什么也没说，只是望着你）……","click",["end"],"从容",3))
+	nodes.append(_dn("h5_e","福尔摩斯","从手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、医务工作者风度这几处下手，每条都要讲出证据。","click",["h5_n"],"指导",1,"低声"))
+	nodes.append(_dn("h5_n","福尔摩斯","用你观察到的证据，把结论串起来。","click",["h5_h"],"指导",2,"点头"))
+	nodes.append(_dn("h5_h","福尔摩斯","……","click",["end"],"从容",3,"什么也没说，只是望着你"))
 	var res = DialogueResource.new(); res.scene_id="s1_intro"; res.nodes=nodes
 	res.easy_start_node="h0"; res.normal_start_node="h0"; res.hard_start_node="h0"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
@@ -449,7 +450,7 @@ func _show_opening_dialogue() -> void:
 	nodes.append(_dn("s1_n","系统","[新手教程] 第一次观察\n目标：找出 6 条线索，证明'华生是阿富汗军医'\n操作：点击华生身上高亮的圆圈，逐一观察细节","click",["s2_n"],"guide"))
 	nodes.append(_dn("s2_n","系统","点击华生身上高亮的圆圈。完成后进入推理墙验证。","click",["end"],"guide"))
 	# —— 困难（HARD）：无引导，严格证据 ——
-	nodes.append(_dn("s0_h","福尔摩斯","（审视华生）……证据都在他身上。自己看，别等我喂。","click",["s1_h"],"从容"))
+	nodes.append(_dn("s0_h","福尔摩斯","……证据都在他身上。自己看，别等我喂。","click",["s1_h"],"从容",0,"审视华生"))
 	nodes.append(_dn("s1_h","系统","[硬核模式] 第一次观察\n目标：凭观察找出 6 条线索\n无任何高亮提示，自行判断华生身上值得注意的细节","click",["s2_h"],"guide"))
 	nodes.append(_dn("s2_h","系统","无提示。自行观察华生，找出关键线索后进入推理墙。","click",["end"],"guide"))
 	var res = DialogueResource.new(); res.scene_id="s1_open"; res.nodes=nodes
@@ -527,11 +528,11 @@ func _show_watson_verdict_dialogue(v: int) -> void:
 		nodes.append(_dn("wv1","福尔摩斯","你刚才做得不错。让我告诉你，我是怎么看出来的——","click",["wv2"],"从容"))
 		nodes.append(_dn("wv2","福尔摩斯","手腕的晒痕、左臂的旧伤，说明他在热带扛过枪；脸色的黝黑、面容的憔悴，是久病初愈又长途劳顿；军人的站姿、医务工作者的风度，拼在一起——阿富汗军医。","click",["wv3"],"从容"))
 		nodes.append(_dn("wv3","福尔摩斯","记住：对一个伟大人物来说，任何事情都不是微不足道的。","click",["wv4"],"哲理"))
-		nodes.append(_dn("wv4","福尔摩斯","（点了一下头）不错。你已经摸到门道了。","click",["wv5"],"认可"))
-		nodes.append(_dn("wv5","华生","（在小本子上记）福尔摩斯认可了——这可不容易。","click",["end"],"思考"))
+		nodes.append(_dn("wv4","福尔摩斯","不错。你已经摸到门道了。","click",["wv5"],"认可",0,"点了一下头"))
+		nodes.append(_dn("wv5","华生","福尔摩斯认可了——这可不容易。","click",["end"],"思考",0,"在小本子上记"))
 	else:
-		nodes.append(_dn("wv1","福尔摩斯","（没评价，只递过放大镜）方向是对的，但还有关键的细节你漏掉了。需要在后续多加练习？","click",["wv2"],"从容"))
-		nodes.append(_dn("wv2","华生","（合上笔记）别急，我陪你。","click",["end"],"思考"))
+		nodes.append(_dn("wv1","福尔摩斯","方向是对的，但还有关键的细节你漏掉了。需要在后续多加练习？","click",["wv2"],"从容",0,"没评价，只递过放大镜"))
+		nodes.append(_dn("wv2","华生","别急，我陪你。","click",["end"],"思考",0,"合上笔记"))
 	var res = DialogueResource.new(); res.scene_id="s1_watson_verdict"; res.nodes=nodes
 	res.easy_start_node="wv1"; res.normal_start_node="wv1"; res.hard_start_node="wv1"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
@@ -558,16 +559,16 @@ func _start_messenger_phase() -> void:
 	_dm.dialogue_node_entered.connect(_on_messenger_node_entered)
 	_dm.dialogue_ended.connect(_on_messenger_dialogue_end)
 	var nodes: Array[Resource] = []
-	nodes.append(_dn("m0","系统","（门铃响起）赫德森太太：福尔摩斯先生，有一位信使要送一封信给您，让他进来吗？","click",["m1"],"guide"))
+	nodes.append(_dn("m0","系统","赫德森太太：福尔摩斯先生，有一位信使要送一封信给您，让他进来吗？","click",["m1"],"guide",0,"门铃响起"))
 	nodes.append(_dn("m1","福尔摩斯","让他进来吧，谢谢你，女士。","click",["m2"]))
-	nodes.append(_dn("m2","信使","（递信封，手背露出锚形文身）福尔摩斯先生，这是特白厄斯·葛莱森警官给您的信。","click",["m3"]))
-	nodes.append(_dn("m3","福尔摩斯","（瞥了一眼信使手背，漫不经心）谢谢。您曾经是海军陆战队军士吧。","click",["m4"],"从容"))
-	nodes.append(_dn("m4","信使","（惊讶）啊，您怎么知道我是海军陆战队的军士？","click",["m5"]))
-	nodes.append(_dn("m5","福尔摩斯","（转向玩家）又一个练习机会。这次，你来试试？","click",["m5_e","m5_n","m5_h"],"指导"))
+	nodes.append(_dn("m2","信使","福尔摩斯先生，这是特白厄斯·葛莱森警官给您的信。","click",["m3"],"neutral",0,"递信封，手背露出锚形文身"))
+	nodes.append(_dn("m3","福尔摩斯","谢谢。您曾经是海军陆战队军士吧。","click",["m4"],"从容",0,"瞥了一眼信使手背，漫不经心"))
+	nodes.append(_dn("m4","信使","啊，您怎么知道我是海军陆战队的军士？","click",["m5"],"neutral",0,"惊讶"))
+	nodes.append(_dn("m5","福尔摩斯","又一个练习机会。这次，你来试试？","click",["m5_e","m5_n","m5_h"],"指导",0,"转向玩家"))
 	# 不同难度不同引导（链式为 next：m5_e→m5_n→m5_h→end，确保隐藏变体被跳过而非误结束）
 	nodes.append(_dn("m5_e","福尔摩斯","提示：他的手背文身、络腮胡、站姿、神态——都是军人标志，逐一找出。","click",["m5_n"],"指导",1))
 	nodes.append(_dn("m5_n","福尔摩斯","这次靠你自己观察，找出信使身上的军人特征。","click",["m5_h"],"从容",2))
-	nodes.append(_dn("m5_h","福尔摩斯","（望着信使）……证据在他身上。自己看。","click",["end"],"从容",3))
+	nodes.append(_dn("m5_h","福尔摩斯","……证据在他身上。自己看。","click",["end"],"从容",3,"望着信使"))
 	var res = DialogueResource.new(); res.scene_id="s1_mess"; res.nodes=nodes
 	res.easy_start_node="m0"; res.normal_start_node="m0"; res.hard_start_node="m0"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
@@ -803,11 +804,11 @@ func _show_commission_letter_dialogue() -> void:
 	nodes.append(_dn("cl1","系统","〔葛莱森警长来信 · 全文〕\n\n亲爱的福尔摩斯先生：\n\n昨夜，在布瑞克斯顿路的尽头、劳瑞斯顿花园街三号发生了一件凶杀案。今晨两点左右，巡逻警察忽见该处有灯光，因素悉该房无人居住，故而怀疑出了什么问题。该巡警发现房门大开，前室空无一物，内有男尸一具。该尸衣着整齐，袋中装有名片，上有“伊诺克·J.德雷伯，美国俄亥俄州克利夫兰”字样。既无被抢劫迹象，亦未发现任何能说明致死原因之证据。屋中虽有几处血迹，但死者身上并无伤痕。死者如何在空屋里遇害，我等百思不得其解，深感此案棘手之至。希望阁下在十二点之前惠临，我将在此恭候。在接信回示前，现场一切均将保持原状。如果不能莅临，亦必将详情告之，倘蒙指教，不胜感激之至。\n\n您忠实的　特白厄斯·葛莱森","click",["cl2"],"信件"))
 	nodes.append(_dn("cl2","福尔摩斯","葛莱森是苏格兰场首屈一指的能干人物。中士，请转告葛莱森警长，我会在十二点之前到达。","click",["cl3"],"从容"))
 	nodes.append(_dn("cl3","信使","好的，谢谢！福尔摩斯先生，那我就先告辞了。","click",["cl4"],"平静"))
-	nodes.append(_dn("cl4","福尔摩斯","（对玩家，眼神锐利）准备好了吗？一场真正的探案开始了。","click",["cl5"],"从容"))
-	nodes.append(_dn("cl5","福尔摩斯","（略微踱步，思考状）空屋、男尸、没有伤痕、墙上有血字……葛莱森说他们百思不得其解。","click",["cl6"],"思考"))
-	nodes.append(_dn("cl6","福尔摩斯","（看向玩家）你怎么看？先别急着回答——到了现场，让证据说话。","click",["cl7"],"从容"))
-	nodes.append(_dn("cl7","华生","（在一旁兴奋）听起来是个大案子！福尔摩斯，我们什么时候出发？","click",["cl8"],"好奇"))
-	nodes.append(_dn("cl8","福尔摩斯","（拿起帽子）现在就出发。但记住三条原则：第一，先观察再动手；第二，每样东西都值得量一量、记一记；第三，在有全部证据之前，不要急于下结论。","click",["cl9"],"自信"))
+	nodes.append(_dn("cl4","福尔摩斯","准备好了吗？一场真正的探案开始了。","click",["cl5"],"从容",0,"对玩家，眼神锐利"))
+	nodes.append(_dn("cl5","福尔摩斯","空屋、男尸、没有伤痕、墙上有血字……葛莱森说他们百思不得其解。","click",["cl6"],"思考",0,"略微踱步，思考状"))
+	nodes.append(_dn("cl6","福尔摩斯","你怎么看？先别急着回答——到了现场，让证据说话。","click",["cl7"],"从容",0,"看向玩家"))
+	nodes.append(_dn("cl7","华生","听起来是个大案子！福尔摩斯，我们什么时候出发？","click",["cl8"],"好奇",0,"在一旁兴奋"))
+	nodes.append(_dn("cl8","福尔摩斯","现在就出发。但记住三条原则：第一，先观察再动手；第二，每样东西都值得量一量、记一记；第三，在有全部证据之前，不要急于下结论。","click",["cl9"],"自信",0,"拿起帽子"))
 	nodes.append(_dn("cl9","系统","【推理墙解锁新功能】案件推理链已创建（空链，等待玩家填充）\n【侦探笔记新增】案件档案：血字的研究 · 劳瑞斯顿花园街三号","click",["end"],"guide"))
 	var res = DialogueResource.new(); res.scene_id="s1_letter"; res.nodes=nodes
 	res.easy_start_node="cl0"; res.normal_start_node="cl0"; res.hard_start_node="cl0"
@@ -824,7 +825,7 @@ func _show_hooks_dialogue() -> void:
 	_dm.dialogue_ended.connect(_on_hooks_ended)
 	var nodes: Array[Resource] = []
 	# 剧情钩子
-	nodes.append(_dn("hk0","福尔摩斯","（瞥了一眼信，嘴角微扬）有意思——伦敦郊区发生了一起谋杀案，警方束手无策。","click",["hk1"],"从容"))
+	nodes.append(_dn("hk0","福尔摩斯","有意思——伦敦郊区发生了一起谋杀案，警方束手无策。","click",["hk1"],"从容",0,"瞥了一眼信，嘴角微扬"))
 	nodes.append(_dn("hk1","华生","你要去吗？","click",["hk2"],"好奇"))
 	nodes.append(_dn("hk2","福尔摩斯","当然。正好——让你见识一下什么叫真正的侦探工作。","click",["hk3"],"自信"))
 	# 谜题钩子

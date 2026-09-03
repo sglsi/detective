@@ -238,7 +238,9 @@ NO other objects, isolated, game asset
 - Godot Web 构建的 `.wasm` 文件必须以 `application/wasm` MIME 类型提供
 - Web 原型为单文件应用，修改时注意保持内联 CSS/JS 的组织性
 - `start_all.sh` 中使用 `npm install`，在 Coze 环境中应替换为 `pnpm install`
-- **对话 tres 括号内容已清洗（2026-09）**：场景一至四 44 条含括号台词已按台词库规则处理（`tools/clean_dialogue_parens.py` 幂等脚本，28 条改动）——整条演出指示/设计标注的节点 `text=""` + 原文迁 `stage_direction`（该字段仅 `trigger=sfx` 时 emit 且信号无人连接，不上屏；空 text 节点 dialogue_manager 0.15s 自动流转，不会卡对话）；嵌在台词中的指示段剥离后迁入；玩家功能信息/线索内容类括号（`（可记录在线索墙）``（0-10 滑杆）``（身高6英尺+…）``（E.J.D.）`等 16 条）**有意保留**，不是漏网
+- **对话括号内容清洗——tres + GDScript 双层（2026-09，两批）**：台词内括号按甄别规则处理，**不一刀切**（用户明确要求）：演出指示/设计标注剥除并迁 `stage_direction`（不上屏）；玩家功能信息/线索内容（`（可记录在线索墙）``（0-10 滑杆）``（身高6英尺+…）``（E.J.D.）``（手腕/左臂/面色/站姿）`等）**有意保留**。覆盖两处数据源：①场景一至四 tres 28 条（`tools/clean_dialogue_parens.py` 幂等脚本，`stage_direction` 仅 `trigger=sfx` 时 emit 且无人连接；空 text 节点 0.15s 自动流转不卡对话）②**场景一开场/信使对话硬编码在 `scene1.gd` 的 `_show_mrs_hudson_dialogue`/`_show_opening_dialogue`（26 条，用户截图实证）**——用 `_dn(...)` 末尾位置参数传 `stage_direction`；运行时断言 `tools/t_scene1_dialogue_clean.gd`（19 节点 BAD=0）
+- **GDScript 4.7.1 调用不支持命名参数（重要教训）**：`f(a, sd="x")` 直接报 "Assignment is not allowed inside an expression"（对照实验实证）；必须用纯位置参数。且**解析类改动必须先过编译冒烟**（`GDScript.new()+reload()` 或 export 查 SCRIPT ERROR）再导出——盲改正错三次（sd 落 diff_filter 位/挤掉 mood/双逗号）
+- **方向不确定时先问用户再做（用户明确要求）**：清洗范围/保留策略这类有多种合理解读的决策，先给出方案让用户拍板，不要自行"一刀切"扩大改动；用户会以实际显示效果反馈纠偏（如开场对话在 GDScript 而非 tres——只扫 tres 会漏）
 - **沙箱回收会还原未提交改动（重要教训）**：沙箱实例被回收重建时，工作区恢复到最近快照，未提交的文件修改与 /tmp 文件全部丢失；一次清洗完成后曾在导出前被整体回滚。对策：重要数据/资源改动完成后**立即验证落盘并尽快提交**（关键数据改动不等阶段末集中提交），一次性脚本放项目 `tools/` 而非 /tmp
 
 ### 像素艺术风格生成器
