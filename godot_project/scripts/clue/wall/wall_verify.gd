@@ -250,7 +250,7 @@ func _teaching_report() -> String:
 			continue
 		any_detail = true
 		lines.append("")
-		lines.append("【%s】命中 %s / 真相 %d 项" % [str(b.get("name", "")), "%g" % float(b.get("hit", 0.0)), int(b.get("truth", 0))])
+		lines.append("【%s】命中 %s / 真相 %d 项" % [str(b.get("name", "")), str(b.get("hit", 0.0)), int(b.get("truth", 0))])
 		var mn: Array = b.get("missing_nodes", [])
 		if not mn.is_empty():
 			lines.append("  ✗ 还未产出的推断/结论：%s" % _join_id_items(mn))

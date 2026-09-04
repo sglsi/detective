@@ -67,28 +67,39 @@ static func branches() -> Array:
 				{"from": "W-A1", "to": "C-MAIN", "kind": "support"},
 				{"from": "W-B1", "to": "C-MAIN", "kind": "support"},
 				{"from": "W-C3", "to": "C-MAIN", "kind": "support"},
+				# 结论→人物：三个结论均 target person:NPC_WT（与 battlefield gate 同源）
 				{"from": "C-MAIN", "to": "person:NPC_WT", "kind": "support"},
+				{"from": "C-A1", "to": "person:NPC_WT", "kind": "support"},
+				{"from": "C-C1", "to": "person:NPC_WT", "kind": "support"},
 			],
 			"misleads": [],
 		},
 		{
 			"id": "CH01M", "name": "信使判定（练习）", "scene": "scene1", "core": false, "practice": true,
+			# 与 scene1._messenger_hypotheses 的 battlefield gate 同源：4 假设各绑 1 线索，
+			# CL1-01←M-01/02/03（海军当兵）、CL1-02←M-04（当过军士），结论均锚 person:NPC_SERGEANT。
 			"nodes": [
 				{"id": "tattoo", "layer": "clue"}, {"id": "beard", "layer": "clue"},
 				{"id": "manner", "layer": "clue"}, {"id": "posture", "layer": "clue"},
 				{"id": "sleeve", "layer": "clue"}, {"id": "limp", "layer": "clue"},
-				{"id": "M-01", "layer": "hypo"},
-				{"id": "person:NPC_MSG", "layer": "person"},
+				{"id": "M-01", "layer": "hypo"}, {"id": "M-02", "layer": "hypo"},
+				{"id": "M-03", "layer": "hypo"}, {"id": "M-04", "layer": "hypo"},
+				{"id": "CL1-01", "layer": "concl"}, {"id": "CL1-02", "layer": "concl"},
+				{"id": "person:NPC_SERGEANT", "layer": "person"},
 			],
 			"edges": [
 				{"from": "tattoo", "to": "M-01", "kind": "support"},
-				{"from": "beard", "to": "M-01", "kind": "support"},
-				{"from": "manner", "to": "M-01", "kind": "support"},
-				{"from": "posture", "to": "M-01", "kind": "support"},
-				{"from": "M-01", "to": "person:NPC_MSG", "kind": "support"},
+				{"from": "beard", "to": "M-02", "kind": "support"},
+				{"from": "posture", "to": "M-03", "kind": "support"},
+				{"from": "manner", "to": "M-04", "kind": "support"},
+				{"from": "M-01", "to": "CL1-01", "kind": "support"},
+				{"from": "M-02", "to": "CL1-01", "kind": "support"},
+				{"from": "M-03", "to": "CL1-01", "kind": "support"},
+				{"from": "M-04", "to": "CL1-02", "kind": "support"},
+				{"from": "CL1-01", "to": "person:NPC_SERGEANT", "kind": "support"},
+				{"from": "CL1-02", "to": "person:NPC_SERGEANT", "kind": "support"},
 			],
-			# 裁定 5 的示范：干扰项（袖口磨损、轻微跛行）不计入真相边，
-			# 玩家给它们建边会变大分母 → 拉低正确率（练习墙不计分，仅用于教学反馈）。
+			# 干扰项（袖口磨损、轻微跛行）不在真相边中：给它们建边会变大分母拉低正确率（教学点：分辨信号 vs 噪音）。
 			"misleads": [],
 		},
 

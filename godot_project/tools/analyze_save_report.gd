@@ -93,7 +93,7 @@ func _report(key: String, ws: Dictionary) -> void:
 	print("  存档 verified=%s verdict=%s" % [str(ws.get("verified", false)), str(ws.get("verdict", 0))])
 
 func _g(v: Variant) -> String:
-	return "%g" % float(v)
+	return str(v)
 
 func _str_arr(a: Array) -> Array[String]:
 	var out: Array[String] = []
