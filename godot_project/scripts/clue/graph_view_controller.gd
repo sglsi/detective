@@ -303,7 +303,7 @@ func build(data: Dictionary) -> void:
 	_scene_clue_ids = data.get("scene_clue_ids", [])
 
 	# 视图记忆恢复（09 R-3）：读 SaveGame/state_store
-	_mode = _state_store.get("graph_view_mode", ViewMode.MODE_C)
+	_mode = ViewMode.MODE_C  # MODE_B 纵向链已移除，恒为星型树
 	_did_initial_fit = false
 	_placed_clues = (_state_store.get("graph_placed_clues", []) as Array).duplicate()
 	_manual_nodes = (Array(_state_store.get("graph_manual_nodes", [])) as Array).duplicate()
@@ -509,10 +509,7 @@ func _create_toolbar() -> Control:
 	var tab_c := _mk_tab("● 人物星型", true)
 	tab_c.pressed.connect(_switch_mode.bind(ViewMode.MODE_C))
 	row.add_child(tab_c)
-	var tab_b := _mk_tab("推理链", false)
-	tab_b.pressed.connect(_switch_mode.bind(ViewMode.MODE_B))
-	row.add_child(tab_b)
-	_tab_c_btn = tab_c; _tab_b_btn = tab_b
+	_tab_c_btn = tab_c
 	var tab_a := _mk_tab("全局DAG▒", false, true)
 	tab_a.pressed.connect(_on_greyed_tab.bind("全局 DAG"))
 	row.add_child(tab_a)
@@ -575,7 +572,6 @@ var _undo_btn: Button = null
 var _redo_btn: Button = null
 var _verify_btn: Button = null
 var _tab_c_btn: Button = null
-var _tab_b_btn: Button = null
 
 
 ## 提交验证（问题2）：转发给推理墙 _on_verify_pressed 弹验证结果窗；确认后墙被销毁并推进剧情。
@@ -630,7 +626,6 @@ func _sync_tabs() -> void:
 
 func _refresh_toolbar_state() -> void:
 	if _tab_c_btn: _tab_c_btn.button_pressed = (_mode == ViewMode.MODE_C)
-	if _tab_b_btn: _tab_b_btn.button_pressed = (_mode == ViewMode.MODE_B)
 	if _focus_sel:
 		_focus_sel.disabled = (_mode != ViewMode.MODE_C)
 	var can_edit := _state == State.EDITABLE
@@ -1438,7 +1433,6 @@ func _node_at(gp: Vector2) -> String:
 
 func _on_node_clicked(id: String, kind: String) -> void:
 	if kind == "chain":
-		_switch_mode(ViewMode.MODE_B)
 		return
 	_show_detail(id, kind)
 
@@ -1946,12 +1940,6 @@ func _switch_mode(m: int) -> void:
 	if m == ViewMode.MODE_A or m == ViewMode.MODE_D:
 		return
 	if m == _mode: return
-	# 先落盘「旧模式」状态再切换：_persist_node_positions 按旧 _mode 判定（仅 MODE_C 写盘），
-	# 避免把 MODE_B 的临时分层坐标覆盖进星型存档 → 切回/重进位置错乱（问题2）。
-	_persist_view()
-	_mode = m
-	_rebuild_graph()
-	_refresh_toolbar_state()
 
 
 func _on_greyed_tab(tab_name: String) -> void:
@@ -2259,7 +2247,6 @@ func _toast_msg(text: String) -> void:
 # ===================== 视图记忆 =====================
 func _persist_view() -> void:
 	if _state_store.is_empty(): return
-	_state_store["graph_view_mode"] = _mode
 	_state_store["graph_placed_clues"] = _placed_clues.duplicate()
 	_state_store["graph_focus"] = _focus_person
 	_state_store["graph_seed"] = _layout_seed
