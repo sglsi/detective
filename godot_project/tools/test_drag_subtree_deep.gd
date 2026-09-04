@@ -7,15 +7,16 @@ func _drag(gv: Variant, id: String, target: Vector2) -> void:
 	gv._dragging = true
 	gv._drag_id = id
 	gv._drag_mode = "move"
+	gv._drag_offset = Vector2.ZERO
 	gv._drag_subtree = gv._layout._descendants(id)
 	gv._drag_start = gv._node_center.get(id, Vector2.ZERO)
-	# 等价模拟 _input MouseMotion：把 id 与整棵子树一并平移 delta（保持拖动中相对偏移）
+	# 等价模拟 _input MouseMotion：把 id 与整棵子树一并平移 delta（保持拖动中相对偏移）。
+	# 注意：真实 _input 不依赖视图节点是否存在，headless 下必须无条件平移子树，否则后代不跟随。
 	var delta: Vector2 = target - gv._node_center.get(id, Vector2.ZERO)
 	gv._node_center[id] = target
 	for _sd in gv._drag_subtree:
-		if gv._node_views.has(str(_sd)):
-			gv._node_center[str(_sd)] = gv._node_center.get(str(_sd), Vector2.ZERO) + delta
-	gv._commit_move(id)
+		gv._node_center[str(_sd)] = gv._node_center.get(str(_sd), Vector2.ZERO) + delta
+	gv._commit_move(id, target)
 	await process_frame
 
 func _reset(gv: Variant) -> void:
