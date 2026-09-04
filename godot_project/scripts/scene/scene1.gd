@@ -567,7 +567,7 @@ func _start_messenger_phase() -> void:
 	_dm.dialogue_node_entered.connect(_on_messenger_node_entered)
 	_dm.dialogue_ended.connect(_on_messenger_dialogue_end)
 	var nodes: Array[Resource] = []
-	nodes.append(_dn("m0","系统","赫德森太太：福尔摩斯先生，有一位信使要送一封信给您，让他进来吗？","click",["m1"],"guide",0,"门铃响起"))
+	nodes.append(_dn("m0","赫德森太太","福尔摩斯先生，有一位信使要送一封信给您，让他进来吗？","click",["m1"],"平静",0,"门铃响起"))
 	nodes.append(_dn("m1","福尔摩斯","让他进来吧，谢谢你，女士。","click",["m2"]))
 	nodes.append(_dn("m2","信使","福尔摩斯先生，这是特白厄斯·葛莱森警官给您的信。","click",["m3"],"neutral",0,"递信封，手背露出锚形文身"))
 	nodes.append(_dn("m3","福尔摩斯","谢谢。您曾经是海军陆战队军士吧。","click",["m4"],"从容",0,"瞥了一眼信使手背，漫不经心"))

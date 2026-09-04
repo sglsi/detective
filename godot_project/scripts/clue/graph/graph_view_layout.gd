@@ -39,6 +39,8 @@ func _apply_column_overlap_fix() -> void:
 			_cy_before += owner._node_center[arr[i]].y
 		_cy_before /= float(arr.size())
 		for i in range(1, arr.size()):
+			if owner._manual_nodes.has(str(arr[i])):
+				continue
 			var _ha: float = _view_height(arr[i - 1])
 			var _hb: float = _view_height(arr[i])
 			var _min_cy: float = owner._node_center[arr[i - 1]].y + (_ha + _hb) * 0.5 + 24.0
@@ -73,6 +75,9 @@ func _apply_global_overlap_fix() -> void:
 			var id_b: String = ids[j]
 			var rb: Rect2 = rects[id_b]
 			if ra.intersects(rb):
+				# 钉位节点（玩家拖放落点）不被去重叠推走：推走=拖动松手后位置被改（回弹）
+				if owner._manual_nodes.has(id_b):
+					continue
 				var push: float = ra.end.y - rb.position.y + 24.0
 				owner._node_center[id_b] = Vector2(owner._node_center[id_b].x, owner._node_center[id_b].y + push)
 				rects[id_b] = _node_rect(id_b)

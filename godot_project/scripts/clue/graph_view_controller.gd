@@ -1284,6 +1284,12 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 			# 容错：未精确落在目标框内时，找 48px 内最近的节点（差几个像素也要能建边）
 			drop = _nearest_node_except(gp, id, 48.0)
 		if drop != "":
+			# 环防护：drop 已在拖动节点的子树里（id 是 drop 的祖先）时，id→drop 会闭合推理环，
+			# 布局 BFS 会因此丢节点（树断、拖动全面异常）——拒绝建边，按「移动到落点」处理。
+			if _layout._descendants(drop).has(id):
+				_toast_msg("不能连接到自己的下级节点，已按移动处理")
+				drop = ""
+		if drop != "":
 			var drop_kind: String = _node_kind.get(drop, "")
 			if drop_kind == "person":
 				if _node_kind.get(id, "") == "clue":
