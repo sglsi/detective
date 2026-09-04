@@ -411,13 +411,15 @@ func _zoom_crop_region(img_path: String, a: Dictionary) -> Rect2:
 	var tw := float(tex.get_width()); var th := float(tex.get_height())
 	var acx := float(a["cx"]); var acy := float(a["cy"])
 	var aw := float(a["w"]); var ah := float(a["h"])
-	var half: float = max(aw, ah) * 1.7
-	half = max(half, 0.18)
-	var x0: float = clampf(acx - half, 0.0, 1.0)
-	var y0: float = clampf(acy - half, 0.0, 1.0)
-	var x1: float = clampf(acx + half, 0.0, 1.0)
-	var y1: float = clampf(acy + half, 0.0, 1.0)
-	return Rect2(x0 * tw, y0 * th, (x1 - x0) * tw, (y1 - y0) * th)
+	# 全图锚点（站姿/全身）不裁切，整图按比例入框
+	if aw >= 0.95 and ah >= 0.95:
+		return Rect2(0, 0, tw, th)
+	# 方形像素裁切：与放大框 1:1 匹配（keep-aspect 下内容撑满），立绘/背景图观感统一
+	var side_px: float = max(max(aw * tw, ah * th), min(tw, th) * 0.34)
+	var side: float = min(side_px, min(tw, th))
+	var x0: float = clampf(acx * tw - side * 0.5, 0.0, tw - side)
+	var y0: float = clampf(acy * th - side * 0.5, 0.0, th - side)
+	return Rect2(x0, y0, side, side)
 
 func _open_zoom(clue_id: String, desc: String) -> void:
 	if _zoomed: return

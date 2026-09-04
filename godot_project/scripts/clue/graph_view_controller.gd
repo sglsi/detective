@@ -1296,6 +1296,11 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 				_edge._add_edge(id, drop, _data.key_to_kind(_pen_color_key), _pen_color_key, _pen_dashed)
 				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
 				_nudge_away_from(id, drop)
+			# 建边/标记路径同样钉位：X 停在（推离后的）落点，后续 rebuild 不回位，子树随 X 生长
+			if _node_center.has(id):
+				_root_anchor_pos[id] = _node_center[id]
+				if not (id in _manual_nodes):
+					_manual_nodes.append(id)
 		if moved:
 			# 规则1/2/3：被拖节点(X)停在玩家手动位(新位置钉入 _root_anchor_pos + 登记 _manual_nodes)，
 			# 而其全部后代的「旧手动位」一律清空——让它们从 X 的新位置自动重新派生(向上不动、随上属走)。

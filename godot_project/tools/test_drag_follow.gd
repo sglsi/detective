@@ -85,6 +85,39 @@ func _initialize() -> void:
 	if ok:
 		log.append("B) 拖动结论→下游随动、上游人物根不动 ✓")
 
+	# ===== 场景C：拖动推断(树枝)落在另一节点附近——建边路径同样钉位：不回弹、子树随动 =====
+	var gvC = await _build_wall([{"id":"KILLER","name":"凶手"}], hypo1)
+	gvC._derive_hypo("c201", "H2-01"); await process_frame
+	gvC._derive_hypo("c202", "H2-01"); await process_frame
+	gvC._derive_conclusion("H2-01", "CL2-1"); await process_frame
+	gvC._rebuild_graph(); await process_frame
+	var c_before := {}
+	for nid in ["KILLER","conclusion_CL2-1","H2-01","c201","c202"]:
+		c_before[nid] = gvC._node_center.get(nid, Vector2.ZERO)
+	var tgtC: Vector2 = Vector2(gvC._node_center.get("c202", Vector2.ZERO)) + Vector2(30, 20)
+	await _drag_node(gvC, "H2-01", tgtC)
+	await process_frame
+	var c_after := {}
+	for nid in ["KILLER","conclusion_CL2-1","H2-01","c201","c202"]:
+		c_after[nid] = gvC._node_center.get(nid, Vector2.ZERO)
+	# C1) 推断必须被钉位：不在原布局位附近（否则视为回弹）
+	if c_after["H2-01"].distance_to(c_before["H2-01"]) < 40.0:
+		ok = false; print("FAIL C1) 推断松手后回弹到原位：%s (原位 %s)" % [str(c_after["H2-01"]), str(c_before["H2-01"])])
+	# C2) 推断应钉在落点附近（建边推离后有偏差，容差 140）
+	if c_after["H2-01"].distance_to(tgtC) > 140.0:
+		ok = false; print("FAIL C2) 推断未停在落点附近：%s (落点 %s)" % [str(c_after["H2-01"]), str(tgtC)])
+	# C3) 下游线索随推断平移（相对位保持）
+	var d2: Vector2 = c_after["H2-01"] - c_before["H2-01"]
+	for nid in ["c201","c202"]:
+		var dn2: Vector2 = c_after[nid] - c_before[nid]
+		if dn2.distance_to(d2) > 90.0:
+			ok = false; print("FAIL C3) 下游 %s 未随推断平移(Δ=%s, 期望≈%s)" % [nid, str(dn2), str(d2)])
+	# C4) 上游（人物根）不动
+	if c_after["KILLER"].distance_to(c_before["KILLER"]) > 60.0:
+		ok = false; print("FAIL C4) 人物根随推断移动了(不该)")
+	if ok:
+		log.append("C) 拖推断到节点上(建边路径)→钉位不回弹、子树随动 ✓")
+
 	for l in log: print("  - " + l)
 	print("DRAG_FOLLOW_RESULT: %s" % ("PASS" if ok else "FAIL"))
 	quit()

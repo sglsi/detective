@@ -158,6 +158,29 @@ func _compute_layout(nodes: Array) -> Dictionary:
 			var _sp2: Variant = saved_pos.get(_id2, null)
 			if _sp2 is Vector2:
 				out[_id2] = _sp2
+		# 钉位重派生（2026-09-04）：被手动钉住的节点（拖动后的根/树枝/分枝）以钉位为基准，
+		# 整体平移其未钉子树——拖动松手后子树随上属走，不再回弹到放射布局位
+		var parent_of := _build_parent_of()
+		var child_map := {}
+		for ch in parent_of:
+			var pa := str(parent_of[ch])
+			if not child_map.has(pa): child_map[pa] = []
+			child_map[pa].append(str(ch))
+		for pin_id in saved_pos:
+			var pin_s := str(pin_id)
+			var pv: Variant = saved_pos[pin_id]
+			if not (pv is Vector2) or not out.has(pin_s): continue
+			var delta: Vector2 = (pv as Vector2) - (out[pin_s] as Vector2)
+			if delta.length() < 1.0: continue
+			var stack: Array = [pin_s]
+			while stack.size() > 0:
+				var u: String = stack.pop_back()
+				for c in child_map.get(u, []):
+					var cs := str(c)
+					if saved_pos.has(cs) or not out.has(cs): continue
+					out[cs] = (out[cs] as Vector2) + delta
+					stack.append(cs)
+			out[pin_s] = pv
 	else:
 		# 模式 B：推理链纵向自上而下（人物在最上，结论→推断/链→线索依次向下逐行排开）
 		out[owner._focus_person] = center
