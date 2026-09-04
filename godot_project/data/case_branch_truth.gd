@@ -42,35 +42,42 @@ static func branches() -> Array:
 		# ───────────────────────── 场景一 · 练习墙（不计分） ─────────────────────────
 		{
 			"id": "CH01W", "name": "华生教学（练习）", "scene": "scene1", "core": false, "practice": true,
+			# 与 scene1._show_watson_reasoning_wall 的 battlefield gate 同源（2026-09-05 用户三层结论关系表）：
+			# 热带线（wrist/face_dark→W-A1→C-A1→C-A2）、军医线（pose/medical→W-B1/W-B2→C-B1）、
+			# 伤痛线（arm/face_haggard→W-C1/W-C2→C-C1→C-C2）三线汇聚 C-MAIN（在阿富汗服役过）→锚华生。
+			# 结论→结论边（C-A1→C-A2 等）norm 剥 conclusion_ 前缀后匹配。
 			"nodes": [
 				{"id": "wrist", "layer": "clue"}, {"id": "face_dark", "layer": "clue"},
 				{"id": "pose", "layer": "clue"}, {"id": "medical", "layer": "clue"},
 				{"id": "face_haggard", "layer": "clue"}, {"id": "arm", "layer": "clue"},
 				{"id": "W-A1", "layer": "hypo"}, {"id": "W-B1", "layer": "hypo"},
-				{"id": "W-C1", "layer": "hypo"}, {"id": "W-C2", "layer": "hypo"},
-				{"id": "W-C3", "layer": "hypo"},
-				{"id": "C-A1", "layer": "concl"}, {"id": "C-C1", "layer": "concl"},
-				{"id": "C-MAIN", "layer": "concl"},
+				{"id": "W-B2", "layer": "hypo"}, {"id": "W-C1", "layer": "hypo"},
+				{"id": "W-C2", "layer": "hypo"},
+				{"id": "C-A1", "layer": "concl"}, {"id": "C-B1", "layer": "concl"},
+				{"id": "C-C1", "layer": "concl"}, {"id": "C-A2", "layer": "concl"},
+				{"id": "C-C2", "layer": "concl"}, {"id": "C-MAIN", "layer": "concl"},
 				{"id": "person:NPC_WT", "layer": "person"},
 			],
 			"edges": [
 				{"from": "wrist", "to": "W-A1", "kind": "support"},
 				{"from": "face_dark", "to": "W-A1", "kind": "support"},
 				{"from": "pose", "to": "W-B1", "kind": "support"},
-				{"from": "medical", "to": "W-B1", "kind": "support"},
-				{"from": "face_haggard", "to": "W-C1", "kind": "support"},
-				{"from": "arm", "to": "W-C2", "kind": "support"},
-				{"from": "W-C1", "to": "W-C3", "kind": "support"},
-				{"from": "W-C2", "to": "W-C3", "kind": "support"},
+				{"from": "medical", "to": "W-B2", "kind": "support"},
+				{"from": "arm", "to": "W-C1", "kind": "support"},
+				{"from": "face_haggard", "to": "W-C2", "kind": "support"},
 				{"from": "W-A1", "to": "C-A1", "kind": "support"},
-				{"from": "W-C3", "to": "C-C1", "kind": "support"},
-				{"from": "W-A1", "to": "C-MAIN", "kind": "support"},
-				{"from": "W-B1", "to": "C-MAIN", "kind": "support"},
-				{"from": "W-C3", "to": "C-MAIN", "kind": "support"},
-				# 结论→人物：三个结论均 target person:NPC_WT（与 battlefield gate 同源）
+				{"from": "W-B1", "to": "C-B1", "kind": "support"},
+				{"from": "W-B2", "to": "C-B1", "kind": "support"},
+				{"from": "W-C1", "to": "C-C1", "kind": "support"},
+				{"from": "W-C2", "to": "C-C1", "kind": "support"},
+				# 结论→结论（阶段性结论1→2→3，玩家从结论节点拖线连接）
+				{"from": "C-A1", "to": "C-A2", "kind": "support"},
+				{"from": "C-C1", "to": "C-C2", "kind": "support"},
+				{"from": "C-A2", "to": "C-MAIN", "kind": "support"},
+				{"from": "C-B1", "to": "C-MAIN", "kind": "support"},
+				{"from": "C-C2", "to": "C-MAIN", "kind": "support"},
+				# 顶层结论锚华生（人物列单格：仅"在阿富汗服役过"指人）
 				{"from": "C-MAIN", "to": "person:NPC_WT", "kind": "support"},
-				{"from": "C-A1", "to": "person:NPC_WT", "kind": "support"},
-				{"from": "C-C1", "to": "person:NPC_WT", "kind": "support"},
 			],
 			"misleads": [],
 		},
