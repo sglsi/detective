@@ -186,34 +186,6 @@ func _compute_layout(nodes: Array) -> Dictionary:
 					out[cs] = (out[cs] as Vector2) + delta
 					stack.append(cs)
 			out[pin_s] = pv
-	else:
-		# 模式 B：推理链纵向自上而下（人物在最上，结论→推断/链→线索依次向下逐行排开）
-		out[owner._focus_person] = center
-		var rows := {}
-		for nd in nodes:
-			if nd.id == owner._focus_person: continue
-			var d: int = 4
-			match nd.kind:
-				"conclusion": d = 1
-				"hypo", "chain": d = 2
-				"clue": d = 3
-			if not rows.has(d): rows[d] = []
-			rows[d].append(nd.id)
-		var depth_keys := rows.keys()
-		depth_keys.sort()
-		var span2: float = owner._canvas.size.x - 200.0 if owner._canvas.size.x > 200 else 1080.0
-		var y0: float = center.y - 100.0
-		var row_gap2 := 130.0
-		var rr := 0
-		for d in depth_keys:
-			var arr: Array = rows[d]
-			var n2: int = arr.size()
-			var y: float = y0 + float(rr) * row_gap2
-			for i in n2:
-				var x: float = 100.0 + (float(i) / maxi(n2, 1)) * span2
-				if n2 == 1: x = owner._canvas.size.x * 0.5 if owner._canvas.size.x > 0 else 540.0
-				out[arr[i]] = Vector2(x, y)
-			rr += 1
 	return out
 
 

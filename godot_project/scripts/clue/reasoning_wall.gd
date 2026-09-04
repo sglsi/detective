@@ -122,7 +122,6 @@ var _pen_solid_btn: Button = null
 var _pen_dashed_btn: Button = null
 var _color_btns: Dictionary = {}
 var _mode_c_btn: Button = null
-var _mode_b_btn: Button = null
 var _top_focus_sel: OptionButton = null
 var _top_undo_btn: Button = null
 var _top_redo_btn: Button = null
@@ -440,9 +439,6 @@ func _create_top_bar() -> Control:
 	_mode_c_btn = _mk_top_btn("● 人物星型", true)
 	_mode_c_btn.pressed.connect(_on_top_mode.bind(0))
 	row1.add_child(_mode_c_btn)
-	_mode_b_btn = _mk_top_btn("推理链", false)
-	_mode_b_btn.pressed.connect(_on_top_mode.bind(1))
-	row1.add_child(_mode_b_btn)
 
 	# 焦点人物下拉
 	_top_focus_sel = OptionButton.new()
@@ -994,7 +990,6 @@ func _on_top_mode(m: int) -> void:
 	if _graph_view and is_instance_valid(_graph_view):
 		_graph_view.set_mode(m)
 	_mode_c_btn.button_pressed = (m == 0)
-	_mode_b_btn.button_pressed = (m == 1)
 
 
 func _on_top_focus_selected(idx: int) -> void:

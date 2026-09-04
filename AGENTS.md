@@ -224,6 +224,12 @@ NO other objects, isolated, game asset
 **详细文档**：`skills/godot_asset_generator/SKILL.md`
 **快速开始**：`skills/godot_asset_generator/README.md`
 
+## 模式 B（纵向链）移除（2026-09-05，用户裁定）
+- **模式 B（推理链纵向布局）已整体删除**（用户："基本没用，还可能影响正常功能"）。删除面：layout `_compute_layout` else 纵向分支、controller 墙内"推理链"tab、reasoning_wall 顶栏"推理链"按钮、edge 绘制 MODE_B 分支、chain 节点点击自动切模式、`graph_view_mode` 持久化读写、test_graph_fix2 的 Fix5 段。`_mode` 恒 `ViewMode.MODE_C`（星型树），enum 值保留防引用断裂。
+- **用户场景二拖拽"故障依旧"的最终根因即在此**：用户的墙 state_store 持久化了 `graph_view_mode=MODE_B`（点过顶栏按钮或 chain 节点），而 MODE_B 分支完全没有钉位/拖动保持逻辑——此前所有拖拽修复都在 MODE_C 分支。删除 MODE B 后此路径不复存在。**教训：修"共用功能"先确认用户实测所处分支**。
+- 拖拽回弹完整根因链（三叠加）：①建边路径钉位写在 rebuild 后（钉回弹位）→已改为先钉玩家落点再 nudge/rebuild；②落点误判建边可成环→`_would_create_cycle` 拒绝+toast；③rebuild 后去重叠推走钉位节点→两个 overlap_fix 循环 continue `_manual_nodes` 成员。
+- **测试方法论**：`test_drag_follow.gd` 走简化参数路径非真实 `gv.build(dict)`——测试过≠用户实测过；`tools/t_drag_seq_repro.gd` 用真实 build(dict)+六步协程序列（拖结论/拖推断/归锚人物/拖人物/自动排列后再拖/收尾）作权威回归，**协程函数调用必须 await**（漏 await 会交错执行状态互相污染，输出全错）。
+
 ## 用户偏好与长期约束
 
 - Node.js 项目使用 pnpm 管理依赖（禁止 npm/yarn）
