@@ -592,6 +592,12 @@ func _build_parent_of() -> Dictionary:
 		if _cid == "": continue
 		var _nid: String = "conclusion_" + _cid
 		var _cdef: Dictionary = owner._conclusion_def(_cid)
+		# 结论 gate_hypo_ids（数据预设「推断/结论→结论」支撑）：布局树据此把 gate 节点挂到结论下，
+		# 使「拖根→整条推理链跟随」即使该支撑边未被玩家画出也成立（渲染只看玩家连线，布局跟随数据结构）。
+		for _g2 in _cdef.get("gate_hypo_ids", []):
+			var _gid2: String = str(_g2)
+			if _gid2 != "":
+				add_parent.call(_gid2, _nid)
 		var _tgt: String = _cdef.get("target", "")
 		if _tgt == "": continue
 		var _pid: String = _tgt.substr("person:".length()) if _tgt.begins_with("person:") else _tgt
@@ -604,6 +610,18 @@ func _build_parent_of() -> Dictionary:
 		for _p in _rc.get("related_npcs", []):
 			if owner._fold._kind_of(_p) == "person":
 				add_parent.call(_rcid, _p)
+	# 推断/链 gate_clue_ids（数据预设「线索→推断」支撑）：布局树据此把线索挂到推断下，
+	# 与 gate_hypo_ids 同理——布局跟随数据推理树，不依赖玩家是否画了该支撑边。
+	# 人物锚定优先（person_anchored 传播）会优先保留「线索→人物」直连，使线索归到焦点人物下。
+	for _gn in owner._graph_nodes:
+		var _gnid: String = str(_gn.get("id", ""))
+		var _gk: String = owner._fold._kind_of(_gnid)
+		if _gk != "hypo" and _gk != "chain": continue
+		var _ghd: Dictionary = owner._hypo_def(_gnid)
+		for _c3 in _ghd.get("gate_clue_ids", []):
+			var _cid3: String = str(_c3)
+			if _cid3 != "":
+				add_parent.call(_cid3, _gnid)
 	# 兜底：人物节点恒为放射根，但允许「人物↔人物」的从属嵌套。
 	# 若某人物的全部父候选都不是人物（即仅被非人物当成子），才强制其为根、剔除非人物父候选，
 	# 防止人物沦为推断/结论/线索之子（旧 bug：整墙根错位、拖拽不跟随）。

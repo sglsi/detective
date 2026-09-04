@@ -115,6 +115,8 @@ var _drag_kind := ""
 var _drag_mode := ""              # "move" 或 "edge"（_drag_kind 是关系 kind support/oppose）
 var _drag_prestart_pos: Vector2 = Vector2.ZERO   # 拖动起点（算子树平移 delta）
 var _drag_subtree: Array = []                         # 拖动节点的整棵子树（实时随拖平移，需求3）
+var _post_drag := false             # 2026-09-05：拖拽松手触发的 rebuild 标记——跳过全局去重叠，
+                                     # 否则被拖子树碰撞到的上游节点会被去重叠推走，玩家感知为「自动排列」（用户报 bug）
 var _drag_offset := Vector2.ZERO   # move 模式专用，鼠标按下时在画布内相对节点 top-left 的偏移
 var _drag_start := Vector2.ZERO    # 鼠标按下的全局位置（move 抖动阈值用）
 var _drag_preview: Control = null
@@ -696,9 +698,13 @@ func _rebuild_graph() -> void:
 	# 同列纵向去重叠：按真实卡片高度硬保证相邻卡片上下边距 ≥15px（不依赖布局/估算，避免任何覆盖）
 	# 跨场景累积改造（2026-08-29）：默认星形布局在高密度「多孤立根并入主根」时也会产生径向重叠，
 	# 全局跨列去重叠必须同样执行以保证「零重叠」硬要求；仅当 AABB 真实相交才下移，玩家自由拖动不推挤。
-	if _use_rank_layout:
-		_layout._apply_column_overlap_fix()
-	_layout._apply_global_overlap_fix()
+	# 2026-09-05：拖拽松手引发的 rebuild 跳过去重叠——被拖子树已按玩家落点刚性定位，其碰撞到的
+	# 上游节点若被推走会表现为「自动排列」（用户报 bug）；仅「非拖拽」rebuild（开墙/自动排列/折叠）才去重叠。
+	if not _post_drag:
+		if _use_rank_layout:
+			_layout._apply_column_overlap_fix()
+		_layout._apply_global_overlap_fix()
+	_post_drag = false
 	# 创建连线出口折叠控件（XMind 式 −/+N）。设计：圆圈仅当该节点「有关系、有下级」时显示，
 	# 即高一级节点下确实有低一级节点才在其上画圈；无下级的叶子不建，避免任何线索常驻圆圈。
 	for nd in nodes:
@@ -1341,6 +1347,7 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 	_fold._sync_fold_controls_positions()
 	# 第8节改造（A①+B①）：移动/建关系后整树按星形重排——根锚点保留、子节点回派生位
 	if moved:
+		_post_drag = true   # 拖拽引发的 rebuild：去重叠不再推走任何非被拖子树节点（见 _rebuild_graph）
 		_rebuild_graph()
 	_redraw_all()
 
@@ -2604,9 +2611,8 @@ func _derive_hypo(cid: String, hid: String) -> void:
 		_ui_toast("未找到推断定义：" + hid)
 		return
 	adopt_candidate(hd, false, cid)   # 正向推导：不自动连带该推断的其他 gate 线索（玩家逐个拖线索驱动）；锚定到来源线索 cid 落点防叠加
-	# 线索不在 gate_clue_ids（仅 relation_tags 命中）时补连 support 边
-	if not any_edge(cid, hid) and not _relations.any(func(r): return r.get("from", "") == cid and r.get("to", "") == hid):
-		_edge._add_edge(cid, hid, "support", "green", false)
+	# 2026-09-05：不再自动补「线索→推断」support 边。用户要求推理墙「只能有玩家选择的连线」，
+	# 推导仅生成推断节点（结果可见），连线由玩家自行拖拽建立（走正常建边路径）。
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
@@ -2711,9 +2717,8 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 					break
 			var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "conclusion", _node_center)
 			_node_center[nid] = pos
-	# 确保「触发推断 → 结论」support 边（玩家关系，受 _edge_list 绘制）
-	if hid != "" and _node_center.has(hid) and not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == nid):
-		_edge._add_edge(hid, nid, "support", "green", false)
+	# 2026-09-05：不再自动补「触发推断 → 结论」support 边。用户要求推理墙「只能有玩家选择的连线」，
+	# 推导仅生成结论节点（落点锚定到 gate 推断附近），连线由玩家自行拖拽建立。
 	# 方案B：结论可由多个推断/结论共推（gate_hypo_ids）。每次推导后同步所有已推导结论的 gate 边，
 	# 使「结论链」随推断逐步上墙自动闭合（如 C-MAIN 由 W-A1+W-B1+W-C3 共推）。
 	# 教学墙（_teaching）不自动补：玩家从某推断推导结论时只建该「推断→结论」一条边，
@@ -2739,17 +2744,11 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 ## 方案B：同步所有「已推导结论」的 gate 推断→结论 support 边。
 ## 结论定义含 gate_hypo_ids（多个推断/结论共推）时，凡已上墙的 gate 节点都补一条 support 边，
 ## 使结论链随推断逐步到位自动闭合；结论尚未推导（节点未生成）或某 gate 尚未上墙时不补，待其到位后再次同步。
+## 2026-09-05：改为 no-op —— 用户明确要求「推理墙上只能有玩家选择的连线」，
+## 系统自动补的 gate→结论 support 绿边属于「系统擅自添加的连线」，一律不再自动生成；
+## 玩家若想连，自行拖推断到结论即可（走正常建边路径）。
 func _sync_conclusion_gate_edges() -> void:
-	for _dc in _derived_conclusions:
-		var _cid: String = str(_dc.get("id", ""))
-		var _nid: String = _conclusion_node_id(_cid)
-		if not _node_center.has(_nid):
-			continue   # 结论节点尚未生成（玩家未推导该结论），跳过
-		var _cdef: Dictionary = _conclusion_def(_cid)
-		for _g in _cdef.get("gate_hypo_ids", []):
-			var _gid: String = str(_g)
-			if _node_center.has(_gid) and not _relations.any(func(r): return r.get("from", "") == _gid and r.get("to", "") == _nid):
-				_edge._add_edge(_gid, _nid, "support", "green", false)
+	return
 
 
 ## 推断详情卡入口：打开结论候选窗（gate_hypo_ids 含该推断的结论）
