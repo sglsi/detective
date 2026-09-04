@@ -654,6 +654,9 @@ func _rebuild_graph() -> void:
 		if is_instance_valid(n): n.queue_free()
 	for c in _fold_controls.values():
 		if is_instance_valid(c): c.queue_free()
+	# 2026-09-05：清空 _node_center 前捕获「拖前实际位置」——下一行会清空它，
+	# 但钉位重派生需要拖前位来平移后代（否则子树随根重排回弹）。
+	var _pre_center := _node_center.duplicate()
 	_node_views = {}; _node_center = {}; _node_kind = {}; _node_data = {}
 	_fold_controls = {}
 	_clear_drag_preview()
@@ -674,7 +677,7 @@ func _rebuild_graph() -> void:
 		for nd in nodes:
 			pos[nd.id] = _all_positions.get(nd.id, Vector2.ZERO)
 	else:
-		pos = _layout._compute_layout(nodes)
+		pos = _layout._compute_layout(nodes, _pre_center)
 		# 合并可见节点位置进全局缓存（隐藏节点的位置由 _all_positions 保留）。
 		# ⚠️ 仅模式 C 合并：模式 B 是垂直分层的临时聚焦视图，若写入会污染 _all_positions，
 		# 导致切回星型/重进时个别节点位置错乱回初始（问题2）。
