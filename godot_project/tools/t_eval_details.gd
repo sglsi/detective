@@ -31,14 +31,17 @@ func _process(_delta: float) -> bool:
 		if b is Dictionary and bool((b as Dictionary).get("active", false)):
 			branch = b as Dictionary
 	var fails: Array[String] = []
-	# 期望值（真相 CH01W：16 边 + 8 节点 = 24）
+	# 期望值（真相 CH01W 2026-09-05 三层结论版：17 边 + 11 可产出节点（5 hypo+6 concl）= 28；
+	# clue/person 不计入 T。missing_nodes 只列非线索非人物的未产出节点）
+	# 玩家：W-A1/C-MAIN 两节点（2.0）+ wrist→W-A1 exact（1.0）+ person→C-MAIN reversed（0.5）= 3.5；
+	# W-A1→C-MAIN 与 pose→W-B1(relate) 均不在真相 → extra×2
 	var checks := [
-		["truth=24", int(branch.get("truth", 0)) == 24],
-		["hit=4.5", absf(float(branch.get("hit", 0.0)) - 4.5) < 0.01],
-		["missing_nodes=6", (branch.get("missing_nodes", []) as Array).size() == 6],
-		["missing_edges=13", (branch.get("missing_edges", []) as Array).size() == 13],
+		["truth=28", int(branch.get("truth", 0)) == 28],
+		["hit=3.5", absf(float(branch.get("hit", 0.0)) - 3.5) < 0.01],
+		["missing_nodes=9", (branch.get("missing_nodes", []) as Array).size() == 9],
+		["missing_edges=15", (branch.get("missing_edges", []) as Array).size() == 15],
 		["reversed_edges=1", (branch.get("reversed_edges", []) as Array).size() == 1],
-		["extra_edges=1", (branch.get("extra_edges", []) as Array).size() == 1],
+		["extra_edges=2", (branch.get("extra_edges", []) as Array).size() == 2],
 	]
 	for c in checks:
 		if not bool(c[1]):

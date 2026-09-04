@@ -486,27 +486,35 @@ func _show_watson_reasoning_wall() -> void:
 	if _portrait_ctrl: _portrait_ctrl.visible = false
 	_phase = Phase.WATSON_REASONING
 	if _ui: _ui.set_camera_enabled(false)   # 推理墙：禁用摄像机
-	var hypo := {"title": "华生刚从阿富汗回来？", "persons": [{"id": "NPC_WT"}], "description": "从华生身上的痕迹（手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、医务工作者风度）逐层推断其经历：热带生活→军医→战火负伤→阿富汗服役。",
+	# 华生教学链（2026-09-05 用户关系表）：三层结论逐级推导——
+	# 热带线：肤色→热带生活过→英国殖民地为阿富汗；军医线：军人气质＋医疗行业→是名军医（无结论2）；
+	# 伤痛线：旧伤＋久病→承受伤痛→伤害来自军事任务；三线汇聚"在阿富汗服役过"→锚华生。
+	# 维护规则：gate_hypo_ids 引用结论节点时必须写完整节点 id（"conclusion_C-A1"，含前缀），
+	# 真相表（case_branch_truth.gd CH01W）与 gate 同源，norm 会剥前缀。
+	var hypo := {"title": "华生刚从阿富汗回来？", "persons": [{"id": "NPC_WT"}], "description": "从华生身上的痕迹（手腕肤色分明、脸色黝黑、军人站姿、消毒液气味、左臂旧伤、面容憔悴）逐层推断：肤色→热带生活→英国殖民地为阿富汗；军人气质＋医疗行业→军医；旧伤＋久病→伤痛来自军事任务；三线闭合→在阿富汗服役过。",
 		"battlefield": {
 			"hypotheses": [
-				{"id":"W-A1","text":"华生不是原来的肤色（热带晒痕）","correct":true,"gate_clue_ids":["wrist","face_dark"]},
-				{"id":"W-B1","text":"华生是名军医","correct":true,"gate_clue_ids":["pose","medical"]},
-				{"id":"W-C1","text":"华生久病初愈","correct":true,"gate_clue_ids":["face_haggard"]},
-				{"id":"W-C2","text":"华生左臂受过伤","correct":true,"gate_clue_ids":["arm"]},
-				{"id":"W-C3","text":"华生承受过不该有的伤痛","correct":true,"gate_hypo_ids":["W-C1","W-C2"]},
+				{"id":"W-A1","text":"不是原来的肤色","correct":true,"gate_clue_ids":["wrist","face_dark"]},
+				{"id":"W-B1","text":"多年军事行业形成的气质","correct":true,"gate_clue_ids":["pose"]},
+				{"id":"W-B2","text":"从事医疗行业","correct":true,"gate_clue_ids":["medical"]},
+				{"id":"W-C1","text":"左臂受过伤未完全恢复","correct":true,"gate_clue_ids":["arm"]},
+				{"id":"W-C2","text":"久病初愈而又历尽了苦难","correct":true,"gate_clue_ids":["face_haggard"]},
 			],
 			"conclusions": [
-				{"id":"C-A1","text":"华生曾在热带长期生活","correct":true,"gate_hypo_ids":["W-A1"],"target":"person:NPC_WT","adopt_desc":"热带晒痕说明他刚从热带归来。"},
-				{"id":"C-MAIN","text":"华生刚从阿富汗服役归来","correct":true,"gate_hypo_ids":["W-A1","W-B1","W-C3"],"target":"person:NPC_WT","adopt_desc":"晒痕＋军医身份＋战火伤痛，三者闭合指向阿富汗军医。"},
-				{"id":"C-C1","text":"华生参加过战争","correct":true,"gate_hypo_ids":["W-C3"],"target":"person:NPC_WT","adopt_desc":"不该有的伤痛只可能来自战场。"},
+				{"id":"C-A1","text":"曾经在热带生活过","correct":true,"gate_hypo_ids":["W-A1"],"adopt_desc":"肤色分明与黝黑的脸——他曾在热带生活过。"},
+				{"id":"C-B1","text":"是名军医","correct":true,"gate_hypo_ids":["W-B1","W-B2"],"adopt_desc":"军人气质与医疗行业的痕迹，合起来是一名军医。"},
+				{"id":"C-C1","text":"承受了这个年龄本不该承受的伤痛","correct":true,"gate_hypo_ids":["W-C1","W-C2"],"adopt_desc":"旧伤未愈又久病初愈——他承受了不该承受的伤痛。"},
+				{"id":"C-A2","text":"英国在热带的殖民地为阿富汗","correct":true,"gate_hypo_ids":["conclusion_C-A1"],"adopt_desc":"英国在热带的殖民地——最近的那块是阿富汗。"},
+				{"id":"C-C2","text":"不该有的伤害只可能来自军事任务","correct":true,"gate_hypo_ids":["conclusion_C-C1"],"adopt_desc":"这样的伤痛，只可能来自军事任务。"},
+				{"id":"C-MAIN","text":"在阿富汗服役过","correct":true,"gate_hypo_ids":["conclusion_C-A2","conclusion_C-B1","conclusion_C-C2"],"target":"person:NPC_WT","adopt_desc":"热带殖民地、军医身份、军事任务的伤痛——三线闭合，他在阿富汗服役过。"},
 			],
 			"contradictions": [],
 		},
 		"milestones": [
-			{"id":"MW-1","text":"华生曾在热带长期生活（晒痕推断）"},
-			{"id":"MW-2","text":"华生是军医（站姿＋医务工作者风度）"},
-			{"id":"MW-3","text":"华生左臂受伤、承受过战火伤痛（参加过战争）"},
-			{"id":"MW-4","text":"华生刚从阿富汗服役归来（多条推断闭合）"},
+			{"id":"MW-1","text":"华生曾在热带生活过（肤色推导）"},
+			{"id":"MW-2","text":"华生是名军医（军人气质＋医疗行业）"},
+			{"id":"MW-3","text":"华生承受过不该有的伤痛（旧伤＋久病）"},
+			{"id":"MW-4","text":"华生曾在阿富汗服役（三线闭合）"},
 		],
 		# 裁定 5：练习墙不计分。scene_id 供分枝评分引擎定位到场景一的练习链。
 		"scene_id": "scene1", "practice": true,
