@@ -327,6 +327,7 @@ NO other objects, isolated, game asset
 - **Godot 编辑器**：`/workspace/projects/tools/godot/editor_extract/Godot_v4.7.1-stable_linux.x86_64`
 - **Web 导出模板（运行路径）**：`~/.local/share/godot/export_templates/4.7.1.stable/web_nothreads_release.zip`（软链自持久区的同名 zip；持久源在 `tools/godot/`）
 - **沙箱导出命令**：`cd godot_project && GODOT --headless --path . --export-release "Web"`（产物写 `web_build/`，预览即 proxy 上 5000 服务 `web_build/`）
+- **导出后必须给 index.html 打 pck 版本戳**（浏览器缓存兜底）：`sed -i 's/"executable":"index[^"]*"/"executable":"index?v=<日期+序号>"/' web_build/index.html`——proxy 对所有响应发 no-store，但无 no-store 时期的旧缓存条目普通刷新仍会复用，版本参数使 pck URL 变化强制拉新。导出后用 `strings web_build/index.pck | grep -c <tres明文特征>` 验证内容已更新（GDScript 是 binary token 抓不到源码，用 tres 文本资源特征验证）
 - **脚本语法校验**：`GODOT --headless --path . -s <脚本>.gd`（项目把 Variant 推断等 GDScript 警告当作错误，新增脚本必须显式类型标注）
 - **封存后不可预览时**：推理墙图谱改动在 `godot_project/scripts/clue/`，改完必须重新导出 Web 才生效，仅改源码不重新导出会造成"预览仍是旧版"。
 
