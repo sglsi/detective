@@ -2611,8 +2611,10 @@ func _derive_hypo(cid: String, hid: String) -> void:
 		_ui_toast("未找到推断定义：" + hid)
 		return
 	adopt_candidate(hd, false, cid)   # 正向推导：不自动连带该推断的其他 gate 线索（玩家逐个拖线索驱动）；锚定到来源线索 cid 落点防叠加
-	# 2026-09-05：不再自动补「线索→推断」support 边。用户要求推理墙「只能有玩家选择的连线」，
-	# 推导仅生成推断节点（结果可见），连线由玩家自行拖拽建立（走正常建边路径）。
+	# 玩家从线索推导推断＝明确选择「线索→推断」支撑关系，绘制该 support 绿边（属玩家连线，非系统自动）。
+	# 仅补「本条推导」的边；其余 gate 线索→该推断的边由玩家按需手动建立（_sync_conclusion_gate_edges 已停用）。
+	if not any_edge(cid, hid) and not _relations.any(func(r): return r.get("from", "") == cid and r.get("to", "") == hid):
+		_edge._add_edge(cid, hid, "support", "green", false)
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
@@ -2717,12 +2719,10 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 					break
 			var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "conclusion", _node_center)
 			_node_center[nid] = pos
-	# 2026-09-05：不再自动补「触发推断 → 结论」support 边。用户要求推理墙「只能有玩家选择的连线」，
-	# 推导仅生成结论节点（落点锚定到 gate 推断附近），连线由玩家自行拖拽建立。
-	# 方案B：结论可由多个推断/结论共推（gate_hypo_ids）。每次推导后同步所有已推导结论的 gate 边，
-	# 使「结论链」随推断逐步上墙自动闭合（如 C-MAIN 由 W-A1+W-B1+W-C3 共推）。
-	# 教学墙（_teaching）不自动补：玩家从某推断推导结论时只建该「推断→结论」一条边，
-	# 其余 gate 推断→同一结论的边由玩家按需手动建立（避免「选一条却画出多条」）。
+	# 玩家从推断推导结论＝明确选择「推断→结论」支撑关系，绘制该 support 绿边（属玩家连线，非系统自动）。
+	# 仅补「本条推导」的边（hid→结论节点）；其余 gate 推断→同一结论的边由玩家按需手动建立。
+	if hid != "" and not any_edge(hid, nid) and not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == nid):
+		_edge._add_edge(hid, nid, "support", "green", false)
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()

@@ -28,6 +28,12 @@ func _build_fresh() -> Variant:
 		var cid: String = c.get("id", ""); var gh: Array = c.get("gate_hypo_ids", [])
 		if cid == "" or gh.is_empty(): continue
 		gv._derive_conclusion(str(gh[0]), cid); await process_frame
+	# 模拟玩家把每个已推导结论拖到「凶手」人物上建立归属金边（玩家连线，构成完整布局树）
+	for c in bf.get("conclusions", []):
+		var cid: String = c.get("id", "")
+		if cid == "":
+			continue
+		gv._edge._add_edge("conclusion_" + str(cid), "KILLER", "target", "gold", false)
 	gv._rebuild_graph(); await process_frame
 	return gv
 
@@ -61,10 +67,11 @@ func _initialize() -> void:
 	var ok := true
 	var log := []
 
-	# ===== R) 拖根 KILLER → 全部 13 个后代严格随动（Δ 完全一致）=====
+	# ===== R) 拖根 KILLER → 全部后代严格随动（Δ 完全一致）=====
 	var gv = await _build_fresh()
-	var all_ids: Array = ["KILLER","conclusion_CL2-4","conclusion_CL2-6","H2-01","H2-02","H2-03","H2-05","H2-06","c201","c202","c203","c204","c205","c206"]
 	var kids: Array = gv._layout._descendants("KILLER")
+	# all_ids 必须覆盖 KILLER 的全部后代（玩家自建完整布局树后后代数量随数据增长），否则快照缺键报错
+	var all_ids: Array = ["KILLER"] + kids
 	print("[R] KILLER descendants(%d): %s" % [kids.size(), str(kids)])
 	var b = _snap(gv, all_ids)
 	await _drag(gv, "KILLER", Vector2(950, 700))

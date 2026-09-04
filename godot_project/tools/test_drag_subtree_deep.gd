@@ -52,6 +52,10 @@ func _initialize() -> void:
 	gv._derive_hypo("c205", "H2-06"); await process_frame
 	gv._derive_conclusion("H2-01", "CL2-1"); await process_frame
 	gv._derive_conclusion("H2-05", "CL2-6"); await process_frame
+	# 模拟玩家把已推导结论拖到「凶手」建归属金边，并把第二 gate 推断(H2-06)连到结论——构成完整玩家布局树
+	gv._edge._add_edge("conclusion_CL2-1", "KILLER", "target", "gold", false)
+	gv._edge._add_edge("conclusion_CL2-6", "KILLER", "target", "gold", false)
+	gv._edge._add_edge("H2-06", "conclusion_CL2-6", "support", "green", false)
 	gv._rebuild_graph(); await process_frame
 
 	# ===== 单拖：根(人物 KILLER) → 整树跟随 =====
