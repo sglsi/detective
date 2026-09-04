@@ -1,0 +1,1062 @@
+{
+	"exported_at": "2026-09-04T10:14:05",
+	"kind": "wall_state_export",
+	"slots": [
+		{
+			"save_data": {
+				"badges": {},
+				"case_id": "",
+				"case_wall_state": {},
+				"clue_count": 0.0,
+				"clue_states": {},
+				"collected_clues": [],
+				"completed_milestones": [],
+				"dialogue_progress": {},
+				"difficulty": 1.0,
+				"endings": {},
+				"game_time": 0.0,
+				"insight_score": 0.0,
+				"is_guest": false,
+				"kb_favorites": [],
+				"kb_notes": [],
+				"metadata": {
+					"device_id": "desktop",
+					"platform": "Web",
+					"version": "0.1.0"
+				},
+				"observation_score": 0.0,
+				"progress": {},
+				"reasoning_score": 0.0,
+				"save_version": 1.0,
+				"scene_id": "",
+				"scene_state": {},
+				"settings_snapshot": {
+					"auto_save_enabled": true,
+					"brightness": 0.5,
+					"default_difficulty": 1.0,
+					"dialogue_speed": 1.0,
+					"fullscreen": false,
+					"interface_language": "zh_CN",
+					"master_volume": 1.0,
+					"music_volume": 0.8,
+					"resolution": "1920x1080",
+					"sfx_volume": 1.0,
+					"subtitle_language": "zh_CN",
+					"voice_volume": 0.7
+				},
+				"slot": 0.0,
+				"star_chains": {},
+				"timeline": {},
+				"timestamp": 1788487721.367,
+				"tools": {
+					"selected": "",
+					"unlocked": [
+						"magnifier",
+						"tape",
+						"directory",
+						"handcuffs",
+						"rope"
+					]
+				},
+				"unlocked_locations": []
+			},
+			"scene_id": "",
+			"slot": 0,
+			"timestamp": 1788487721.367
+		},
+		{
+			"save_data": {
+				"badges": {},
+				"case_id": "case_blood_letter",
+				"case_wall_state": {},
+				"clue_count": 0.0,
+				"clue_states": {},
+				"collected_clues": [
+					{
+						"anchor": "pose",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生举手投足间透出医务工作者的沉稳与专业气质，受过系统医学训练",
+						"id": "medical",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "医务工作者风度",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "pose",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生站姿挺拔，带有明显军人气质",
+						"id": "pose",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "华生站姿军人气质",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "关键",
+						"weight": 10.0
+					},
+					{
+						"anchor": "wrist",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生手腕肤色分界明显——长期暴露于热带阳光",
+						"id": "wrist",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "华生手腕肤色分界",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "关键",
+						"weight": 10.0
+					},
+					{
+						"anchor": "face",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生面容灰暗、眼窝深陷——久病初愈、长途劳顿的痕迹",
+						"id": "face_haggard",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "华生面容憔悴",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "face",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生脸部肤色明显偏深——长期热带日照留下的晒痕，与手腕分界一致",
+						"id": "face_dark",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "华生脸色黝黑",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "shoulder",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生左臂动作僵硬，似有旧伤",
+						"id": "arm",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "华生左臂僵硬",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "posture",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "信使站姿挺拔有力",
+						"id": "posture",
+						"image": "res://assets/characters/messenger/messenger_spritesheet.png",
+						"name": "挺拔站姿",
+						"related_npcs": [
+							"NPC_MES"
+						],
+						"relation_tags": [],
+						"source": "messenger",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "manner",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "信使神态从容淡定",
+						"id": "manner",
+						"image": "res://assets/characters/messenger/messenger_spritesheet.png",
+						"name": "神态平静",
+						"related_npcs": [
+							"NPC_MES"
+						],
+						"relation_tags": [],
+						"source": "messenger",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "beard",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "信使留着军人式络腮胡",
+						"id": "beard",
+						"image": "res://assets/characters/messenger/messenger_spritesheet.png",
+						"name": "络腮胡须",
+						"related_npcs": [
+							"NPC_MES"
+						],
+						"relation_tags": [],
+						"source": "messenger",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "tattoo",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "信使手背上有蓝色锚形文身——皇家海军标志",
+						"id": "tattoo",
+						"image": "res://assets/characters/messenger/messenger_spritesheet.png",
+						"name": "信使手背锚形文身",
+						"related_npcs": [
+							"NPC_MES"
+						],
+						"relation_tags": [],
+						"source": "messenger",
+						"tier": "一般",
+						"weight": 2.0
+					},
+					{
+						"anchor": "",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "葛莱森警长的委托：劳瑞斯顿花园街3号发现一具无外伤男尸，疑似中毒。这是承接「血字的研究」一案的正式起点。",
+						"id": "commission_letter",
+						"image": "",
+						"name": "案件委托信",
+						"related_npcs": [],
+						"relation_tags": [],
+						"source": "commission",
+						"tier": "一般",
+						"weight": 2.0
+					}
+				],
+				"completed_milestones": [
+					"sc_01_completed"
+				],
+				"dialogue_progress": {},
+				"difficulty": 0.0,
+				"endings": {},
+				"game_time": 0.0,
+				"insight_score": 0.0,
+				"is_guest": false,
+				"kb_favorites": [],
+				"kb_notes": [],
+				"metadata": {
+					"device_id": "desktop",
+					"platform": "Web",
+					"version": "0.1.0"
+				},
+				"observation_score": 0.0,
+				"progress": {
+					"case_blood_letter": {
+						"clue_ratio": 0.366666666666667,
+						"current": 0.0,
+						"node_ratio": 0.0,
+						"ratio": 0.183333333333333,
+						"total": 30.0
+					}
+				},
+				"reasoning_score": 0.0,
+				"save_version": 1.0,
+				"scene_id": "scene1",
+				"scene_state": {
+					"clue_ids": [
+						"medical",
+						"pose",
+						"wrist",
+						"face_haggard",
+						"face_dark",
+						"arm",
+						"posture",
+						"manner",
+						"beard",
+						"tattoo"
+					],
+					"messenger_v": 1.0,
+					"phase": 7.0,
+					"scene_id": "scene1",
+					"slot": 1.0,
+					"stars_insight": 1.0,
+					"stars_observe": 2.0,
+					"stars_reason": 2.0,
+					"watson_v": 2.0
+				},
+				"settings_snapshot": {
+					"auto_save_enabled": true,
+					"brightness": 0.5,
+					"default_difficulty": 1.0,
+					"dialogue_speed": 1.0,
+					"fullscreen": false,
+					"interface_language": "zh_CN",
+					"master_volume": 1.0,
+					"music_volume": 0.8,
+					"resolution": "1920x1080",
+					"sfx_volume": 1.0,
+					"subtitle_language": "zh_CN",
+					"voice_volume": 0.7
+				},
+				"slot": 1.0,
+				"star_chains": {},
+				"timeline": {
+					"case_blood_letter": [
+						{
+							"text": "案件开始调查",
+							"time_label": "09:00"
+						}
+					]
+				},
+				"timestamp": 1788448514.507,
+				"tools": {
+					"selected": "",
+					"unlocked": [
+						"magnifier",
+						"tape",
+						"directory",
+						"handcuffs",
+						"rope"
+					]
+				},
+				"unlocked_locations": []
+			},
+			"scene_id": "scene1",
+			"slot": 1,
+			"timestamp": 1788448514.507
+		},
+		{
+			"save_data": {
+				"badges": {},
+				"case_id": "case_blood_letter",
+				"case_wall_state": {},
+				"clue_count": 0.0,
+				"clue_states": {},
+				"collected_clues": [
+					{
+						"anchor": "pose",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生举手投足间透出医务工作者的沉稳与专业气质，受过系统医学训练",
+						"id": "medical",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "医务工作者风度",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "pose",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生站姿挺拔，带有明显军人气质",
+						"id": "pose",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "华生站姿军人气质",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "关键",
+						"weight": 10.0
+					},
+					{
+						"anchor": "wrist",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生手腕肤色分界明显——长期暴露于热带阳光",
+						"id": "wrist",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "华生手腕肤色分界",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "关键",
+						"weight": 10.0
+					},
+					{
+						"anchor": "face",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生面容灰暗、眼窝深陷——久病初愈、长途劳顿的痕迹",
+						"id": "face_haggard",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "华生面容憔悴",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "face",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生脸部肤色明显偏深——长期热带日照留下的晒痕，与手腕分界一致",
+						"id": "face_dark",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "华生脸色黝黑",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "shoulder",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "华生左臂动作僵硬，似有旧伤",
+						"id": "arm",
+						"image": "res://assets/characters/watson/watson_teaching.png",
+						"name": "华生左臂僵硬",
+						"related_npcs": [
+							"NPC_WT"
+						],
+						"relation_tags": [],
+						"source": "watson",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "manner",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "信使神态从容淡定",
+						"id": "manner",
+						"image": "res://assets/characters/messenger/messenger_spritesheet.png",
+						"name": "神态平静",
+						"related_npcs": [
+							"NPC_MES"
+						],
+						"relation_tags": [],
+						"source": "messenger",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "posture",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "信使站姿挺拔有力",
+						"id": "posture",
+						"image": "res://assets/characters/messenger/messenger_spritesheet.png",
+						"name": "挺拔站姿",
+						"related_npcs": [
+							"NPC_MES"
+						],
+						"relation_tags": [],
+						"source": "messenger",
+						"tier": "重要",
+						"weight": 5.0
+					},
+					{
+						"anchor": "tattoo",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "信使手背上有蓝色锚形文身——皇家海军标志",
+						"id": "tattoo",
+						"image": "res://assets/characters/messenger/messenger_spritesheet.png",
+						"name": "信使手背锚形文身",
+						"related_npcs": [
+							"NPC_MES"
+						],
+						"relation_tags": [],
+						"source": "messenger",
+						"tier": "一般",
+						"weight": 2.0
+					},
+					{
+						"anchor": "beard",
+						"attribute_tags": [],
+						"content_tags": [],
+						"correct": true,
+						"desc": "信使留着军人式络腮胡",
+						"id": "beard",
+						"image": "res://assets/characters/messenger/messenger_spritesheet.png",
+						"name": "络腮胡须",
+						"related_npcs": [
+							"NPC_MES"
+						],
+						"relation_tags": [],
+						"source": "messenger",
+						"tier": "重要",
+						"weight": 5.0
+					}
+				],
+				"completed_milestones": [],
+				"dialogue_progress": {},
+				"difficulty": 0.0,
+				"endings": {},
+				"game_time": 0.0,
+				"insight_score": 0.0,
+				"is_guest": false,
+				"kb_favorites": [],
+				"kb_notes": [],
+				"metadata": {
+					"device_id": "desktop",
+					"platform": "Web",
+					"version": "0.1.0"
+				},
+				"observation_score": 0.0,
+				"progress": {
+					"case_blood_letter": {
+						"clue_ratio": 0.333333333333333,
+						"current": 0.0,
+						"node_ratio": 0.0,
+						"ratio": 0.166666666666667,
+						"total": 30.0
+					}
+				},
+				"reasoning_score": 0.0,
+				"save_version": 1.0,
+				"scene_id": "scene1",
+				"scene_state": {
+					"clue_ids": [
+						"medical",
+						"pose",
+						"wrist",
+						"face_haggard",
+						"face_dark",
+						"arm",
+						"manner",
+						"posture",
+						"tattoo",
+						"beard"
+					],
+					"messenger_recorded": 4.0,
+					"phase": 5.0,
+					"scene_id": "scene1",
+					"slot": 2.0,
+					"wall_state_messenger": {
+						"associated": [
+							"manner",
+							"posture",
+							"tattoo",
+							"beard"
+						],
+						"battlefield": {
+							"M-01": 0.0,
+							"M-02": 0.0,
+							"M-03": 0.0,
+							"M-04": 0.0
+						},
+						"doubt_book": [],
+						"graph_deleted_nodes": [],
+						"graph_deleted_target": {},
+						"graph_derived_conclusions": [
+							{
+								"hid": "M-04",
+								"id": "CL1-01",
+								"text": "在海军中当兵"
+							},
+							{
+								"hid": "M-02",
+								"id": "CL1-02",
+								"text": "当过军士/士官"
+							}
+						],
+						"graph_edited_texts": {},
+						"graph_focus": "NPC_MES",
+						"graph_folded_nodes": {},
+						"graph_manual_nodes": [
+							"conclusion_CL1-02"
+						],
+						"graph_node_offsets": {},
+						"graph_node_positions": {
+							"beard": "(1100.029, 409.4656)",
+							"manner": "(413.666, 185.6178)",
+							"posture": "(1289.592, 485.4733)",
+							"tattoo": "(1214.11, 523.2596)"
+						},
+						"graph_nodes": [
+							{
+								"data": {
+									"adopt_desc": "",
+									"candidate": true,
+									"correct": true
+								},
+								"id": "M-04",
+								"kind": "hypo",
+								"label": "发号施令中形成的气度",
+								"sub": "推断"
+							},
+							{
+								"data": {
+									"adopt_desc": "",
+									"candidate": true,
+									"correct": true
+								},
+								"id": "M-03",
+								"kind": "hypo",
+								"label": "挺拔站姿是军事训练中形成的肌肉记忆",
+								"sub": "推断"
+							},
+							{
+								"data": {
+									"adopt_desc": "",
+									"candidate": true,
+									"correct": true
+								},
+								"id": "M-01",
+								"kind": "hypo",
+								"label": "锚文身是海军士兵中的常见标志",
+								"sub": "推断"
+							},
+							{
+								"data": {
+									"adopt_desc": "",
+									"candidate": true,
+									"correct": true
+								},
+								"id": "M-02",
+								"kind": "hypo",
+								"label": "络腮胡在军人中常见",
+								"sub": "推断"
+							}
+						],
+						"graph_placed_clues": [
+							"manner",
+							"posture",
+							"tattoo",
+							"beard"
+						],
+						"graph_root_anchors": {
+							"conclusion_CL1-02": "(1241.22, 378.422)"
+						},
+						"graph_seed": 257417.0,
+						"graph_tutorial_seen": true,
+						"graph_view_mode": 0.0,
+						"milestones_lit": [],
+						"relations": [
+							{
+								"color_key": "green",
+								"dashed": false,
+								"from": "manner",
+								"kind": "support",
+								"to": "M-04"
+							},
+							{
+								"color_key": "green",
+								"dashed": false,
+								"from": "posture",
+								"kind": "support",
+								"to": "M-03"
+							},
+							{
+								"color_key": "green",
+								"dashed": false,
+								"from": "M-03",
+								"kind": "support",
+								"to": "conclusion_CL1-01"
+							},
+							{
+								"color_key": "green",
+								"dashed": false,
+								"from": "tattoo",
+								"kind": "support",
+								"to": "M-01"
+							},
+							{
+								"color_key": "green",
+								"dashed": false,
+								"from": "M-01",
+								"kind": "support",
+								"to": "conclusion_CL1-01"
+							},
+							{
+								"color_key": "green",
+								"dashed": false,
+								"from": "beard",
+								"kind": "support",
+								"to": "M-02"
+							},
+							{
+								"color_key": "green",
+								"dashed": false,
+								"from": "M-04",
+								"kind": "support",
+								"to": "conclusion_CL1-02"
+							},
+							{
+								"color_key": "green",
+								"dashed": false,
+								"from": "M-02",
+								"kind": "support",
+								"to": "conclusion_CL1-01"
+							},
+							{
+								"color_key": "gold",
+								"dashed": false,
+								"from": "conclusion_CL1-02",
+								"kind": "target",
+								"to": "NPC_MES"
+							},
+							{
+								"color_key": "gold",
+								"dashed": false,
+								"from": "conclusion_CL1-01",
+								"kind": "target",
+								"to": "NPC_MES"
+							}
+						],
+						"verdict": 1.0,
+						"verified": true
+					},
+					"wall_state_watson": {},
+					"watson_recorded": 6.0
+				},
+				"settings_snapshot": {
+					"auto_save_enabled": true,
+					"brightness": 0.5,
+					"default_difficulty": 1.0,
+					"dialogue_speed": 1.0,
+					"fullscreen": false,
+					"interface_language": "zh_CN",
+					"master_volume": 1.0,
+					"music_volume": 0.8,
+					"resolution": "1920x1080",
+					"sfx_volume": 1.0,
+					"subtitle_language": "zh_CN",
+					"voice_volume": 0.7
+				},
+				"slot": 2.0,
+				"star_chains": {},
+				"timeline": {
+					"case_blood_letter": [
+						{
+							"text": "案件开始调查",
+							"time_label": "09:00"
+						}
+					]
+				},
+				"timestamp": 1788488034.987,
+				"tools": {
+					"selected": "",
+					"unlocked": [
+						"magnifier",
+						"tape",
+						"directory",
+						"handcuffs",
+						"rope"
+					]
+				},
+				"unlocked_locations": []
+			},
+			"scene_id": "scene1",
+			"slot": 2,
+			"timestamp": 1788488034.987
+		}
+	],
+	"wall": {
+		"battle_hypo_states": {
+			"M-01": 0,
+			"M-02": 0,
+			"M-03": 0,
+			"M-04": 0
+		},
+		"battlefield": {
+			"conclusions": [
+				{
+					"dir": "affirm",
+					"gate_hypo_ids": [
+						"M-01",
+						"M-02",
+						"M-03"
+					],
+					"id": "CL1-01",
+					"kind": "true",
+					"object": [
+						"海军"
+					],
+					"subject": [
+						"信使"
+					],
+					"target": "person:NPC_SERGEANT",
+					"text": "在海军中当兵"
+				},
+				{
+					"dir": "affirm",
+					"gate_hypo_ids": [
+						"M-04"
+					],
+					"id": "CL1-02",
+					"kind": "true",
+					"object": [
+						"军士",
+						"士官"
+					],
+					"subject": [
+						"信使"
+					],
+					"target": "person:NPC_SERGEANT",
+					"text": "当过军士/士官"
+				}
+			],
+			"contradictions": [],
+			"hypotheses": [
+				{
+					"correct": true,
+					"gate_clue_ids": [
+						"tattoo"
+					],
+					"id": "M-01",
+					"text": "锚文身是海军士兵中的常见标志"
+				},
+				{
+					"correct": true,
+					"gate_clue_ids": [
+						"beard"
+					],
+					"id": "M-02",
+					"text": "络腮胡在军人中常见"
+				},
+				{
+					"correct": true,
+					"gate_clue_ids": [
+						"posture"
+					],
+					"id": "M-03",
+					"text": "挺拔站姿是军事训练中形成的肌肉记忆"
+				},
+				{
+					"correct": true,
+					"gate_clue_ids": [
+						"manner"
+					],
+					"id": "M-04",
+					"text": "发号施令中形成的气度"
+				}
+			]
+		},
+		"chain_id": "",
+		"last_branch": {},
+		"last_stars": {
+			"insight": 1,
+			"observation": 3,
+			"reasoning": 1
+		},
+		"practice_mode": true,
+		"source": "",
+		"wall_state": {
+			"associated": [
+				"manner",
+				"posture",
+				"tattoo",
+				"beard"
+			],
+			"battlefield": {
+				"M-01": 0,
+				"M-02": 0,
+				"M-03": 0,
+				"M-04": 0
+			},
+			"doubt_book": [],
+			"graph_deleted_nodes": [],
+			"graph_deleted_target": {},
+			"graph_derived_conclusions": [
+				{
+					"hid": "M-04",
+					"id": "CL1-01",
+					"text": "在海军中当兵"
+				},
+				{
+					"hid": "M-02",
+					"id": "CL1-02",
+					"text": "当过军士/士官"
+				}
+			],
+			"graph_edited_texts": {},
+			"graph_focus": "NPC_MES",
+			"graph_folded_nodes": {},
+			"graph_manual_nodes": [
+				"conclusion_CL1-02"
+			],
+			"graph_node_offsets": {},
+			"graph_node_positions": {
+				"beard": "(1100.029, 409.4656)",
+				"manner": "(413.666, 185.6178)",
+				"posture": "(1289.592, 485.4733)",
+				"tattoo": "(1214.11, 523.2596)"
+			},
+			"graph_nodes": [
+				{
+					"data": {
+						"adopt_desc": "",
+						"candidate": true,
+						"correct": true
+					},
+					"id": "M-04",
+					"kind": "hypo",
+					"label": "发号施令中形成的气度",
+					"sub": "推断"
+				},
+				{
+					"data": {
+						"adopt_desc": "",
+						"candidate": true,
+						"correct": true
+					},
+					"id": "M-03",
+					"kind": "hypo",
+					"label": "挺拔站姿是军事训练中形成的肌肉记忆",
+					"sub": "推断"
+				},
+				{
+					"data": {
+						"adopt_desc": "",
+						"candidate": true,
+						"correct": true
+					},
+					"id": "M-01",
+					"kind": "hypo",
+					"label": "锚文身是海军士兵中的常见标志",
+					"sub": "推断"
+				},
+				{
+					"data": {
+						"adopt_desc": "",
+						"candidate": true,
+						"correct": true
+					},
+					"id": "M-02",
+					"kind": "hypo",
+					"label": "络腮胡在军人中常见",
+					"sub": "推断"
+				}
+			],
+			"graph_placed_clues": [
+				"manner",
+				"posture",
+				"tattoo",
+				"beard"
+			],
+			"graph_root_anchors": {
+				"conclusion_CL1-02": "(1241.22, 378.422)"
+			},
+			"graph_seed": 257417,
+			"graph_tutorial_seen": true,
+			"graph_view_mode": 0,
+			"milestones_lit": [],
+			"relations": [
+				{
+					"color_key": "green",
+					"dashed": false,
+					"from": "manner",
+					"kind": "support",
+					"to": "M-04"
+				},
+				{
+					"color_key": "green",
+					"dashed": false,
+					"from": "posture",
+					"kind": "support",
+					"to": "M-03"
+				},
+				{
+					"color_key": "green",
+					"dashed": false,
+					"from": "M-03",
+					"kind": "support",
+					"to": "conclusion_CL1-01"
+				},
+				{
+					"color_key": "green",
+					"dashed": false,
+					"from": "tattoo",
+					"kind": "support",
+					"to": "M-01"
+				},
+				{
+					"color_key": "green",
+					"dashed": false,
+					"from": "M-01",
+					"kind": "support",
+					"to": "conclusion_CL1-01"
+				},
+				{
+					"color_key": "green",
+					"dashed": false,
+					"from": "beard",
+					"kind": "support",
+					"to": "M-02"
+				},
+				{
+					"color_key": "green",
+					"dashed": false,
+					"from": "M-04",
+					"kind": "support",
+					"to": "conclusion_CL1-02"
+				},
+				{
+					"color_key": "green",
+					"dashed": false,
+					"from": "M-02",
+					"kind": "support",
+					"to": "conclusion_CL1-01"
+				},
+				{
+					"color_key": "gold",
+					"dashed": false,
+					"from": "conclusion_CL1-02",
+					"kind": "target",
+					"to": "NPC_MES"
+				},
+				{
+					"color_key": "gold",
+					"dashed": false,
+					"from": "conclusion_CL1-01",
+					"kind": "target",
+					"to": "NPC_MES"
+				}
+			],
+			"verdict": 1,
+			"verified": false
+		}
+	}
+}

@@ -1814,7 +1814,11 @@ func _show_export_panel(text: String) -> void:
 	edit.wrap_enabled = true
 	edit.select_all()
 	vb.add_child(edit)
-	win.close_requested.connect(func(): _export_panel = null)
+	win.close_requested.connect(func():
+		if _export_panel == win:
+			_export_panel = null
+		win.queue_free()
+	)
 
 
 func undo() -> void:

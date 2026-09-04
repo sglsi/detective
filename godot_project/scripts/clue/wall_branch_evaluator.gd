@@ -359,8 +359,8 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 		truth_edge_map[k] = e
 	var matched_truth := {}
 	for e in assigned_edges:
-		var ef: String = str(e.get("from", ""))
-		var et: String = str(e.get("to", ""))
+		var ef: String = norm(str(e.get("from", "")))
+		var et: String = norm(str(e.get("to", "")))
 		built += 1
 		var ek: String = str(e.get("kind", ""))
 		if truth_edge_map.has(_edge_key(ef, et, ek)):
