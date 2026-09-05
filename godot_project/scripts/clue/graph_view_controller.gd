@@ -326,8 +326,10 @@ func build(data: Dictionary) -> void:
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
 	# 实时从 Autoload 拉并组装一次（避免 reasoning_wall 提前 _derive 之后又被另一层兜底覆盖，
 	# 此处是最后一道）。
-	if _persons.is_empty() and ClueSystem and ClueSystem.has_method("get_collected"):
-		var live: Array = ClueSystem.get_collected("")
+	# 用 Engine.get_singleton 取 Autoload（与裸全局名等价，且 headless --script 隔离编译也能解析）。
+	var _cs := Engine.get_singleton("ClueSystem")
+	if _persons.is_empty() and _cs != null and _cs.has_method("get_collected"):
+		var live: Array = _cs.get_collected("")
 		if not live.is_empty():
 			var seen := {}
 			var out := []

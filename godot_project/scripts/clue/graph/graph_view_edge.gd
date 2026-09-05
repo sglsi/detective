@@ -204,6 +204,8 @@ func _add_edge(from: String, to: String, kind: String, color_key: String = "", d
 	if owner._cb_relations_changed.is_valid():
 		owner._cb_relations_changed.call(owner._relations.duplicate())
 	owner._persist_view()
+	# Issue 4：连边后按新结构树自动重排（仅保留玩家手动锚定的根位置，其余节点重新放射）
+	owner._layout._relayout_on_edge = true
 	owner._rebuild_graph()
 	owner._toast_msg("建立了%s的证据连线" % _rel_verb(kind))
 

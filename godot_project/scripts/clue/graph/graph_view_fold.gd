@@ -91,27 +91,20 @@ func _direct_outer_neighbors(id: String) -> Array:
 
 
 # ===================== 折叠隐藏集（XMind 式） =====================
-## 从各折叠根 BFS，收起所有圈层更深且可达的外层节点（设计 §4.1）
-## 邻接用完整 _build_adjacency（玩家关系 + 数据预设边 + 恒连 person↔conclusion）：
-## 折叠根由 _apply_fold_to_roots 按「玩家真实关系」判定（无玩家链则不产生折叠根），
-## 故此处完整邻接不会误收；对已折叠根按 XMind 语义收起其整棵外层子树。
+## 从各折叠根 BFS，收起整棵「玩家关系树」下游子树（设计 §4.1）。
+## 遍历改用 _build_parent_of 同款有向父子边（_descendants），不再用圈层深度门控——
+## 结论→结论同层边（rd 均为 1）原本会被 ring_depth<=root_rd 判定截断、收不起下游结论，
+## 现改为沿玩家真实结构树收集，折叠 C-A1 也能收起 C-A2/C-MAIN 及其叶子（Issue 1）。
 func _compute_hidden() -> Dictionary:
 	var hidden := {}
-	var adj := _build_adjacency()
 	for root in owner._folded_nodes:
 		# 叶子节点（如线索）折叠=收起自身（无更深子树可收），故把自身也计入隐藏集
 		if _is_leaf(root):
 			hidden[root] = true
 			continue
-		var root_rd := _ring_depth(_kind_of(root))
-		var stack := [root]
-		while not stack.is_empty():
-			var cur: String = stack.pop_back()
-			for nb in adj.get(cur, []):
-				if hidden.has(nb): continue
-				if _ring_depth(_kind_of(nb)) <= root_rd: continue
-				hidden[nb] = true
-				stack.append(nb)
+		# 沿玩家关系树收起整棵下游子树：结论→结论同层边也能收起（Issue 1）
+		for s in owner._layout._descendants(root):
+			hidden[s] = true
 	return hidden
 
 
@@ -246,23 +239,11 @@ func _fold_subtree_for_drag(id: String) -> void:
 	call_deferred("_apply_fold_subtree", id, subs)
 
 
-## BFS 沿连接收集本节点（kind 更深）的整棵子树 id（不含 id 自身），与 _relation_tree_layout 同款方向判据。
+## 沿玩家关系树（_build_parent_of 子图）收集本节点的整棵下游子树 id（不含 id 自身）。
+## 改用布局/拖拽共用的有向父子边遍历，不再用圈层深度门控——结论→结论同层边（rd 均为 1）
+## 也能被折叠收起其下游结论与叶子（Issue 1）。
 func _subtree_ids(id: String) -> Array:
-	var res: Array = []
-	var adj := _build_adjacency()
-	var d0: int = _ring_depth(_kind_of(id))
-	var q: Array = [id]
-	var seen := {id: true}
-	while q.size() > 0:
-		var u: String = q.pop_front()
-		for nb in adj.get(u, []):
-			if seen.has(nb): continue
-			var d1: int = _ring_depth(_kind_of(nb))
-			if d1 <= d0: continue
-			seen[nb] = true
-			res.append(nb)
-			q.append(nb)
-	return res
+	return owner._layout._descendants(id)
 
 
 ## deferred：折叠子树（含本体），重排后拖动只体现该节点本身；可经节点折叠控件展开。

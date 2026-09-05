@@ -9,6 +9,11 @@ class_name GraphViewLayout
 
 var owner: GraphViewController
 
+## 连边后请求一次「按结构全量重排」：置 true 后下一次 _compute_layout 会忽略 prev_center
+## （不沿用拖前旧位），让非锚定节点按新父子树结构重新放射，仅保留玩家手动锚定的根位置。
+## 由 graph_view_edge._add_edge 在 _rebuild_graph 前点亮，_compute_layout 内消费后归位。
+var _relayout_on_edge := false
+
 # ===================== 节点尺寸估算 =====================
 ## 节点卡片真实高度：视图已测量用视图，否则回退字符估算
 func _view_height(id: String) -> float:
@@ -186,6 +191,9 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 		# 拖前各节点实际位置（_rebuild_graph 清空 _node_center 前捕获传入）：钉位重派生以「实际位移」
 		# 平移后代，保证后代严格随动 = 拖前位 + delta，不因初次去重叠修正而漂移（2026-09-05 修复）。
 		var prev_center := pre_center if not pre_center.is_empty() else owner._node_center.duplicate()
+		if _relayout_on_edge:
+			prev_center = {}
+			_relayout_on_edge = false
 		if saved_pos.is_empty():
 			# 无钉位：一次布局即可
 			if owner._use_rank_layout:
