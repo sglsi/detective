@@ -80,7 +80,7 @@ func _show_history_panel() -> void:
 
 	var hclose := Button.new()
 	hclose.text = "✕"
-	hclose.add_theme_font_size_override("font_size", 22)
+	hclose.add_theme_font_size_override("font_size", 20)
 	hclose.add_theme_color_override("font_color", Color(0.85, 0.55, 0.55))
 	hclose.custom_minimum_size = Vector2(40, 32)
 	var hcstyle := StyleBoxFlat.new()
@@ -188,7 +188,7 @@ func _show_history_panel() -> void:
 
 	var close_btn := Button.new()
 	close_btn.text = "关闭"
-	close_btn.add_theme_font_size_override("font_size", 22)
+	close_btn.add_theme_font_size_override("font_size", 20)
 	close_btn.add_theme_color_override("font_color", owner.COL_GOLD_LIGHT)
 	close_btn.custom_minimum_size = Vector2(120, 44)
 	var cs := StyleBoxFlat.new()

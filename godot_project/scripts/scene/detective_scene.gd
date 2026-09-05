@@ -1007,7 +1007,7 @@ func _show_choice_panel(title_txt: String, options: Array) -> void:
 		var b := Button.new()
 		b.text = opt["text"]
 		b.position = Vector2(40, y); b.size = Vector2(920, 70)
-		b.add_theme_font_size_override("font_size", 22)
+		b.add_theme_font_size_override("font_size", 20)
 		b.add_theme_color_override("font_color", Color(0.92, 0.85, 0.65))
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		var bs := StyleBoxFlat.new(); bs.bg_color = Color(0.14, 0.10, 0.06, 0.95); bs.border_color = Color(0.55, 0.42, 0.20)

@@ -132,7 +132,7 @@ func _refresh_assoc_panel() -> void:
 		b.custom_minimum_size = Vector2(120, 44)
 		b.size_flags_horizontal = Control.SIZE_FILL
 		b.size_flags_vertical = Control.SIZE_FILL
-		b.add_theme_font_size_override("font_size", 22)
+		b.add_theme_font_size_override("font_size", 20)
 		b.add_theme_color_override("font_color", owner.COL_GOLD_LIGHT)
 		var s := StyleBoxFlat.new()
 		s.bg_color = Color(0.08, 0.30, 0.08, 0.95)
