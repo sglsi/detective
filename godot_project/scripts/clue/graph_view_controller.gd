@@ -81,6 +81,12 @@ var _toolbar: Control = null
 var _toast: Label = null
 var _detail_card: PanelContainer = null
 var _tutorial: Control = null
+var _tut_steps: Array = []           # 多步骤引导内容（title + 行）
+var _tut_idx: int = 0
+var _tut_title: Label = null
+var _tut_body: VBoxContainer = null
+var _tut_prev: Button = null
+var _tut_next: Button = null
 
 # === 派生缓存 ===
 var _node_views: Dictionary = {}    # id -> Control
@@ -326,8 +332,12 @@ func build(data: Dictionary) -> void:
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
 	# 实时从 Autoload 拉并组装一次（避免 reasoning_wall 提前 _derive 之后又被另一层兜底覆盖，
 	# 此处是最后一道）。
-	# 用 Engine.get_singleton 取 Autoload（与裸全局名等价，且 headless --script 隔离编译也能解析）。
-	var _cs := Engine.get_singleton("ClueSystem")
+	# 用 Engine.get_singleton 取 Autoload，但先以 Engine.has_singleton 判存在：
+	# - headless --script 下 autoload 不注册 → has_singleton 为 false，静默跳过（不编译报错、不运行报错）；
+	# - web 运行时若单例缺失（旧包/缓存）也不打 "non-existent singleton" 错误，仅跳过兜底。
+	var _cs: Object = null
+	if Engine.has_singleton("ClueSystem"):
+		_cs = Engine.get_singleton("ClueSystem")
 	if _persons.is_empty() and _cs != null and _cs.has_method("get_collected"):
 		var live: Array = _cs.get_collected("")
 		if not live.is_empty():
@@ -400,7 +410,9 @@ func build(data: Dictionary) -> void:
 	# 这里不再创建图谱自带的第二套 dock（System B），避免"两套已收集线索"冗余。
 	# _create_clue_dock()
 
-	if not _state_store.get("graph_tutorial_seen", false):
+	# 教学墙首次进入强制展示引导（缓解首次玩困惑）；非教学仅在从未看过时展示。
+	# 工具栏「?」按钮可随时重开；关闭后写入 graph_tutorial_seen，非教学墙不再自动弹。
+	if _teaching or not _state_store.get("graph_tutorial_seen", false):
 		_show_tutorial()
 
 
@@ -566,6 +578,11 @@ func _create_toolbar() -> Control:
 	var close := _mk_tool_btn("✕", "返回推理墙")
 	close.pressed.connect(_on_close_pressed)
 	row.add_child(close)
+
+	# 操作帮助（随时重开教程引导，缓解首次进入推理墙的困惑）
+	var help := _mk_tool_btn("?", "推理墙操作帮助 / 重新查看教程")
+	help.pressed.connect(_show_tutorial)
+	row.add_child(help)
 
 	_refresh_toolbar_state()
 	return bar
@@ -2190,17 +2207,60 @@ func _on_detail_delete(from_id: String, to_id: String, rkind: String, card: Cont
 
 # ===================== 首入引导 =====================
 func _show_tutorial() -> void:
+	# 多步骤引导：教学环节首次进入强制展示；非教学仅在从未看过时展示；工具栏「?」可随时重开。
+	if _tutorial and is_instance_valid(_tutorial):
+		return
+	_tut_steps = [
+		{"t": "① 欢迎：推理墙怎么用",
+		 "l": [
+			"· 中心头像 = 当前焦点人物（认知锚点）",
+			"· 距离核心由近及远：结论 → 推理链 → 推断 → 线索",
+			"· 拖动节点 = 自由调整位置（距离自动维持排序）",
+			"· 顶部可切换「人物星型 / 推理链」两种视图",
+			"· 所有操作都可一键撤销，放心试",
+		]},
+		{"t": "② 把线索拖入画布（最关键的一步）",
+		 "l": [
+			"· 屏幕左侧「已收集线索栏」列出了你勘查得到的线索",
+			"· 直接用鼠标把一条线索从左侧栏拖到画布空白处，它就成了一个节点",
+			"· 也可右键画布上的线索节点 → 选「标注给某人」直接挂到焦点人物下",
+			"· 线索不拖进来，后面的连线/推导都无从做起",
+		]},
+		{"t": "③ 建立关系连线",
+		 "l": [
+			"· 按住 Shift + 把一个节点拖到另一个节点上 = 建立证据连线（绿=支持）",
+			"· 把线索/推断拖到人物头像 = 标注它和谁有关（金色归属边）",
+			"· 连边后会自动按树结构重新排布，不用手动摆放",
+			"· 想取消？点连线后按 Delete，或 Ctrl+Z 撤销",
+		]},
+		{"t": "④ 推导推断 / 结论",
+		 "l": [
+			"· 点任意节点打开详情卡",
+			"· 线索详情卡 →「推导推断」生成推断节点并自动连线",
+			"· 推断/结论详情卡 →「推导下一层结论」可继续向下推（多层链）",
+			"· 顶部「＋」按钮也能手动添加文本框/推断",
+		]},
+		{"t": "⑤ 折叠整理 & 提交",
+		 "l": [
+			"· 节点上的「− / +N」圆圈 = 折叠/展开其下整棵子树（叶子可收起自身）",
+			"· 结论推导出的下一层结论，折叠上层结论同样能收起整条链",
+			"· 推理成型后点右上「✓ 提交验证」正式判定并推进剧情",
+			"· 卡住了？点工具栏「?」随时重看本教程",
+		]},
+	]
+	_tut_idx = 0
 	_tutorial = Control.new()
 	_tutorial.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_tutorial.z_index = 30
 	_tutorial.mouse_filter = Control.MOUSE_FILTER_STOP
 	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.6)
+	overlay.color = Color(0, 0, 0, 0.62)
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_tutorial.add_child(overlay)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(880, 520)
-	panel.position = (get_viewport_rect().size - Vector2(560, 320)) / 2
+	panel.custom_minimum_size = Vector2(920, 560)
+	var _vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1280, 720)
+	panel.position = (_vp_size - Vector2(560, 320)) / 2
 	var ps := StyleBoxFlat.new()
 	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
 	ps.border_color = COL_GOLD
@@ -2215,42 +2275,63 @@ func _show_tutorial() -> void:
 	margin.add_theme_constant_override("margin_bottom", 20)
 	panel.add_child(margin)
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 12)
+	vb.add_theme_constant_override("separation", 14)
 	margin.add_child(vb)
-	var t := Label.new()
-	t.text = "推理墙 · 图谱视图"
-	t.add_theme_font_size_override("font_size", 40)
-	t.add_theme_color_override("font_color", COL_GOLD)
-	vb.add_child(t)
-	var lines := [
-		"· 中心头像 = 当前焦点人物（认知锚点）",
-		"· 距离核心由近及远：结论 → 推理链 → 推断 → 线索",
-		"· 拖动节点 = 自由调整位置（距离自动维持排序）",
-		"· 按住 Shift + 拖到另一节点 = 建立证据连线",
-		"· 把线索拖到人物头像（或右键线索）= 标注它和谁有关",
-		"· 顶部可切换「人物星型 / 推理链」两种视图",
-		"· 所有操作都可一键撤销，放心试",
-	]
-	for l in lines:
+	_tut_title = Label.new()
+	_tut_title.add_theme_font_size_override("font_size", 38)
+	_tut_title.add_theme_color_override("font_color", COL_GOLD)
+	vb.add_child(_tut_title)
+	_tut_body = VBoxContainer.new()
+	_tut_body.add_theme_constant_override("separation", 10)
+	vb.add_child(_tut_body)
+	var nav := HBoxContainer.new()
+	nav.add_theme_constant_override("separation", 16)
+	_tut_prev = Button.new(); _tut_prev.text = "上一步"
+	_tut_next = Button.new(); _tut_next.text = "下一步"
+	var skip := Button.new(); skip.text = "跳过 / 明白了"
+	_tut_prev.pressed.connect(_tut_goto.bind(-1))
+	_tut_next.pressed.connect(_tut_goto.bind(1))
+	skip.pressed.connect(_close_tutorial)
+	nav.add_child(_tut_prev); nav.add_child(_tut_next); nav.add_child(skip)
+	vb.add_child(nav)
+	_tut_render()
+	add_child(_tutorial)
+
+
+func _tut_render() -> void:
+	if _tut_title == null or _tut_idx < 0 or _tut_idx >= _tut_steps.size():
+		return
+	var step: Dictionary = _tut_steps[_tut_idx]
+	_tut_title.text = step.get("t", "")
+	# 清空旧行
+	for c in _tut_body.get_children():
+		c.queue_free()
+	for l in step.get("l", []):
 		var lb := Label.new()
-		lb.text = l
-		lb.add_theme_font_size_override("font_size", 28)
+		lb.text = "· " + l if not l.begins_with("·") else l
+		lb.add_theme_font_size_override("font_size", 27)
 		lb.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 		lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		vb.add_child(lb)
-	var ok := Button.new()
-	ok.text = "明白了"
-	ok.add_theme_font_size_override("font_size", 30)
-	ok.add_theme_color_override("font_color", COL_GOLD)
-	ok.pressed.connect(_close_tutorial)
-	vb.add_child(ok)
-	add_child(_tutorial)
+		_tut_body.add_child(lb)
+	_tut_prev.disabled = (_tut_idx <= 0)
+	_tut_next.text = "下一步" if _tut_idx < _tut_steps.size() - 1 else "完成"
+	_tut_next.disabled = false
+
+
+func _tut_goto(delta: int) -> void:
+	if delta > 0 and _tut_idx >= _tut_steps.size() - 1:
+		# 已在最后一步，点「完成」即关闭（最后一步内容会先渲染，按钮显示「完成」）
+		_close_tutorial()
+		return
+	_tut_idx = clampi(_tut_idx + delta, 0, _tut_steps.size() - 1)
+	_tut_render()
 
 
 func _close_tutorial() -> void:
 	if _tutorial and is_instance_valid(_tutorial):
 		_tutorial.queue_free()
 		_tutorial = null
+	_tut_title = null; _tut_body = null; _tut_prev = null; _tut_next = null
 	_state_store["graph_tutorial_seen"] = true
 	_persist_view()
 
@@ -2821,10 +2902,12 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 					break
 			var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "conclusion", _node_center)
 			_node_center[nid] = pos
-	# 玩家从推断推导结论＝明确选择「推断→结论」支撑关系，绘制该 support 绿边（属玩家连线，非系统自动）。
-	# 仅补「本条推导」的边（hid→结论节点）；其余 gate 推断→同一结论的边由玩家按需手动建立。
-	if hid != "" and not any_edge(hid, nid) and not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == nid):
-		_edge._add_edge(hid, nid, "support", "green", false)
+	# 玩家从推断/结论推导下一层结论＝明确选择「源→新结论」支撑关系，绘制该 support 绿边（属玩家连线，非系统自动）。
+	# 边方向：from=子(新结论 nid)、to=父(源 hid) —— 与 _build_parent_of「from=子/to=父」约定一致。
+	# 结论→结论（rd 同为1）时 _add_edge 不交换方向，故必须此处显式传 (nid, hid)，否则源结论会误成子节点、
+	# 折叠源结论收不起下游（Issue 1 根因）；推断→结论（rd2→rd1）经 _add_edge 内部 rd 比较自动校正为同样方向，行为不变。
+	if hid != "" and not any_edge(nid, hid) and not _relations.any(func(r): return r.get("from", "") == nid and r.get("to", "") == hid):
+		_edge._add_edge(nid, hid, "support", "green", false)
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()

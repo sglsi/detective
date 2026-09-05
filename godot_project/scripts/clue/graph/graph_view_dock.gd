@@ -460,8 +460,11 @@ func _open_conclusion_popup(hid: String) -> void:
 			seed = int(Time.get_ticks_msec()) + owner._graph_nodes.size()
 			owner._state_store["mislead_seed"] = seed
 		var chance: float = 0.0
-		if DifficultyManager != null:
-			chance = DifficultyManager.mislead_chance
+		var _dm = null
+		if Engine.has_singleton("DifficultyManager"):
+			_dm = Engine.get_singleton("DifficultyManager")
+		if _dm != null:
+			chance = _dm.mislead_chance
 		var misleads: Array = []
 		for c in cons:
 			if str(c.get("kind", "true")) != "true":
