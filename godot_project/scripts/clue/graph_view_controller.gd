@@ -81,6 +81,12 @@ var _toolbar: Control = null
 var _toast: Label = null
 var _detail_card: PanelContainer = null
 var _tutorial: Control = null
+var _tut_steps: Array = []           # 多步骤引导内容（title + 行）
+var _tut_idx: int = 0
+var _tut_title: Label = null
+var _tut_body: VBoxContainer = null
+var _tut_prev: Button = null
+var _tut_next: Button = null
 
 # === 派生缓存 ===
 var _node_views: Dictionary = {}    # id -> Control
@@ -115,6 +121,8 @@ var _drag_kind := ""
 var _drag_mode := ""              # "move" 或 "edge"（_drag_kind 是关系 kind support/oppose）
 var _drag_prestart_pos: Vector2 = Vector2.ZERO   # 拖动起点（算子树平移 delta）
 var _drag_subtree: Array = []                         # 拖动节点的整棵子树（实时随拖平移，需求3）
+var _post_drag := false             # 2026-09-05：拖拽松手触发的 rebuild 标记——跳过全局去重叠，
+                                     # 否则被拖子树碰撞到的上游节点会被去重叠推走，玩家感知为「自动排列」（用户报 bug）
 var _drag_offset := Vector2.ZERO   # move 模式专用，鼠标按下时在画布内相对节点 top-left 的偏移
 var _drag_start := Vector2.ZERO    # 鼠标按下的全局位置（move 抖动阈值用）
 var _drag_preview: Control = null
@@ -324,8 +332,14 @@ func build(data: Dictionary) -> void:
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
 	# 实时从 Autoload 拉并组装一次（避免 reasoning_wall 提前 _derive 之后又被另一层兜底覆盖，
 	# 此处是最后一道）。
-	if _persons.is_empty() and ClueSystem and ClueSystem.has_method("get_collected"):
-		var live: Array = ClueSystem.get_collected("")
+	# 用 Engine.get_singleton 取 Autoload，但先以 Engine.has_singleton 判存在：
+	# - headless --script 下 autoload 不注册 → has_singleton 为 false，静默跳过（不编译报错、不运行报错）；
+	# - web 运行时若单例缺失（旧包/缓存）也不打 "non-existent singleton" 错误，仅跳过兜底。
+	var _cs: Object = null
+	if Engine.has_singleton("ClueSystem"):
+		_cs = Engine.get_singleton("ClueSystem")
+	if _persons.is_empty() and _cs != null and _cs.has_method("get_collected"):
+		var live: Array = _cs.get_collected("")
 		if not live.is_empty():
 			var seen := {}
 			var out := []
@@ -396,7 +410,9 @@ func build(data: Dictionary) -> void:
 	# 这里不再创建图谱自带的第二套 dock（System B），避免"两套已收集线索"冗余。
 	# _create_clue_dock()
 
-	if not _state_store.get("graph_tutorial_seen", false):
+	# 教学墙首次进入强制展示引导（缓解首次玩困惑）；非教学仅在从未看过时展示。
+	# 工具栏「?」按钮可随时重开；关闭后写入 graph_tutorial_seen，非教学墙不再自动弹。
+	if _teaching or not _state_store.get("graph_tutorial_seen", false):
 		_show_tutorial()
 
 
@@ -563,6 +579,11 @@ func _create_toolbar() -> Control:
 	close.pressed.connect(_on_close_pressed)
 	row.add_child(close)
 
+	# 操作帮助（随时重开教程引导，缓解首次进入推理墙的困惑）
+	var help := _mk_tool_btn("?", "推理墙操作帮助 / 重新查看教程")
+	help.pressed.connect(_show_tutorial)
+	row.add_child(help)
+
 	_refresh_toolbar_state()
 	return bar
 
@@ -654,6 +675,9 @@ func _rebuild_graph() -> void:
 		if is_instance_valid(n): n.queue_free()
 	for c in _fold_controls.values():
 		if is_instance_valid(c): c.queue_free()
+	# 2026-09-05：清空 _node_center 前捕获「拖前实际位置」——下一行会清空它，
+	# 但钉位重派生需要拖前位来平移后代（否则子树随根重排回弹）。
+	var _pre_center := _node_center.duplicate()
 	_node_views = {}; _node_center = {}; _node_kind = {}; _node_data = {}
 	_fold_controls = {}
 	_clear_drag_preview()
@@ -674,7 +698,7 @@ func _rebuild_graph() -> void:
 		for nd in nodes:
 			pos[nd.id] = _all_positions.get(nd.id, Vector2.ZERO)
 	else:
-		pos = _layout._compute_layout(nodes)
+		pos = _layout._compute_layout(nodes, _pre_center)
 		# 合并可见节点位置进全局缓存（隐藏节点的位置由 _all_positions 保留）。
 		# ⚠️ 仅模式 C 合并：模式 B 是垂直分层的临时聚焦视图，若写入会污染 _all_positions，
 		# 导致切回星型/重进时个别节点位置错乱回初始（问题2）。
@@ -693,9 +717,13 @@ func _rebuild_graph() -> void:
 	# 同列纵向去重叠：按真实卡片高度硬保证相邻卡片上下边距 ≥15px（不依赖布局/估算，避免任何覆盖）
 	# 跨场景累积改造（2026-08-29）：默认星形布局在高密度「多孤立根并入主根」时也会产生径向重叠，
 	# 全局跨列去重叠必须同样执行以保证「零重叠」硬要求；仅当 AABB 真实相交才下移，玩家自由拖动不推挤。
-	if _use_rank_layout:
-		_layout._apply_column_overlap_fix()
-	_layout._apply_global_overlap_fix()
+	# 2026-09-05：拖拽松手引发的 rebuild 跳过去重叠——被拖子树已按玩家落点刚性定位，其碰撞到的
+	# 上游节点若被推走会表现为「自动排列」（用户报 bug）；仅「非拖拽」rebuild（开墙/自动排列/折叠）才去重叠。
+	if not _post_drag:
+		if _use_rank_layout:
+			_layout._apply_column_overlap_fix()
+		_layout._apply_global_overlap_fix()
+	_post_drag = false
 	# 创建连线出口折叠控件（XMind 式 −/+N）。设计：圆圈仅当该节点「有关系、有下级」时显示，
 	# 即高一级节点下确实有低一级节点才在其上画圈；无下级的叶子不建，避免任何线索常驻圆圈。
 	for nd in nodes:
@@ -1338,6 +1366,7 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 	_fold._sync_fold_controls_positions()
 	# 第8节改造（A①+B①）：移动/建关系后整树按星形重排——根锚点保留、子节点回派生位
 	if moved:
+		_post_drag = true   # 拖拽引发的 rebuild：去重叠不再推走任何非被拖子树节点（见 _rebuild_graph）
 		_rebuild_graph()
 	_redraw_all()
 
@@ -2079,6 +2108,14 @@ func _show_detail(id: String, kind: String) -> void:
 		"conclusion":
 			title.text = "当前结论：" + _conclusion_text(_conclusion_con_id(id))
 			body.text = "根据你关联的证据与连线实时推算。点「提交验证」可正式结案。"
+			if _state == State.EDITABLE:
+				# 通用推导入口：从结论再推下一层结论（启用 N 段推理链，解场景一阶段2/3不可达）。
+				# EASY/NORMAL 候选窗列出可见预设结论；HARD 候选窗为空、仅留「✍ 自定义结论」由玩家自写。
+				var nxt_btn := Button.new()
+				nxt_btn.text = "推导下一层结论 ▾"
+				nxt_btn.add_theme_font_size_override("font_size", 26)
+				nxt_btn.pressed.connect(func(): _open_conclusion_choice(id))
+				vb.add_child(nxt_btn)
 		"chain":
 			title.text = "推理链：" + _node_data.get(id, {}).get("label", id)
 			body.text = "点此切换到推理链聚焦视图。"
@@ -2170,17 +2207,60 @@ func _on_detail_delete(from_id: String, to_id: String, rkind: String, card: Cont
 
 # ===================== 首入引导 =====================
 func _show_tutorial() -> void:
+	# 多步骤引导：教学环节首次进入强制展示；非教学仅在从未看过时展示；工具栏「?」可随时重开。
+	if _tutorial and is_instance_valid(_tutorial):
+		return
+	_tut_steps = [
+		{"t": "① 欢迎：推理墙怎么用",
+		 "l": [
+			"· 中心头像 = 当前焦点人物（认知锚点）",
+			"· 距离核心由近及远：结论 → 推理链 → 推断 → 线索",
+			"· 拖动节点 = 自由调整位置（距离自动维持排序）",
+			"· 顶部可切换「人物星型 / 推理链」两种视图",
+			"· 所有操作都可一键撤销，放心试",
+		]},
+		{"t": "② 把线索拖入画布（最关键的一步）",
+		 "l": [
+			"· 屏幕左侧「已收集线索栏」列出了你勘查得到的线索",
+			"· 直接用鼠标把一条线索从左侧栏拖到画布空白处，它就成了一个节点",
+			"· 也可右键画布上的线索节点 → 选「标注给某人」直接挂到焦点人物下",
+			"· 线索不拖进来，后面的连线/推导都无从做起",
+		]},
+		{"t": "③ 建立关系连线",
+		 "l": [
+			"· 按住 Shift + 把一个节点拖到另一个节点上 = 建立证据连线（绿=支持）",
+			"· 把线索/推断拖到人物头像 = 标注它和谁有关（金色归属边）",
+			"· 连边后会自动按树结构重新排布，不用手动摆放",
+			"· 想取消？点连线后按 Delete，或 Ctrl+Z 撤销",
+		]},
+		{"t": "④ 推导推断 / 结论",
+		 "l": [
+			"· 点任意节点打开详情卡",
+			"· 线索详情卡 →「推导推断」生成推断节点并自动连线",
+			"· 推断/结论详情卡 →「推导下一层结论」可继续向下推（多层链）",
+			"· 顶部「＋」按钮也能手动添加文本框/推断",
+		]},
+		{"t": "⑤ 折叠整理 & 提交",
+		 "l": [
+			"· 节点上的「− / +N」圆圈 = 折叠/展开其下整棵子树（叶子可收起自身）",
+			"· 结论推导出的下一层结论，折叠上层结论同样能收起整条链",
+			"· 推理成型后点右上「✓ 提交验证」正式判定并推进剧情",
+			"· 卡住了？点工具栏「?」随时重看本教程",
+		]},
+	]
+	_tut_idx = 0
 	_tutorial = Control.new()
 	_tutorial.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_tutorial.z_index = 30
 	_tutorial.mouse_filter = Control.MOUSE_FILTER_STOP
 	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.6)
+	overlay.color = Color(0, 0, 0, 0.62)
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_tutorial.add_child(overlay)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(880, 520)
-	panel.position = (get_viewport_rect().size - Vector2(560, 320)) / 2
+	panel.custom_minimum_size = Vector2(920, 560)
+	var _vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1280, 720)
+	panel.position = (_vp_size - Vector2(560, 320)) / 2
 	var ps := StyleBoxFlat.new()
 	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
 	ps.border_color = COL_GOLD
@@ -2195,42 +2275,63 @@ func _show_tutorial() -> void:
 	margin.add_theme_constant_override("margin_bottom", 20)
 	panel.add_child(margin)
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 12)
+	vb.add_theme_constant_override("separation", 14)
 	margin.add_child(vb)
-	var t := Label.new()
-	t.text = "推理墙 · 图谱视图"
-	t.add_theme_font_size_override("font_size", 40)
-	t.add_theme_color_override("font_color", COL_GOLD)
-	vb.add_child(t)
-	var lines := [
-		"· 中心头像 = 当前焦点人物（认知锚点）",
-		"· 距离核心由近及远：结论 → 推理链 → 推断 → 线索",
-		"· 拖动节点 = 自由调整位置（距离自动维持排序）",
-		"· 按住 Shift + 拖到另一节点 = 建立证据连线",
-		"· 把线索拖到人物头像（或右键线索）= 标注它和谁有关",
-		"· 顶部可切换「人物星型 / 推理链」两种视图",
-		"· 所有操作都可一键撤销，放心试",
-	]
-	for l in lines:
+	_tut_title = Label.new()
+	_tut_title.add_theme_font_size_override("font_size", 38)
+	_tut_title.add_theme_color_override("font_color", COL_GOLD)
+	vb.add_child(_tut_title)
+	_tut_body = VBoxContainer.new()
+	_tut_body.add_theme_constant_override("separation", 10)
+	vb.add_child(_tut_body)
+	var nav := HBoxContainer.new()
+	nav.add_theme_constant_override("separation", 16)
+	_tut_prev = Button.new(); _tut_prev.text = "上一步"
+	_tut_next = Button.new(); _tut_next.text = "下一步"
+	var skip := Button.new(); skip.text = "跳过 / 明白了"
+	_tut_prev.pressed.connect(_tut_goto.bind(-1))
+	_tut_next.pressed.connect(_tut_goto.bind(1))
+	skip.pressed.connect(_close_tutorial)
+	nav.add_child(_tut_prev); nav.add_child(_tut_next); nav.add_child(skip)
+	vb.add_child(nav)
+	_tut_render()
+	add_child(_tutorial)
+
+
+func _tut_render() -> void:
+	if _tut_title == null or _tut_idx < 0 or _tut_idx >= _tut_steps.size():
+		return
+	var step: Dictionary = _tut_steps[_tut_idx]
+	_tut_title.text = step.get("t", "")
+	# 清空旧行
+	for c in _tut_body.get_children():
+		c.queue_free()
+	for l in step.get("l", []):
 		var lb := Label.new()
-		lb.text = l
-		lb.add_theme_font_size_override("font_size", 28)
+		lb.text = "· " + l if not l.begins_with("·") else l
+		lb.add_theme_font_size_override("font_size", 27)
 		lb.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 		lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		vb.add_child(lb)
-	var ok := Button.new()
-	ok.text = "明白了"
-	ok.add_theme_font_size_override("font_size", 30)
-	ok.add_theme_color_override("font_color", COL_GOLD)
-	ok.pressed.connect(_close_tutorial)
-	vb.add_child(ok)
-	add_child(_tutorial)
+		_tut_body.add_child(lb)
+	_tut_prev.disabled = (_tut_idx <= 0)
+	_tut_next.text = "下一步" if _tut_idx < _tut_steps.size() - 1 else "完成"
+	_tut_next.disabled = false
+
+
+func _tut_goto(delta: int) -> void:
+	if delta > 0 and _tut_idx >= _tut_steps.size() - 1:
+		# 已在最后一步，点「完成」即关闭（最后一步内容会先渲染，按钮显示「完成」）
+		_close_tutorial()
+		return
+	_tut_idx = clampi(_tut_idx + delta, 0, _tut_steps.size() - 1)
+	_tut_render()
 
 
 func _close_tutorial() -> void:
 	if _tutorial and is_instance_valid(_tutorial):
 		_tutorial.queue_free()
 		_tutorial = null
+	_tut_title = null; _tut_body = null; _tut_prev = null; _tut_next = null
 	_state_store["graph_tutorial_seen"] = true
 	_persist_view()
 
@@ -2419,7 +2520,99 @@ func snapshot_player_work() -> Dictionary:
 	var cons: Array = []
 	for dc in _derived_conclusions:
 		cons.append(dc.duplicate(true) if dc is Dictionary else {"id": str(dc)})
+
+	# ── 困难模式自由文本结论别名 ──────────────────────────────────────
+	# 玩家自定义结论（custom_N）在验证时与正确推理链的结论做方向性比对：命中则别名成
+	# conclusion_X，使布局树/评分引擎/边判定全部复用现有逻辑（与预设结论零分叉）。
+	# 判定规则：同 dir（affirm/negate）+ 文本/subject/object 命中（见 _match_conclusion）。
+	var custom_alias: Dictionary = {}      # "custom_N" -> "conclusion_X"
+	for dc in _derived_conclusions:
+		var cid: String = str(dc.get("id", ""))
+		if not cid.begins_with("custom"):
+			continue
+		var ctext: String = str(dc.get("text", ""))
+		var cdir: String = str(dc.get("dir", _derive_dir(ctext, [])))
+		var matched: String = _match_conclusion(ctext, cdir)
+		if matched != "":
+			custom_alias[cid] = "conclusion_" + matched
+	if not custom_alias.is_empty():
+		var cons2: Array = []
+		for dc in cons:
+			var cid2: String = str(dc.get("id", ""))
+			if custom_alias.has(cid2):
+				var e: Dictionary = dc.duplicate(true)
+				e["id"] = custom_alias[cid2]
+				e["matched_from"] = cid2
+				cons2.append(e)
+			else:
+				cons2.append(dc)
+		cons = cons2
+		var rels2: Array = []
+		for r in rels:
+			var rf: String = str(r.get("from", ""))
+			var rt: String = str(r.get("to", ""))
+			if custom_alias.has(rf):
+				rf = custom_alias[rf]
+			if custom_alias.has(rt):
+				rt = custom_alias[rt]
+			var e2: Dictionary = r.duplicate(true)
+			e2["from"] = rf
+			e2["to"] = rt
+			rels2.append(e2)
+		rels = rels2
+
 	return {"relations": rels, "graph_nodes": nodes, "derived_conclusions": cons}
+
+
+## 困难模式自定义结论匹配：玩家自由文本 → 真相结论 id（方向性一致才判对）。
+## 命中阈值 0.5；优先 match_keys（作者写的可接受表述），回退 subject/object/结论文本 关键词重叠。
+const _CONCL_MATCH_THRESHOLD := 0.5
+func _match_conclusion(text: String, dir_hint: String = "") -> String:
+	var t: String = text.strip_edges().to_lower()
+	if t == "":
+		return ""
+	var best := ""
+	var best_score := 0.0
+	for c in _hypo_current.get("conclusions", []):
+		var cid: String = str(c.get("id", ""))
+		if cid == "":
+			continue
+		var cdir: String = str(c.get("dir", "affirm"))
+		if dir_hint != "" and dir_hint != cdir:
+			continue
+		var s: float = _conclusion_text_match(t, c)
+		if s > best_score:
+			best_score = s
+			best = cid
+	return best if best_score >= _CONCL_MATCH_THRESHOLD else ""
+
+
+func _conclusion_text_match(t: String, c: Dictionary) -> float:
+	var best := 0.0
+	for k in c.get("match_keys", []):
+		var kk: String = str(k).to_lower()
+		if kk == "":
+			continue
+		if t == kk:
+			return 1.0
+		if t.find(kk) >= 0 or kk.find(t) >= 0:
+			best = maxf(best, 0.8)
+	var total := 0
+	var hits := 0
+	for ssub in c.get("subject", []):
+		total += 1
+		if t.find(str(ssub).to_lower()) >= 0:
+			hits += 1
+	for sobj in c.get("object", []):
+		total += 1
+		if t.find(str(sobj).to_lower()) >= 0:
+			hits += 1
+	if total > 0:
+		best = maxf(best, float(hits) / float(total))
+	var ctext: String = str(c.get("text", "")).to_lower()
+	if ctext != "" and (t.find(ctext) >= 0 or ctext.find(t) >= 0):
+		best = maxf(best, 0.7)
+	return best
 
 
 func _node_label(id: String) -> String:
@@ -2601,7 +2794,8 @@ func _derive_hypo(cid: String, hid: String) -> void:
 		_ui_toast("未找到推断定义：" + hid)
 		return
 	adopt_candidate(hd, false, cid)   # 正向推导：不自动连带该推断的其他 gate 线索（玩家逐个拖线索驱动）；锚定到来源线索 cid 落点防叠加
-	# 线索不在 gate_clue_ids（仅 relation_tags 命中）时补连 support 边
+	# 玩家从线索推导推断＝明确选择「线索→推断」支撑关系，绘制该 support 绿边（属玩家连线，非系统自动）。
+	# 仅补「本条推导」的边；其余 gate 线索→该推断的边由玩家按需手动建立（_sync_conclusion_gate_edges 已停用）。
 	if not any_edge(cid, hid) and not _relations.any(func(r): return r.get("from", "") == cid and r.get("to", "") == hid):
 		_edge._add_edge(cid, hid, "support", "green", false)
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
@@ -2708,13 +2902,12 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 					break
 			var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "conclusion", _node_center)
 			_node_center[nid] = pos
-	# 确保「触发推断 → 结论」support 边（玩家关系，受 _edge_list 绘制）
-	if hid != "" and _node_center.has(hid) and not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == nid):
-		_edge._add_edge(hid, nid, "support", "green", false)
-	# 方案B：结论可由多个推断/结论共推（gate_hypo_ids）。每次推导后同步所有已推导结论的 gate 边，
-	# 使「结论链」随推断逐步上墙自动闭合（如 C-MAIN 由 W-A1+W-B1+W-C3 共推）。
-	# 教学墙（_teaching）不自动补：玩家从某推断推导结论时只建该「推断→结论」一条边，
-	# 其余 gate 推断→同一结论的边由玩家按需手动建立（避免「选一条却画出多条」）。
+	# 玩家从推断/结论推导下一层结论＝明确选择「源→新结论」支撑关系，绘制该 support 绿边（属玩家连线，非系统自动）。
+	# 边方向：from=子(新结论 nid)、to=父(源 hid) —— 与 _build_parent_of「from=子/to=父」约定一致。
+	# 结论→结论（rd 同为1）时 _add_edge 不交换方向，故必须此处显式传 (nid, hid)，否则源结论会误成子节点、
+	# 折叠源结论收不起下游（Issue 1 根因）；推断→结论（rd2→rd1）经 _add_edge 内部 rd 比较自动校正为同样方向，行为不变。
+	if hid != "" and not any_edge(nid, hid) and not _relations.any(func(r): return r.get("from", "") == nid and r.get("to", "") == hid):
+		_edge._add_edge(nid, hid, "support", "green", false)
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
@@ -2736,17 +2929,11 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 ## 方案B：同步所有「已推导结论」的 gate 推断→结论 support 边。
 ## 结论定义含 gate_hypo_ids（多个推断/结论共推）时，凡已上墙的 gate 节点都补一条 support 边，
 ## 使结论链随推断逐步到位自动闭合；结论尚未推导（节点未生成）或某 gate 尚未上墙时不补，待其到位后再次同步。
+## 2026-09-05：改为 no-op —— 用户明确要求「推理墙上只能有玩家选择的连线」，
+## 系统自动补的 gate→结论 support 绿边属于「系统擅自添加的连线」，一律不再自动生成；
+## 玩家若想连，自行拖推断到结论即可（走正常建边路径）。
 func _sync_conclusion_gate_edges() -> void:
-	for _dc in _derived_conclusions:
-		var _cid: String = str(_dc.get("id", ""))
-		var _nid: String = _conclusion_node_id(_cid)
-		if not _node_center.has(_nid):
-			continue   # 结论节点尚未生成（玩家未推导该结论），跳过
-		var _cdef: Dictionary = _conclusion_def(_cid)
-		for _g in _cdef.get("gate_hypo_ids", []):
-			var _gid: String = str(_g)
-			if _node_center.has(_gid) and not _relations.any(func(r): return r.get("from", "") == _gid and r.get("to", "") == _nid):
-				_edge._add_edge(_gid, _nid, "support", "green", false)
+	return
 
 
 ## 推断详情卡入口：打开结论候选窗（gate_hypo_ids 含该推断的结论）

@@ -125,11 +125,15 @@ func _derive_persons() -> Array:
 	var out := []
 	# 兜底（修根因 2026-08-19 v4）：如果调用方传入的 _clues 为空但 ClueSystem 实际有已收集线索，
 	# 实时拉一次（在 easy 模式下对话可能提前结束导致 _clues 没被填到；这层兜底保证人物中心至少能渲染）。
-	if owner._clues.is_empty() and ClueSystem and ClueSystem.has_method("get_collected"):
-		var live: Array = ClueSystem.get_collected("")
-		if not live.is_empty():
-			print("[reasoning_wall] 兜底从 ClueSystem.get_collected 拉取 %d 条线索" % live.size())
-			owner._clues = live
+	# 用 Engine.has_singleton 先判存在：headless --script 与 web 旧包下 ClueSystem 可能未注册，
+	# 避免 "Failed to retrieve non-existent singleton 'ClueSystem'" 报错（仅静默跳过兜底）。
+	if owner._clues.is_empty() and Engine.has_singleton("ClueSystem"):
+		var _cs := Engine.get_singleton("ClueSystem")
+		if _cs != null and _cs.has_method("get_collected"):
+			var live: Array = _cs.get_collected("")
+			if not live.is_empty():
+				print("[reasoning_wall] 兜底从 ClueSystem.get_collected 拉取 %d 条线索" % live.size())
+				owner._clues = live
 	for c in owner._clues:
 		for p in c.get("related_npcs", []):
 			if not seen.has(p):
