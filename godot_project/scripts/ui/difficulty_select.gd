@@ -11,6 +11,14 @@ signal difficulty_selected(difficulty: int)
 @onready var hard_btn: Button = $Panel/HardBtn
 
 func _ready() -> void:
+	for b: Button in [easy_btn, normal_btn, hard_btn]:
+		b.add_theme_font_size_override("font_size", 22)
+		b.add_theme_constant_override("icon_max_width", 34)
+		b.add_theme_constant_override("h_separation", 10)
+	easy_btn.icon = load("res://assets/ui/icons/heart.png")
+	normal_btn.icon = load("res://assets/ui/icons/compass.png")
+	hard_btn.icon = load("res://assets/ui/icons/bell.png")
+
 	easy_btn.pressed.connect(_on_easy_selected)
 	normal_btn.pressed.connect(_on_normal_selected)
 	hard_btn.pressed.connect(_on_hard_selected)
