@@ -2089,6 +2089,14 @@ func _show_detail(id: String, kind: String) -> void:
 		"conclusion":
 			title.text = "当前结论：" + _conclusion_text(_conclusion_con_id(id))
 			body.text = "根据你关联的证据与连线实时推算。点「提交验证」可正式结案。"
+			if _state == State.EDITABLE:
+				# 通用推导入口：从结论再推下一层结论（启用 N 段推理链，解场景一阶段2/3不可达）。
+				# EASY/NORMAL 候选窗列出可见预设结论；HARD 候选窗为空、仅留「✍ 自定义结论」由玩家自写。
+				var nxt_btn := Button.new()
+				nxt_btn.text = "推导下一层结论 ▾"
+				nxt_btn.add_theme_font_size_override("font_size", 26)
+				nxt_btn.pressed.connect(func(): _open_conclusion_choice(id))
+				vb.add_child(nxt_btn)
 		"chain":
 			title.text = "推理链：" + _node_data.get(id, {}).get("label", id)
 			body.text = "点此切换到推理链聚焦视图。"
@@ -2429,7 +2437,99 @@ func snapshot_player_work() -> Dictionary:
 	var cons: Array = []
 	for dc in _derived_conclusions:
 		cons.append(dc.duplicate(true) if dc is Dictionary else {"id": str(dc)})
+
+	# ── 困难模式自由文本结论别名 ──────────────────────────────────────
+	# 玩家自定义结论（custom_N）在验证时与正确推理链的结论做方向性比对：命中则别名成
+	# conclusion_X，使布局树/评分引擎/边判定全部复用现有逻辑（与预设结论零分叉）。
+	# 判定规则：同 dir（affirm/negate）+ 文本/subject/object 命中（见 _match_conclusion）。
+	var custom_alias: Dictionary = {}      # "custom_N" -> "conclusion_X"
+	for dc in _derived_conclusions:
+		var cid: String = str(dc.get("id", ""))
+		if not cid.begins_with("custom"):
+			continue
+		var ctext: String = str(dc.get("text", ""))
+		var cdir: String = str(dc.get("dir", _derive_dir(ctext, [])))
+		var matched: String = _match_conclusion(ctext, cdir)
+		if matched != "":
+			custom_alias[cid] = "conclusion_" + matched
+	if not custom_alias.is_empty():
+		var cons2: Array = []
+		for dc in cons:
+			var cid2: String = str(dc.get("id", ""))
+			if custom_alias.has(cid2):
+				var e: Dictionary = dc.duplicate(true)
+				e["id"] = custom_alias[cid2]
+				e["matched_from"] = cid2
+				cons2.append(e)
+			else:
+				cons2.append(dc)
+		cons = cons2
+		var rels2: Array = []
+		for r in rels:
+			var rf: String = str(r.get("from", ""))
+			var rt: String = str(r.get("to", ""))
+			if custom_alias.has(rf):
+				rf = custom_alias[rf]
+			if custom_alias.has(rt):
+				rt = custom_alias[rt]
+			var e2: Dictionary = r.duplicate(true)
+			e2["from"] = rf
+			e2["to"] = rt
+			rels2.append(e2)
+		rels = rels2
+
 	return {"relations": rels, "graph_nodes": nodes, "derived_conclusions": cons}
+
+
+## 困难模式自定义结论匹配：玩家自由文本 → 真相结论 id（方向性一致才判对）。
+## 命中阈值 0.5；优先 match_keys（作者写的可接受表述），回退 subject/object/结论文本 关键词重叠。
+const _CONCL_MATCH_THRESHOLD := 0.5
+func _match_conclusion(text: String, dir_hint: String = "") -> String:
+	var t: String = text.strip_edges().to_lower()
+	if t == "":
+		return ""
+	var best := ""
+	var best_score := 0.0
+	for c in _hypo_current.get("conclusions", []):
+		var cid: String = str(c.get("id", ""))
+		if cid == "":
+			continue
+		var cdir: String = str(c.get("dir", "affirm"))
+		if dir_hint != "" and dir_hint != cdir:
+			continue
+		var s: float = _conclusion_text_match(t, c)
+		if s > best_score:
+			best_score = s
+			best = cid
+	return best if best_score >= _CONCL_MATCH_THRESHOLD else ""
+
+
+func _conclusion_text_match(t: String, c: Dictionary) -> float:
+	var best := 0.0
+	for k in c.get("match_keys", []):
+		var kk: String = str(k).to_lower()
+		if kk == "":
+			continue
+		if t == kk:
+			return 1.0
+		if t.find(kk) >= 0 or kk.find(t) >= 0:
+			best = maxf(best, 0.8)
+	var total := 0
+	var hits := 0
+	for ssub in c.get("subject", []):
+		total += 1
+		if t.find(str(ssub).to_lower()) >= 0:
+			hits += 1
+	for sobj in c.get("object", []):
+		total += 1
+		if t.find(str(sobj).to_lower()) >= 0:
+			hits += 1
+	if total > 0:
+		best = maxf(best, float(hits) / float(total))
+	var ctext: String = str(c.get("text", "")).to_lower()
+	if ctext != "" and (t.find(ctext) >= 0 or ctext.find(t) >= 0):
+		best = maxf(best, 0.7)
+	return best
 
 
 func _node_label(id: String) -> String:
