@@ -453,9 +453,40 @@ func _open_conclusion_popup(hid: String) -> void:
 	# 随机排列，让玩家从多条里选（含误导项，简单模式仅正确项）。gate_hypo_ids 仅作后台触发口径。
 	var cons: Array = owner._hypo_current.get("conclusions", [])
 	var cands := []
-	for c in cons:
-		if _conclusion_preset_visible(c):
-			cands.append(c)
+	if owner._difficulty == owner.Diff.NORMAL:
+		# 普通模式：正确项全留 + 误导项按 mislead_chance 概率掺入（确定性种子，同墙同组合，避免每次重摇割裂）。
+		var seed: int = int(owner._state_store.get("mislead_seed", 0))
+		if seed == 0:
+			seed = int(Time.get_ticks_msec()) + owner._graph_nodes.size()
+			owner._state_store["mislead_seed"] = seed
+		var chance: float = 0.0
+		var _dm = null
+		if Engine.has_singleton("DifficultyManager"):
+			_dm = Engine.get_singleton("DifficultyManager")
+		if _dm != null:
+			chance = _dm.mislead_chance
+		var misleads: Array = []
+		for c in cons:
+			if str(c.get("kind", "true")) != "true":
+				misleads.append(c)
+		var picked: Array = []
+		for c in misleads:
+			var hv: int = hash(str(c.get("id", "")) + "|" + str(seed))
+			if (hv % 1000) < int(chance * 1000):
+				picked.append(c)
+		# 保证至少掺 1 条（否则难度感丢失）
+		if picked.is_empty() and not misleads.is_empty() and chance > 0.0:
+			picked.append(misleads[abs(hash(str(seed))) % misleads.size()])
+		for c in cons:
+			if str(c.get("kind", "true")) == "true":
+				cands.append(c)
+			elif picked.has(c):
+				cands.append(c)
+	else:
+		# EASY 仅正确 / HARD 无候选（走原过滤）
+		for c in cons:
+			if _conclusion_preset_visible(c):
+				cands.append(c)
 	cands.shuffle()
 	var _shell: Array = _popup_shell("由推断推导结论（任选其一）：", Vector2(640, 460), Vector2(488, 360))
 	var popup: Control = _shell[0]

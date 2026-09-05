@@ -101,32 +101,11 @@ func _derive_edges() -> void:
 		# 用户手动建立的关系常显
 		add.call(r.get("from", ""), r.get("to", ""), k, true, r.get("color_key", ""), r.get("dashed", false))
 
-	# 方案A：结论→归属人物（target）连线，与折叠层级一致地常显。
-	# 折叠把每条结论链到焦点人物（见 graph_view_fold._build_adjacency），但只进邻接表、不进
-	# _edge_list，故画布从不画这条线——用户看到「神秘嫌疑犯」上有折叠圈却无线。此处补画，
-	# 使折叠圈与归属线对应。优先用结论自身的 target 字段（person:XXX），否则回退焦点人物。
-	# 若玩家已手动建立该结论→某人物的 target 边（方案B），则不重复自动派生（手动更准）。
-	for _dc in owner._derived_conclusions:
-		var _cid: String = str(_dc.get("id", ""))
-		if _cid == "": continue
-		var _nid: String = "conclusion_" + _cid   # 结论节点 id 形如 conclusion_CL2-1
-		var _has_manual_target: bool = false
-		for _r in owner._relations:
-			if _r.get("from", "") == _nid and _r.get("kind", "") == "target":
-				_has_manual_target = true
-				break
-		if _has_manual_target:
-			continue
-		var _tpid: String = owner._focus_person
-		var _cdef: Dictionary = owner._conclusion_def(_cid)
-		var _tgt: String = _cdef.get("target", "")
-		if _tgt != "":
-			_tpid = _tgt.substr("person:".length()) if _tgt.begins_with("person:") else _tgt
-		# 需求1：玩家曾手动删除此结论→人物的连线，则不再自动派生（使删除可生效、可持久）
-		if owner._deleted_target_edges.get(_nid, "") == _tpid:
-			continue
-		if _tpid != "" and _tpid != _cid:
-			add.call(_nid, _tpid, "target", true, "gold")
+	# 2026-09-05：移除「结论→归属人物」自动派生金边。
+	# 原逻辑按结论 target 字段自动给每条结论补一条连到人物的金线——玩家并未选择，
+	# 导致墙上「系统擅自添加很多连线」、关系混乱（用户明确：只能有玩家选择的连线）。
+	# 现在结论→人物的归属线只在玩家手动拖结论到人物头像上时才建立（见 _commit_move 的 target 建边）。
+	# 布局树结构（_build_parent_of / _is_tree_root）仍直接读结论 target 数据字段，不依赖此渲染边，故不受影响。
 
 
 func _rel_color(kind: String) -> Color:

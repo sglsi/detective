@@ -69,9 +69,20 @@ func _initialize() -> void:
 	else:
 		print("  - D2) 孤立根节点零重叠 ✓")
 
-	# ---- 需求1：删除「conclusion_C-MAIN → NPC_WT」target 金边，不应自动回生 ----
-	gv._deleted_target_edges["conclusion_C-MAIN"] = "NPC_WT"
-	gv._rebuild_graph()
+	# ---- 需求1（2026-09-05 适配）：系统不再自动派生结论→人物金边；改为玩家手动建边后可删、可持久 ----
+	# 玩家手动拖 conclusion_C-MAIN 到 NPC_WT 头像建归属金边
+	gv._edge._add_edge("conclusion_C-MAIN", "NPC_WT", "target", "gold", false)
+	await process_frame
+	var manual_cnt := 0
+	for e in gv._edge_list:
+		if e.get("from","") == "conclusion_C-MAIN" and e.get("to","") == "NPC_WT" and e.get("kind","") == "target":
+			manual_cnt += 1
+	if manual_cnt != 1:
+		ok = false; print("FAIL D1) 玩家手动建的 target 金边未显示")
+	else:
+		print("  - D1) 玩家手动建「结论→人物」金边显示 ✓")
+	# 玩家删除该边（右键删除→走正常删边路径，从 _relations 移除；手动 target 边不再走自动派生删除）
+	gv._edge._remove_edge("conclusion_C-MAIN", "NPC_WT", "target")
 	await process_frame
 	var still_there := false
 	for e in gv._edge_list:
@@ -85,15 +96,15 @@ func _initialize() -> void:
 		ok = false; print("FAIL D1) 删除后节点矩形重叠")
 	else:
 		print("  - D1) 删除后整体零重叠 ✓")
-	# 其余两条结论→人物边不受影响（仍在）
-	var other_cnt := 0
+	# 系统不再自动派生任何结论→人物金边（2026-09-05 改动）：渲染边应只有玩家建的
+	var auto_target := 0
 	for e in gv._edge_list:
-		if e.get("kind","") == "target" and e.get("from","") in ["conclusion_C-A1","conclusion_C-C1"]:
-			other_cnt += 1
-	if other_cnt != 2:
-		ok = false; print("FAIL D1) 其余结论→人物边应为 2，实际 %d" % other_cnt)
+		if e.get("kind","") == "target":
+			auto_target += 1
+	if auto_target != 0:
+		ok = false; print("FAIL D1) 仍有 %d 条系统自动金边（应为 0）" % auto_target)
 	else:
-		print("  - D1) 其余两条结论→人物边保留 ✓")
+		print("  - D1) 无系统自动金边 ✓")
 
 	print("DELETE_RESULT: %s" % ("PASS" if ok else "FAIL"))
 	quit()

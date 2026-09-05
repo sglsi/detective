@@ -60,10 +60,8 @@ func _on_edge_draw() -> void:
 		if not show:
 			continue
 		if e.kind in ["relate", "imply", "support", "oppose", "contradict", "target"]:
-			if e.dashed:
-				_draw_arc_dashed(a, b, e.color, 2)
-			else:
-				_draw_arc_line(a, b, e.color, 3)
+			# 逻辑图流向连线：父右缘→子左缘的 S 曲线（col 间空带通过，不穿框/不交叉）
+			_draw_flow_edge(e.from, e.to, e.color, 3, e.dashed)
 
 	# 拖拽预览线（弧线）
 	if owner._dragging and owner._drag_id != "":
@@ -81,7 +79,7 @@ func _on_edge_draw() -> void:
 		var sa: Vector2 = owner._node_center.get(se.get("from", ""), Vector2.ZERO)
 		var sb: Vector2 = owner._node_center.get(se.get("to", ""), Vector2.ZERO)
 		if sa != Vector2.ZERO and sb != Vector2.ZERO:
-			_draw_arc_line(sa, sb, owner.COL_GOLD, 7, 55.0)
+			_draw_flow_edge(se.get("from", ""), se.get("to", ""), owner.COL_GOLD, 7, false)
 
 
 ## 沿 a→b 画一条二次贝塞尔弧线（控制点偏移中点垂直方向 curvature）
@@ -139,6 +137,84 @@ func _draw_arc_dashed(a: Vector2, b: Vector2, col: Color, w: float, curvature: f
 				next_break += dash_len
 		if drawing and i + 1 < pts.size():
 			owner._edge_layer.draw_line(p0.lerp(p1, clamp((t1 - t0) / seg_len, 0.0, 1.0)), p0.lerp(p1, 1.0), col, w)
+		traveled = t1
+
+
+## 流向连线：父右缘 → 子左缘 的三次贝塞尔 S 曲线（逻辑图/整洁树专用，替代中心连线）。
+## 约定 e.to = 父（高层·在左），e.from = 子（低层·在右）；端点取节点边缘，曲线留在列间空带，
+## 不穿框、不交叉；垂直幅度仅限父子 y 差，水平流向贴合「推导方向 = 右向轴」。
+func _draw_flow_edge(from_id: String, to_id: String, col: Color, w: float, dashed: bool = false) -> void:
+	var pa: Vector2 = owner._node_center.get(to_id, Vector2.ZERO)    # 父（左）
+	var cb: Vector2 = owner._node_center.get(from_id, Vector2.ZERO)  # 子（右）
+	if pa == Vector2.ZERO or cb == Vector2.ZERO:
+		return
+	var pk: String = owner._node_kind.get(to_id, "hypo")
+	var ck: String = owner._node_kind.get(from_id, "hypo")
+	var pw: float = owner._layout._node_width_for_kind(pk) * 0.5
+	var cw: float = owner._layout._node_width_for_kind(ck) * 0.5
+	var start: Vector2 = pa + Vector2(pw, 0.0)
+	var end: Vector2 = cb - Vector2(cw, 0.0)
+	# 兜底：若子反而在父左侧（如 person→person 嵌套），退回中心连线，避免反向错位
+	if start.x > end.x:
+		start = pa
+		end = cb
+	if dashed:
+		_draw_flow_dashed(start, end, col, w)
+	else:
+		_draw_flow_line(start, end, col, w)
+
+
+## 父右缘→子左缘 的流向实线（水平 S 三次贝塞尔，控制点在两中点，曲线沿流向轴）
+func _draw_flow_line(start: Vector2, end: Vector2, col: Color, w: float, segments: int = 28) -> void:
+	if (start - end).length() < 0.5:
+		return
+	var dx: float = end.x - start.x
+	var c1: Vector2 = Vector2(start.x + dx * 0.5, start.y)
+	var c2: Vector2 = Vector2(end.x - dx * 0.5, end.y)
+	var pts := PackedVector2Array()
+	for i in segments + 1:
+		var t: float = float(i) / float(segments)
+		var omt: float = 1.0 - t
+		var p: Vector2 = start * (omt * omt * omt) + c1 * (3.0 * omt * omt * t) + c2 * (3.0 * omt * t * t) + end * (t * t * t)
+		pts.append(p)
+	owner._edge_layer.draw_polyline(pts, col, w, true)
+
+
+## 父右缘→子左缘 的流向虚线（沿曲线采样，按 dash/gap 切段）
+func _draw_flow_dashed(start: Vector2, end: Vector2, col: Color, w: float, segments: int = 48) -> void:
+	if (start - end).length() < 0.5:
+		return
+	var dx: float = end.x - start.x
+	var c1: Vector2 = Vector2(start.x + dx * 0.5, start.y)
+	var c2: Vector2 = Vector2(end.x - dx * 0.5, end.y)
+	var pts := PackedVector2Array()
+	for i in segments + 1:
+		var t: float = float(i) / float(segments)
+		var omt: float = 1.0 - t
+		var p: Vector2 = start * (omt * omt * omt) + c1 * (3.0 * omt * omt * t) + c2 * (3.0 * omt * t * t) + end * (t * t * t)
+		pts.append(p)
+	var traveled: float = 0.0
+	var next_break: float = 8.0
+	var drawing := true
+	for i in range(1, pts.size()):
+		var p0: Vector2 = pts[i - 1]
+		var p1: Vector2 = pts[i]
+		var seg_len: float = p0.distance_to(p1)
+		var t0: float = traveled
+		var t1: float = traveled + seg_len
+		while t1 >= next_break:
+			if drawing:
+				var kk: float = (next_break - t0) / seg_len
+				owner._edge_layer.draw_line(p0.lerp(p1, clampf(kk, 0.0, 1.0)), p1, col, w)
+				t0 = next_break
+				drawing = false
+				next_break += 6.0
+			else:
+				t0 = next_break
+				drawing = true
+				next_break += 8.0
+		if drawing and i + 1 < pts.size():
+			owner._edge_layer.draw_line(p0.lerp(p1, clampf((t1 - t0) / seg_len, 0.0, 1.0)), p0.lerp(p1, 1.0), col, w)
 		traveled = t1
 
 
@@ -204,6 +280,16 @@ func _add_edge(from: String, to: String, kind: String, color_key: String = "", d
 	if owner._cb_relations_changed.is_valid():
 		owner._cb_relations_changed.call(owner._relations.duplicate())
 	owner._persist_view()
+	# Issue 4：连边后按新结构树自动重排。被连子节点(from)若仍被钉为手动根锚点，须解除钉位，
+	# 否则整棵新子树不随父节点归位（实测「未自动排列」根因）；解除 from 及其后代钉位，
+	# 其余分支的手动锚点保留。_relayout_on_edge 令 _compute_layout 忽略 prev_center 全量重排。
+	var _unpin_ids: Array = [from] + owner._layout._descendants(from)
+	for _u in _unpin_ids:
+		if owner._root_anchor_pos.has(_u):
+			owner._root_anchor_pos.erase(_u)
+		if owner._manual_nodes.has(_u):
+			owner._manual_nodes.erase(_u)
+	owner._layout._relayout_on_edge = true
 	owner._rebuild_graph()
 	owner._toast_msg("建立了%s的证据连线" % _rel_verb(kind))
 

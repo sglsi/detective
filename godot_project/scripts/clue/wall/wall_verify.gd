@@ -201,11 +201,15 @@ func _on_verify_confirm(v: int) -> void:
 	owner._verified = true
 	owner._verified_verdict = v
 	owner._state_ctl._persist_state()
+	# 关键修复（Issue 2）：先同步触发验证回调（启动判定对话），再 queue_free 墙。
+	# 原顺序在 owner.queue_free() 之后才调 on_verify——Web/wasm 运行时 queued-free 对象可能在本帧末即被回收，
+	# 导致该延迟方法调用偶发丢失、判定对话起不来、剧情卡住不推进（非 hard-freeze，时好时坏）。
+	# 同步调用确保回调在有效对象上执行，判定对话必起。
+	if owner._on_verify.is_valid(): owner._on_verify.call(v)
 	# 立即隐藏并销毁墙，解除全屏 MOUSE_FILTER_STOP 拦截，确保过渡对话可点击/渲染；
 	# 不再依赖「等一帧」的 await（Web 运行时偶发不可靠导致卡死）。
 	owner.visible = false
 	owner.queue_free()
-	if owner._on_verify.is_valid(): owner._on_verify.call(v)
 
 
 ## 验证窗口文案。
