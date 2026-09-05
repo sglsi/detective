@@ -77,7 +77,7 @@ static func branches() -> Array:
 				{"from": "C-B1", "to": "C-MAIN", "kind": "support"},
 				{"from": "C-C2", "to": "C-MAIN", "kind": "support"},
 				# 顶层结论锚华生（人物列单格：仅"在阿富汗服役过"指人）
-				{"from": "C-MAIN", "to": "person:NPC_WT", "kind": "support"},
+				{"from": "C-MAIN", "to": "person:NPC_WT", "kind": "target"},
 			],
 			"misleads": [],
 		},
@@ -103,8 +103,8 @@ static func branches() -> Array:
 				{"from": "M-02", "to": "CL1-01", "kind": "support"},
 				{"from": "M-03", "to": "CL1-01", "kind": "support"},
 				{"from": "M-04", "to": "CL1-02", "kind": "support"},
-				{"from": "CL1-01", "to": "person:NPC_SERGEANT", "kind": "support"},
-				{"from": "CL1-02", "to": "person:NPC_SERGEANT", "kind": "support"},
+				{"from": "CL1-01", "to": "person:NPC_SERGEANT", "kind": "target"},
+				{"from": "CL1-02", "to": "person:NPC_SERGEANT", "kind": "target"},
 			],
 			# 干扰项（袖口磨损、轻微跛行）不在真相边中：给它们建边会变大分母拉低正确率（教学点：分辨信号 vs 噪音）。
 			"misleads": [],
@@ -475,7 +475,7 @@ static func branches() -> Array:
 				{"from": "CL7-1", "to": "CL8-FINAL", "kind": "support"},
 				{"from": "CL7-2", "to": "CL8-FINAL", "kind": "support"},
 				{"from": "CL8-1", "to": "CL8-FINAL", "kind": "support"},
-				{"from": "CL8-FINAL", "to": "person:NPC_HOPE", "kind": "support"},
+				{"from": "CL8-FINAL", "to": "person:NPC_HOPE", "kind": "target"},
 			],
 			"misleads": [],
 		},
