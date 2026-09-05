@@ -106,7 +106,7 @@ func _show_hard_mode_warning(difficulty: int) -> void:
 	var ok := Button.new()
 	ok.text = "我明白了，开始挑战"
 	ok.position = Vector2(190, 300); ok.size = Vector2(300, 52)
-	ok.add_theme_font_size_override("font_size", 20)
+	ok.add_theme_font_size_override("font_size", 22)
 	ok.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))
 	var ob := StyleBoxFlat.new()
 	ob.bg_color = Color(0.30, 0.10, 0.10, 0.95)

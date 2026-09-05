@@ -84,7 +84,7 @@ func _build_ui() -> void:
 	_mode_btn = Button.new()
 	_mode_btn.text = "已有账号？去登录"
 	_mode_btn.size = Vector2(480, 44)
-	_mode_btn.add_theme_font_size_override("font_size", 18)
+	_mode_btn.add_theme_font_size_override("font_size", 22)
 	_mode_btn.pressed.connect(_on_toggle_mode)
 	vbox.add_child(_mode_btn)
 

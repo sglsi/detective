@@ -98,7 +98,7 @@ func _make_battle_hypo_card(h: Dictionary) -> Control:
 	var btn := Button.new()
 	var hst: int = owner._battle_hypo_states.get(id, 0)
 	btn.text = ["未定", "采纳✓", "排除✗"][hst]
-	btn.add_theme_font_size_override("font_size", 15)
+	btn.add_theme_font_size_override("font_size", 22)
 	btn.custom_minimum_size = Vector2(93, 40)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.pressed.connect(_on_battle_hypo_pressed.bind(id))
@@ -147,7 +147,7 @@ func _make_battle_contra_card(c: Dictionary) -> Control:
 	var btn := Button.new()
 	var cst: bool = owner._battle_contra_states.get(id, false)
 	btn.text = "已识别" if cst else "未识别"
-	btn.add_theme_font_size_override("font_size", 15)
+	btn.add_theme_font_size_override("font_size", 22)
 	btn.custom_minimum_size = Vector2(93, 40)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.pressed.connect(_on_battle_contra_pressed.bind(id))
