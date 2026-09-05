@@ -29,7 +29,7 @@ func _initialize() -> void:
 		{"id":"face_dark","name":"华生脸色黝黑","correct":true},
 		{"id":"face_haggard","name":"华生面容憔悴","correct":true},
 		{"id":"pose","name":"华生军人站姿","correct":true},
-		{"id":"medical","name":"医务工作者风度","correct":true},
+		{"id":"medical","name":"身上有消毒液气味","correct":true},
 	]
 	var hypo := {
 		"battlefield": {
@@ -85,7 +85,7 @@ func _initialize() -> void:
 	if not gv._relations.any(func(r): return r.get("from","")=="arm" and r.get("to","")=="W-C2"):
 		ok = false; print("FAIL b) 缺 arm→W-C2 边")
 	else:
-		log.append("b) 4 条线索→推断边均建立（含 左臂/脸色黝黑/面容憔悴/医务工作者风度）")
+		log.append("b) 4 条线索→推断边均建立（含 左臂/脸色黝黑/面容憔悴/身上有消毒液气味）")
 
 	# ---- 方案B：推断→推断（W-C1+W-C2→W-C3）----
 	gv._derive_hypo_from_hypo("W-C1", "W-C3")

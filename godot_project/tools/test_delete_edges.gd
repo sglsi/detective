@@ -15,7 +15,7 @@ func _initialize() -> void:
 		{"id":"face_dark","name":"华生脸色黝黑","correct":true},
 		{"id":"face_haggard","name":"华生面容憔悴","correct":true},
 		{"id":"pose","name":"华生军人站姿","correct":true},
-		{"id":"medical","name":"医务工作者风度","correct":true}]
+		{"id":"medical","name":"身上有消毒液气味","correct":true}]
 	var hypo := {"battlefield":{"hypotheses":[
 		{"id":"W-A1","text":"华生不是原来的肤色","correct":true,"gate_clue_ids":["wrist","face_dark"]},
 		{"id":"W-B1","text":"华生是名军医","correct":true,"gate_clue_ids":["pose","medical"]},
