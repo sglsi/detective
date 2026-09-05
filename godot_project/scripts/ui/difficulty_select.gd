@@ -105,6 +105,8 @@ func _show_hard_mode_warning(difficulty: int) -> void:
 	f.add_child(body)
 	var ok := Button.new()
 	ok.text = "我明白了，开始挑战"
+	ok.icon = load("res://assets/ui/icons/deerstalker.png")
+	ok.add_theme_constant_override("icon_max_width", 30)
 	ok.position = Vector2(190, 300); ok.size = Vector2(300, 52)
 	ok.add_theme_font_size_override("font_size", 22)
 	ok.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))

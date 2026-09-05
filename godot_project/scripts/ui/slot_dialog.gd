@@ -120,6 +120,8 @@ func _build() -> void:
 			btn.text = "保存到此处"
 		btn.position = Vector2(fw - 60 - 160, 20); btn.size = Vector2(140, 40)
 		btn.add_theme_font_size_override("font_size", 22)
+		btn.icon = load("res://assets/ui/icons/floppy.png" if _mode != "load" else "res://assets/ui/icons/casebook.png")
+		btn.add_theme_constant_override("icon_max_width", 26)
 		if not (not exists and _mode == "load"):
 			btn.pressed.connect(func():
 				var cb = _on_choice
@@ -133,6 +135,8 @@ func _build() -> void:
 	# 返回按钮
 	var back = Button.new()
 	back.text = "返    回"
+	back.icon = load("res://assets/ui/icons/back_arrow.png")
+	back.add_theme_constant_override("icon_max_width", 26)
 	back.position = Vector2(fw / 2.0 - 130, y + 10); back.size = Vector2(260, 50)
 	back.add_theme_font_size_override("font_size", 22)
 	var bsn = StyleBoxFlat.new(); var bsh = StyleBoxFlat.new(); var bsp = StyleBoxFlat.new()

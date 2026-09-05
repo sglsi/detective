@@ -24,14 +24,14 @@ const _WindowDrag = preload("res://scripts/ui/window_drag.gd")
 
 # ===== 工具定义（与 ToolSystem.TOOLS 一致）=====
 const TOOL_DEFS := [
-	{"id": "magnifier", "name": "放大镜", "icon": "res://assets/tools/magnifier.png"},
-	{"id": "tape",       "name": "卷尺",   "icon": "res://assets/tools/tape.png"},
-	{"id": "chemistry",  "name": "化学试剂盒", "icon": "res://assets/tools/chemistry.png"},
-	{"id": "directory",  "name": "黄页",     "icon": "res://assets/tools/directory.png"},
-	{"id": "handcuffs",  "name": "手铐",     "icon": "res://assets/tools/handcuffs.png"},
-	{"id": "rope",       "name": "绳索",     "icon": "res://assets/tools/rope.png"},
-	{"id": "newspaper",  "name": "报纸",     "icon": "res://assets/tools/newspaper.png"},
-	{"id": "plaster",    "name": "石膏粉",   "icon": "res://assets/tools/plaster.png"},
+	{"id": "magnifier", "name": "放大镜", "icon": "res://assets/ui/icons/fingerprint_lens.png"},
+	{"id": "tape",       "name": "卷尺",   "icon": "res://assets/ui/icons/tape.png"},
+	{"id": "chemistry",  "name": "化学试剂盒", "icon": "res://assets/ui/icons/chemistry.png"},
+	{"id": "directory",  "name": "黄页",     "icon": "res://assets/ui/icons/directory.png"},
+	{"id": "handcuffs",  "name": "手铐",     "icon": "res://assets/ui/icons/handcuffs.png"},
+	{"id": "rope",       "name": "绳索",     "icon": "res://assets/ui/icons/rope.png"},
+	{"id": "newspaper",  "name": "报纸",     "icon": "res://assets/ui/icons/newspaper.png"},
+	{"id": "plaster",    "name": "石膏粉",   "icon": "res://assets/ui/icons/plaster.png"},
 ]
 
 signal tool_activated(tool_id: String)          # 工具被选中
