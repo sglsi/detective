@@ -1,23 +1,29 @@
 extends SceneTree
 
 const ClueImageAnchors = preload("res://data/clue_image_anchors.gd")
-const ClueObserverCls = preload("res://scripts/clue/clue_observer.gd")
+# clue_observer.gd 引用 DifficultyManager autoload；const preload 在 -s 模式解析期加载会失败，须运行时 load
+var ClueObserverCls: GDScript = null
 
 func _initialize() -> void:
 	await create_timer(0.2).timeout
+	ClueObserverCls = load("res://scripts/clue/clue_observer.gd")
 	var ok := true
 
 	# 1) 锚点表可取
-	var a := ClueImageAnchors.get_anchor("res://assets/characters/watson/watson_teaching.png", "wrist")
-	if a.is_empty() or abs(float(a["cx"]) - 0.385) > 0.001:
+	var a: Variant = ClueImageAnchors.get_anchor("res://assets/characters/watson/watson_teaching.png", "wrist")
+	if a.is_empty() or abs(float(a["cx"]) - 0.19) > 0.001:
 		print("FAIL anchor get_anchor"); ok = false
-	# 新线索：肩部（左肩）
-	var sh := ClueImageAnchors.get_anchor("res://assets/characters/watson/watson_teaching.png", "shoulder")
-	if sh.is_empty() or abs(float(sh["cx"]) - 0.594) > 0.001:
+	# 新线索：肩部（垂下的左臂，画面右侧）
+	var sh: Variant = ClueImageAnchors.get_anchor("res://assets/characters/watson/watson_teaching.png", "shoulder")
+	if sh.is_empty() or abs(float(sh["cx"]) - 0.79) > 0.001:
 		print("FAIL shoulder anchor"); ok = false
+	# medical 气味锚点（躯干）
+	var to: Variant = ClueImageAnchors.get_anchor("res://assets/characters/watson/watson_teaching.png", "torso")
+	if to.is_empty() or abs(float(to["cy"]) - 0.40) > 0.001:
+		print("FAIL torso anchor"); ok = false
 
 	# 2) crop -> anchor 转换
-	var c := ClueImageAnchors.crop_to_anchor({"x":0.1,"y":0.55,"cx":0.42,"cy":0.85})
+	var c: Variant = ClueImageAnchors.crop_to_anchor({"x":0.1,"y":0.55,"cx":0.42,"cy":0.85})
 	if abs(float(c["cx"]) - 0.26) > 0.001 or abs(float(c["w"]) - 0.32) > 0.001:
 		print("FAIL crop_to_anchor cx/w"); ok = false
 
@@ -25,15 +31,15 @@ func _initialize() -> void:
 	var ctrl := Control.new()
 	root.add_child(ctrl)
 	var tex := load("res://assets/characters/watson/watson_teaching.png") as Texture2D
-	var obs := ClueObserverCls.new()
+	var obs: Node = ClueObserverCls.new()
 	obs.setup(ctrl, null, null, [{"id":"wrist","label":"手腕","x":0,"y":0,"w":10,"h":10,"desc":"d"}], tex)
 	ctrl.add_child(obs)
 	await create_timer(0.1).timeout
 
-	var zoom := obs._make_zoom(tex, a, 1.0)
+	var zoom: Variant = obs._make_zoom(tex, a, 1.0)
 	if not (zoom is AtlasTexture) or zoom.region.size.x <= 0:
 		print("FAIL _make_zoom region"); ok = false
-	var dr := obs._drawn_rect(Vector2(220, 80), Vector2(440, 600), tex)
+	var dr: Variant = obs._drawn_rect(Vector2(220, 80), Vector2(440, 600), tex)
 	if dr.size.x <= 0 or dr.size.y <= 0:
 		print("FAIL _drawn_rect"); ok = false
 
@@ -46,14 +52,14 @@ func _initialize() -> void:
 	obs._clear_observation_layer()
 
 	# 5) 信使文身锚点也应可取
-	var mt := ClueImageAnchors.get_anchor("res://assets/characters/messenger/messenger_spritesheet.png", "tattoo")
+	var mt: Variant = ClueImageAnchors.get_anchor("res://assets/characters/messenger/messenger_spritesheet.png", "tattoo")
 	if mt.is_empty(): print("FAIL messenger tattoo anchor"); ok = false
 
 	# 5b) 华生 + 信使教学流程全部锚点：放大区必须【严格等于校准框】且合法
 	#     防回归历史 bug：factor=2.4 会把校准框稀释到只占放大图 17.4%，
 	#     且 w/h=1.0 的全图锚点会算出负起点导致 AtlasTexture 采样异常。
 	var teach_sets := {
-		"res://assets/characters/watson/watson_teaching.png": ["wrist","shoulder","face","pose"],
+		"res://assets/characters/watson/watson_teaching.png": ["wrist","shoulder","face","torso","pose"],
 		"res://assets/characters/messenger/messenger_spritesheet.png": ["tattoo","beard","posture","manner","sleeve","limp"],
 	}
 	for img_path in teach_sets.keys():
@@ -63,10 +69,10 @@ func _initialize() -> void:
 		var tw := float(t2.get_width())
 		var th := float(t2.get_height())
 		for cid in teach_sets[img_path]:
-			var ma := ClueImageAnchors.get_anchor(img_path, cid)
+			var ma: Variant = ClueImageAnchors.get_anchor(img_path, cid)
 			if ma.is_empty():
 				print("FAIL anchor missing: ", img_path, " ", cid); ok = false; continue
-			var mz := obs._make_zoom(t2, ma, 1.0)
+			var mz: Variant = obs._make_zoom(t2, ma, 1.0)
 			if not (mz is AtlasTexture):
 				print("FAIL zoom not atlas: ", cid); ok = false; continue
 			var r: Rect2 = mz.region

@@ -5,13 +5,13 @@
 [resource]
 script = ExtResource("1_clue")
 id = "medical"
-name = "医务工作者风度"
-description = "华生举手投足间透出医务工作者的沉稳与专业气质，受过系统医学训练"
+name = "身上有消毒液气味"
+description = "华生身上有淡淡的消毒液气味，长期接触医院与战地救护的印记，受过系统医学训练"
 category = "痕迹"
 location = "贝克街221B"
-discovery_condition = "点击观察华生举止"
-observation = "举止沉稳专业，带有医务工作者的风度。"
-analysis = "受过系统医学训练，职业军人中的军医。"
+discovery_condition = "点击观察华生衣襟"
+observation = "靠近时能闻到衣襟上淡淡的消毒液气味。"
+analysis = "身上带着消毒液的气味，说明他长期出入医院——职业军人中的军医。"
 related_clues = []
 related_npcs = ["NPC_WT"]
 timeline_position = 0.5

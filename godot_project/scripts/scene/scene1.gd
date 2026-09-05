@@ -159,7 +159,7 @@ func _phase_name(p: int) -> String:
 		_: return "未知阶段"
 
 func _all_hotspots() -> Array:
-	var w = [{"id":"wrist","name":"肤色黑白分明","desc":"华生手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来"},{"id":"arm","name":"左臂损伤","desc":"华生左臂动作略显僵硬——战场负伤留下的旧疾"},{"id":"face_dark","name":"脸色黝黑","desc":"华生脸部肤色明显偏深——长期热带日照的痕迹"},{"id":"face_haggard","name":"面容憔悴","desc":"华生面容灰暗、眼窝深陷——久病初愈、长途劳顿的痕迹"},{"id":"pose","name":"军人气质","desc":"华生站姿挺拔、气质干练——典型的军人作风"},{"id":"medical","name":"医务工作者风度","desc":"华生举手投足间透出医务工作者的沉稳与专业气质"}]
+	var w = [{"id":"wrist","name":"肤色黑白分明","desc":"华生手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来"},{"id":"arm","name":"左臂损伤","desc":"华生左臂动作略显僵硬——战场负伤留下的旧疾"},{"id":"face_dark","name":"脸色黝黑","desc":"华生脸部肤色明显偏深——长期热带日照的痕迹"},{"id":"face_haggard","name":"面容憔悴","desc":"华生面容灰暗、眼窝深陷——久病初愈、长途劳顿的痕迹"},{"id":"pose","name":"军人气质","desc":"华生站姿挺拔、气质干练——典型的军人作风"},{"id":"medical","name":"身上有消毒液气味","desc":"华生身上有淡淡的消毒液气味——长期接触医院与战地救护的印记"}]
 	var m = [{"id":"tattoo","name":"锚形文身","desc":"信使手背上有蓝色锚形文身——皇家海军标志"},{"id":"beard","name":"络腮胡","desc":"信使留着军人式络腮胡"},{"id":"posture","name":"挺拔站姿","desc":"信使站姿挺拔有力"},{"id":"manner","name":"神态平静","desc":"信使神态从容淡定"},{"id":"sleeve","name":"袖口细节","desc":"信使袖口有磨损痕迹"},{"id":"limp","name":"轻微跛行","desc":"信使走路有轻微跛行"}]
 	var r: Array = []
 	r.append_array(w); r.append_array(m)
@@ -215,17 +215,17 @@ func _create_observers() -> void:
 		# crop 为「锚点表缺失时」的回退取景，数值已与 clue_image_anchors.gd
 		# 中 watson_teaching.png 的定稿锚点对齐（x=cx-w/2, y=cy-h/2, cx=cx+w/2, cy=cy+h/2）
 		{"id":"wrist","label":"肤色黑白分明","x":580,"y":400,"w":100,"h":60,"desc":"手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来",
-		 "crop":{"x":0.275,"y":0.318,"cx":0.495,"cy":0.558},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
+		 "crop":{"x":0.08,"y":0.20,"cx":0.30,"cy":0.42},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
 		{"id":"arm","label":"左臂损伤","x":450,"y":450,"w":100,"h":70,"desc":"左臂动作略显僵硬——战场负伤留下的旧疾",
-		 "crop":{"x":0.494,"y":0.142,"cx":0.694,"cy":0.342},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
+		 "crop":{"x":0.69,"y":0.31,"cx":0.89,"cy":0.65},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
 		{"id":"face_dark","label":"脸色黝黑","x":520,"y":200,"w":110,"h":60,"desc":"脸部肤色明显偏深——长期热带日照的痕迹",
-		 "crop":{"x":0.401,"y":0.036,"cx":0.601,"cy":0.256},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
+		 "crop":{"x":0.297,"y":0.0,"cx":0.637,"cy":0.14},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
 		{"id":"face_haggard","label":"面容憔悴","x":520,"y":290,"w":110,"h":60,"desc":"面容灰暗、眼窝深陷——久病初愈的痕迹",
-		 "crop":{"x":0.401,"y":0.036,"cx":0.601,"cy":0.256},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
+		 "crop":{"x":0.297,"y":0.0,"cx":0.637,"cy":0.14},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
 		{"id":"pose","label":"军人气质","x":500,"y":600,"w":130,"h":80,"desc":"站姿挺拔、气质干练——典型的军人作风",
 		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"pose"},
-		{"id":"medical","label":"医务工作者风度","x":500,"y":430,"w":120,"h":120,"desc":"举手投足间透出医务工作者的沉稳与专业气质",
-		 "crop":{"x":0.30,"y":0.32,"cx":0.95,"cy":0.95},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"pose"},
+		{"id":"medical","label":"身上有消毒液气味","x":500,"y":430,"w":120,"h":120,"desc":"身上有淡淡的消毒液气味——长期接触医院与战地救护的印记",
+		 "crop":{"x":0.35,"y":0.27,"cx":0.65,"cy":0.53},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"torso"},
 	], tex, _portrait_ctrl, "res://assets/characters/watson/watson_teaching.png")
 	_watson_obs.all_recorded.connect(_on_watson_all_recorded)
 	_watson_obs.clue_recorded.connect(_on_collect_clue.bind("watson"))
@@ -422,7 +422,7 @@ func _show_mrs_hudson_dialogue() -> void:
 	nodes.append(_dn("h_w","华生","……我更想知道你是怎么看出来的。","click",["h5_e","h5_n","h5_h"],"思考",0,"小声嘟囔"))
 	# 不同难度不同引导：h5 之后分流，难度过滤节点须「链式为 next」(h5_e→h5_n→h5_h→end)，
 	# 引擎 should_show 跳过隐藏变体时才会依次走到第一个可见变体（否则会误判 end 提前结束）。
-	nodes.append(_dn("h5_e","福尔摩斯","从手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、医务工作者风度这几处下手，每条都要讲出证据。","click",["h5_n"],"指导",1,"低声"))
+	nodes.append(_dn("h5_e","福尔摩斯","从手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、身上的消毒液气味这几处下手，每条都要讲出证据。","click",["h5_n"],"指导",1,"低声"))
 	nodes.append(_dn("h5_n","福尔摩斯","用你观察到的证据，把结论串起来。","click",["h5_h"],"指导",2,"点头"))
 	nodes.append(_dn("h5_h","福尔摩斯","……","click",["end"],"从容",3,"什么也没说，只是望着你"))
 	var res = DialogueResource.new(); res.scene_id="s1_intro"; res.nodes=nodes
@@ -442,11 +442,11 @@ func _show_opening_dialogue() -> void:
 	_phase = Phase.OPENING
 	var nodes: Array[Resource] = []
 	# —— 简单（EASY）：详细引导，逐条点出部位 ——
-	nodes.append(_dn("s0_e","福尔摩斯","看这位朋友——手腕的晒痕、左臂的旧伤、脸色的黝黑、面容的憔悴、军人的站姿、医务工作者的风度，都在说他刚从战场回来。来，我们把这些一条条看清楚。","click",["s1_e"],"从容"))
-	nodes.append(_dn("s1_e","系统","[新手教程] 第一次观察\n目标：找出 6 条线索（手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、医务工作者风度）\n操作：可观察点已全部高亮，点击圆圈逐一查看细节","click",["s2_e"],"guide"))
+	nodes.append(_dn("s0_e","福尔摩斯","看这位朋友——手腕的晒痕、左臂的旧伤、脸色的黝黑、面容的憔悴、军人的站姿、身上消毒液的气味，都在说他刚从战场回来。来，我们把这些一条条看清楚。","click",["s1_e"],"从容"))
+	nodes.append(_dn("s1_e","系统","[新手教程] 第一次观察\n目标：找出 6 条线索（手腕晒痕、左臂旧伤、脸色黝黑、面容憔悴、军人站姿、身上消毒液气味）\n操作：可观察点已全部高亮，点击圆圈逐一查看细节","click",["s2_e"],"guide"))
 	nodes.append(_dn("s2_e","系统","所有可观察点已高亮，点击华生身上高亮的圆圈即可。完成后进入推理墙验证。","click",["end"],"guide"))
 	# —— 普通（NORMAL）：标准提示 ——
-	nodes.append(_dn("s0_n","福尔摩斯","证据在你身上: 手腕、左臂、脸色、面容、站姿、医务工作者的风度","click",["s1_n"],"从容"))
+	nodes.append(_dn("s0_n","福尔摩斯","证据在你身上: 手腕、左臂、脸色、面容、站姿、身上的消毒液气味","click",["s1_n"],"从容"))
 	nodes.append(_dn("s1_n","系统","[新手教程] 第一次观察\n目标：找出 6 条线索，证明'华生是阿富汗军医'\n操作：点击华生身上高亮的圆圈，逐一观察细节","click",["s2_n"],"guide"))
 	nodes.append(_dn("s2_n","系统","点击华生身上高亮的圆圈。完成后进入推理墙验证。","click",["end"],"guide"))
 	# —— 困难（HARD）：无引导，严格证据 ——
@@ -534,7 +534,7 @@ func _show_watson_verdict_dialogue(v: int) -> void:
 	var nodes: Array[Resource] = []
 	if v >= 3:
 		nodes.append(_dn("wv1","福尔摩斯","你刚才做得不错。让我告诉你，我是怎么看出来的——","click",["wv2"],"从容"))
-		nodes.append(_dn("wv2","福尔摩斯","手腕的晒痕、左臂的旧伤，说明他在热带扛过枪；脸色的黝黑、面容的憔悴，是久病初愈又长途劳顿；军人的站姿、医务工作者的风度，拼在一起——阿富汗军医。","click",["wv3"],"从容"))
+		nodes.append(_dn("wv2","福尔摩斯","手腕的晒痕、左臂的旧伤，说明他在热带扛过枪；脸色的黝黑、面容的憔悴，是久病初愈又长途劳顿；军人的站姿、身上的消毒液气味，拼在一起——阿富汗军医。","click",["wv3"],"从容"))
 		nodes.append(_dn("wv3","福尔摩斯","记住：对一个伟大人物来说，任何事情都不是微不足道的。","click",["wv4"],"哲理"))
 		nodes.append(_dn("wv4","福尔摩斯","不错。你已经摸到门道了。","click",["wv5"],"认可",0,"点了一下头"))
 		nodes.append(_dn("wv5","华生","福尔摩斯认可了——这可不容易。","click",["end"],"思考",0,"在小本子上记"))
