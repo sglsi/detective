@@ -199,7 +199,7 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 			if owner._use_rank_layout:
 				_auto_rank_layout(nodes, center, saved_pos, out)
 			else:
-				_star_tree_layout(nodes, center, saved_pos, out)
+				_logic_tree_layout(nodes, center, saved_pos, out)
 		else:
 			# 有钉位：先清空钉位捕获纯布局，供未钉节点（非拖动子树）重新自动排布
 			var _backup: Dictionary = owner._root_anchor_pos.duplicate()
@@ -209,7 +209,7 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 			if owner._use_rank_layout:
 				_auto_rank_layout(nodes, center, {}, _layout_out)
 			else:
-				_star_tree_layout(nodes, center, {}, _layout_out)
+				_logic_tree_layout(nodes, center, {}, _layout_out)
 			# 恢复钉位（供后续 _build_parent_of 等读取）
 			owner._root_anchor_pos = _backup
 			owner._manual_nodes = _manual_backup
@@ -247,22 +247,18 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 						out[cs] = prev_center[cs]     # 保持拖拽末位（含拖拽平移）：刚性跟随根
 					stack.append(cs)
 	if owner._mode != GraphViewController.ViewMode.MODE_C:
-		# 兜底（实际恒定 MODE_C）：非 C 模式直接星形布局，保证编译期全路径返回
+		# 兜底（实际恒定 MODE_C）：非 C 模式直接逻辑图布局，保证编译期全路径返回
 		if owner._use_rank_layout:
 			_auto_rank_layout(nodes, center, saved_pos, out)
 		else:
-			_star_tree_layout(nodes, center, saved_pos, out)
+			_logic_tree_layout(nodes, center, saved_pos, out)
 	return out
 
 
-# ===================== 模式 C：按关系驱动的横向阶梯树（华生示范对齐） =====================
-## 思想：不再按 kind 一次性横排，而是把「整条推理链」作为一棵以人物为根的关系树：
-##   人物(col0) → 结论(col1) → 推断/推理链(col2) → 线索(col3) 逐列向右阶梯铺开。
-##  - 排列起自人物为根的 BFS 树（邻居层更深者作子），同父子树归组、父居子带中央；
-##  - 多结论/多推断/多线索同列垂直整齐堆叠，不出现跨侧分叉（避免连线交叉）；
-##  - direction 不硬性统一：人物偏右则树向左生长、偏左则向右，人物可自由摆放（保存位优先）；
-##  - 孤立（未接入树）线索在外围散布；多人物每人一棵独立子树、水平错开不交叉。
-func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
+# ===================== 模式 C：按关系驱动的横向阶梯树（DEPRECATED · 已被 _logic_tree_layout 取代，保留不调用） =====================
+## 旧版按 kind 分列（person=0,conclusion=1,hypo=2,clue=3）的阶梯布局；因「串行结论会被并列同列」、
+## 且非真正按关系树深铺开，已被 _logic_tree_layout（真实树深右向、兄弟垂直、父居子）取代。保留作回退参考。
+func _relation_tree_layout_DEPRECATED(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
 	# 性质层：决定节点所在纵向阶梯列（人物最内、线索最外）
 	var depth_of := {}
 	for nd in nodes:
@@ -372,7 +368,159 @@ func _relation_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		out[idf] = _clamp_to_canvas(out[idf])
 
 
-# ===================== 模式 C 默认：XMind 星形布局（第8节改造 · A①+B①） =====================
+# ===================== 模式 C 默认：XMind 逻辑图（偏右侧整洁树 · REWRITE 2026-09-05） =====================
+## 基于 XMind「结构服从关系」：推理墙 = 逻辑图（root 在最左、向右演绎，水平流向）。
+##   · 深度（父子推导）映射到右向轴：x = col_x[depth]，列间距随父列最大节点宽自适应；
+##   · 兄弟（并列推导）映射到垂直轴：同父子节点在父的垂直带内堆叠、父居中于子（BuchheimWalker 美学3）；
+##   · 串行结论 A→B→C（conclusion→conclusion 边）沿右向轴连续更深层级，绝不并排——结构服从关系；
+##   · 多人物 = 多棵独立水平带树，垂直堆叠、带间留 subtreeSeparation（亲近分组：异人物/异组留空）。
+## 连线由 graph_view_edge 的流向 S 曲线（父右缘→子左缘）绘制，列间空带保证不穿框、不交叉。
+## 复用 _build_parent_of（from=子,to=父）构建关系树；布局完全由关系图算出，无几何硬编码、无上下/环维度。
+func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
+	var parent_of := _build_parent_of()
+	var child_map := {}
+	for ch in parent_of:
+		var p: String = parent_of[ch]
+		if not child_map.has(p):
+			child_map[p] = []
+		if not (ch in child_map[p]):
+			child_map[p].append(ch)
+	var has_parent := {}
+	for ch in parent_of:
+		has_parent[ch] = true
+	# 根集合 = 无父节点（人物恒为根；无关系推断/结论/线索/孤立线索各自成根）
+	var roots := []
+	for nd in nodes:
+		if not has_parent.has(nd.id):
+			if not (nd.id in roots):
+				roots.append(nd.id)
+	if roots.is_empty() and not nodes.is_empty():
+		roots = [nodes[0].id]
+
+	# 估算高度（与碰撞模型口径一致：max(真实估算高, 140)）
+	var est_h := {}
+	for nd in nodes:
+		est_h[nd.id] = maxf(_est_node_h(nd), 140.0)
+	var memo := {}
+	for nd in nodes:
+		_subtree_span_est(nd.id, child_map, est_h, memo)
+
+	# BFS 真实树深（按 _build_parent_of 关系，非 kind）：串行结论沿链更深一层
+	var depth_of := {}
+	var q := []
+	for r in roots:
+		if depth_of.has(r):
+			continue
+		depth_of[r] = 0
+		q.append(r)
+	while q.size() > 0:
+		var rest := []
+		for u in q:
+			for nb in child_map.get(u, []):
+				if depth_of.has(nb):
+					continue
+				depth_of[nb] = depth_of[u] + 1
+				rest.append(nb)
+		q = rest
+	var max_depth: int = 0
+	for d in depth_of.values():
+		max_depth = maxi(max_depth, d)
+
+	# 列 x：col_x[d] = col_x[d-1] + 上一列最大节点全宽 + levelSep
+	# （保证父右缘 + 间隙 ≤ 子左缘，列间空带供流向连线通过，不穿框）
+	var width_of := {}
+	for nd in nodes:
+		width_of[nd.id] = _node_width_for_kind(owner._fold._kind_of(nd.id))
+	var max_w := {}
+	for id in depth_of:
+		var d: int = depth_of[id]
+		var w: float = width_of.get(id, 150.0)
+		if not max_w.has(d) or w > max_w[d]:
+			max_w[d] = w
+	var level_sep: float = 64.0   # 列间水平间隙（父右缘→子左缘的流向连线空间）
+	var col_x := {}
+	col_x[0] = 0.0
+	# 列距按「父列半宽 + level_sep + 子列半宽」：保证任意父右缘与子左缘之间恒留 level_sep 间隙，
+	# 不受个别节点（如超宽线索）影响，列间空带稳定供流向连线通过（不穿框/不交叉）。
+	for d in range(1, max_depth + 1):
+		var prev_half: float = max_w.get(d - 1, 150.0) * 0.5
+		var cur_half: float = max_w.get(d, 150.0) * 0.5
+		col_x[d] = col_x[d - 1] + prev_half + level_sep + cur_half
+	# 水平居中：整棵树按宽度居中于画布，root 列落在左侧舒适区（不贴边、不被裁；fit_view 进一步缩放看全）
+	var tree_w: float = col_x.get(max_depth, 0.0) + max_w.get(max_depth, 150.0)
+	var h_off: float = center.x - tree_w * 0.5
+	for d in col_x.keys():
+		col_x[d] += h_off
+
+	# 根排序：人物优先（各居独立水平带）；其余按 kind 顺序聚类（同 kind 相邻成带，亲近分组）
+	var kind_rank := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3}
+	roots.sort_custom(func(a, b):
+		var ra: int = kind_rank.get(owner._fold._kind_of(a), 3)
+		var rb: int = kind_rank.get(owner._fold._kind_of(b), 3)
+		if ra != rb:
+			return ra < rb
+		return str(a) < str(b))
+
+	# 各根水平带垂直堆叠：先算总高居中，再自上而下铺（多人物各占一独立水平带）
+	var subtree_sep: float = 90.0   # 根带间垂直间隙（亲近分组：异人物/异组留空）
+	var total_h: float = 0.0
+	for r in roots:
+		total_h += maxf(memo.get(r, 140.0), est_h.get(r, 140.0))
+		total_h += subtree_sep
+	total_h = maxf(0.0, total_h - subtree_sep)
+	var start_y: float = center.y - total_h * 0.5
+	var cur_y: float = start_y
+	for r in roots:
+		var sh: float = maxf(memo.get(r, 140.0), est_h.get(r, 140.0))
+		var rx: float = col_x[0]
+		var sv: Variant = saved_pos.get(r, null)
+		var ry: float
+		if sv is Vector2:
+			rx = sv.x
+			ry = sv.y
+		else:
+			ry = cur_y + sh * 0.5
+		out[r] = Vector2(rx, ry)
+		_place_logic_node(r, child_map, depth_of, col_x, est_h, memo, out, 0)
+		cur_y += sh + subtree_sep
+
+	# 手动拖动过的根保持钉位（其余已在布局内；钉位由 _compute_layout 外层统一覆盖）
+	for mid2 in owner._manual_nodes:
+		var sv3: Variant = saved_pos.get(mid2, null)
+		if sv3 is Vector2 and out.has(mid2):
+			out[mid2] = sv3
+	for idf in out:
+		out[idf] = _clamp_to_canvas(out[idf])
+
+
+## 递归布点（左向右向整洁树）：父 y 居中于子群 y；子 x = col_x[depth+1]（严格右向）。
+## 兄弟间距用「子树跨度」(memo) 而非节点高——否则子树的子树会顶入相邻兄弟带（标准 tidy tree 坑）；
+## 与 _subtree_span_est 用同一 _sib_gap 口径，保证子树带严格不重叠、连线不穿框。
+func _place_logic_node(u: String, child_map: Dictionary, depth_of: Dictionary, col_x: Dictionary, est_h: Dictionary, memo: Dictionary, out: Dictionary, depth: int) -> void:
+	var children: Array = child_map.get(u, [])
+	if children.is_empty():
+		return
+	var u_y: float = out[u].y   # 父 y 已由前序（根或上层）确定
+	# 兄弟按各自「子树跨度」累加（含兄弟间隙），父居中于子群
+	var total: float = 0.0
+	for c in children:
+		total += maxf(memo.get(c, 140.0), est_h.get(c, 140.0))
+	var gap_sum: float = 0.0
+	for c in children:
+		gap_sum += _sib_gap(est_h.get(c, 140.0) as float)
+	total += gap_sum
+	var top: float = u_y - total * 0.5
+	var cur: float = top
+	for c in children:
+		var cs: float = maxf(memo.get(c, 140.0), est_h.get(c, 140.0))   # 子树跨度
+		var cy: float = cur + cs * 0.5
+		var cx: float = col_x.get(depth + 1, col_x.get(depth, 0.0) + 200.0)
+		out[c] = Vector2(cx, cy)
+		_place_logic_node(c, child_map, depth_of, col_x, est_h, memo, out, depth + 1)
+		cur += cs + _sib_gap(est_h.get(c, 140.0) as float)
+
+
+# ===================== 模式 C：XMind 星形布局（第8节改造 · A①+B① · 保留以备回退，默认已改逻辑图） =====================
 ## 以「关系树根」（人物；或无人物的结论）为画布中心；根的直接子节点（结论）均分左/右两侧，
 ## 每侧子树向远离中心方向横向生长（结论→推断→线索），连线同侧不跨中心交叉。
 ## 仅根节点位置可被玩家手动锁定（持久化到 graph_root_anchors），其余全部自动派生。
