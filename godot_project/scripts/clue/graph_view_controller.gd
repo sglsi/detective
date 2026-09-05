@@ -2289,6 +2289,8 @@ func _show_tutorial() -> void:
 	_tut_prev = Button.new(); _tut_prev.text = "上一步"
 	_tut_next = Button.new(); _tut_next.text = "下一步"
 	var skip := Button.new(); skip.text = "跳过 / 明白了"
+	for tb: Button in [_tut_prev, _tut_next, skip]:
+		tb.add_theme_font_size_override("font_size", 20)
 	_tut_prev.pressed.connect(_tut_goto.bind(-1))
 	_tut_next.pressed.connect(_tut_goto.bind(1))
 	skip.pressed.connect(_close_tutorial)

@@ -234,7 +234,7 @@ func _popup_shell(title_text: String, panel_size: Vector2, scroll_min: Vector2) 
 	title_bar.add_child(cap)
 	var xbtn := Button.new()
 	xbtn.text = "✕"
-	xbtn.add_theme_font_size_override("font_size", 22)
+	xbtn.add_theme_font_size_override("font_size", 20)
 	xbtn.add_theme_color_override("font_color", Color(0.85, 0.55, 0.55))
 	xbtn.custom_minimum_size = Vector2(40, 32)
 	var xcs := StyleBoxFlat.new()

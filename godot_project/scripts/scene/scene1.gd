@@ -910,12 +910,12 @@ func _show_options_panel() -> void:
 	for i in 3:
 		var db = Button.new(); db.text = diff_names[i]
 		db.position = Vector2(30 + i*190, 340); db.size = Vector2(175, 45)
-		db.add_theme_font_size_override("font_size", 22)
+		db.add_theme_font_size_override("font_size", 20)
 		db.add_theme_stylebox_override("normal", _sb(Color(0.20,0.15,0.10,0.95), Color(0.60,0.48,0.25) if i!=_difficulty else Color(0.90,0.65,0.25), 2, 4))
 		db.pressed.connect(func(idx=i): _difficulty = idx; _create_notification("难度已切换为: "+diff_names[idx]); p.queue_free())
 		f.add_child(db)
 	var cb = Button.new(); cb.text = "关闭"; cb.position = Vector2(170, 420); cb.size = Vector2(260, 45)
-	cb.add_theme_font_size_override("font_size", 22)
+	cb.add_theme_font_size_override("font_size", 20)
 	cb.add_theme_stylebox_override("normal", _sb(Color(0.20,0.15,0.10,0.95), Color(0.60,0.48,0.25), 2, 4))
 	cb.pressed.connect(func(): p.queue_free())
 	f.add_child(cb)

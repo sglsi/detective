@@ -461,26 +461,26 @@ func _create_top_bar() -> Control:
 	row1.add_child(_top_redo_btn)
 
 	# 提交验证（右上关键按钮）
-	_top_verify_btn = _mk_top_btn("✓ 提交验证", false)
+	_top_verify_btn = _mk_top_btn("提交验证", false)
 	_top_verify_btn.tooltip_text = "提交当前推理，正式判定（可推进剧情）"
 	_top_verify_btn.custom_minimum_size = Vector2(130, 44)
 	_top_verify_btn.pressed.connect(_verify_ctl._on_verify_pressed)
 	row1.add_child(_top_verify_btn)
 
-	var help_btn := _mk_top_btn("❓ 求助", false)
+	var help_btn := _mk_top_btn("求助", false)
 	help_btn.pressed.connect(_on_help_pressed)
 	row1.add_child(help_btn)
 
-	var fit_btn := _mk_top_btn("🔎 适应", false)
+	var fit_btn := _mk_top_btn("适应", false)
 	fit_btn.pressed.connect(_on_fit_view_pressed)
 	row1.add_child(fit_btn)
 
-	var auto_btn := _mk_top_btn("✶ 自动排列", false)
+	var auto_btn := _mk_top_btn("自动排列", false)
 	auto_btn.tooltip_text = "按推理层级自动重排文本框（人物在右，结论/推断/线索逐列向左），尽量减小连线交叉"
 	auto_btn.pressed.connect(_on_auto_arrange_pressed)
 	row1.add_child(auto_btn)
 
-	var recycle_btn := _mk_top_btn("🚮 回收站", false)
+	var recycle_btn := _mk_top_btn("回收站", false)
 	recycle_btn.pressed.connect(_on_recycle_pressed)
 	row1.add_child(recycle_btn)
 
@@ -512,19 +512,19 @@ func _create_top_bar() -> Control:
 	row2.add_child(filter_sel)
 	_filter_sel = filter_sel
 
-	var fold_btn := _mk_top_btn("🪗 折叠", true)
+	var fold_btn := _mk_top_btn("折叠", true)
 	fold_btn.tooltip_text = "折叠/展开当前焦点人物的关联线索"
 	fold_btn.pressed.connect(_on_toggle_fold)
 	row2.add_child(fold_btn)
 	_fold_btn = fold_btn
 
-	var export_btn := _mk_top_btn("📤 导出", true)
+	var export_btn := _mk_top_btn("导出", true)
 	export_btn.tooltip_text = "导出推理进度为 Markdown 文本"
 	export_btn.pressed.connect(_on_export_pressed)
 	row2.add_child(export_btn)
 	_export_btn = export_btn
 
-	var save_btn := _mk_top_btn("🗄 存档", true)
+	var save_btn := _mk_top_btn("存档", true)
 	save_btn.tooltip_text = "导出最新存档 JSON（诊断/复盘用）"
 	save_btn.pressed.connect(_on_export_save_pressed)
 	row2.add_child(save_btn)
@@ -533,7 +533,7 @@ func _create_top_bar() -> Control:
 	row2.add_child(_mk_sep())
 
 	# 「候选采纳」：把场景预设的候选推断（按难度供给/甄别）采纳进图谱并自动连支撑证据
-	var cand_btn := _mk_top_btn("🧠 候选采纳", false)
+	var cand_btn := _mk_top_btn("候选采纳", false)
 	cand_btn.tooltip_text = "查看场景预设的可采纳候选推断：简单=系统直接给、普通=含误导需甄别、困难=自行推断不预设"
 	cand_btn.pressed.connect(_on_candidates_pressed)
 	row2.add_child(cand_btn)
@@ -579,12 +579,29 @@ func _mk_sep() -> Control:
 	return s
 
 
+const TOP_BTN_ICONS := {
+	"提交验证": "res://assets/ui/icons/shield_star.png",
+	"适应": "res://assets/ui/icons/zoom_fit.png",
+	"自动排列": "res://assets/ui/icons/auto_arrange.png",
+	"回收站": "res://assets/ui/icons/trash.png",
+	"折叠": "res://assets/ui/icons/fold.png",
+	"导出": "res://assets/ui/icons/download.png",
+	"存档": "res://assets/ui/icons/floppy.png",
+	"候选采纳": "res://assets/ui/icons/lightbulb.png",
+	"求助": "res://assets/ui/icons/help.png",
+}
+
+
 func _mk_top_btn(text: String, active: bool) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.toggle_mode = true
 	b.button_pressed = active
-	b.add_theme_font_size_override("font_size", 22)
+	b.add_theme_font_size_override("font_size", 20)
+	if TOP_BTN_ICONS.has(text):
+		b.icon = load(TOP_BTN_ICONS[text])
+		b.add_theme_constant_override("icon_max_width", 20)
+		b.add_theme_constant_override("h_separation", 4)
 	b.add_theme_color_override("font_color", COL_GOLD if active else COL_GOLD_LIGHT)
 	b.custom_minimum_size = Vector2(64, 42)
 	var s := StyleBoxFlat.new()
@@ -1060,7 +1077,7 @@ func _on_recycle_pressed() -> void:
 		var b := Button.new()
 		var nm: String = str(n.get("label", n.get("id", "?")))
 		b.text = nm
-		b.add_theme_font_size_override("font_size", 22)
+		b.add_theme_font_size_override("font_size", 20)
 		var nid: String = str(n.get("id", ""))
 		b.pressed.connect(_restore_one.bind(nid))
 		vb.add_child(b)
@@ -1171,7 +1188,7 @@ func _on_candidates_pressed() -> void:
 func _mk_cand_act(act: String, hid: String, is_true: bool, hd: Dictionary) -> Button:
 	var b := Button.new()
 	b.text = act
-	b.add_theme_font_size_override("font_size", 22)
+	b.add_theme_font_size_override("font_size", 20)
 	if act == "采纳":
 		b.pressed.connect(_adopt_candidate.bind(hid, hd))
 	else:
@@ -1287,7 +1304,7 @@ func _show_export_save_panel(txt: String) -> void:
 	var dlg := AcceptDialog.new()
 	dlg.title = "存档导出"
 	dlg.ok_button_text = "关闭"
-	dlg.get_ok_button().add_theme_font_size_override("font_size", 22)
+	dlg.get_ok_button().add_theme_font_size_override("font_size", 20)
 	var te := TextEdit.new()
 	te.text = txt
 	te.custom_minimum_size = Vector2(860, 520)

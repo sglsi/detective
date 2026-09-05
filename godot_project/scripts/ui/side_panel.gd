@@ -28,7 +28,7 @@ func _create_buttons() -> void:
 		btn.tooltip_text = def["hint"]
 		if def.has("icon"):
 			btn.icon = load(def["icon"])
-			btn.add_theme_constant_override("icon_max_width", 26)
+			btn.add_theme_constant_override("icon_max_width", 24)
 			btn.add_theme_constant_override("h_separation", 6)
 		btn.position = Vector2(5, 5 + i * 52)
 		btn.size = Vector2(110, 46)
@@ -55,7 +55,7 @@ func _create_buttons() -> void:
 		hover_style.set_corner_radius_all(4)
 		btn.add_theme_stylebox_override("hover", hover_style)
 		
-		btn.add_theme_font_size_override("font_size", 22)
+		btn.add_theme_font_size_override("font_size", 20)
 		btn.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45))
 		
 		add_child(btn)

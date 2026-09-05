@@ -119,7 +119,7 @@ func _build() -> void:
 		else:
 			btn.text = "保存到此处"
 		btn.position = Vector2(fw - 60 - 160, 20); btn.size = Vector2(140, 40)
-		btn.add_theme_font_size_override("font_size", 22)
+		btn.add_theme_font_size_override("font_size", 20)
 		btn.icon = load("res://assets/ui/icons/floppy.png" if _mode != "load" else "res://assets/ui/icons/casebook.png")
 		btn.add_theme_constant_override("icon_max_width", 26)
 		if not (not exists and _mode == "load"):
@@ -138,7 +138,7 @@ func _build() -> void:
 	back.icon = load("res://assets/ui/icons/back_arrow.png")
 	back.add_theme_constant_override("icon_max_width", 26)
 	back.position = Vector2(fw / 2.0 - 130, y + 10); back.size = Vector2(260, 50)
-	back.add_theme_font_size_override("font_size", 22)
+	back.add_theme_font_size_override("font_size", 20)
 	var bsn = StyleBoxFlat.new(); var bsh = StyleBoxFlat.new(); var bsp = StyleBoxFlat.new()
 	bsn.bg_color = Color(0.20, 0.16, 0.10, 0.9); bsn.border_color = Color(0.55, 0.42, 0.20)
 	bsh.bg_color = Color(0.30, 0.24, 0.15, 0.95); bsh.border_color = Color(0.75, 0.58, 0.30)

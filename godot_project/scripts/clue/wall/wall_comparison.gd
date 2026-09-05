@@ -35,7 +35,7 @@ func _build_comparison_desk() -> Control:
 	hdr.add_child(title)
 	var collapse_btn := Button.new()
 	collapse_btn.text = "▾"
-	collapse_btn.add_theme_font_size_override("font_size", 22)
+	collapse_btn.add_theme_font_size_override("font_size", 20)
 	collapse_btn.pressed.connect(_on_desk_collapse)
 	hdr.add_child(collapse_btn)
 	vb.add_child(hdr)
@@ -65,13 +65,13 @@ func _build_comparison_desk() -> Control:
 	var cmp_row := HBoxContainer.new()
 	var cmp_btn := Button.new()
 	cmp_btn.text = "比对"
-	cmp_btn.add_theme_font_size_override("font_size", 22)
+	cmp_btn.add_theme_font_size_override("font_size", 20)
 	cmp_btn.add_theme_color_override("font_color", owner.COL_GOLD)
 	cmp_btn.pressed.connect(_on_compare_pressed)
 	cmp_row.add_child(cmp_btn)
 	var clr_btn := Button.new()
 	clr_btn.text = "清空"
-	clr_btn.add_theme_font_size_override("font_size", 22)
+	clr_btn.add_theme_font_size_override("font_size", 20)
 	clr_btn.pressed.connect(func(): owner._compare_slots = []; _refresh_desk())
 	cmp_row.add_child(clr_btn)
 	owner._desk_body.add_child(cmp_row)

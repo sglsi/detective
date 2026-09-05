@@ -12,7 +12,7 @@ signal difficulty_selected(difficulty: int)
 
 func _ready() -> void:
 	for b: Button in [easy_btn, normal_btn, hard_btn]:
-		b.add_theme_font_size_override("font_size", 22)
+		b.add_theme_font_size_override("font_size", 20)
 		b.add_theme_constant_override("icon_max_width", 34)
 		b.add_theme_constant_override("h_separation", 10)
 	easy_btn.icon = load("res://assets/ui/icons/heart.png")
@@ -116,7 +116,7 @@ func _show_hard_mode_warning(difficulty: int) -> void:
 	ok.icon = load("res://assets/ui/icons/deerstalker.png")
 	ok.add_theme_constant_override("icon_max_width", 30)
 	ok.position = Vector2(190, 300); ok.size = Vector2(300, 52)
-	ok.add_theme_font_size_override("font_size", 22)
+	ok.add_theme_font_size_override("font_size", 20)
 	ok.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))
 	var ob := StyleBoxFlat.new()
 	ob.bg_color = Color(0.30, 0.10, 0.10, 0.95)

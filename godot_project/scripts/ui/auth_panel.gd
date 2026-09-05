@@ -77,14 +77,14 @@ func _build_ui() -> void:
 	_submit_btn = Button.new()
 	_submit_btn.text = "注册"
 	_submit_btn.size = Vector2(480, 56)
-	_submit_btn.add_theme_font_size_override("font_size", 22)
+	_submit_btn.add_theme_font_size_override("font_size", 20)
 	_submit_btn.pressed.connect(_on_submit_pressed)
 	vbox.add_child(_submit_btn)
 
 	_mode_btn = Button.new()
 	_mode_btn.text = "已有账号？去登录"
 	_mode_btn.size = Vector2(480, 44)
-	_mode_btn.add_theme_font_size_override("font_size", 22)
+	_mode_btn.add_theme_font_size_override("font_size", 20)
 	_mode_btn.icon = load("res://assets/ui/icons/person.png")
 	_mode_btn.add_theme_constant_override("icon_max_width", 26)
 	_mode_btn.pressed.connect(_on_toggle_mode)

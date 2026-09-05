@@ -659,7 +659,7 @@ func _show_clue_image_viewer(rev: Dictionary) -> void:
 	rec.text = "记录线索"
 	rec.position = Vector2(960, 410)
 	rec.size = Vector2(220, 52)
-	rec.add_theme_font_size_override("font_size", 22)
+	rec.add_theme_font_size_override("font_size", 20)
 	rec.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))
 	var rsb := StyleBoxFlat.new()
 	rsb.bg_color = Color(0.45, 0.10, 0.10, 0.95)
