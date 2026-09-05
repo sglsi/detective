@@ -103,7 +103,7 @@ func _on_verify_pressed() -> void:
 
 	var vclose := Button.new()
 	vclose.text = "✕"
-	vclose.add_theme_font_size_override("font_size", 18)
+	vclose.add_theme_font_size_override("font_size", 22)
 	vclose.add_theme_color_override("font_color", Color(0.85, 0.55, 0.55))
 	vclose.custom_minimum_size = Vector2(40, 32)
 	var vcstyle := StyleBoxFlat.new()
@@ -178,7 +178,7 @@ func _on_verify_pressed() -> void:
 
 	var ok := Button.new()
 	ok.text = "确定"
-	ok.add_theme_font_size_override("font_size", 18)
+	ok.add_theme_font_size_override("font_size", 22)
 	ok.add_theme_color_override("font_color", owner.COL_GOLD)
 	ok.custom_minimum_size = Vector2(160, 46)
 	ok.alignment = HORIZONTAL_ALIGNMENT_CENTER

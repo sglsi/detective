@@ -119,7 +119,7 @@ func _build() -> void:
 		else:
 			btn.text = "保存到此处"
 		btn.position = Vector2(fw - 60 - 160, 20); btn.size = Vector2(140, 40)
-		btn.add_theme_font_size_override("font_size", 18)
+		btn.add_theme_font_size_override("font_size", 22)
 		if not (not exists and _mode == "load"):
 			btn.pressed.connect(func():
 				var cb = _on_choice

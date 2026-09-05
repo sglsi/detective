@@ -584,7 +584,7 @@ func _mk_top_btn(text: String, active: bool) -> Button:
 	b.text = text
 	b.toggle_mode = true
 	b.button_pressed = active
-	b.add_theme_font_size_override("font_size", 16)
+	b.add_theme_font_size_override("font_size", 22)
 	b.add_theme_color_override("font_color", COL_GOLD if active else COL_GOLD_LIGHT)
 	b.custom_minimum_size = Vector2(64, 42)
 	var s := StyleBoxFlat.new()
@@ -1060,7 +1060,7 @@ func _on_recycle_pressed() -> void:
 		var b := Button.new()
 		var nm: String = str(n.get("label", n.get("id", "?")))
 		b.text = nm
-		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_font_size_override("font_size", 22)
 		var nid: String = str(n.get("id", ""))
 		b.pressed.connect(_restore_one.bind(nid))
 		vb.add_child(b)
@@ -1171,7 +1171,7 @@ func _on_candidates_pressed() -> void:
 func _mk_cand_act(act: String, hid: String, is_true: bool, hd: Dictionary) -> Button:
 	var b := Button.new()
 	b.text = act
-	b.add_theme_font_size_override("font_size", 14)
+	b.add_theme_font_size_override("font_size", 22)
 	if act == "采纳":
 		b.pressed.connect(_adopt_candidate.bind(hid, hd))
 	else:
@@ -1287,6 +1287,7 @@ func _show_export_save_panel(txt: String) -> void:
 	var dlg := AcceptDialog.new()
 	dlg.title = "存档导出"
 	dlg.ok_button_text = "关闭"
+	dlg.get_ok_button().add_theme_font_size_override("font_size", 22)
 	var te := TextEdit.new()
 	te.text = txt
 	te.custom_minimum_size = Vector2(860, 520)
