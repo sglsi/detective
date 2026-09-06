@@ -364,6 +364,12 @@ NO other objects, isolated, game asset
 - **Button 图标规范**：`btn.icon = load(...)` + `add_theme_constant_override("icon_max_width", 24~30)`（主按钮 44）+ `h_separation` 6~10；过滤器类小按钮不加图标（避免语义稀释）。
 - **资源新增必须 `--headless --import` 后 ResourceLoader.exists 才为 true**（新目录 icons/ 未导入时 exists=false，冒烟会误报 ICON_MISSING）。
 - **总览图**：`web_build/icons_preview.png`（37 图标拼图，预览 URL 可看）。
+### 预览"一直转圈进不去"：图标库 78MB 致 pck 膨胀 + 减肥（2026-09-06）
+- **用户报预览一直滚动/转圈进不去**。服务器端链路正常（fileSizes 匹配、pck 200 完整）→ 定位为 **pck 123MB 过大 + proxy 全响应 no-store（浏览器不能缓存）→ 每次刷新全量重下 → 慢**。主因：generate_image 生成的 41 枚图标全是 2048 级 PNG（icons/ 共 78MB），而显示尺寸仅 20~44px。
+- **减肥**：PIL `thumbnail((128,128), LANCZOS)` 批量缩图（保持 alpha；128px 对 44px 显示 3x 余量）→ icons/ 1.1MB，pck 123MB→**68.6MB**（图标在 pck 内为 ctex 压缩格式，实际减 57MB）。**后续生成图标 prompt 后必须立即 resize 到 ≤256 再入 pck**。
+- **两个既有坑复发记录**：①`--import` 后立即 export 报 "Project export failed"（_fs_changed 推迟导出），**重跑一次 export 即可**；②沙箱回收清空 export_templates 软链（/root 非持久），报 "configuration errors"——重跑 `bash tools/godot/setup_godot.sh` 恢复。导出是否真成功以 **fileSizes 与 stat 精确一致** 为准（失败时 index.html/pck 保持旧值）。
+- 版本戳 v=20260906e（pck 71891220）。遗留优化项：pck 分片/断点续传、大资源（watson 立绘等）按需加载。
+
 ### 场景框架左栏/顶栏图标接入（2026-09-06，用户双截图需求）
 - **关键发现：游戏内场景左栏/顶栏是 `scripts/ui/scene_framework.gd`**，与推理墙的 side_panel/reasoning_wall 是**不同面板**（此前给 side_panel 配的图标与此无关）。左栏 9 按钮（LOOK/TALK/EXAMINE/THINK/PROP/JOURNAL/ENCYCLOPEDIA/SAVE/LOAD）字典 icon 字段原是 **emoji 字符，游戏字体无 emoji 字形→渲染为空**（"图标未显示"根因）；顶栏 4 按钮（MAP/CASEBOOK/EVIDENCE/OPTIONS）_make_nav_button 无图标代码。
 - **接入**：左栏 icon 值换 png 路径，emoji Label → TextureRect（EXPAND_IGNORE_SIZE+KEEP_ASPECT_CENTERED，(0,6,w,36)）；顶栏 navs 加 icon 字段，_make_nav_button 加 TextureRect (6,15,24×24) + EN/ZH 文字区右移 x=30 居中。映射：观察→eye/对话→chat/调查→lens/思考→lightbulb/道具→satchel(新)/日志→journal_book/百科→directory/保存→floppy/读取→folder；地图→map(新)/案件簿→casebook/证物→evidence_box/选项→gear。
