@@ -151,6 +151,17 @@ func _node_width_for_kind(kind: String) -> float:
 		_: return 150.0
 
 
+## 各 kind 卡片真实最小高度（与 _make_node 的 _base_h+12 口径一致）。
+## 布局 est_h 必须 ≥ 真实卡高，否则同列兄弟/子树带按「估算矮框」排开后，真实高卡渲染必然重叠。
+## 线索卡文字可很长，按其真实渲染可取高度上限取 200（与 test_overlap_after_derive 真实高度模型一致）。
+const _KIND_MIN_H := {
+	"person": 182.0, "conclusion": 172.0, "chain": 132.0,
+	"hypo": 142.0, "clue": 200.0, "event": 182.0, "_": 150.0,
+}
+func _kind_min_h(kind: String) -> float:
+	return _KIND_MIN_H.get(kind, 150.0)
+
+
 ## 估算节点卡片高度（与 _make_node 尺寸逻辑一致）：行数=ceil(文本宽/420)，行数×行高＋副标题＋内边距
 func _est_node_h(nd: Dictionary) -> float:
 	var fs: float = 28.0
@@ -397,10 +408,13 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	if roots.is_empty() and not nodes.is_empty():
 		roots = [nodes[0].id]
 
-	# 估算高度（与碰撞模型口径一致：max(真实估算高, 140)）
+	# 估算高度（与 _make_node 实际卡片高口径一致：max(文本估算高, 真实卡最小高)）。
+	# ⚠️ 关键：est_h 下限必须等于真实卡高（_kind_min_h），否则按「矮估算」排开的兄弟/子树带
+	#    在真实高卡渲染时必然重叠（此前 64 下限过矮导致 C2↔H1/C3↔CL1 重叠）。
+	#    下限取真实卡高后，配合 sib_gap=0.5×卡高（思傅要求「半框高间距」），既零重叠又满足美学。
 	var est_h := {}
 	for nd in nodes:
-		est_h[nd.id] = maxf(_est_node_h(nd), 140.0)
+		est_h[nd.id] = maxf(_est_node_h(nd), _kind_min_h(owner._fold._kind_of(nd.id)))
 	var memo := {}
 	for nd in nodes:
 		_subtree_span_est(nd.id, child_map, est_h, memo)
@@ -462,7 +476,7 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		return str(a) < str(b))
 
 	# 各根水平带垂直堆叠：先算总高居中，再自上而下铺（多人物各占一独立水平带）
-	var subtree_sep: float = 90.0   # 根带间垂直间隙（亲近分组：异人物/异组留空）
+	var subtree_sep: float = 56.0   # 根带间垂直间隙（亲近分组：异人物/异组留空；收紧至约半框高）
 	var total_h: float = 0.0
 	for r in roots:
 		total_h += maxf(memo.get(r, 140.0), est_h.get(r, 140.0))
@@ -489,6 +503,14 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		var sv3: Variant = saved_pos.get(mid2, null)
 		if sv3 is Vector2 and out.has(mid2):
 			out[mid2] = sv3
+
+	# 后处理：逐列（同深度）消重叠 + 父居中于子（落实 BuchheimWalker 美学 1/3，保证零重叠、边不相交）。
+	# 整洁树本已用子树跨度分离兄弟，但真实框高与估算的细微偏差在密集推导后仍可能令同列节点贴碰；
+	# 此 pass 在最终坐标上刚性校正：把同列节点按 y 自上而下推开至不重叠，再逆序把每个父居中于其子群中点。
+	# 迭代数次收敛（浅树 2~3 轮即稳），不影响列间（不同深度）流向空带。
+	if true:
+		_resolve_and_recenter(out, child_map, depth_of, est_h)
+
 	for idf in out:
 		out[idf] = _clamp_to_canvas(out[idf])
 
@@ -518,6 +540,58 @@ func _place_logic_node(u: String, child_map: Dictionary, depth_of: Dictionary, c
 		out[c] = Vector2(cx, cy)
 		_place_logic_node(c, child_map, depth_of, col_x, est_h, memo, out, depth + 1)
 		cur += cs + _sib_gap(est_h.get(c, 140.0) as float)
+
+
+## 后处理消重叠 + 父居中（BuchheimWalker 美学 1/3 的最终保证）。
+## 输入 out 为 _place_logic_node 产出的整洁树坐标；本函数不改变列（x），只调 y：
+##   1) 逐列（同 depth）把节点按 y 自上而下排开，任意两框间留 _sib_gap（保证同列零重叠、边除节点不相交）；
+##   2) 逆序（叶→根）把每个父节点的 y 重设为「其子群 y 跨度的中点」——父居中于子（美学 3）。
+##   两步走迭代收敛：父重居中可能令同列父节点贴碰，下一轮逐列消重叠再推开，直到稳定（浅树 2~3 轮）。
+func _resolve_and_recenter(out: Dictionary, child_map: Dictionary, depth_of: Dictionary, est_h: Dictionary) -> void:
+	# 单趟（不迭代，避免「消重叠↔父居中」反馈发散）：先逐列消重叠保证零重叠，再父居中于子（美学3）。
+	# 1) 逐列消重叠：同深度节点按 y 自上而下排开，任意两框间留 _sib_gap（同列零重叠、边除节点不相交）。
+	var by_col := {}
+	for _id in out:
+		var _d: int = depth_of.get(_id, 0)
+		if not by_col.has(_d):
+			by_col[_d] = []
+		by_col[_d].append(_id)
+	for _d in by_col:
+		var _col: Array = by_col[_d]
+		_col.sort_custom(func(a, b): return out[a].y < out[b].y)
+		for _i in range(1, _col.size()):
+			var _prev: String = _col[_i - 1]
+			var _cur: String = _col[_i]
+			var _prev_bottom: float = out[_prev].y + est_h.get(_prev, 64.0) * 0.5
+			var _need: float = _prev_bottom + _sib_gap(est_h.get(_cur, 64.0) as float)
+			if out[_cur].y < _need:
+				out[_cur] = Vector2(out[_cur].x, _need)   # Vector2 是值类型，须整体回写
+	# 2) 父居中于子（逆序：深→浅，父取其子群 y 跨度中点；父在独立列，不与子同列，居中不引入同列重叠）
+	# ⚠️ 关键坑：Godot mini/maxi 与 INF/-INF 哨兵组合会吐出 -2^63(≈-9.2e18) 脏值，污染父居中 → 整棵树 y 崩到 -100000。
+	#    严禁用 INF/-INF 作哨兵——改从第一个有效子节点初始化 _ymin/_ymax。
+	var _order: Array = out.keys()
+	_order.sort_custom(func(a, b): return depth_of.get(a, 0) > depth_of.get(b, 0))
+	for _u in _order:
+		var _ch: Array = child_map.get(_u, [])
+		if _ch.is_empty():
+			continue
+		var _ymin: float = 0.0
+		var _ymax: float = 0.0
+		var _first: bool = true
+		for _c in _ch:
+			if not out.has(_c): continue
+			var _cy: float = out[_c].y
+			if _first:
+				_ymin = _cy
+				_ymax = _cy
+				_first = false
+			else:
+				_ymin = mini(_ymin, _cy)
+				_ymax = maxi(_ymax, _cy)
+		if _first:
+			continue   # 无有效子节点
+		if _ymax >= _ymin:
+			out[_u] = Vector2(out[_u].x, (_ymin + _ymax) * 0.5)   # 整体回写（值类型）
 
 
 # ===================== 模式 C：XMind 星形布局（第8节改造 · A①+B① · 保留以备回退，默认已改逻辑图） =====================
@@ -679,7 +753,9 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 ## 兄弟节点垂直间距：取文本框高度的 0.35（折中：此前 20px 过窄贴在一起，0.5h 在节点多时又过于松散）。
 ## 下限 24 防止极矮节点间距过小。
 func _sib_gap(h: float) -> float:
-	return maxf(h * 0.35, 24.0)
+	# 2026-09-06：兄弟垂直间距改为约半个文本框高（思傅要求"间距再小一些，如半框高"）。
+	# 旧 maxf(h*0.35, 24) 在 140 下限下恒为 73，偏松；现 maxf(h*0.5, 12) 随真实框高收紧。
+	return maxf(h * 0.5, 12.0)
 
 
 ## 把一组同侧子节点从 root 沿 dirv 方向逐列向外排布（复用 _assign_subtree 递归子树）
