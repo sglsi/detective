@@ -88,11 +88,13 @@ func _ready() -> void:
 
 	# 选项
 	var bo = mkbtn("选    项", Vector2(720, 720), Vector2(220, 60), false)
+	BtnIconCenter.apply_center(bo, "res://assets/ui/icons/gear.png", 30, 8)
 	bo.pressed.connect(func(): _show_options())
 	_root.add_child(bo)
 
 	# 退出
 	var bq = mkbtn("退出游戏", Vector2(980, 720), Vector2(220, 60), false)
+	BtnIconCenter.apply_center(bq, "res://assets/ui/icons/door_open.png", 30, 8)
 	bq.pressed.connect(func():
 		if OS.has_feature("web"):
 			if JavaScriptBridge: JavaScriptBridge.eval("window.location.reload()", true)
@@ -108,6 +110,7 @@ func _ready() -> void:
 
 	# 注册 / 登录（在线走后端 127.0.0.1:3001；后端不可达时降级为本地账号）
 	var br = mkbtn("注 册 / 登 录", Vector2(660, 865), Vector2(600, 45), false, true)
+	BtnIconCenter.apply_center(br, "res://assets/ui/icons/person.png", 28, 8)
 	br.pressed.connect(func(): _show_auth(false))
 	_root.add_child(br)
 
@@ -255,6 +258,8 @@ func _show_start_panel() -> void:
 		row.add_child(il)
 
 		var bb = mkbtn("继 续" if exists else "—", Vector2(fw - 60 - 150, 16), Vector2(130, 40), exists, true)
+		if exists:
+			BtnIconCenter.apply_center(bb, "res://assets/ui/icons/casebook.png", 24, 8)
 		bb.disabled = not exists
 		if exists:
 			bb.pressed.connect(func():
@@ -273,6 +278,7 @@ func _show_start_panel() -> void:
 
 	# 返回
 	var bx = mkbtn("返    回", Vector2(40 + (fw - 70) / 2.0, y + 10), Vector2((fw - 70) / 2.0, 56), false, true)
+	BtnIconCenter.apply_center(bx, "res://assets/ui/icons/back_arrow.png", 26, 8)
 	bx.pressed.connect(func(): p.queue_free())
 	f.add_child(bx)
 
@@ -473,5 +479,6 @@ func _show_options() -> void:
 	f.add_child(ph)
 
 	var bc = mkbtn("返    回", Vector2(180, 400), Vector2(280, 50), true)
+	BtnIconCenter.apply_center(bc, "res://assets/ui/icons/back_arrow.png", 26, 8)
 	bc.pressed.connect(func(): p.queue_free())
 	f.add_child(bc)

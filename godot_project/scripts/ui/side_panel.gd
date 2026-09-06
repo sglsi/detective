@@ -11,14 +11,14 @@ func _ready() -> void:
 
 func _create_buttons() -> void:
 	var btn_defs = [
-		{"id": "observe", "text": "🔍 观察", "hint": "观察模式"},
-		{"id": "talk", "text": "💬 对话", "hint": "与人物交谈"},
-		{"id": "examine", "text": "🔬 检查", "hint": "使用工具检查"},
-		{"id": "think", "text": "🧠 推理", "hint": "打开推理墙"},
-		{"id": "journal", "text": "📓 笔记", "hint": "侦探笔记"},
-		{"id": "save", "text": "💾 保存", "hint": "保存进度"},
-		{"id": "load", "text": "📂 读取", "hint": "读取存档"},
-		{"id": "export_save", "text": "📤 导出", "hint": "导出最新存档 JSON（诊断用）"},
+		{"id": "observe", "text": "观察", "icon": "res://assets/ui/icons/eye.png", "hint": "观察模式"},
+		{"id": "talk", "text": "对话", "icon": "res://assets/ui/icons/chat.png", "hint": "与人物交谈"},
+		{"id": "examine", "text": "检查", "icon": "res://assets/ui/icons/lens.png", "hint": "使用工具检查"},
+		{"id": "think", "text": "推理", "icon": "res://assets/ui/icons/brain.png", "hint": "打开推理墙"},
+		{"id": "journal", "text": "笔记", "icon": "res://assets/ui/icons/journal_book.png", "hint": "侦探笔记"},
+		{"id": "save", "text": "保存", "icon": "res://assets/ui/icons/floppy.png", "hint": "保存进度"},
+		{"id": "load", "text": "读取", "icon": "res://assets/ui/icons/folder.png", "hint": "读取存档"},
+		{"id": "export_save", "text": "导出", "icon": "res://assets/ui/icons/download.png", "hint": "导出最新存档 JSON（诊断用）"},
 	]
 	
 	for i in btn_defs.size():
@@ -26,6 +26,8 @@ func _create_buttons() -> void:
 		var btn = Button.new()
 		btn.text = def["text"]
 		btn.tooltip_text = def["hint"]
+		if def.has("icon"):
+			BtnIconCenter.apply_center(btn, def["icon"], 24, 6)
 		btn.position = Vector2(5, 5 + i * 52)
 		btn.size = Vector2(110, 46)
 		btn.pressed.connect(_on_btn_pressed.bind(def["id"]))
@@ -51,7 +53,7 @@ func _create_buttons() -> void:
 		hover_style.set_corner_radius_all(4)
 		btn.add_theme_stylebox_override("hover", hover_style)
 		
-		btn.add_theme_font_size_override("font_size", 14)
+		btn.add_theme_font_size_override("font_size", 20)
 		btn.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45))
 		
 		add_child(btn)

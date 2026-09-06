@@ -362,10 +362,10 @@ func _build_top_bar() -> void:
 
 	# 中部 5 个导航按钮
 	var navs = [
-		{"id":"map", "en":"MAP", "zh":"地图", "icon":"🗺"},
-		{"id":"casebook", "en":"CASEBOOK", "zh":"案件簿", "icon":"📂"},
-		{"id":"evidence", "en":"EVIDENCE", "zh":"证物", "icon":"🔍"},
-		{"id":"options", "en":"OPTIONS", "zh":"选项", "icon":"⚙"},
+		{"id":"map", "en":"MAP", "zh":"地图", "icon":"res://assets/ui/icons/map.png"},
+		{"id":"casebook", "en":"CASEBOOK", "zh":"案件簿", "icon":"res://assets/ui/icons/casebook.png"},
+		{"id":"evidence", "en":"EVIDENCE", "zh":"证物", "icon":"res://assets/ui/icons/evidence_box.png"},
+		{"id":"options", "en":"OPTIONS", "zh":"选项", "icon":"res://assets/ui/icons/gear.png"},
 	]
 	var nav_y := 4
 	var nav_h := TOP_H - 8
@@ -409,10 +409,18 @@ func _make_nav_button(n: Dictionary, x: int, y: int, w: int, h: int) -> Button:
 	sh.bg_color = Color(0.20, 0.14, 0.07, 0.95)
 	sh.border_color = COL_GOLD_LIGHT
 	btn.add_theme_stylebox_override("hover", sh)
+	# 图标（黄铜浮雕 png）
+	var nic = TextureRect.new()
+	nic.texture = load(n["icon"])
+	nic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	nic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	nic.position = Vector2(6, 15); nic.size = Vector2(24, 24)
+	nic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(nic)
 	# 英文
 	var en = _mk_gold_label(n["en"], 13, COL_GOLD, 2)
 	en.text = n["en"]
-	en.position = Vector2(0, 4); en.size = Vector2(w, 18)
+	en.position = Vector2(30, 4); en.size = Vector2(w - 32, 18)
 	en.horizontal_alignment = 1
 	en.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(en)
@@ -423,7 +431,7 @@ func _make_nav_button(n: Dictionary, x: int, y: int, w: int, h: int) -> Button:
 	zh.add_theme_color_override("font_color", Color(0.78, 0.68, 0.48))
 	zh.add_theme_color_override("font_outline_color", COL_SHADOW)
 	zh.add_theme_constant_override("outline_size", 1)
-	zh.position = Vector2(0, 24); zh.size = Vector2(w, 16)
+	zh.position = Vector2(30, 24); zh.size = Vector2(w - 32, 16)
 	zh.horizontal_alignment = 1
 	zh.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(zh)
@@ -480,18 +488,18 @@ func _build_left_bar() -> void:
 	scroll.add_child(vb)
 
 	var actions = [
-		{"id":"look", "en":"LOOK", "zh":"观察", "icon":"👁"},
-		{"id":"talk", "en":"TALK", "zh":"对话", "icon":"💬"},
-		{"id":"examine", "en":"EXAMINE", "zh":"调查", "icon":"🔍"},
-		{"id":"think", "en":"THINK", "zh":"思考", "icon":"💡"},
-		{"id":"prop", "en":"PROP", "zh":"道具", "icon":"🎒"},
-		{"id":"journal", "en":"JOURNAL", "zh":"日志", "icon":"📓"},
-		{"id":"kb", "en":"ENCYCLOPEDIA", "zh":"百科", "icon":"📚"},
-		{"id":"save", "en":"SAVE", "zh":"保存", "icon":"💾"},
-		{"id":"load", "en":"LOAD", "zh":"读取", "icon":"📂"},
+		{"id":"look", "en":"LOOK", "zh":"观察", "icon":"res://assets/ui/icons/eye.png"},
+		{"id":"talk", "en":"TALK", "zh":"对话", "icon":"res://assets/ui/icons/chat.png"},
+		{"id":"examine", "en":"EXAMINE", "zh":"调查", "icon":"res://assets/ui/icons/lens.png"},
+		{"id":"think", "en":"THINK", "zh":"思考", "icon":"res://assets/ui/icons/lightbulb.png"},
+		{"id":"prop", "en":"PROP", "zh":"道具", "icon":"res://assets/ui/icons/satchel.png"},
+		{"id":"journal", "en":"JOURNAL", "zh":"日志", "icon":"res://assets/ui/icons/journal_book.png"},
+		{"id":"kb", "en":"ENCYCLOPEDIA", "zh":"百科", "icon":"res://assets/ui/icons/directory.png"},
+		{"id":"save", "en":"SAVE", "zh":"保存", "icon":"res://assets/ui/icons/floppy.png"},
+		{"id":"load", "en":"LOAD", "zh":"读取", "icon":"res://assets/ui/icons/folder.png"},
 	]
-	var btn_w := 116
-	var btn_h := 96
+	var btn_w := 132
+	var btn_h := 64
 	for i in actions.size():
 		var a = actions[i]
 		var btn = _make_action_button(a, btn_w, btn_h, i)
@@ -506,46 +514,56 @@ func _make_action_button(a: Dictionary, w: int, h: int, idx: int) -> Button:
 	btn.name = "action_" + a["id"]
 	btn.custom_minimum_size = Vector2(w, h)
 	btn.text = ""
-	# 圆形金边背景
+	# 古董金属牌：深底 + 外粗内细双线金边
 	var sn = StyleBoxFlat.new()
-	sn.bg_color = Color(0.12, 0.09, 0.06, 0.95)
+	sn.bg_color = Color(0.07, 0.05, 0.03, 0.96)
 	sn.border_color = COL_GOLD
 	sn.border_width_left = 2; sn.border_width_right = 2
 	sn.border_width_top = 2; sn.border_width_bottom = 2
-	sn.set_corner_radius_all(48)  # 接近圆形
+	sn.set_corner_radius_all(10)
 	btn.add_theme_stylebox_override("normal", sn)
 	var sh = StyleBoxFlat.new()
-	sh.bg_color = Color(0.25, 0.16, 0.08, 0.95)
+	sh.bg_color = Color(0.22, 0.14, 0.07, 0.96)
 	sh.border_color = COL_GOLD_LIGHT
 	sh.border_width_left = 2; sh.border_width_right = 2
 	sh.border_width_top = 2; sh.border_width_bottom = 2
-	sh.set_corner_radius_all(48)
+	sh.set_corner_radius_all(10)
 	btn.add_theme_stylebox_override("hover", sh)
-	# 图标（大字号）
-	var icon = Label.new()
-	icon.text = a["icon"]
-	icon.add_theme_font_size_override("font_size", 28)
-	icon.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	icon.add_theme_color_override("font_outline_color", COL_SHADOW)
-	icon.add_theme_constant_override("outline_size", 1)
-	icon.position = Vector2(0, 6); icon.size = Vector2(w, 36)
-	icon.horizontal_alignment = 1
+	# 内细线（双线效果）
+	var inner = Panel.new()
+	inner.position = Vector2(4, 4)
+	inner.size = Vector2(w - 8, h - 8)
+	var si = StyleBoxFlat.new()
+	si.draw_center = false
+	si.border_color = Color(0.78, 0.62, 0.25, 0.45)
+	si.border_width_left = 1; si.border_width_right = 1
+	si.border_width_top = 1; si.border_width_bottom = 1
+	si.set_corner_radius_all(7)
+	inner.add_theme_stylebox_override("panel", si)
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(inner)
+	# 图标（黄铜浮雕 png）居左
+	var icon = TextureRect.new()
+	icon.texture = load(a["icon"])
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.position = Vector2(10, h / 2 - 16); icon.size = Vector2(32, 32)
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(icon)
 	# 英文大写
-	var en = _mk_gold_label(a["en"], 16, COL_GOLD, 2)
-	en.position = Vector2(0, 42); en.size = Vector2(w, 22)
+	var en = _mk_gold_label(a["en"], 11, COL_GOLD, 1)
+	en.position = Vector2(48, h / 2 - 18); en.size = Vector2(w - 54, 17)
 	en.horizontal_alignment = 1
 	en.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(en)
 	# 中文
 	var zh = Label.new()
 	zh.text = a["zh"]
-	zh.add_theme_font_size_override("font_size", 13)
+	zh.add_theme_font_size_override("font_size", 14)
 	zh.add_theme_color_override("font_color", Color(0.85, 0.72, 0.50))
 	zh.add_theme_color_override("font_outline_color", COL_SHADOW)
 	zh.add_theme_constant_override("outline_size", 1)
-	zh.position = Vector2(0, 66); zh.size = Vector2(w, 18)
+	zh.position = Vector2(48, h / 2); zh.size = Vector2(w - 54, 18)
 	zh.horizontal_alignment = 1
 	zh.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(zh)

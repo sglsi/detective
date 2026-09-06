@@ -15,7 +15,7 @@ func _make_filter_btn(text: String, active: bool) -> Button:
 	btn.text = text
 	btn.toggle_mode = true
 	btn.button_pressed = active
-	btn.add_theme_font_size_override("font_size", 13)
+	btn.add_theme_font_size_override("font_size", 20)
 	btn.add_theme_color_override("font_color", owner.COL_GOLD_LIGHT)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var s := StyleBoxFlat.new()
@@ -33,7 +33,14 @@ func _make_filter_btn(text: String, active: bool) -> Button:
 func _make_action_btn(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	btn.add_theme_font_size_override("font_size", 18)
+	btn.add_theme_font_size_override("font_size", 20)
+	match text:
+		"提交验证":
+			BtnIconCenter.apply_center(btn, "res://assets/ui/icons/shield_star.png", 24, 8)
+		"返    回", "返回":
+			BtnIconCenter.apply_center(btn, "res://assets/ui/icons/back_arrow.png", 24, 8)
+		"调查记录":
+			BtnIconCenter.apply_center(btn, "res://assets/ui/icons/calendar.png", 24, 8)
 	btn.add_theme_color_override("font_color", owner.COL_GOLD)
 	btn.custom_minimum_size = Vector2(140, 44)
 	var s := StyleBoxFlat.new()
@@ -137,7 +144,7 @@ func _make_clue_card(clue: Dictionary) -> Button:
 	card.tooltip_text = clue.get("desc", "")
 	card.custom_minimum_size = Vector2(200, 72)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.add_theme_font_size_override("font_size", 18)
+	card.add_theme_font_size_override("font_size", 20)
 
 	var sn := StyleBoxFlat.new()
 	match state:
@@ -188,13 +195,14 @@ func _show_clue_detail(clue: Dictionary) -> void:
 	owner._detail_popup.title = "线索详情"
 	owner._detail_popup.min_size = Vector2(440, 320)
 	owner._detail_popup.exclusive = true
+	owner._detail_popup.get_ok_button().add_theme_font_size_override("font_size", 20)
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
 
 	var name_lbl := Label.new()
 	name_lbl.text = clue.get("name", clue.get("label", clue.get("id", "")))
-	name_lbl.add_theme_font_size_override("font_size", 22)
+	name_lbl.add_theme_font_size_override("font_size", 20)
 	name_lbl.add_theme_color_override("font_color", owner.COL_GOLD)
 	vb.add_child(name_lbl)
 
@@ -233,7 +241,7 @@ func _show_clue_detail(clue: Dictionary) -> void:
 	var desk_row := HBoxContainer.new()
 	var to_desk := Button.new()
 	to_desk.text = "→ 放入对比台"
-	to_desk.add_theme_font_size_override("font_size", 15)
+	to_desk.add_theme_font_size_override("font_size", 20)
 	to_desk.add_theme_color_override("font_color", owner.COL_GOLD)
 	to_desk.pressed.connect(func():
 		owner._cmp_ctl._load_comparison(clue["id"])
