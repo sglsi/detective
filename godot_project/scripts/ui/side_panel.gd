@@ -28,6 +28,7 @@ func _create_buttons() -> void:
 		btn.tooltip_text = def["hint"]
 		if def.has("icon"):
 			btn.icon = load(def["icon"])
+			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			btn.add_theme_constant_override("icon_max_width", 24)
 			btn.add_theme_constant_override("h_separation", 6)
 		btn.position = Vector2(5, 5 + i * 52)

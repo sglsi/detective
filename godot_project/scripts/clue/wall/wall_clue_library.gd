@@ -37,10 +37,13 @@ func _make_action_btn(text: String) -> Button:
 	match text:
 		"提交验证":
 			btn.icon = load("res://assets/ui/icons/shield_star.png")
+			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		"返    回", "返回":
 			btn.icon = load("res://assets/ui/icons/back_arrow.png")
+			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		"调查记录":
 			btn.icon = load("res://assets/ui/icons/calendar.png")
+			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	if btn.icon != null:
 		btn.add_theme_constant_override("icon_max_width", 22)
 	btn.add_theme_color_override("font_color", owner.COL_GOLD)
