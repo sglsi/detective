@@ -18,7 +18,7 @@ func _init() -> void:
 
 	# 只需判定「新布局独有特征必须存在」+「旧布局独有特征必须消失」。
 	# 注意 _assign_subtree 新旧两版都有，绝不能拿来当判定依据。
-	var must_have := ["_subtree_span_est", "_place_side_children"]
+	var must_have := ["_subtree_span_est", "_place_side_children", "_logic_tree_layout"]
 	var must_not_have := ["cols[key]", "sign(d))"]
 
 	var ok := true
