@@ -85,9 +85,7 @@ func _build_ui() -> void:
 	_mode_btn.text = "已有账号？去登录"
 	_mode_btn.size = Vector2(480, 44)
 	_mode_btn.add_theme_font_size_override("font_size", 20)
-	_mode_btn.icon = load("res://assets/ui/icons/person.png")
-	_mode_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_mode_btn.add_theme_constant_override("icon_max_width", 26)
+	BtnIconCenter.apply_center(_mode_btn, "res://assets/ui/icons/person.png", 26, 8)
 	_mode_btn.pressed.connect(_on_toggle_mode)
 	vbox.add_child(_mode_btn)
 
@@ -143,12 +141,16 @@ func _apply_mode() -> void:
 		_title_label.text = "🔑 登录账号"
 		_submit_btn.text = "登录"
 		_mode_btn.text = "没有账号？去注册"
+		if _mode_btn.has_meta("icon_label"):
+			(_mode_btn.get_meta("icon_label") as Label).text = _mode_btn.text
 		_username_edit.visible = false
 		_phone_edit.visible = false
 	else:
 		_title_label.text = "📝 注册账号"
 		_submit_btn.text = "注册"
 		_mode_btn.text = "已有账号？去登录"
+		if _mode_btn.has_meta("icon_label"):
+			(_mode_btn.get_meta("icon_label") as Label).text = _mode_btn.text
 		_username_edit.visible = true
 		_phone_edit.visible = true
 	_status_label.text = ""

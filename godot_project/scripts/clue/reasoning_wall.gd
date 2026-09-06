@@ -599,10 +599,7 @@ func _mk_top_btn(text: String, active: bool) -> Button:
 	b.button_pressed = active
 	b.add_theme_font_size_override("font_size", 20)
 	if TOP_BTN_ICONS.has(text):
-		b.icon = load(TOP_BTN_ICONS[text])
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.add_theme_constant_override("icon_max_width", 20)
-		b.add_theme_constant_override("h_separation", 4)
+		BtnIconCenter.apply_center(b, TOP_BTN_ICONS[text], 20, 4)
 	b.add_theme_color_override("font_color", COL_GOLD if active else COL_GOLD_LIGHT)
 	b.custom_minimum_size = Vector2(64, 42)
 	var s := StyleBoxFlat.new()

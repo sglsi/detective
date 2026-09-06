@@ -36,16 +36,11 @@ func _make_action_btn(text: String) -> Button:
 	btn.add_theme_font_size_override("font_size", 20)
 	match text:
 		"提交验证":
-			btn.icon = load("res://assets/ui/icons/shield_star.png")
-			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			BtnIconCenter.apply_center(btn, "res://assets/ui/icons/shield_star.png", 24, 8)
 		"返    回", "返回":
-			btn.icon = load("res://assets/ui/icons/back_arrow.png")
-			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			BtnIconCenter.apply_center(btn, "res://assets/ui/icons/back_arrow.png", 24, 8)
 		"调查记录":
-			btn.icon = load("res://assets/ui/icons/calendar.png")
-			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	if btn.icon != null:
-		btn.add_theme_constant_override("icon_max_width", 22)
+			BtnIconCenter.apply_center(btn, "res://assets/ui/icons/calendar.png", 24, 8)
 	btn.add_theme_color_override("font_color", owner.COL_GOLD)
 	btn.custom_minimum_size = Vector2(140, 44)
 	var s := StyleBoxFlat.new()
