@@ -364,6 +364,12 @@ NO other objects, isolated, game asset
 - **Button 图标规范**：`btn.icon = load(...)` + `add_theme_constant_override("icon_max_width", 24~30)`（主按钮 44）+ `h_separation` 6~10；过滤器类小按钮不加图标（避免语义稀释）。
 - **资源新增必须 `--headless --import` 后 ResourceLoader.exists 才为 true**（新目录 icons/ 未导入时 exists=false，冒烟会误报 ICON_MISSING）。
 - **总览图**：`web_build/icons_preview.png`（37 图标拼图，预览 URL 可看）。
+### 华生教学图第三版（2026-09-06，watson03 + 左肩锚定回退旧值）
+- **教学图替换**：`watson_teaching.png` ← `assets/watson03.png`（与 watson01 同构图微调版 640×1663），引用路径不变。
+- **左肩锚定用户裁定沿用旧值**：上一版把 shoulder 锚到右缘垂下左臂（cx0.79/cy0.48）用户实测"锚定范围不对"；从 `git show 044519a:godot_project/data/clue_image_anchors.gd` 考古旧版锚定（512 图时代），**shoulder=cx0.594 cy0.242 w0.20 h0.20（头下偏右上胸）用户认可**——新表直接沿用。**教训：换图重标锚点时，用户上一版认可的部位位置先考古旧值再决定要不要动，不凭新图轮廓自作主张重标**。
+- 新表值：face cx0.49/cy0.07/w0.30/h0.14、wrist cx0.20/cy0.33/w0.24/h0.26、shoulder cx0.594/cy0.242（旧值）、torso cx0.50/cy0.42/w0.32/h0.32（**消毒液=上半身**，y0.26-0.58，用户指定）、pose 全图；scene1.gd 5 处 crop 回退同步（arm 的 crop 也指向 shoulder 区域）。
+- 回归：test_watson_v6_anchor 断言同步更新（shoulder 断言从 cx≥0.65 改为 0.52..0.68 + cy 0.15..0.35）CLUE_ANCHOR_OK；导出 v=20260905i pck 120459292，预览 proxy 根路径已服务新构建。注意 scene1.gd 的 crop JSON 是**无空格紧凑格式**（`"crop":{"x":0.08,...}`），python 替换按此格式匹配。
+
 ### 华生教学图替换 + 消毒液线索改名（2026-09-05，用户三连需求）
 - **教学图替换**：`watson_teaching.png` ← `assets/watson01.png`（像素风全身立绘 640×1663 透明底，用户上传），文件名不变、全部引用路径不动。锚点表 `data/clue_image_anchors.gd` 重标（PIL alpha 轮廓+肤色聚类定位人物部位）：face cx0.467/cy0.07（含发整头）、wrist cx0.19/cy0.31（画面左侧伸出的右手）、shoulder cx0.79/cy0.48（右缘垂下的左臂——arm 线索沿用此锚点名）、**torso 新增** cx0.50/cy0.40（躯干马甲区，medical 专用避免与 pose 重叠）、pose 全图不变。
 - **锚点机制确认**：`clue_observer.gd` 在 setup 传入 `_portrait_ctrl` 时热点按钮由**锚点表统一归一化定位**（`_position_buttons`），scene1.gd 各线索的 x/y/w/h 字段此时不生效（仅无立绘的地点类线索用）——**换图只需改锚点表 + scene1.gd 的 crop 回退取景 + anchor 名**。
