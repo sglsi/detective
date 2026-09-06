@@ -9,18 +9,42 @@ import argparse
 import http.server
 import socketserver
 import os
+import re
 import urllib.request
 import urllib.error
 
 PORT = 8080
 BACKEND = "http://127.0.0.1:3000"
 
+_BUILD_STAMP_RE = re.compile(r'"mainPack":"index\.pck\?v=([^"]+)"')
+
 
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/api/"):
             return self._proxy("GET")
+        # 根入口重定向到带构建戳的 index.html：浏览器缓存的旧入口（旧 fileSizes
+        # 与新 pck 尺寸不符会导致 loader 校验失败）由此彻底绕开
+        if self.path in ("/", "/index.html") or self.path.startswith("/index.html?"):
+            from urllib.parse import urlparse, parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            stamp = self._build_stamp()
+            if q.get("v", [""])[0] != stamp:
+                self.send_response(302)
+                self.send_header("Location", f"/index.html?v={stamp}")
+                self.end_headers()
+                return
         return super().do_GET()
+
+    def _build_stamp(self):
+        try:
+            with open("index.html", "r", encoding="utf-8") as f:
+                m = _BUILD_STAMP_RE.search(f.read(65536))
+            if m:
+                return m.group(1)
+            return str(int(os.path.getmtime("index.html")))
+        except OSError:
+            return "0"
 
     def do_POST(self):
         if self.path.startswith("/api/"):
