@@ -741,6 +741,20 @@ func _build_parent_of() -> Dictionary:
 		else:
 			add_parent.call(_f, _t)
 	# 布局树仅由玩家建立的 _relations（support/target 边）驱动——玩家连线即玩家布局结构。
+	# 「结论→结论」推导边继承：玩家从结论 A 推导综合结论 B（A→B support）时，新结论 B 应
+	# 继承 A 的父链（如人物锚 P），形成 P ← B ← A 紧凑三段——B 在 A 上一级（root 向）且 A 经 B 仍
+	# 挂在人物链上（拖动人物根带动下游）。否则 B 会与 P 并列为孤立 root、A 脱离人物链
+	# （思傅报的「新结论层级不对」二级表现：新结论成孤立根、源结论脱离人物锚）。故把 A 的
+	# 全部父候选登记为 B 的父候选，拓扑最长路径会自然算出 P←B←A（B 父=P、A 父=B）。
+	for _r in owner._relations:
+		if str(_r.get("kind", "")) != "support": continue
+		var _af := str(_r.get("from", "")); var _at := str(_r.get("to", ""))
+		if owner._fold._kind_of(_af) == "conclusion" and owner._fold._kind_of(_at) == "conclusion":
+			for _ap in parent_cand.get(_af, []):
+				if _ap == _at or _ap == _af: continue
+				if not parent_cand.has(_at): parent_cand[_at] = []
+				if not (_ap in parent_cand[_at]):
+					parent_cand[_at].append(_ap)
 	# 预设数据（gate_clue_ids/gate_hypo_ids/target/related_npcs）仅用于提交验证评分，不进入布局/拖拽跟随。
 	# 兜底：人物节点恒为放射根，但允许「人物↔人物」的从属嵌套。
 	# 若某人物的全部父候选都不是人物（即仅被非人物当成子），才强制其为根、剔除非人物父候选，
