@@ -362,10 +362,10 @@ func _build_top_bar() -> void:
 
 	# 中部 5 个导航按钮
 	var navs = [
-		{"id":"map", "en":"MAP", "zh":"地图", "icon":"🗺"},
-		{"id":"casebook", "en":"CASEBOOK", "zh":"案件簿", "icon":"📂"},
-		{"id":"evidence", "en":"EVIDENCE", "zh":"证物", "icon":"🔍"},
-		{"id":"options", "en":"OPTIONS", "zh":"选项", "icon":"⚙"},
+		{"id":"map", "en":"MAP", "zh":"地图", "icon":"res://assets/ui/icons/map.png"},
+		{"id":"casebook", "en":"CASEBOOK", "zh":"案件簿", "icon":"res://assets/ui/icons/casebook.png"},
+		{"id":"evidence", "en":"EVIDENCE", "zh":"证物", "icon":"res://assets/ui/icons/evidence_box.png"},
+		{"id":"options", "en":"OPTIONS", "zh":"选项", "icon":"res://assets/ui/icons/gear.png"},
 	]
 	var nav_y := 4
 	var nav_h := TOP_H - 8
@@ -409,10 +409,18 @@ func _make_nav_button(n: Dictionary, x: int, y: int, w: int, h: int) -> Button:
 	sh.bg_color = Color(0.20, 0.14, 0.07, 0.95)
 	sh.border_color = COL_GOLD_LIGHT
 	btn.add_theme_stylebox_override("hover", sh)
+	# 图标（黄铜浮雕 png）
+	var nic = TextureRect.new()
+	nic.texture = load(n["icon"])
+	nic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	nic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	nic.position = Vector2(6, 15); nic.size = Vector2(24, 24)
+	nic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(nic)
 	# 英文
 	var en = _mk_gold_label(n["en"], 13, COL_GOLD, 2)
 	en.text = n["en"]
-	en.position = Vector2(0, 4); en.size = Vector2(w, 18)
+	en.position = Vector2(30, 4); en.size = Vector2(w - 32, 18)
 	en.horizontal_alignment = 1
 	en.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(en)
@@ -423,7 +431,7 @@ func _make_nav_button(n: Dictionary, x: int, y: int, w: int, h: int) -> Button:
 	zh.add_theme_color_override("font_color", Color(0.78, 0.68, 0.48))
 	zh.add_theme_color_override("font_outline_color", COL_SHADOW)
 	zh.add_theme_constant_override("outline_size", 1)
-	zh.position = Vector2(0, 24); zh.size = Vector2(w, 16)
+	zh.position = Vector2(30, 24); zh.size = Vector2(w - 32, 16)
 	zh.horizontal_alignment = 1
 	zh.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(zh)
@@ -480,15 +488,15 @@ func _build_left_bar() -> void:
 	scroll.add_child(vb)
 
 	var actions = [
-		{"id":"look", "en":"LOOK", "zh":"观察", "icon":"👁"},
-		{"id":"talk", "en":"TALK", "zh":"对话", "icon":"💬"},
-		{"id":"examine", "en":"EXAMINE", "zh":"调查", "icon":"🔍"},
-		{"id":"think", "en":"THINK", "zh":"思考", "icon":"💡"},
-		{"id":"prop", "en":"PROP", "zh":"道具", "icon":"🎒"},
-		{"id":"journal", "en":"JOURNAL", "zh":"日志", "icon":"📓"},
-		{"id":"kb", "en":"ENCYCLOPEDIA", "zh":"百科", "icon":"📚"},
-		{"id":"save", "en":"SAVE", "zh":"保存", "icon":"💾"},
-		{"id":"load", "en":"LOAD", "zh":"读取", "icon":"📂"},
+		{"id":"look", "en":"LOOK", "zh":"观察", "icon":"res://assets/ui/icons/eye.png"},
+		{"id":"talk", "en":"TALK", "zh":"对话", "icon":"res://assets/ui/icons/chat.png"},
+		{"id":"examine", "en":"EXAMINE", "zh":"调查", "icon":"res://assets/ui/icons/lens.png"},
+		{"id":"think", "en":"THINK", "zh":"思考", "icon":"res://assets/ui/icons/lightbulb.png"},
+		{"id":"prop", "en":"PROP", "zh":"道具", "icon":"res://assets/ui/icons/satchel.png"},
+		{"id":"journal", "en":"JOURNAL", "zh":"日志", "icon":"res://assets/ui/icons/journal_book.png"},
+		{"id":"kb", "en":"ENCYCLOPEDIA", "zh":"百科", "icon":"res://assets/ui/icons/directory.png"},
+		{"id":"save", "en":"SAVE", "zh":"保存", "icon":"res://assets/ui/icons/floppy.png"},
+		{"id":"load", "en":"LOAD", "zh":"读取", "icon":"res://assets/ui/icons/folder.png"},
 	]
 	var btn_w := 116
 	var btn_h := 96
@@ -521,15 +529,12 @@ func _make_action_button(a: Dictionary, w: int, h: int, idx: int) -> Button:
 	sh.border_width_top = 2; sh.border_width_bottom = 2
 	sh.set_corner_radius_all(48)
 	btn.add_theme_stylebox_override("hover", sh)
-	# 图标（大字号）
-	var icon = Label.new()
-	icon.text = a["icon"]
-	icon.add_theme_font_size_override("font_size", 28)
-	icon.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	icon.add_theme_color_override("font_outline_color", COL_SHADOW)
-	icon.add_theme_constant_override("outline_size", 1)
+	# 图标（黄铜浮雕 png）
+	var icon = TextureRect.new()
+	icon.texture = load(a["icon"])
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.position = Vector2(0, 6); icon.size = Vector2(w, 36)
-	icon.horizontal_alignment = 1
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(icon)
 	# 英文大写
