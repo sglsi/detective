@@ -15,12 +15,9 @@ func _ready() -> void:
 		b.add_theme_font_size_override("font_size", 20)
 		b.add_theme_constant_override("icon_max_width", 34)
 		b.add_theme_constant_override("h_separation", 10)
-	easy_btn.icon = load("res://assets/ui/icons/heart.png")
-	easy_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	normal_btn.icon = load("res://assets/ui/icons/compass.png")
-	normal_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	hard_btn.icon = load("res://assets/ui/icons/bell.png")
-	hard_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	BtnIconCenter.apply_center(easy_btn, "res://assets/ui/icons/heart.png", 24, 8)
+	BtnIconCenter.apply_center(normal_btn, "res://assets/ui/icons/compass.png", 24, 8)
+	BtnIconCenter.apply_center(hard_btn, "res://assets/ui/icons/bell.png", 24, 8)
 
 	easy_btn.pressed.connect(_on_easy_selected)
 	normal_btn.pressed.connect(_on_normal_selected)
@@ -116,9 +113,7 @@ func _show_hard_mode_warning(difficulty: int) -> void:
 	f.add_child(body)
 	var ok := Button.new()
 	ok.text = "我明白了，开始挑战"
-	ok.icon = load("res://assets/ui/icons/deerstalker.png")
-	ok.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	ok.add_theme_constant_override("icon_max_width", 30)
+	BtnIconCenter.apply_center(ok, "res://assets/ui/icons/deerstalker.png", 30, 8)
 	ok.position = Vector2(190, 300); ok.size = Vector2(300, 52)
 	ok.add_theme_font_size_override("font_size", 20)
 	ok.add_theme_color_override("font_color", Color(0.92, 0.84, 0.55))

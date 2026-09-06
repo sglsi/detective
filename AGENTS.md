@@ -364,6 +364,12 @@ NO other objects, isolated, game asset
 - **Button 图标规范**：`btn.icon = load(...)` + `add_theme_constant_override("icon_max_width", 24~30)`（主按钮 44）+ `h_separation` 6~10；过滤器类小按钮不加图标（避免语义稀释）。
 - **资源新增必须 `--headless --import` 后 ResourceLoader.exists 才为 true**（新目录 icons/ 未导入时 exists=false，冒烟会误报 ICON_MISSING）。
 - **总览图**：`web_build/icons_preview.png`（37 图标拼图，预览 URL 可看）。
+### 按钮"图标+文字整体居中"重构（2026-09-06，用户澄清：不要左对齐，要整体居中）
+- **Godot 4.7 无原生组合居中**（读引擎源码确认）：icon_alignment 与 alignment 独立生效——icon CENTER 时 text 可用区**不减 icon 宽**，CENTER+CENTER 直接重叠；LEFT+CENTER 是"剩余区居中"（text 中心=(W+icon+sep)/2，偏右）。纯属性方案无法实现"图标+文字作为整体居中"。
+- **方案：内部 HBoxContainer 组合居中**——新工厂 `scripts/ui/btn_icon_center.gd`（class_name BtnIconCenter）：`apply_center(btn, icon_path, icon_w, sep)` 清空 btn.icon/text，挂 PRESET_FULL_RECT + ALIGNMENT_CENTER 的 HBox（mouse_filter=IGNORE 链），内含 TextureRect（EXPAND_IGNORE_SIZE+KEEP_ASPECT_CENTERED，min=(icon_w,0)）+ Label（复制 btn 的 font_size/font_color override，VERTICAL_CENTER）；并按 icon_w+sep+文本实测宽（Font.get_string_size）+ stylebox content margin 设 custom_minimum_size，防清空 text 后容器内按钮塌缩。**新增 API 注意：Button 没有 get_theme_font_color，是 get_theme_color("font_color")**（主场景冒烟 4 报错实证）。
+- 19 处调用点由 python 批量替换（.icon=load 行 + 相邻 icon_max_width/h_separation/alignment 行合并为一次工厂调用）。**唯一动态 text 按钮=auth_panel._mode_btn**（登录/注册模式切换），在 _apply_mode 两处赋值后同步 `get_meta("icon_label")` 的 text——工厂把 Label 存在 btn.set_meta("icon_label")。wall_clue_library 的 `if btn.icon != null` icon_max_width 死代码已删。
+- 已知代价：按钮 hover/pressed 态的**字色**变化丢失（Label 固定色），stylebox 底色变化反馈仍在；顶栏按钮颜色创建时定死不受影响。版本戳 v=20260906b。
+
 ### 按钮图标与文字脱节修复（2026-09-06，用户反馈"图标在最左边离文字远"）
 - **根因（headless 探针实测）**：Godot 4.7 Button 的 `icon_alignment` 默认 LEFT（图标贴按钮左内缘）、`alignment`（文字）默认 CENTER（居中）——两者**独立对齐**，宽按钮上图标贴左、文字居中，脱节感强。h_separation（4~10）不是原因。
 - **修复**：全部 19 处 `.icon = load(...)` 赋值点后统一插入 `X.alignment = HORIZONTAL_ALIGNMENT_LEFT`（文字左对齐紧贴图标，间距=h_separation）。涉及：main_menu×7、difficulty_select×4、wall_clue_library×3、slot_dialog×2、reasoning_wall _mk_top_btn×1、side_panel×1、auth_panel×1。tool_bar 是首字 Label 按钮不涉及。
