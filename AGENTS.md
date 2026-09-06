@@ -364,6 +364,9 @@ NO other objects, isolated, game asset
 - **Button 图标规范**：`btn.icon = load(...)` + `add_theme_constant_override("icon_max_width", 24~30)`（主按钮 44）+ `h_separation` 6~10；过滤器类小按钮不加图标（避免语义稀释）。
 - **资源新增必须 `--headless --import` 后 ResourceLoader.exists 才为 true**（新目录 icons/ 未导入时 exists=false，冒烟会误报 ICON_MISSING）。
 - **总览图**：`web_build/icons_preview.png`（37 图标拼图，预览 URL 可看）。
+### 左栏按钮改古董金属牌样式（2026-09-06，用户参考图）
+- scene_framework.gd `_make_action_button` 按**用户参考图**重做：深底(0.07,0.05,0.03) + 外 2px 金边 corner10 + **内嵌细线 Panel(4px 内缩, 1px 半透明金, draw_center=false) 做双线效果**；图标 32×32 居左垂直居中，EN(11号金)+ZH(14号浅金) 两行居右；按钮 116×96 圆牌 → 132×64 扁牌（LEFT_W=140 内）。ENCYCLOPEDIA 11 号在 (w-54) 文字区刚好放下。hover=亮金边+暖棕底。版本戳 v=20260906f。
+
 ### 预览"一直转圈进不去"：图标库 78MB 致 pck 膨胀 + 减肥（2026-09-06）
 - **用户报预览一直滚动/转圈进不去**。服务器端链路正常（fileSizes 匹配、pck 200 完整）→ 定位为 **pck 123MB 过大 + proxy 全响应 no-store（浏览器不能缓存）→ 每次刷新全量重下 → 慢**。主因：generate_image 生成的 41 枚图标全是 2048 级 PNG（icons/ 共 78MB），而显示尺寸仅 20~44px。
 - **减肥**：PIL `thumbnail((128,128), LANCZOS)` 批量缩图（保持 alpha；128px 对 44px 显示 3x 余量）→ icons/ 1.1MB，pck 123MB→**68.6MB**（图标在 pck 内为 ctex 压缩格式，实际减 57MB）。**后续生成图标 prompt 后必须立即 resize 到 ≤256 再入 pck**。
