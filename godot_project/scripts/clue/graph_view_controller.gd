@@ -1314,13 +1314,19 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 				drop = ""
 		if drop != "":
 			var drop_kind: String = _node_kind.get(drop, "")
-			if drop_kind == "person":
-				if _node_kind.get(id, "") == "clue":
-					_tag_person(id, drop)
+			var id_kind: String = _node_kind.get(id, "")
+			# 结论/推断/推理链 ↔ 人物：无论正向（结论拖到人物）还是反向（人物拖到结论），
+			# 都强制建「归属边」(target 金边)。旧 bug：反向拖时 _add_edge 只交换端点、不修正 kind，
+			# 结论→人物边被记成 support/relate，验证器按 kind=="target" 比对失败 → 误报"未连接到人物"。
+			if drop_kind == "person" or id_kind == "person":
+				var person_id: String = drop if drop_kind == "person" else id
+				var other_id: String = id if drop_kind == "person" else drop
+				var other_kind: String = _node_kind.get(other_id, "")
+				if other_kind == "clue":
+					_tag_person(other_id, person_id)
 				else:
-					# 方案B：推断/结论/推理链拖到人物头像 → 建归属边（金色常显）
-					_edge._add_edge(id, drop, "target", "gold", false)
-					_nudge_away_from(id, drop)
+					_edge._add_edge(other_id, person_id, "target", "gold", false)
+					_nudge_away_from(other_id, person_id)
 			elif drop_kind in ["hypo", "clue", "conclusion"]:
 				_edge._add_edge(id, drop, _data.key_to_kind(_pen_color_key), _pen_color_key, _pen_dashed)
 				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
@@ -1437,12 +1443,16 @@ func _commit_drag(id: String) -> void:
 		_toast_msg("已封存，仅可浏览")
 		return
 	var drop_kind: String = _node_kind.get(drop, "")
-	if drop_kind == "person":
-		if _node_kind.get(id, "") == "clue":
-			_tag_person(id, drop)
+	var id_kind: String = _node_kind.get(id, "")
+	# 结论/推断/推理链 ↔ 人物：正向/反向拖都强制建 target 金边（修反向拖 kind 错配，同 _commit_move）
+	if drop_kind == "person" or id_kind == "person":
+		var person_id: String = drop if drop_kind == "person" else id
+		var other_id: String = id if drop_kind == "person" else drop
+		var other_kind: String = _node_kind.get(other_id, "")
+		if other_kind == "clue":
+			_tag_person(other_id, person_id)
 		else:
-			# 方案B：画布内拖拽笔把推断/结论拖到人物 → 建归属边
-			_edge._add_edge(id, drop, "target", "gold", false)
+			_edge._add_edge(other_id, person_id, "target", "gold", false)
 	elif drop_kind in ["hypo", "clue", "conclusion"]:
 		_edge._add_edge(id, drop, _drag_kind, _drag_color_key, _drag_dashed)
 	else:

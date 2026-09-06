@@ -80,13 +80,20 @@ func _build_adjacency() -> Dictionary:
 	return adj
 
 
-## 节点的直接外层邻居（圈层深度严格更大的相连节点）——用于折叠控件数量与朝向
+## 节点的直接外层邻居（= 玩家关系树中本节点的「直接子节点」）——用于折叠控件数量与朝向。
+## ⚠️ 旧实现按「圈层深度严格更大」过滤无向邻接表：结论由结论推导（conclusion→conclusion，
+##    两端同属 rd1）时，子结论 rd 不 > 父结论 rd，被漏判为「无外层邻居」→ 该结论拿不到折叠控件、
+##    不能折叠其下子树（思傅报 BUG2）。现改为直接取关系树子节点：support/target 边约定
+##    from=子(前提)→to=父(综合)，故「to==id 的 support/target 边的 from」即 id 的直接子节点，
+##    与 _compute_hidden 用的 _layout._descendants 同源，不依赖圈层深度，conclusion→conclusion
+##    同环边也能正确折叠。
 func _direct_outer_neighbors(id: String) -> Array:
 	var out := []
-	var rd := _ring_depth(_kind_of(id))
-	for nb in _build_adjacency().get(id, []):
-		if _ring_depth(_kind_of(nb)) > rd:
-			out.append(nb)
+	for r in owner._relations:
+		var k := str(r.get("kind", ""))
+		if k != "support" and k != "target": continue
+		if str(r.get("to", "")) == id:
+			out.append(str(r.get("from", "")))
 	return out
 
 
