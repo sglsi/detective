@@ -16,8 +16,11 @@ func _ready() -> void:
 		b.add_theme_constant_override("icon_max_width", 34)
 		b.add_theme_constant_override("h_separation", 10)
 	easy_btn.icon = load("res://assets/ui/icons/heart.png")
+	easy_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	normal_btn.icon = load("res://assets/ui/icons/compass.png")
+	normal_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	hard_btn.icon = load("res://assets/ui/icons/bell.png")
+	hard_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 
 	easy_btn.pressed.connect(_on_easy_selected)
 	normal_btn.pressed.connect(_on_normal_selected)
@@ -114,6 +117,7 @@ func _show_hard_mode_warning(difficulty: int) -> void:
 	var ok := Button.new()
 	ok.text = "我明白了，开始挑战"
 	ok.icon = load("res://assets/ui/icons/deerstalker.png")
+	ok.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	ok.add_theme_constant_override("icon_max_width", 30)
 	ok.position = Vector2(190, 300); ok.size = Vector2(300, 52)
 	ok.add_theme_font_size_override("font_size", 20)

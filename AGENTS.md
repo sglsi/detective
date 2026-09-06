@@ -364,6 +364,11 @@ NO other objects, isolated, game asset
 - **Button 图标规范**：`btn.icon = load(...)` + `add_theme_constant_override("icon_max_width", 24~30)`（主按钮 44）+ `h_separation` 6~10；过滤器类小按钮不加图标（避免语义稀释）。
 - **资源新增必须 `--headless --import` 后 ResourceLoader.exists 才为 true**（新目录 icons/ 未导入时 exists=false，冒烟会误报 ICON_MISSING）。
 - **总览图**：`web_build/icons_preview.png`（37 图标拼图，预览 URL 可看）。
+### 按钮图标与文字脱节修复（2026-09-06，用户反馈"图标在最左边离文字远"）
+- **根因（headless 探针实测）**：Godot 4.7 Button 的 `icon_alignment` 默认 LEFT（图标贴按钮左内缘）、`alignment`（文字）默认 CENTER（居中）——两者**独立对齐**，宽按钮上图标贴左、文字居中，脱节感强。h_separation（4~10）不是原因。
+- **修复**：全部 19 处 `.icon = load(...)` 赋值点后统一插入 `X.alignment = HORIZONTAL_ALIGNMENT_LEFT`（文字左对齐紧贴图标，间距=h_separation）。涉及：main_menu×7、difficulty_select×4、wall_clue_library×3、slot_dialog×2、reasoning_wall _mk_top_btn×1、side_panel×1、auth_panel×1。tool_bar 是首字 Label 按钮不涉及。
+- **注意**：主菜单"开 始 游 戏"等按钮文字原靠全角空格舒展，LEFT 后内容整体靠左、右侧留白——用户要求"图标贴近首字符"优先；若要"图标+文字整体居中"需手动 pad（Godot 无组合居中开关，icon/text 分开对齐模型下 CENTER+CENTER 会重叠）。版本戳 v=20260906a。
+
 ### 预览 pck 一直加载旧版根因 + proxy 构建戳重定向（2026-09-06）
 - **用户报"刷新几次也连不上最新 pck"**。取证：服务器端全链路正常（index.html no-store+新戳、pck 200 尺寸与磁盘一致、wasm MIME 正确、fileSizes=实际大小）。根因=**浏览器缓存的旧 index.html**：旧 html 的 fileSizes 是旧 pck 尺寸，loader 校验新 pck 下载尺寸不符直接报错——普通刷新复用缓存救不回来（AGENTS.md 已有"无 no-store 时期旧缓存条目普通刷新仍会复用"教训的复现）。
 - **修复：proxy_server.py 根入口构建戳 302 重定向**——`GET /`、`/index.html`（及任何 v 参数不匹配的 /index.html?v=x）自动 302 到 `/index.html?v=<当前构建戳>`；戳从磁盘 index.html 的 mainPack 实时正则读取（每次导出打戳后自动跟随，无需同步 proxy），无 mainPack 时 fallback mtime。浏览器/中间层对 `/` 或 `/index.html` 的任何旧缓存都被绕开（重定向目标 URL 带当前戳，永不命中旧缓存条目）。HEAD 请求不走 do_GET（curl -I 验证不了 302，必须 GET）。
