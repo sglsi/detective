@@ -721,11 +721,9 @@ func _is_tree_root(id: String) -> bool:
 
 
 ## 推理树「唯一父」映射（布局与拖拽子树计算共用口径）：from=子，to=父；
-## 多个候选父取 ring_depth 更大者（更靠近结论/人物的上层），保持推断组合链紧凑。
+## 关系树「子→父」唯一化：用 DAG 最长路径层级（两遍遍历）替代脆弱的 ring_depth 平局裁决，
+## 落实 XMind「结构服从关系」+ 思傅思路（线索恒为叶、自叶向上逐级定级），使根/枝/叶判定唯一稳健。
 func _build_parent_of() -> Dictionary:
-	var RD := {"person": 0, "event": 0, "conclusion": 1, "hypo": 2, "chain": 2, "clue": 3}
-	var rd_of := func(id: String) -> int:
-		return RD.get(owner._fold._kind_of(id), 3)
 	var parent_cand := {}
 	var add_parent := func(child: String, parent: String) -> void:
 		if child == "" or parent == "" or child == parent: return
@@ -790,19 +788,58 @@ func _build_parent_of() -> Dictionary:
 					_changed = true
 					break
 		if not _changed: break
-	# 2) 选父：优先 person_anchored（锚定链不断），其次 ring_depth 更大者
+	# 2) 计算最长路径层级（两遍遍历 · 自根向下拓扑/BFS）：
+	#    硬锚 person/event = 0（根）；clue 自然落到最深（叶）。这正是「结构服从关系」的算法化身——
+	#    边的方向（from=子/to=父）决定流向轴位移，深度完全由关系图算出，无 kind 硬编码、无环/星维度。
+	var child_map := {}
+	for _ch2 in parent_cand:
+		for _p2 in parent_cand[_ch2]:
+			if not child_map.has(_p2): child_map[_p2] = []
+			if not (_ch2 in child_map[_p2]): child_map[_p2].append(_ch2)
+	var all_nodes := {}
+	for _ch2 in parent_cand:
+		all_nodes[_ch2] = true
+		for _p2 in parent_cand[_ch2]:
+			all_nodes[_p2] = true
+	# 入度 = 父候选数；入度 0 = 根（person/event 或无关系的孤立节点）
+	var indeg := {}
+	for _n in all_nodes:
+		indeg[_n] = 0
+	for _ch2 in parent_cand:
+		indeg[_ch2] = parent_cand[_ch2].size()
+	var depth_of := {}
+	for _n in all_nodes:
+		depth_of[_n] = 0
+	var _q := []
+	for _n in all_nodes:
+		if indeg[_n] == 0:
+			_q.append(_n)
+	var _guard: int = 0
+	while _q.size() > 0 and _guard < all_nodes.size() + 16:
+		_guard += 1
+		var _u: String = _q.pop_front()
+		for _c in child_map.get(_u, []):
+			if depth_of[_c] < depth_of[_u] + 1:
+				depth_of[_c] = depth_of[_u] + 1
+			indeg[_c] -= 1
+			if indeg[_c] == 0:
+				_q.append(_c)
+	# 3) 选父：优先「depth 恰为子 depth-1 的即时父」（最长路径保证唯一主层级），
+	#    其次 person_anchored（锚定链不断），再次 depth 较大者（更靠 root 向）；
+	#    同 depth 多候选仅作 tie-break（图的固有歧义，属预期），不再靠 ring_depth 随机颠倒根/枝/叶。
 	var parent_of := {}
-	for ch in parent_cand:
-		var best: String = ""
-		var best_score: int = -1
-		for p in parent_cand[ch]:
-			var _rd: int = rd_of.call(p)
-			var _anc: int = 1 if person_anchored.has(p) else 0
-			var _score: int = _anc * 1000 + _rd
-			if _score > best_score:
-				best_score = _score
-				best = p
-		parent_of[ch] = best
+	for _ch in parent_cand:
+		var _target: int = depth_of.get(_ch, 0) - 1
+		var _best: String = ""
+		var _best_score: int = -1
+		for _p in parent_cand[_ch]:
+			var _anc: int = 1 if person_anchored.has(_p) else 0
+			var _depth_ok: int = 1 if depth_of.get(_p, 0) == _target else 0
+			var _score: int = _depth_ok * 100000 + _anc * 1000 + depth_of.get(_p, 0)
+			if _score > _best_score:
+				_best_score = _score
+				_best = _p
+		parent_of[_ch] = _best
 	return parent_of
 
 

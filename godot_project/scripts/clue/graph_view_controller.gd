@@ -2904,12 +2904,14 @@ func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = 
 					break
 			var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "conclusion", _node_center)
 			_node_center[nid] = pos
-	# 玩家从推断/结论推导下一层结论＝明确选择「源→新结论」支撑关系，绘制该 support 绿边（属玩家连线，非系统自动）。
-	# 边方向：from=子(新结论 nid)、to=父(源 hid) —— 与 _build_parent_of「from=子/to=父」约定一致。
-	# 结论→结论（rd 同为1）时 _add_edge 不交换方向，故必须此处显式传 (nid, hid)，否则源结论会误成子节点、
-	# 折叠源结论收不起下游（Issue 1 根因）；推断→结论（rd2→rd1）经 _add_edge 内部 rd 比较自动校正为同样方向，行为不变。
-	if hid != "" and not any_edge(nid, hid) and not _relations.any(func(r): return r.get("from", "") == nid and r.get("to", "") == hid):
-		_edge._add_edge(nid, hid, "support", "green", false)
+	# 玩家从推断/结论推导下一层结论＝明确选择「源(前提)→新结论(综合)」支撑关系，绘制该 support 绿边（属玩家连线，非系统自动）。
+	# 金字塔原理 / XMind 逻辑图「结构服从关系」：由前提推导出的综合结论必须位于源的上一级（root 向），
+	# 即新结论是源的「父」而非「子」。故边方向 = from=源(hid, 前提/子)、to=新结论(nid, 综合/父)，
+	# 与 _build_parent_of「from=子/to=父」约定一致，也与 _derive_hypo_from_hypo 的 _add_edge(src, dst) 方向统一。
+	# 结论→结论（rd 同为1）时 _add_edge 不交换方向，故此处显式传 (hid, nid) 让新结论成为源的父节点；
+	# 否则新结论会被误判为源的下一级叶（Issue 1 根因）。
+	if hid != "" and not any_edge(hid, nid) and not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == nid):
+		_edge._add_edge(hid, nid, "support", "green", false)
 	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
 	_persist_view()
 	_rebuild_graph()
