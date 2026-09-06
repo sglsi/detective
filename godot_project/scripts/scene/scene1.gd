@@ -215,17 +215,17 @@ func _create_observers() -> void:
 		# crop 为「锚点表缺失时」的回退取景，数值已与 clue_image_anchors.gd
 		# 中 watson_teaching.png 的定稿锚点对齐（x=cx-w/2, y=cy-h/2, cx=cx+w/2, cy=cy+h/2）
 		{"id":"wrist","label":"肤色黑白分明","x":580,"y":400,"w":100,"h":60,"desc":"手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来",
-		 "crop":{"x":0.08,"y":0.20,"cx":0.30,"cy":0.42},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
+		 "crop":{"x":0.08,"y":0.20,"cx":0.32,"cy":0.46},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
 		{"id":"arm","label":"左臂损伤","x":450,"y":450,"w":100,"h":70,"desc":"左臂动作略显僵硬——战场负伤留下的旧疾",
-		 "crop":{"x":0.69,"y":0.31,"cx":0.89,"cy":0.65},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
+		 "crop":{"x":0.494,"y":0.142,"cx":0.694,"cy":0.342},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
 		{"id":"face_dark","label":"脸色黝黑","x":520,"y":200,"w":110,"h":60,"desc":"脸部肤色明显偏深——长期热带日照的痕迹",
-		 "crop":{"x":0.297,"y":0.0,"cx":0.637,"cy":0.14},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
+		 "crop":{"x":0.34,"y":0.0,"cx":0.64,"cy":0.14},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
 		{"id":"face_haggard","label":"面容憔悴","x":520,"y":290,"w":110,"h":60,"desc":"面容灰暗、眼窝深陷——久病初愈的痕迹",
-		 "crop":{"x":0.297,"y":0.0,"cx":0.637,"cy":0.14},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
+		 "crop":{"x":0.34,"y":0.0,"cx":0.64,"cy":0.14},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
 		{"id":"pose","label":"军人气质","x":500,"y":600,"w":130,"h":80,"desc":"站姿挺拔、气质干练——典型的军人作风",
 		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"pose"},
 		{"id":"medical","label":"身上有消毒液气味","x":500,"y":430,"w":120,"h":120,"desc":"身上有淡淡的消毒液气味——长期接触医院与战地救护的印记",
-		 "crop":{"x":0.35,"y":0.27,"cx":0.65,"cy":0.53},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"torso"},
+		 "crop":{"x":0.34,"y":0.26,"cx":0.66,"cy":0.58},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"torso"},
 	], tex, _portrait_ctrl, "res://assets/characters/watson/watson_teaching.png")
 	_watson_obs.all_recorded.connect(_on_watson_all_recorded)
 	_watson_obs.clue_recorded.connect(_on_collect_clue.bind("watson"))

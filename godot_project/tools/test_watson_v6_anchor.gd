@@ -20,19 +20,21 @@ func _initialize() -> void:
 	var torso := ClueImageAnchors.get_anchor(base, "torso")
 	var pose := ClueImageAnchors.get_anchor(base, "pose")
 	# 头部：顶部中央（cy≈0.07）
-	if abs(float(face["cx"]) - 0.467) > 0.03 or abs(float(face["cy"]) - 0.07) > 0.05:
+	if abs(float(face["cx"]) - 0.49) > 0.03 or abs(float(face["cy"]) - 0.07) > 0.05:
 		print("FAIL face pos"); ok = false
 	if float(face["cy"]) > 0.25:
 		print("FAIL face upper region"); ok = false
-	# 伸出的右手：画面左侧中上（cx≈0.19, cy≈0.31）
+	# 伸出的右手：画面左侧中上（cx≈0.20, cy≈0.33）
 	if float(wrist["cx"]) > 0.35:
 		print("FAIL wrist should be on left (outstretched hand)"); ok = false
 	if float(wrist["cy"]) < 0.20 or float(wrist["cy"]) > 0.45:
 		print("FAIL wrist mid-upper region"); ok = false
-	# 垂下的左臂：画面右侧（cx≈0.79）
-	if float(sh["cx"]) < 0.65:
-		print("FAIL shoulder(arm) should be on right"); ok = false
-	# 躯干：中央、与头部框不重叠（face 底 0.14 < torso 顶 0.27）
+	# 左肩（用户裁定沿用旧版锚定 044519a：头下偏右上胸）
+	if float(sh["cx"]) < 0.52 or float(sh["cx"]) > 0.68:
+		print("FAIL shoulder near upper chest"); ok = false
+	if float(sh["cy"]) < 0.15 or float(sh["cy"]) > 0.35:
+		print("FAIL shoulder below head"); ok = false
+	# 躯干：中央、与头部框不重叠（face 底 0.14 < torso 顶 0.26）
 	if float(torso["cy"]) < 0.25 or float(torso["cy"]) > 0.55:
 		print("FAIL torso center region"); ok = false
 	if float(face["cy"]) + float(face["h"]) * 0.5 > float(torso["cy"]) - float(torso["h"]) * 0.5:
