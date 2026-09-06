@@ -364,6 +364,12 @@ NO other objects, isolated, game asset
 - **Button 图标规范**：`btn.icon = load(...)` + `add_theme_constant_override("icon_max_width", 24~30)`（主按钮 44）+ `h_separation` 6~10；过滤器类小按钮不加图标（避免语义稀释）。
 - **资源新增必须 `--headless --import` 后 ResourceLoader.exists 才为 true**（新目录 icons/ 未导入时 exists=false，冒烟会误报 ICON_MISSING）。
 - **总览图**：`web_build/icons_preview.png`（37 图标拼图，预览 URL 可看）。
+### 场景框架左栏/顶栏图标接入（2026-09-06，用户双截图需求）
+- **关键发现：游戏内场景左栏/顶栏是 `scripts/ui/scene_framework.gd`**，与推理墙的 side_panel/reasoning_wall 是**不同面板**（此前给 side_panel 配的图标与此无关）。左栏 9 按钮（LOOK/TALK/EXAMINE/THINK/PROP/JOURNAL/ENCYCLOPEDIA/SAVE/LOAD）字典 icon 字段原是 **emoji 字符，游戏字体无 emoji 字形→渲染为空**（"图标未显示"根因）；顶栏 4 按钮（MAP/CASEBOOK/EVIDENCE/OPTIONS）_make_nav_button 无图标代码。
+- **接入**：左栏 icon 值换 png 路径，emoji Label → TextureRect（EXPAND_IGNORE_SIZE+KEEP_ASPECT_CENTERED，(0,6,w,36)）；顶栏 navs 加 icon 字段，_make_nav_button 加 TextureRect (6,15,24×24) + EN/ZH 文字区右移 x=30 居中。映射：观察→eye/对话→chat/调查→lens/思考→lightbulb/道具→satchel(新)/日志→journal_book/百科→directory/保存→floppy/读取→folder；地图→map(新)/案件簿→casebook/证物→evidence_box/选项→gear。
+- **新图标 2 枚**：map.png（折叠地图）、satchel.png（侦探皮包）——generate_image 黄铜浮雕绿幕 → **despill 二段处理**（首轮 greenscreen_cutout 绿残留 9.9%/6.1% 超标；宽容重抠 mask=(g>lum*1.12&g>55) + spill=(g>lum*1.05) 压绿 g=min(g,lum)）→ 0.00% 残留 + getbbox trim。跨面板同功能复用同一图标可接受（eye/floppy 等），不同功能不共用。
+- 版本戳 v=20260906d（pck 128996720）。
+
 ### 主菜单图标调整（2026-09-06）：开始游戏去图标 + 退出游戏换开门图标
 - "开 始 游 戏"按钮去掉 deerstalker 图标（用户要求，删除其 BtnIconCenter.apply_center 调用，按钮恢复纯文字）。
 - "退出游戏"按钮 padlock → **door_open.png（新造）**：generate_image 黄铜浮雕风格绿幕图（2048²）→ greenscreen_cutout.py 抠图（绿残留 0.7% 合格）→ getbbox trim 到 1550×1583 → `assets/ui/icons/door_open.png`。生成 prompt 要点：door panel swung open + antique brass embossed relief + golden bronze + dark engraved outlines，与图标00.png 黄铜浮雕集同风格。版本戳 v=20260906c。
