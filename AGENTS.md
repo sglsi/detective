@@ -364,6 +364,10 @@ NO other objects, isolated, game asset
 - **Button 图标规范**：`btn.icon = load(...)` + `add_theme_constant_override("icon_max_width", 24~30)`（主按钮 44）+ `h_separation` 6~10；过滤器类小按钮不加图标（避免语义稀释）。
 - **资源新增必须 `--headless --import` 后 ResourceLoader.exists 才为 true**（新目录 icons/ 未导入时 exists=false，冒烟会误报 ICON_MISSING）。
 - **总览图**：`web_build/icons_preview.png`（37 图标拼图，预览 URL 可看）。
+### 主菜单图标调整（2026-09-06）：开始游戏去图标 + 退出游戏换开门图标
+- "开 始 游 戏"按钮去掉 deerstalker 图标（用户要求，删除其 BtnIconCenter.apply_center 调用，按钮恢复纯文字）。
+- "退出游戏"按钮 padlock → **door_open.png（新造）**：generate_image 黄铜浮雕风格绿幕图（2048²）→ greenscreen_cutout.py 抠图（绿残留 0.7% 合格）→ getbbox trim 到 1550×1583 → `assets/ui/icons/door_open.png`。生成 prompt 要点：door panel swung open + antique brass embossed relief + golden bronze + dark engraved outlines，与图标00.png 黄铜浮雕集同风格。版本戳 v=20260906c。
+
 ### 按钮"图标+文字整体居中"重构（2026-09-06，用户澄清：不要左对齐，要整体居中）
 - **Godot 4.7 无原生组合居中**（读引擎源码确认）：icon_alignment 与 alignment 独立生效——icon CENTER 时 text 可用区**不减 icon 宽**，CENTER+CENTER 直接重叠；LEFT+CENTER 是"剩余区居中"（text 中心=(W+icon+sep)/2，偏右）。纯属性方案无法实现"图标+文字作为整体居中"。
 - **方案：内部 HBoxContainer 组合居中**——新工厂 `scripts/ui/btn_icon_center.gd`（class_name BtnIconCenter）：`apply_center(btn, icon_path, icon_w, sep)` 清空 btn.icon/text，挂 PRESET_FULL_RECT + ALIGNMENT_CENTER 的 HBox（mouse_filter=IGNORE 链），内含 TextureRect（EXPAND_IGNORE_SIZE+KEEP_ASPECT_CENTERED，min=(icon_w,0)）+ Label（复制 btn 的 font_size/font_color override，VERTICAL_CENTER）；并按 icon_w+sep+文本实测宽（Font.get_string_size）+ stylebox content margin 设 custom_minimum_size，防清空 text 后容器内按钮塌缩。**新增 API 注意：Button 没有 get_theme_font_color，是 get_theme_color("font_color")**（主场景冒烟 4 报错实证）。

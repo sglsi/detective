@@ -83,7 +83,6 @@ func _ready() -> void:
 
 	# 开始游戏（需登录后查存档）
 	var bs = mkbtn("开 始 游 戏", Vector2(660, 600), Vector2(600, 90), true)
-	BtnIconCenter.apply_center(bs, "res://assets/ui/icons/deerstalker.png", 44, 10)
 	bs.pressed.connect(func(): _on_start_pressed())
 	_root.add_child(bs)
 
@@ -95,7 +94,7 @@ func _ready() -> void:
 
 	# 退出
 	var bq = mkbtn("退出游戏", Vector2(980, 720), Vector2(220, 60), false)
-	BtnIconCenter.apply_center(bq, "res://assets/ui/icons/padlock.png", 30, 8)
+	BtnIconCenter.apply_center(bq, "res://assets/ui/icons/door_open.png", 30, 8)
 	bq.pressed.connect(func():
 		if OS.has_feature("web"):
 			if JavaScriptBridge: JavaScriptBridge.eval("window.location.reload()", true)
