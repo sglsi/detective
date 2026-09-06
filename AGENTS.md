@@ -364,6 +364,12 @@ NO other objects, isolated, game asset
 - **Button 图标规范**：`btn.icon = load(...)` + `add_theme_constant_override("icon_max_width", 24~30)`（主按钮 44）+ `h_separation` 6~10；过滤器类小按钮不加图标（避免语义稀释）。
 - **资源新增必须 `--headless --import` 后 ResourceLoader.exists 才为 true**（新目录 icons/ 未导入时 exists=false，冒烟会误报 ICON_MISSING）。
 - **总览图**：`web_build/icons_preview.png`（37 图标拼图，预览 URL 可看）。
+### 预览 pck 一直加载旧版根因 + proxy 构建戳重定向（2026-09-06）
+- **用户报"刷新几次也连不上最新 pck"**。取证：服务器端全链路正常（index.html no-store+新戳、pck 200 尺寸与磁盘一致、wasm MIME 正确、fileSizes=实际大小）。根因=**浏览器缓存的旧 index.html**：旧 html 的 fileSizes 是旧 pck 尺寸，loader 校验新 pck 下载尺寸不符直接报错——普通刷新复用缓存救不回来（AGENTS.md 已有"无 no-store 时期旧缓存条目普通刷新仍会复用"教训的复现）。
+- **修复：proxy_server.py 根入口构建戳 302 重定向**——`GET /`、`/index.html`（及任何 v 参数不匹配的 /index.html?v=x）自动 302 到 `/index.html?v=<当前构建戳>`；戳从磁盘 index.html 的 mainPack 实时正则读取（每次导出打戳后自动跟随，无需同步 proxy），无 mainPack 时 fallback mtime。浏览器/中间层对 `/` 或 `/index.html` 的任何旧缓存都被绕开（重定向目标 URL 带当前戳，永不命中旧缓存条目）。HEAD 请求不走 do_GET（curl -I 验证不了 302，必须 GET）。
+- **顺带清理**：web_build 下 3 个历史 pck 分片残留（index.pck-VrAhL4/-Vxu9nM/-vUpHqG，旧导出遗留、新 loader 无 `pck-` 引用）。
+- **验证方法**：`curl -s -o /dev/null -w "%{http_code} %{redirect_url}" http://localhost:5000/` 应 302 到当前戳；用户端操作=普通刷新即可（强刷 Ctrl+Shift+R 更彻底）。
+
 ### 华生教学图第三版（2026-09-06，watson03 + 左肩锚定回退旧值）
 - **教学图替换**：`watson_teaching.png` ← `assets/watson03.png`（与 watson01 同构图微调版 640×1663），引用路径不变。
 - **左肩锚定用户裁定沿用旧值**：上一版把 shoulder 锚到右缘垂下左臂（cx0.79/cy0.48）用户实测"锚定范围不对"；从 `git show 044519a:godot_project/data/clue_image_anchors.gd` 考古旧版锚定（512 图时代），**shoulder=cx0.594 cy0.242 w0.20 h0.20（头下偏右上胸）用户认可**——新表直接沿用。**教训：换图重标锚点时，用户上一版认可的部位位置先考古旧值再决定要不要动，不凭新图轮廓自作主张重标**。
