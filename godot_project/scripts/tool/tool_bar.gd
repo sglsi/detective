@@ -480,8 +480,13 @@ func _process(delta: float) -> void:
 	var glass: ColorRect = _lens_overlay.get_node_or_null("Glass")
 	if glass and glass.material is ShaderMaterial:
 		glass.material.set_shader_parameter("zoom", MAG_ZOOM)
-		# lens_center 与着色器 SCREEN_UV 同处屏幕 UV 空间（原点左上，Y 向下，与鼠标坐标一致，无需翻转）
-		var c := Vector2(mp.x / vp.size.x, mp.y / vp.size.y)
+		# SCREEN_UV 覆盖整个窗口（含 stretch=canvas_items+keep 的黑边），而 mp 是游戏区坐标。
+		# 用 final_transform 把鼠标点映射到窗口像素再归一化，与 SCREEN_UV 统一到同一空间；
+		# 窗口恰为 16:9 时 final_transform 无偏移，退化为旧算法，行为不变。
+		# （窗口≠16:9 时旧算法 mp/vp.size 采样整体偏移黑边一半 → 镜内内容与镜位置不一致）
+		var win_size := Vector2(DisplayServer.window_get_size())
+		var wp: Vector2 = vp.get_final_transform() * mp
+		var c := wp / win_size
 		glass.material.set_shader_parameter("lens_center", c)
 	_lens_overlay.global_position = mp   # top_level=true 时直接对应视口坐标，确保视觉中心与采样中心一致
 	_magnifier_timer += delta   # 仅供点击发现的去抖阈值，不再自动触发发现

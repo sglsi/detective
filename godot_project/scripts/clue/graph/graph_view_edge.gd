@@ -82,38 +82,53 @@ func _on_edge_draw() -> void:
 			_draw_flow_edge(se.get("from", ""), se.get("to", ""), owner.COL_GOLD, 7, false)
 
 
-## 沿 a→b 画一条二次贝塞尔弧线（控制点偏移中点垂直方向 curvature）
-func _draw_arc_line(a: Vector2, b: Vector2, col: Color, w: float, curvature: float = 50.0, segments: int = 24) -> void:
+## 二次贝塞尔弧线采样（中心→中心，控制点偏移中点垂直方向 curvature）
+## 绘制与 _edge_hit_test 共用，保证显示几何与热区几何同源
+func _arc_curve_points(a: Vector2, b: Vector2, curvature: float = 50.0, segments: int = 24) -> PackedVector2Array:
+	var pts := PackedVector2Array()
 	if (a - b).length() < 0.5:
-		return
+		return pts
 	var mid: Vector2 = (a + b) * 0.5
 	var dir: Vector2 = (b - a).normalized()
 	var perp: Vector2 = Vector2(-dir.y, dir.x) * curvature
 	var ctrl: Vector2 = mid + perp
-	var pts := PackedVector2Array()
 	for i in segments + 1:
 		var t: float = float(i) / float(segments)
 		var omt: float = 1.0 - t
-		var p: Vector2 = a * omt * omt + ctrl * 2.0 * omt * t + b * t * t
-		pts.append(p)
+		pts.append(a * omt * omt + ctrl * 2.0 * omt * t + b * t * t)
+	return pts
+
+
+## 三次贝塞尔 S 曲线采样（水平流向，控制点在两中点）
+## 绘制与 _edge_hit_test 共用，保证显示几何与热区几何同源
+func _flow_curve_points(start: Vector2, end: Vector2, segments: int = 28) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	if (start - end).length() < 0.5:
+		return pts
+	var dx: float = end.x - start.x
+	var c1: Vector2 = Vector2(start.x + dx * 0.5, start.y)
+	var c2: Vector2 = Vector2(end.x - dx * 0.5, end.y)
+	for i in segments + 1:
+		var t: float = float(i) / float(segments)
+		var omt: float = 1.0 - t
+		pts.append(start * (omt * omt * omt) + c1 * (3.0 * omt * omt * t) + c2 * (3.0 * omt * t * t) + end * (t * t * t))
+	return pts
+
+
+## 沿 a→b 画一条二次贝塞尔弧线（控制点偏移中点垂直方向 curvature）
+func _draw_arc_line(a: Vector2, b: Vector2, col: Color, w: float, curvature: float = 50.0, segments: int = 24) -> void:
+	var pts := _arc_curve_points(a, b, curvature, segments)
+	if pts.is_empty():
+		return
 	owner._edge_layer.draw_polyline(pts, col, w, true)
 
 
 ## 沿 a→b 画虚线弧线（沿贝塞尔采样，按 dash 长度切段）
 func _draw_arc_dashed(a: Vector2, b: Vector2, col: Color, w: float, curvature: float = 50.0, segments: int = 48, dash_len: float = 8.0, gap_len: float = 6.0) -> void:
-	if (a - b).length() < 0.5:
-		return
-	var mid: Vector2 = (a + b) * 0.5
-	var dir: Vector2 = (b - a).normalized()
-	var perp: Vector2 = Vector2(-dir.y, dir.x) * curvature
-	var ctrl: Vector2 = mid + perp
 	# 先采样出所有曲线点
-	var pts := PackedVector2Array()
-	for i in segments + 1:
-		var t: float = float(i) / float(segments)
-		var omt: float = 1.0 - t
-		var p: Vector2 = a * omt * omt + ctrl * 2.0 * omt * t + b * t * t
-		pts.append(p)
+	var pts := _arc_curve_points(a, b, curvature, segments)
+	if pts.is_empty():
+		return
 	# 沿线段累积长度，按 dash/gap 切段画
 	var traveled: float = 0.0
 	var next_break: float = dash_len
@@ -166,33 +181,17 @@ func _draw_flow_edge(from_id: String, to_id: String, col: Color, w: float, dashe
 
 ## 父右缘→子左缘 的流向实线（水平 S 三次贝塞尔，控制点在两中点，曲线沿流向轴）
 func _draw_flow_line(start: Vector2, end: Vector2, col: Color, w: float, segments: int = 28) -> void:
-	if (start - end).length() < 0.5:
+	var pts := _flow_curve_points(start, end, segments)
+	if pts.is_empty():
 		return
-	var dx: float = end.x - start.x
-	var c1: Vector2 = Vector2(start.x + dx * 0.5, start.y)
-	var c2: Vector2 = Vector2(end.x - dx * 0.5, end.y)
-	var pts := PackedVector2Array()
-	for i in segments + 1:
-		var t: float = float(i) / float(segments)
-		var omt: float = 1.0 - t
-		var p: Vector2 = start * (omt * omt * omt) + c1 * (3.0 * omt * omt * t) + c2 * (3.0 * omt * t * t) + end * (t * t * t)
-		pts.append(p)
 	owner._edge_layer.draw_polyline(pts, col, w, true)
 
 
 ## 父右缘→子左缘 的流向虚线（沿曲线采样，按 dash/gap 切段）
 func _draw_flow_dashed(start: Vector2, end: Vector2, col: Color, w: float, segments: int = 48) -> void:
-	if (start - end).length() < 0.5:
+	var pts := _flow_curve_points(start, end, segments)
+	if pts.is_empty():
 		return
-	var dx: float = end.x - start.x
-	var c1: Vector2 = Vector2(start.x + dx * 0.5, start.y)
-	var c2: Vector2 = Vector2(end.x - dx * 0.5, end.y)
-	var pts := PackedVector2Array()
-	for i in segments + 1:
-		var t: float = float(i) / float(segments)
-		var omt: float = 1.0 - t
-		var p: Vector2 = start * (omt * omt * omt) + c1 * (3.0 * omt * omt * t) + c2 * (3.0 * omt * t * t) + end * (t * t * t)
-		pts.append(p)
 	var traveled: float = 0.0
 	var next_break: float = 8.0
 	var drawing := true
@@ -366,32 +365,35 @@ func _do_edge(from: String, to: String, kind: String, color_key: String, dashed:
 
 
 # ===================== 连线命中 / 右键菜单 =====================
-func _bezier(a: Vector2, ctrl: Vector2, b: Vector2, t: float) -> Vector2:
-	var u := 1.0 - t
-	return a * u * u + ctrl * 2.0 * u * t + b * t * t
-
-
+## 连线命中测试：几何必须与 _on_edge_draw 的绘制完全同源，否则显示位置点不到、
+## 偏移位置反而命中（2026-09-06 用户实证的「连线热区错位」根因）。
+## 逻辑类边与绘制一样走父右缘→子左缘 S 曲线；列表外 kind 绘制端不显示，同样不命中。
 func _edge_hit_test(lp: Vector2) -> int:
 	var best := -1
 	var best_d := 16.0
 	for ei in owner._edge_list.size():
 		var e: Dictionary = owner._edge_list[ei]
-		var a: Vector2 = owner._node_center.get(e.get("from", ""), Vector2(-1e6, -1e6))
-		var b: Vector2 = owner._node_center.get(e.get("to", ""), Vector2(-1e6, -1e6))
+		var fid: String = e.get("from", "")
+		var tid: String = e.get("to", "")
+		if not (e.get("kind", "") in ["relate", "imply", "support", "oppose", "contradict", "target"]):
+			continue
+		var a: Vector2 = owner._node_center.get(tid, Vector2(-1e6, -1e6))    # 父（左）
+		var b: Vector2 = owner._node_center.get(fid, Vector2(-1e6, -1e6))   # 子（右）
 		if a.x < -1e5 or b.x < -1e5:
 			continue
-		var mid := (a + b) / 2.0
-		var delta := b - a
-		var perp := Vector2(-delta.y, delta.x).normalized() * 50.0
-		var ctrl := mid + perp
+		var pw: float = owner._layout._node_width_for_kind(owner._node_kind.get(tid, "hypo")) * 0.5
+		var cw: float = owner._layout._node_width_for_kind(owner._node_kind.get(fid, "hypo")) * 0.5
+		var start: Vector2 = a + Vector2(pw, 0.0)
+		var end: Vector2 = b - Vector2(cw, 0.0)
+		# 与 _draw_flow_edge 一致的兜底：子反而在父左侧时退回中心连线
+		if start.x > end.x:
+			start = a
+			end = b
 		var dmin := 1e9
-		var t := 0.0
-		while t <= 1.0:
-			var p := _bezier(a, ctrl, b, t)
-			var d := lp.distance_to(p)
+		for p in _flow_curve_points(start, end):
+			var d: float = lp.distance_to(p)
 			if d < dmin:
 				dmin = d
-			t += 0.01
 		if dmin < best_d:
 			best_d = dmin
 			best = ei
