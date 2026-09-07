@@ -18,8 +18,7 @@ signal clue_recorded(clue_id: String, clue_data: Dictionary)
 signal all_recorded(clues: Array)  # 全部「必点」线索记录完毕（silent 线索不触发）
 
 var _hotspots: Array = []           # 热点定义
-var _btns: Array = []               # 按钮引用
-var _hit_layer: Control = null      # 立绘透明点击层（最近锚点判定）
+var _btns: Array = []               # 按钮引用（命中区=线索圆圈大小）
 var _recorded := 0                  # 已记录数（含 silent 可选线索）
 var _required_total: int = 0        # 必点热点总数（排除 silent）
 var _required_recorded: int = 0     # 已记录的必点热点数
@@ -92,7 +91,6 @@ func _create_buttons() -> void:
 		btn.add_theme_stylebox_override("hover", style)
 		btn.add_theme_stylebox_override("focus", style)
 		btn.add_theme_stylebox_override("pressed", style)
-		btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn.visible = false
 		btn.pressed.connect(_on_hotspot.bind(hs["id"], hs["desc"]))
 		if _portrait_ctrl != null:
@@ -109,44 +107,6 @@ func _create_buttons() -> void:
 				# 兜底：无世界层时（非摄像机场景）退化为原视口坐标按钮
 				_parent.add_child(btn)
 		_btns.append(btn)
-	_install_portrait_hit_layer()
-
-## 立绘锚点命中区会因「大锚点（torso/pose）」互相叠盖，Button 网格命中被
-## z 序决定（后添加者先被点中）而非位置决定 —— 玩家点任何圆圈都命中顶层
-## 热点。改为单一透明点击层 + 「最近锚点中心」判定，彻底消除叠盖歧义。
-func _install_portrait_hit_layer() -> void:
-	if _portrait_ctrl == null or _hit_layer != null:
-		return
-	var layer := Control.new()
-	layer.name = "portrait_hit_layer"
-	layer.mouse_filter = Control.MOUSE_FILTER_STOP
-	layer.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	layer.gui_input.connect(_on_portrait_hit_input)
-	_portrait_ctrl.add_child(layer)
-	_hit_layer = layer
-
-func _on_portrait_hit_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_pick_nearest_hotspot(_hit_layer.to_local(event.global_position))
-
-func _pick_nearest_hotspot(local: Vector2) -> void:
-	var best_i := -1
-	var best_d := 1e9
-	for i in _hotspots.size():
-		var hs: Dictionary = _hotspots[i]
-		if _recorded_ids.has(hs.get("id", "")):
-			continue
-		var rect := _anchor_local_rect(str(hs.get("anchor", "")))
-		if rect.size.x <= 0.0 or rect.size.y <= 0.0:
-			continue
-		var d := local.distance_to(rect.get_center())
-		if d < best_d:
-			best_d = d
-			best_i = i
-	if best_i >= 0:
-		var hs: Dictionary = _hotspots[best_i]
-		_on_hotspot(str(hs.get("id", "")), str(hs.get("desc", "")))
 
 func show() -> void:
 	_active = true
@@ -402,12 +362,16 @@ func get_clue_world_point(clue_id: String) -> Vector2:
 ## 把每个热点按钮定位到立绘上的锚点部位（与高亮圆圈同一局部坐标），
 ## 使「可点击命中区」与「视觉高亮」重合。仅在 _portrait_ctrl 有效时调用（show 时尺寸已就绪）。
 func _position_buttons() -> void:
+	# 命中区=线索圆圈大小（直径 52 + 少量余量）：圆圈互不重叠，按钮也就互不重叠，
+	# 点击命中不再受叠盖 z 序影响——点哪个圆圈命哪条线索。
+	const HIT := 64.0
 	for i in _hotspots.size():
 		if i >= _btns.size(): break
 		var rect := _anchor_local_rect(_hotspots[i].get("anchor", ""))
 		if rect.size.x > 0 and rect.size.y > 0:
-			_btns[i].position = rect.position
-			_btns[i].size = rect.size
+			var c := rect.get_center()
+			_btns[i].position = c - Vector2(HIT, HIT) * 0.5
+			_btns[i].size = Vector2(HIT, HIT)
 
 ## 进入观察时按难度在立绘上画初始高亮圆圈（提示「这里有条线索」）。
 ## 简单(2)=亮圈 / 普通(1)=淡圈 / 困难(0)=无提示（玩家自行找部位点击）。
@@ -517,8 +481,11 @@ func _open_zoom(clue_id: String, desc: String) -> void:
 				if img_path.contains("/scenes/"):
 					at.region = _zoom_crop_region(img_path, a)
 				else:
-					at.region = Rect2((float(a["cx"]) - float(a["w"]) / 2.0) * tw,
-									  (float(a["cy"]) - float(a["h"]) / 2.0) * th,
+					# vx/vy=裁切视图中心（与圆圈锚点 cx/cy 解耦），缺省回退 cx/cy
+					var vcx: float = float(a.get("vx", a["cx"]))
+					var vcy: float = float(a.get("vy", a["cy"]))
+					at.region = Rect2((vcx - float(a["w"]) / 2.0) * tw,
+									  (vcy - float(a["h"]) / 2.0) * th,
 									  float(a["w"]) * tw, float(a["h"]) * th)
 				img.texture = at
 			else:
