@@ -414,7 +414,7 @@ func _make_nav_button(n: Dictionary, x: int, y: int, w: int, h: int) -> Button:
 	nic.texture = load(n["icon"])
 	nic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	nic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	nic.position = Vector2(6, 15); nic.size = Vector2(24, 24)
+	nic.position = Vector2(6, 9); nic.size = Vector2(24, 24)
 	nic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(nic)
 	# 英文

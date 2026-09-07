@@ -29,19 +29,21 @@ func _initialize() -> void:
 		print("FAIL wrist should be on left (outstretched hand)"); ok = false
 	if float(wrist["cy"]) < 0.20 or float(wrist["cy"]) > 0.45:
 		print("FAIL wrist mid-upper region"); ok = false
-	# 左肩（用户裁定沿用旧版锚定 044519a：头下偏右上胸）
-	if float(sh["cx"]) < 0.52 or float(sh["cx"]) > 0.68:
-		print("FAIL shoulder near upper chest"); ok = false
-	if float(sh["cy"]) < 0.15 or float(sh["cy"]) > 0.35:
+	# 左肩+左上臂（watson03 实测：人物左=画面右侧，肩+上臂为主，不得偏左胸）
+	if float(sh["cx"]) < 0.68 or float(sh["cx"]) > 0.80:
+		print("FAIL shoulder on left-shoulder zone"); ok = false
+	if float(sh["cy"]) < 0.18 or float(sh["cy"]) > 0.34:
 		print("FAIL shoulder below head"); ok = false
-	# 躯干：中央、与头部框不重叠（face 底 0.14 < torso 顶 0.26）
-	if float(torso["cy"]) < 0.25 or float(torso["cy"]) > 0.55:
-		print("FAIL torso center region"); ok = false
-	if float(face["cy"]) + float(face["h"]) * 0.5 > float(torso["cy"]) - float(torso["h"]) * 0.5:
-		print("FAIL torso must not overlap face"); ok = false
-	# 与手腕框不重叠（wrist 右缘 0.30 < torso 左缘 0.35）
-	if float(wrist["cx"]) + float(wrist["w"]) * 0.5 > float(torso["cx"]) - float(torso["w"]) * 0.5:
-		print("FAIL torso must not overlap wrist"); ok = false
+	# 消毒液视图：腹部以上全部区域（大视图含脸/手是设计使然，检查尺寸而非不重叠）
+	if float(torso["cx"]) < 0.45 or float(torso["cx"]) > 0.55:
+		print("FAIL torso center x"); ok = false
+	if float(torso["cy"]) < 0.25 or float(torso["cy"]) > 0.35:
+		print("FAIL torso center y"); ok = false
+	if float(torso["w"]) < 0.75 or float(torso["h"]) < 0.55:
+		print("FAIL torso covers belly-up area"); ok = false
+	# 手腕与左肩视图互不重叠（左右分居）
+	if float(wrist["cx"]) + float(wrist["w"]) * 0.5 > float(sh["cx"]) - float(sh["w"]) * 0.5:
+		print("FAIL wrist must not overlap shoulder"); ok = false
 	if abs(float(pose["w"]) - 1.0) > 0.001 or abs(float(pose["h"]) - 1.0) > 0.001:
 		print("FAIL pose full image"); ok = false
 	print(("CLUE_ANCHOR_OK" if ok else "CLUE_ANCHOR_FAIL"))
