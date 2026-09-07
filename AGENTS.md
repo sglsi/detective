@@ -367,6 +367,10 @@ NO other objects, isolated, game asset
 ### 左栏按钮改古董金属牌样式（2026-09-06，用户参考图）
 - scene_framework.gd `_make_action_button` 按**用户参考图**重做：深底(0.07,0.05,0.03) + 外 2px 金边 corner10 + **内嵌细线 Panel(4px 内缩, 1px 半透明金, draw_center=false) 做双线效果**；图标 32×32 居左垂直居中，EN(11号金)+ZH(14号浅金) 两行居右；按钮 116×96 圆牌 → 132×64 扁牌（LEFT_W=140 内）。ENCYCLOPEDIA 11 号在 (w-54) 文字区刚好放下。hover=亮金边+暖棕底。版本戳 v=20260906f。
 
+### 合入远程推理墙布局提交 + 导出（2026-09-06，用户"从 github 进行更新"）
+- **rebase 合入远程**（其他终端推送的推理墙布局系列：BuchheimWalker/G3 布局、多条 fix、docs），本地仅有的空提交用 `git reset --hard origin/main` 清除（无内容变更）。
+- **再次踩坑实录（同日第二次）**：export 报 "configuration errors" = /root 模板软链被回收 → `bash tools/godot/setup_godot.sh` 恢复即好。**重导出后打戳前必须先删旧 mainPack 再插新戳**（`s/"mainPack":"index.pck?v=[^"]*",//g` 再插入），否则 sed 插入版会造成双 mainPack 字段（后者在 JSON.parse 覆盖前者，生效值与 proxy 读值不一致）。最终以 **fileSizes 与 stat 精确一致** 为导出成功铁律（本次 71921244 ✓）。版本戳 v=20260906g。
+
 ### 预览"一直转圈进不去"：图标库 78MB 致 pck 膨胀 + 减肥（2026-09-06）
 - **用户报预览一直滚动/转圈进不去**。服务器端链路正常（fileSizes 匹配、pck 200 完整）→ 定位为 **pck 123MB 过大 + proxy 全响应 no-store（浏览器不能缓存）→ 每次刷新全量重下 → 慢**。主因：generate_image 生成的 41 枚图标全是 2048 级 PNG（icons/ 共 78MB），而显示尺寸仅 20~44px。
 - **减肥**：PIL `thumbnail((128,128), LANCZOS)` 批量缩图（保持 alpha；128px 对 44px 显示 3x 余量）→ icons/ 1.1MB，pck 123MB→**68.6MB**（图标在 pck 内为 ctex 压缩格式，实际减 57MB）。**后续生成图标 prompt 后必须立即 resize 到 ≤256 再入 pck**。
