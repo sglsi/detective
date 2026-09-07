@@ -153,7 +153,11 @@ func _node_width_for_kind(kind: String) -> float:
 
 ## 各 kind 卡片真实最小高度（与 _make_node 的 _base_h+12 口径一致）。
 ## 布局 est_h 必须 ≥ 真实卡高，否则同列兄弟/子树带按「估算矮框」排开后，真实高卡渲染必然重叠。
-## 线索卡文字可很长，按其真实渲染可取高度上限取 200（与 test_overlap_after_derive 真实高度模型一致）。
+## ⚠️ 已知偏差（2026-09-07 · 详见 agent/reasoning_wall_layout_proposal.md §0.6/§8.5）：此表是「布局期防重叠安全高度上限」，
+##    非真实渲染高度。线索卡 `_make_node` 真实渲染仅 48~130px（line 951/1114 `_base_h=130`），但本表把 clue 兜底到 200，
+##    导致兄弟线索视觉空隙被放大 3~4 倍（中心距恒 224 = 200/2+200/2+_CONTOUR_SEP）。
+##    治本方向（XMind 式测量前置）：布局前先 `_make_node` 测得真实 size.y 喂入 _pack_contour，删此过度保守兜底（至多 +8px 防字体抖动）；
+##    当前 200 暂保留以维持 test_overlap_after_derive 的 200 高度模型断言，治本后须同步修正该测试。
 const _KIND_MIN_H := {
 	"person": 182.0, "conclusion": 172.0, "chain": 132.0,
 	"hypo": 142.0, "clue": 200.0, "event": 182.0, "_": 150.0,
@@ -165,7 +169,11 @@ func _kind_min_h(kind: String) -> float:
 	return _KIND_MIN_H.get(kind, 150.0)
 
 
-## 估算节点卡片高度（与 _make_node 尺寸逻辑一致）：行数=ceil(文本宽/ kind 对应 wrap 宽)，行数×行高＋副标题＋内边距
+## 布局期节点高度估算（非真实渲染高度 · 详见 proposal §0.6/§8.5）。
+## 用途：节点尚未进树/渲染时，给碰撞感知落点(_find_non_overlapping_position)与轮廓打包预留垂直空间防重叠。
+## ⚠️ 此估算值会被 line 426 `maxf(_est_node_h, _kind_min_h)` 的 _KIND_MIN_H 下限兜底（线索→200），
+##    故对短线索本函数算出的矮值(≈52)被 200 吃掉，布局实际按 200 排 → 与 _make_node 真实 48~130px 脱节。
+## 治本（XMind 式测量前置）：布局应改消费 _make_node 真实 size.y，本函数仅作 headless 字体未就绪时的回退估计。
 func _est_node_h(nd: Dictionary) -> float:
 	var fs: float = 28.0
 	var line_h: float = fs * 1.35
@@ -423,6 +431,9 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	#    下限取真实卡高后，配合 sib_gap=0.5×卡高（思傅要求「半框高间距」），既零重叠又满足美学。
 	var est_h := {}
 	for nd in nodes:
+		# ⚠️ 临时安全网（非 XMind 式测量前置）：_est_node_h 估算 + _KIND_MIN_H 兜底（线索→200），
+		#    保证 headless/未渲染时 est_h ≥ 真实卡高以防重叠。治本应替换为 _make_node 真实 size.y
+		#    （详见 agent/reasoning_wall_layout_proposal.md §0.6 尺寸单一事实来源 / §8.5 尺寸脱节偏差）。
 		est_h[nd.id] = maxf(_est_node_h(nd), _kind_min_h(owner._fold._kind_of(nd.id)))
 
 	# BFS 真实树深（按 _build_parent_of 关系，非 kind）：串行结论沿链更深一层
