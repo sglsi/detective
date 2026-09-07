@@ -875,6 +875,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var in_area := _scene_area.get_global_rect().has_point(get_global_mouse_position())
 		match event.button_index:
 			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
+				if not event.pressed: return   # 只响应按下沿；释放沿不缩放（防止放大镜等上层拦截后释放穿透缩背景）
 				if not in_area: return
 				var local := get_global_mouse_position() - _scene_area.global_position
 				var factor := 1.12 if event.button_index == MOUSE_BUTTON_WHEEL_UP else (1.0 / 1.12)

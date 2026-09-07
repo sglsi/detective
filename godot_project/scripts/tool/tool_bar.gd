@@ -433,7 +433,7 @@ func _start_magnifier() -> void:
 	_lens_overlay.visible = true
 	_magnifier_timer = 0.0
 	var hint: Label = _lens_overlay.get_node_or_null("HintLabel")
-	if hint: hint.text = "移动镜片寻找细节，点击发现，ESC/✕ 关闭"
+	if hint: hint.text = "移动镜片寻找细节，滚轮缩放，点击发现，ESC/✕ 关闭"
 	# 镜片跟随与发现改由 ToolBar._input 驱动（镜头层 mouse_filter=IGNORE 收不到 gui_input）。
 	_magnifier_active = true
 	_lens_overlay.queue_redraw()   # 重新绘制圆形镜片外框
@@ -470,11 +470,10 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion:
 		pass  # 镜片位置由 _process 用 get_viewport().get_mouse_position() 驱动，避免 ToolBar 根偏移
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
-		_mag_zoom = clampf(_mag_zoom * MAG_ZOOM_STEP, MAG_ZOOM_MIN, MAG_ZOOM_MAX)
-		get_viewport().set_input_as_handled()   # 阻止滚轮穿透到左栏滚动/图谱缩放
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		_mag_zoom = clampf(_mag_zoom / MAG_ZOOM_STEP, MAG_ZOOM_MIN, MAG_ZOOM_MAX)
+	elif event is InputEventMouseButton and (event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		# 放大镜激活期间滚轮全归放大镜：pressed 调倍率，release 也拦截（防穿透到背景缩放/回看）
+		if event.pressed:
+			_mag_zoom = clampf(_mag_zoom * (MAG_ZOOM_STEP if event.button_index == MOUSE_BUTTON_WHEEL_UP else (1.0 / MAG_ZOOM_STEP)), MAG_ZOOM_MIN, MAG_ZOOM_MAX)
 		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		# 点击快捷发现（需已停留片刻，避免误触）
