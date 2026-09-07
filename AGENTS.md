@@ -342,7 +342,7 @@ NO other objects, isolated, game asset
 - **图谱契入让出（2026-08 现用方案，替代契回全屏+命中分离）**：图谱契回墙顶层铺满（`_on_open_graph_view` 里 `add_child(gv)` + `PRESET_FULL_RECT` + `gv.z_index=5`），但图内部 `_clip` 契入让出「左栏右侧、顶栏之下」的图谱交互区（`_clip.offset_left=hit_off_left / .offset_top=hit_off_top`，`clip_contents=true`）。`_clip`/`_canvas` 均 `MOUSE_FILTER_STOP` + `gui_input.connect(_on_canvas_gui)`——**同一区域既显示又承接全部画布交互（平移/滚轮/空白点击/shift 建边/折叠）**，顶栏/左栏不被图谱覆盖故天然优先可点，无需命中分离层（曾用 `_hit_layer` 分离让 `_on_canvas_gui` 脱链导致 shift 连线/折叠失效，已废除）。拓扑根 `self.mouse_filter=IGNORE`。
   - **世界坐标原点 = 墙左上（canvas 反补）**：契入让出只让 `_clip` 裁掉顶栏/左栏（显示+命中），`_canvas` 用 offset `-hit_off_left/-hit_off_top` 反补，使画布覆盖契入前的整个墙画布(0,0..W,H)——**布局基准不随契入压缩**，横向阶梯树在宽松全屏宽上重排，目标不会覆盖（曾因契入让 `_canvas.size` 压缩到契入区(≈740 宽)、节点放不下被 `_clamp_to_canvas` 挤压重叠）。所有命中/坐标转换仍一律 `_canvas.get_global_transform().affine_inverse() * 视口坐标`（get_global_transform 自带 clip 偏移，契入不影响）。仅手工写 `_canvas.position` 的锚点位需按 `_clip.get_global_transform().origin` 校正：`_zoom_at` 用 `mouse_pos - lp*ns - clip_origin`，`fit_view` 用 `-center_gl*ns + vp*0.5`（契回全屏 clip.origin=0 时二者皆退化为正确，契入下数学精确居中）。平移 `_pan` 是增量移动，clip.origin 常量相消无需改。
   - **契入首帧自动 fit**：契入模式下布局基准是全屏画布、契入 viewport 只显示其一部分，故 `_rebuild_graph` 首帧 `call_deferred("fit_view")` 缩放到契入区内看全（`_did_initial_fit` 只在 build 复位，后续 rebuild 不重置玩家缩放）。契入裁剪会把部分节点 clip 在契入让出区外，玩家可用「适应」/缩放看全。
-  - **让出区单源传入**：图谱用成员 `hit_off_top/hit_off_left`（默认 110/540），由 `_on_open_graph_view` 处设 `gv.hit_off_top=110`、`gv.hit_off_left=540`（对齐顶栏底 `_top_bar.offset_bottom` / 左栏右缘 `_left_panel.offset_right`）。改 UI 尺寸须同步这两值（`tools/q6_contract_guard.gd` 源码契约守卫 Q6 会断言：clip/canvas 均 STOP+gui_input、无 `_hit_layer`、契入偏移用 `hit_off_*`、`_zoom_at`/`fit_view` 含 `_clip.get_global_transform().origin`）。
+  - **让出区单源传入**：图谱用成员 `hit_off_top/hit_off_left`（默认 110/540，**当前设 110/432——2026-09-07 左栏缩窄为 540 的 4/5 后同步**），由 `_on_open_graph_view` 处设 `gv.hit_off_top=110`、`gv.hit_off_left=432`（对齐顶栏底 `_top_bar.offset_bottom` / 左栏右缘 `_left_panel.offset_right`）。改 UI 尺寸须同步这两值（`tools/q6_contract_guard.gd` 源码契约守卫 Q6 会断言：clip/canvas 均 STOP+gui_input、无 `_hit_layer`、契入偏移用 `hit_off_*`、`_zoom_at`/`fit_view` 含 `_clip.get_global_transform().origin`）。
   - 回归：P0/P12_E2E_OK/P15/P16_E2E_OK/Q2_OK/Q5_OK/Q6(fails=0)/case_panorama(11/12) 全过。
 - **ESC 关闭修复**：关闭处理用 `call_deferred("_on_close_pressed")`，避免在 `_input()` 里销毁节点卡死。
 - **连线热区错位修复（2026-09-06，用户实证「显示位置点不上、别处能点到」）**：根因=**绘制与命中两套几何分叉**——`_on_edge_draw` 对逻辑类边（relate/imply/support/oppose/contradict/target，即玩家全部边）走 `_draw_flow_edge` 的「父右缘→子左缘」三次 S 曲线（端点在节点**边缘**），而 `_edge_hit_test` 仍按旧的「中心→中心二次弧」（mid+perp*50）检测——点显示的 S 曲线上不中，点中心弧（显示线旁偏移处）反而命中。修复：抽 `_arc_curve_points`/`_flow_curve_points` 采样函数供绘制（`_draw_arc_line/_draw_arc_dashed/_draw_flow_line/_draw_flow_dashed`）与命中**共用同一几何源**；hit_test 按 kind 列表分流到 flow 几何（含边缘端点+子在父左侧退回中心连线的兜底，与绘制完全一致），列表外 kind 绘制端不显示故不命中。**教训：凡是「看得见点不中」类 bug，先对比 draw 与 hit_test 的端点数据源与曲线模型是否同源，几何必须单一事实源**。
@@ -388,6 +388,12 @@ NO other objects, isolated, game asset
 - **export 命令语法陷阱（2026-09-07 实证）**：`GODOT --headless --export-release "Web" .` 的尾部 `.` 会被当**输出路径**——在项目根生成 `.pck/.html/.wasm/.js/.worklet.js` 垃圾空文件。正确语法**必须带 `--path` 且无尾部参数**：`GODOT --headless --path . --export-release "Web"`。
 - **沙箱回收丢失资源的孤儿场景清理（2026-09-07）**：`test_portrait_micro.tscn`（引用的 gd 从未入库被回收）与 `bigben.tscn`（引用 bigben_pixel.png 丢失）导致 export "Failed loading resource" 中断——两场景无任何代码引用（grep 证实孤儿），直接删除恢复导出链。**教训：未提交的新增资源/脚本被回收即永久丢失，重要资源完成即提交。**
 - 版本戳 v=20260906m（pck 71919600，PCK_PROBE=NEW 64px，302 带戳验证 ✓）。
+
+### 放大镜滚轮缩放 + 推理墙左栏缩窄（2026-09-07，用户两需求）
+- **放大镜滚轮缩放**：`tool_bar.gd` 的 `const MAG_ZOOM := 2.6` 常量改为成员 `var _mag_zoom`（默认 2.6）+ `MAG_ZOOM_MIN 1.5 / MAG_ZOOM_MAX 5.0 / MAG_ZOOM_STEP 1.15`；`_input` 放大镜激活分支新增 WHEEL_UP（×1.15 接近）/ WHEEL_DOWN（÷1.15 拉远），clampf 收敛，**`get_viewport().set_input_as_handled()` 阻止滚轮穿透**（否则会同时触发左栏滚动/图谱缩放）；`_process` 的 zoom uniform 改用 `_mag_zoom`。镜片半径不变，只有倍率变化（真实"拉远/接近"体验）。
+- **推理墙左栏 4/5 缩窄**：`reasoning_wall.gd` `_left_panel.offset_right = 540 → 432`，**同步 `_on_open_graph_view` 的 `gv.hit_off_left = 540 → 432`**（契入让出单源规范：改左栏宽必须同步，否则图谱让出区与左栏错位）。左栏内部子控件自适应宽度，无其他 540 依赖。
+- **export 前置坑再现**：/root 模板软链在会话中途再次被回收（"No export template found ... configuration errors"）——**setup_godot.sh 与 export 放同一命令内连续执行**，避免间隔期被清。
+- 版本戳 v=20260906n（pck 71919984，PCK_PROBE=NEW，302 带戳验证 ✓）。
 
 ### 合入远程推理墙布局提交 + 导出（2026-09-06，用户"从 github 进行更新"）
 - **rebase 合入远程**（其他终端推送的推理墙布局系列：BuchheimWalker/G3 布局、多条 fix、docs），本地仅有的空提交用 `git reset --hard origin/main` 清除（无内容变更）。
@@ -539,7 +545,7 @@ NO other objects, isolated, game asset
 
 **A. 功能架构基线**
 1. **组合架构**：`graph_view_controller.gd` 拆为 `scripts/clue/graph/`（data/dock/edge/fold/layout）；`reasoning_wall.gd` 拆为 `scripts/clue/wall/`。组件在 `_ready` 初始化，改 API 走 `owner._xxx` 组件转发，别直接 new 后即调（组件会 Nil）。
-2. **显示/命中（契入让出）**：图谱根 `mouse_filter=IGNORE`；`_clip` 用 offset 让出左栏(540)/顶栏(110)（契入=单源 `hit_off_left/top`），`clip_contents=true`；`_clip` 与 `_canvas` 均 `STOP + gui_input(_on_canvas_gui)` 承担平移/滚轮/空白点击/shift 建边/折叠命中。**禁止命中分离层 `_hit_layer`**，禁止把 `_on_canvas_gui` 从 `_clip`/`_canvas` 摘走（否则 shift 建边/折叠失效）。
+2. **显示/命中（契入让出）**：图谱根 `mouse_filter=IGNORE`；`_clip` 用 offset 让出左栏(现 432，2026-09-07 前为 540)/顶栏(110)（契入=单源 `hit_off_left/top`），`clip_contents=true`；`_clip` 与 `_canvas` 均 `STOP + gui_input(_on_canvas_gui)` 承担平移/滚轮/空白点击/shift 建边/折叠命中。**禁止命中分离层 `_hit_layer`**，禁止把 `_on_canvas_gui` 从 `_clip`/`_canvas` 摘走（否则 shift 建边/折叠失效）。
 3. **世界坐标**：契入后 world 原点=图谱区左上；一切命中/坐标换算统一用 `_canvas.get_global_transform().affine_inverse()`（自带 clip 偏移）。仅手工写 `_canvas.position` 的 `_zoom_at`/`fit_view` 才需按 `_clip.get_global_transform().origin` 校正，其它（`_pan` 增量）不用。契入只用 `_clip` 裁显示+命中，**不把 `_canvas` 布局基准改成契入区**（反补 offset 保持整墙画布，防止重排挤压/覆盖）。
 4. **布局**：默认 `_relation_tree_layout`（按关系建树：人物根 col0、结论→推断→线索逐层，父居中子树带、列对齐防重叠）；显式“自动排列”按钮走 `_auto_rank_layout`（BFS 深度分列 + barycenter 同层减交叉）→ `_use_rank_layout` 标志切换；`_apply_column_overlap_fix` 兜底防同列重叠。**布局只在「建/删边、拖关系、自动排列」时机整图重排**。
 5. **折叠**：`_folded_nodes` 存折叠根 + 整棵子树；`_compute_hidden` 隐藏深一层子树；折叠根仍显示为文件夹（暗金框）并保留折叠圆圈；**只有“存在更低一级(有下级)”的节点才显示折叠圆圈**，无下级节点不显示（线索=证据最底层，通常无圆圈）。折叠/展开走 `_fold_keep_layout` **保持局部性**：只隐/显自己的下级子树，不重排上级/无关文本框。

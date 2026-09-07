@@ -50,7 +50,11 @@ var _interaction_popup: AcceptDialog           # 化学试剂/黄页弹窗
 var _current_target_id: String = ""
 var _cancel_btn: Button
 var scene_ui: SceneFramework = null   # 放大镜直接放大场景背景/立绘的真实纹理，不依赖屏幕捕获
-const MAG_ZOOM := 2.6                # 放大倍率
+const MAG_ZOOM_DEFAULT := 2.6        # 放大倍率默认值
+const MAG_ZOOM_MIN := 1.5            # 拉远下限
+const MAG_ZOOM_MAX := 5.0            # 接近上限
+const MAG_ZOOM_STEP := 1.15          # 滚轮每档倍率系数
+var _mag_zoom: float = MAG_ZOOM_DEFAULT
 
 ## 放大镜着色器：用 hint_screen_texture 声明屏幕纹理 uniform，在镜片圆形区域内按 zoom 倍率放大显示光标背后的画面。
 ## 关键：WebGL（本机 Web 导出）不会自动把已绘制的 2D 内容放进 screen_texture；必须在镜头材质绘制前
@@ -466,6 +470,12 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion:
 		pass  # 镜片位置由 _process 用 get_viewport().get_mouse_position() 驱动，避免 ToolBar 根偏移
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+		_mag_zoom = clampf(_mag_zoom * MAG_ZOOM_STEP, MAG_ZOOM_MIN, MAG_ZOOM_MAX)
+		get_viewport().set_input_as_handled()   # 阻止滚轮穿透到左栏滚动/图谱缩放
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		_mag_zoom = clampf(_mag_zoom / MAG_ZOOM_STEP, MAG_ZOOM_MIN, MAG_ZOOM_MAX)
+		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		# 点击快捷发现（需已停留片刻，避免误触）
 		if _magnifier_timer > 0.4:
@@ -479,7 +489,7 @@ func _process(delta: float) -> void:
 	var mp := vp.get_mouse_position()   # 视口像素坐标（原点左上），不受 ToolBar 根偏移影响
 	var glass: ColorRect = _lens_overlay.get_node_or_null("Glass")
 	if glass and glass.material is ShaderMaterial:
-		glass.material.set_shader_parameter("zoom", MAG_ZOOM)
+		glass.material.set_shader_parameter("zoom", _mag_zoom)
 		# SCREEN_UV 覆盖整个窗口（含 stretch=canvas_items+keep 的黑边），而 mp 是游戏区坐标。
 		# 用 final_transform 把鼠标点映射到窗口像素再归一化，与 SCREEN_UV 统一到同一空间；
 		# 窗口恰为 16:9 时 final_transform 无偏移，退化为旧算法，行为不变。

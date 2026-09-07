@@ -315,14 +315,14 @@ func _create_ui() -> void:
 	mid.offset_bottom = -240   # 收拢到底部对话栏(y=850~1080)之上，避免三栏内容被对话栏遮挡（mid 底≈840）
 	add_child(mid)
 
-	# 左侧「已收集线索」面板（线索库，宽 540）
+	# 左侧「已收集线索」面板（线索库，宽 432）
 	# 常驻图谱模式左侧上方层：z=20（> 图谱 z=5、< 顶栏 z=100），置于画布之上而非被图谱遮挡，
 	# 作为「从左栏把线索拖入图谱」的入口载体（需求3）。
 	_left_panel = _create_left_panel()
 	_left_panel.z_index = 20
 	add_child(_left_panel)
 	_left_panel.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
-	_left_panel.offset_right = 540  # 1920*0.28 ≈ 538
+	_left_panel.offset_right = 432  # 540 的 4/5（用户指定缩窄）
 	_left_panel.offset_top = 110    # 对齐中部区域（顶栏之下）
 	_left_panel.offset_bottom = -240
 
@@ -967,10 +967,10 @@ func _on_open_graph_view() -> void:
 	add_child(gv)
 	gv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	gv.z_index = 5
-	# 契入让出区须与顶栏底(offset_bottom=110)/左栏右缘(offset_right=540)一致；
+	# 契入让出区须与顶栏底(offset_bottom=110)/左栏右缘(offset_right=432)一致；
 	# 改顶栏/左栏尺寸时须同步此两值（图谱 _clip 用它们避开 UI 浮层）。
 	gv.hit_off_top = 110
-	gv.hit_off_left = 540
+	gv.hit_off_left = 432
 	var persons := _state_ctl._derive_persons()
 	var focus: String = _state_store.get("graph_focus", "")
 	# 防串位守卫：持久化的 graph_focus 若不属于当前墙的人物集合（多墙共享 wall_state 时
