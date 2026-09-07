@@ -379,7 +379,15 @@ NO other objects, isolated, game asset
 - **点击机制最终态（2026-09-07 第二次用户反馈"点击圆圈无反应"+裁定"按显示的圆圈实际大小定点击范围"）**：第一次修复的"透明点击层+就近判定"方案**实测点击无反应**（原因未完全定位，已整体撤销）。最终方案=**回退原生 Button，命中区改为圆圈实际大小**：`_position_buttons` 给每个按钮 64×64px（圆圈直径 52=CLUE_HINT_RADIUS 26×2 + 12px 余量）居锚点中心——圆圈本身不重叠→按钮不重叠→天然无 z 序歧义，点哪个圆圈命哪条线索（用户裁定方案）。**教训：①控件命中区重叠问题优先"收缩命中区到视觉元素大小"这种简单方案，别上覆盖层+坐标换算（to_local/global_position 语义易错、冒烟覆盖不到运行时 UI 链路）；②UI 交互改造必须真机验证后再导出交付。**
 - **锚点"圆圈位置"与"放大裁切框"解耦（2026-09-07）**：shoulder 改参考图裁切框时把 cx/cy（圆圈位置）一起挪到框中心→圆圈跑到领口，用户实证"左肩圆圈应在肩上，之前是好的"。解耦：`cx/cy`=圆圈+按钮命中中心（视觉锚点，用户已认可勿动），`vx/vy`=放大视图裁切中心（可选，缺省回退 cx/cy），`w/h`=裁切框大小。_open_zoom 立绘分支用 `a.get("vx", a.cx)`。**教训：一个锚点字段被两处消费（画圈/裁切）时，改一处语义必须检查另一处。**
 - **顶栏图标垂直居中修复**：nav 按钮高 42（TOP_H-8，y=4），图标 24px 应放按钮内 y=(42-24)/2=9，此前 15 偏下 6px。
-- 版本戳 v=20260906h（pck 71921292）。
+- **headless 点击链路取证方法论（2026-09-07，"现象依旧"排查完整链）**：用户报 64px 方案后"现象依旧"，headless 四轮取证最终证明**源码/pck/预览链路全部健康，用户端是旧版缓存/未刷新页面**。方法论沉淀：
+  - **mouse_filter 枚举值陷阱**：STOP=0 / PASS=1 / **IGNORE=2**（不是 STOP）——遮挡探针打印 `mf=2` 时是"不拦截"，首轮误读成 STOP 差点去改无辜的立绘 img（立绘 img 在 add_portrait 里本就 IGNORE）。立绘/ToolBar/圆圈层全 IGNORE，点击点上唯一 STOP 是热点按钮自己——**静态无遮挡**。
+  - **headless 下 `root.push_input` 输入模拟完全无效**（连空白 Button 都不触发 pressed）——按钮命中测试不能用输入模拟，用三件套：①遮挡遍历（递归打印点击点上所有可见 Control 的 `get_global_rect().has_point`+mouse_filter）；②直调 `_on_hotspot(clue_id, desc)`；③**全树扫描弹层节点**（`_find(root,"zoom_popup")`）确认创建。
+  - **弹层挂载点陷阱**：`_open_zoom` 的 popup 挂在 `_parent`（scene1 传的 scene_area），**不是 obs 自己的 parent**——数 children 判断"弹层是否创建"必须扫全树，数错挂载点会得出"弹层没建"的假阴性（本轮探针5 假阴性、探针6 全树扫描实锤弹层正常）。
+  - **PCK 版本探针已固化**：`tools/t_pck_probe.gd` + `GODOT --headless --main-pack web_build/index.pck -s res://tools/t_pck_probe.gd`，用 `has_method("_pick_nearest_hotspot")` 判 K（点击层）/L（64px）版。**Object.get() 只查属性不查方法，判方法存在性恒 null——必须 has_method**。
+  - **"现象依旧"类反馈判定链**：先证服务器端（pck 探针→源码探针→遮挡遍历→弹层创建），全健康后唯一剩余解释=**用户端旧版**——Godot Web 加载后整个游戏驻内存，**改版后用户必须刷新预览页面**才拉新 pck；proxy 302 Location 自带 `?v=<mainPack戳>`（入口 URL 每版必变），普通 F5 即破缓存。**不要在服务器端无证据时继续改代码**。
+- **export 命令语法陷阱（2026-09-07 实证）**：`GODOT --headless --export-release "Web" .` 的尾部 `.` 会被当**输出路径**——在项目根生成 `.pck/.html/.wasm/.js/.worklet.js` 垃圾空文件。正确语法**必须带 `--path` 且无尾部参数**：`GODOT --headless --path . --export-release "Web"`。
+- **沙箱回收丢失资源的孤儿场景清理（2026-09-07）**：`test_portrait_micro.tscn`（引用的 gd 从未入库被回收）与 `bigben.tscn`（引用 bigben_pixel.png 丢失）导致 export "Failed loading resource" 中断——两场景无任何代码引用（grep 证实孤儿），直接删除恢复导出链。**教训：未提交的新增资源/脚本被回收即永久丢失，重要资源完成即提交。**
+- 版本戳 v=20260906m（pck 71919600，PCK_PROBE=NEW 64px，302 带戳验证 ✓）。
 
 ### 合入远程推理墙布局提交 + 导出（2026-09-06，用户"从 github 进行更新"）
 - **rebase 合入远程**（其他终端推送的推理墙布局系列：BuchheimWalker/G3 布局、多条 fix、docs），本地仅有的空提交用 `git reset --hard origin/main` 清除（无内容变更）。
