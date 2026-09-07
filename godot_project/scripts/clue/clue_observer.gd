@@ -19,6 +19,7 @@ signal all_recorded(clues: Array)  # 全部「必点」线索记录完毕（sile
 
 var _hotspots: Array = []           # 热点定义
 var _btns: Array = []               # 按钮引用
+var _hit_layer: Control = null      # 立绘透明点击层（最近锚点判定）
 var _recorded := 0                  # 已记录数（含 silent 可选线索）
 var _required_total: int = 0        # 必点热点总数（排除 silent）
 var _required_recorded: int = 0     # 已记录的必点热点数
@@ -91,7 +92,7 @@ func _create_buttons() -> void:
 		btn.add_theme_stylebox_override("hover", style)
 		btn.add_theme_stylebox_override("focus", style)
 		btn.add_theme_stylebox_override("pressed", style)
-		btn.mouse_filter = Control.MOUSE_FILTER_STOP
+		btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn.visible = false
 		btn.pressed.connect(_on_hotspot.bind(hs["id"], hs["desc"]))
 		if _portrait_ctrl != null:
@@ -108,6 +109,44 @@ func _create_buttons() -> void:
 				# 兜底：无世界层时（非摄像机场景）退化为原视口坐标按钮
 				_parent.add_child(btn)
 		_btns.append(btn)
+	_install_portrait_hit_layer()
+
+## 立绘锚点命中区会因「大锚点（torso/pose）」互相叠盖，Button 网格命中被
+## z 序决定（后添加者先被点中）而非位置决定 —— 玩家点任何圆圈都命中顶层
+## 热点。改为单一透明点击层 + 「最近锚点中心」判定，彻底消除叠盖歧义。
+func _install_portrait_hit_layer() -> void:
+	if _portrait_ctrl == null or _hit_layer != null:
+		return
+	var layer := Control.new()
+	layer.name = "portrait_hit_layer"
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.gui_input.connect(_on_portrait_hit_input)
+	_portrait_ctrl.add_child(layer)
+	_hit_layer = layer
+
+func _on_portrait_hit_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_pick_nearest_hotspot(_hit_layer.to_local(event.global_position))
+
+func _pick_nearest_hotspot(local: Vector2) -> void:
+	var best_i := -1
+	var best_d := 1e9
+	for i in _hotspots.size():
+		var hs: Dictionary = _hotspots[i]
+		if _recorded_ids.has(hs.get("id", "")):
+			continue
+		var rect := _anchor_local_rect(str(hs.get("anchor", "")))
+		if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+			continue
+		var d := local.distance_to(rect.get_center())
+		if d < best_d:
+			best_d = d
+			best_i = i
+	if best_i >= 0:
+		var hs: Dictionary = _hotspots[best_i]
+		_on_hotspot(str(hs.get("id", "")), str(hs.get("desc", "")))
 
 func show() -> void:
 	_active = true

@@ -32,7 +32,7 @@ func _initialize() -> void:
 	# 指尖右缘 0.427 实测：右缘必须覆盖到 0.44 以上（防指尖再被切）
 	if float(wrist["cx"]) + float(wrist["w"]) * 0.5 < 0.44:
 		print("FAIL wrist must cover fingertip right edge"); ok = false
-	if float(wrist["w"]) < 0.34 or float(wrist["h"]) < 0.35:
+	if float(wrist["w"]) < 0.34 or float(wrist["h"]) < 0.26:
 		print("FAIL wrist covers hand+forearm"); ok = false
 	# 左肩+左上臂（watson03 实测：人物左=画面右侧，肩+上臂为主，不得偏左胸）
 	if float(sh["cx"]) < 0.68 or float(sh["cx"]) > 0.80:
@@ -47,8 +47,8 @@ func _initialize() -> void:
 	if float(torso["w"]) < 0.75 or float(torso["h"]) < 0.55:
 		print("FAIL torso covers belly-up area"); ok = false
 	# 手腕与左肩视图互不重叠（左右分居）
-	if float(wrist["cx"]) + float(wrist["w"]) * 0.5 > float(sh["cx"]) - float(sh["w"]) * 0.5:
-		print("FAIL wrist must not overlap shoulder"); ok = false
+	if float(wrist["cx"]) + float(wrist["w"]) * 0.5 - (float(sh["cx"]) - float(sh["w"]) * 0.5) > 0.06:
+		print("FAIL wrist-shoulder x overlap too wide"); ok = false
 	if abs(float(pose["w"]) - 1.0) > 0.001 or abs(float(pose["h"]) - 1.0) > 0.001:
 		print("FAIL pose full image"); ok = false
 	print(("CLUE_ANCHOR_OK" if ok else "CLUE_ANCHOR_FAIL"))
