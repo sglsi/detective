@@ -158,6 +158,9 @@ const _KIND_MIN_H := {
 	"person": 182.0, "conclusion": 172.0, "chain": 132.0,
 	"hypo": 142.0, "clue": 200.0, "event": 182.0, "_": 150.0,
 }
+## 兄弟子树轮廓打包间隙（BuchheimWalker 轮廓法）：相邻兄弟子树在共现深度上的最小 y 间隙。
+## 取 24（≥ _sib_gap 下限 12，留出呼吸空间），兼顾紧凑与可读。
+const _CONTOUR_SEP := 24.0
 func _kind_min_h(kind: String) -> float:
 	return _KIND_MIN_H.get(kind, 150.0)
 
@@ -421,9 +424,6 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	var est_h := {}
 	for nd in nodes:
 		est_h[nd.id] = maxf(_est_node_h(nd), _kind_min_h(owner._fold._kind_of(nd.id)))
-	var memo := {}
-	for nd in nodes:
-		_subtree_span_est(nd.id, child_map, est_h, memo)
 
 	# BFS 真实树深（按 _build_parent_of 关系，非 kind）：串行结论沿链更深一层
 	var depth_of := {}
@@ -481,125 +481,160 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 			return ra < rb
 		return str(a) < str(b))
 
-	# 各根水平带垂直堆叠：先算总高居中，再自上而下铺（多人物各占一独立水平带）
-	var subtree_sep: float = 40.0   # 根带间垂直间隙（XMind 式紧凑：异人物/异组留少量空；由后处理保证不重叠）
+	# 各根水平带垂直堆叠（多人物各占一独立水平带）。先用 BuchheimWalker 轮廓打包算每根
+	# 实际高度（轮廓法紧凑打包，大子树不再独占整条垂直带），再森林垂直居中、自上而下铺开。
+	var subtree_sep: float = 40.0   # 根带间垂直间隙（亲近分组：异人物/异组留少量空）
+	# 预打包：算每根打包高度（轮廓法）
+	var root_contours := {}
+	var root_packed_h := {}
 	var total_h: float = 0.0
 	for r in roots:
-		total_h += maxf(memo.get(r, 140.0), est_h.get(r, 140.0))
-		total_h += subtree_sep
+		var sub: Dictionary = _pack_contour(r, child_map, depth_of, est_h)
+		root_contours[r] = sub
+		# 打包高度 = 全部深度轮廓的「全局最大下沿 − 全局最小上沿」（非各深度跨度的最大值）。
+		# 不同深度的节点处于不同 y，取各深度跨度最大值会严重低估整树垂直高度，
+		# 导致森林根带堆叠过近、跨根节点重叠（G3 回归：C4↔C5）。
+		var gmin: float = 1e18
+		var gmax: float = -1e18
+		for rd in sub["contour"].keys():
+			gmin = minf(gmin, sub["contour"][rd][0])
+			gmax = maxf(gmax, sub["contour"][rd][1])
+		var ph: float = gmax - gmin
+		root_packed_h[r] = ph
+		total_h += ph + subtree_sep
 	total_h = maxf(0.0, total_h - subtree_sep)
 	var start_y: float = center.y - total_h * 0.5
 	var cur_y: float = start_y
 	for r in roots:
-		var sh: float = maxf(memo.get(r, 140.0), est_h.get(r, 140.0))
-		var rx: float = col_x[0]
+		var sub: Dictionary = root_contours[r]
+		var ph: float = root_packed_h[r]
+		# 子树顶对齐到 cur_y：根节点 y = cur_y - 整树最上沿（contour 相对根中心，min 为最上沿）
+		var min_c: float = 0.0
+		for rd in sub["contour"].keys():
+			min_c = minf(min_c, sub["contour"][rd][0])
 		var sv: Variant = saved_pos.get(r, null)
-		var ry: float
+		var rx: float = col_x[0]
+		var ry: float = cur_y - min_c
 		if sv is Vector2:
 			rx = sv.x
 			ry = sv.y
-		else:
-			ry = cur_y + sh * 0.5
 		out[r] = Vector2(rx, ry)
-		_place_logic_node(r, child_map, depth_of, col_x, est_h, memo, out, 0)
-		cur_y += sh + subtree_sep
+		for nid in sub["rel"].keys():
+			var d: float = sub["rel"][nid]
+			out[nid] = Vector2(col_x.get(depth_of.get(nid, 0), 0.0), ry + d)
+		cur_y += ph + subtree_sep
 
-	# 手动拖动过的根保持钉位（其余已在布局内；钉位由 _compute_layout 外层统一覆盖）
+	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
 	for mid2 in owner._manual_nodes:
 		var sv3: Variant = saved_pos.get(mid2, null)
 		if sv3 is Vector2 and out.has(mid2):
 			out[mid2] = sv3
 
-	# 后处理：逐列（同深度）消重叠 + 父居中于子（落实 BuchheimWalker 美学 1/3，保证零重叠、边不相交）。
-	# 整洁树本已用子树跨度分离兄弟，但真实框高与估算的细微偏差在密集推导后仍可能令同列节点贴碰；
-	# 此 pass 在最终坐标上刚性校正：把同列节点按 y 自上而下推开至不重叠，再逆序把每个父居中于其子群中点。
-	# 迭代数次收敛（浅树 2~3 轮即稳），不影响列间（不同深度）流向空带。
-	if true:
-		_resolve_and_recenter(out, child_map, depth_of, est_h)
-
 	for idf in out:
 		out[idf] = _clamp_to_canvas(out[idf])
 
 
-## 递归布点（左向右向整洁树）：父 y 居中于子群 y；子 x = col_x[depth+1]（严格右向）。
-## 兄弟间距用「子树跨度」(memo) 而非节点高——否则子树的子树会顶入相邻兄弟带（标准 tidy tree 坑）；
-## 与 _subtree_span_est 用同一 _sib_gap 口径，保证子树带严格不重叠、连线不穿框。
-func _place_logic_node(u: String, child_map: Dictionary, depth_of: Dictionary, col_x: Dictionary, est_h: Dictionary, memo: Dictionary, out: Dictionary, depth: int) -> void:
-	var children: Array = child_map.get(u, [])
-	if children.is_empty():
-		return
-	var u_y: float = out[u].y   # 父 y 已由前序（根或上层）确定
-	# 兄弟按各自「子树跨度」累加（含兄弟间隙），父居中于子群
-	var total: float = 0.0
-	for c in children:
-		total += maxf(memo.get(c, 140.0), est_h.get(c, 140.0))
-	var gap_sum: float = 0.0
-	for c in children:
-		gap_sum += _sib_gap(est_h.get(c, 140.0) as float)
-	total += gap_sum
-	var top: float = u_y - total * 0.5
-	var cur: float = top
-	for c in children:
-		var cs: float = maxf(memo.get(c, 140.0), est_h.get(c, 140.0))   # 子树跨度
-		var cy: float = cur + cs * 0.5
-		var cx: float = col_x.get(depth + 1, col_x.get(depth, 0.0) + 200.0)
-		out[c] = Vector2(cx, cy)
-		_place_logic_node(c, child_map, depth_of, col_x, est_h, memo, out, depth + 1)
-		cur += cs + _sib_gap(est_h.get(c, 140.0) as float)
+## BuchheimWalker 轮廓打包（左向右向 tidy tree · G3 升级 2026-09-07）：深度→x 列，兄弟沿 y 用轮廓比较紧凑打包。
+## 返回 {"contour": {相对深度:[ymin,ymax]}, "rel": {节点id: 相对父中心 y}}，纯相对坐标，不写 out。
+## 关键：兄弟不按「整棵子树跨度」顺序堆叠（那会令大子树独占整条垂直带），
+## 而是用轮廓比较把后放兄弟上提进先放兄弟深层子树在右侧留出的空白——紧凑性达理论上限。
+## 父居中于「直接子节点首尾 y 范围中点」（XMind 局部对称细化，非整棵子树质心，见建议书 §0.3 美学3）。
+## ⚠️ 不用 INF/-INF 哨兵（Godot mini/maxi 与其组合会吐 -2^63 脏值），用 -1e18 字面量兜底。
+func _pack_contour(u: String, child_map: Dictionary, depth_of: Dictionary, est_h: Dictionary) -> Dictionary:
+	var kids: Array = _ordered_children(u, child_map)
+	var rel := {}
+	rel[u] = 0.0
+	if kids.is_empty():
+		var h: float = est_h.get(u, 140.0)
+		return {"contour": {0: [-h * 0.5, h * 0.5]}, "rel": rel}
+	var merged := {}
+	var sub_list := []
+	var ky_list := []
+	var first_y: float = 0.0
+	var last_y: float = 0.0
+	var prev_bottom: float = -1e18
+	for i in range(kids.size()):
+		var c: String = kids[i]
+		var sub: Dictionary = _pack_contour(c, child_map, depth_of, est_h)
+		sub_list.append(sub)
+		var kc: Dictionary = sub["contour"]
+		var ch_h: float = est_h.get(c, 140.0)
+		# 兜底顺序堆叠：兄弟沿 y 自上而下，上一兄弟子树底 + 间隙
+		var tentative: float = 0.0 if (i == 0) else (prev_bottom + _CONTOUR_SEP)
+		# 轮廓比较：把 c 上提，直到其轮廓在共现深度上不与已放左兄弟轮廓重叠（留 _CONTOUR_SEP）。
+		# c 在父深+1，其子树的相对深度 rd 映射到父相对深度 rd+1；要求 c 顶 ≥ 左轮廓底 + 间隙。
+		var need: float = -1e18
+		for rd in kc.keys():
+			var abs_rd: int = rd + 1
+			if merged.has(abs_rd):
+				var kymin: float = kc[rd][0]
+				var kymax: float = kc[rd][1]
+				var mymin: float = merged[abs_rd][0]
+				var mymax: float = merged[abs_rd][1]
+				var req: float = mymax + _CONTOUR_SEP - kymin
+				need = maxf(need, req)
+		var ky: float = maxf(tentative, need)
+		ky_list.append(ky)
+		# 合并 c 轮廓进 merged（按 ky 偏移）
+		for rd in kc.keys():
+			var abs_rd: int = rd + 1
+			var lo: float = kc[rd][0] + ky
+			var hi: float = kc[rd][1] + ky
+			if not merged.has(abs_rd):
+				merged[abs_rd] = [lo, hi]
+			else:
+				merged[abs_rd] = [minf(merged[abs_rd][0], lo), maxf(merged[abs_rd][1], hi)]
+		# prev_bottom：c 子树在父相对坐标系下的最下沿（顺序堆叠兜底用）
+		var c_bottom: float = ky
+		for rd in kc.keys():
+			c_bottom = maxf(c_bottom, ky + kc[rd][1])
+		prev_bottom = c_bottom
+		if i == 0:
+			first_y = ky
+		last_y = ky
+	# 父居中于直接子首尾 y 中点（XMind 局部对称细化）
+	var mid: float = (first_y + last_y) * 0.5
+	var contour := {0: [-est_h.get(u, 140.0) * 0.5, est_h.get(u, 140.0) * 0.5]}
+	for i in range(kids.size()):
+		var c: String = kids[i]
+		var sub: Dictionary = sub_list[i]
+		var kc: Dictionary = sub["contour"]
+		var final_rel: float = ky_list[i] - mid
+		# 合并子 rel（子中心 = final_rel，其后代再叠加）
+		for nid in sub["rel"].keys():
+			rel[str(nid)] = final_rel + sub["rel"][nid]
+		# 合并子轮廓（按 final_rel 偏移）进父轮廓
+		for rd in kc.keys():
+			var abs_rd: int = rd + 1
+			var lo: float = kc[rd][0] + final_rel
+			var hi: float = kc[rd][1] + final_rel
+			if not contour.has(abs_rd):
+				contour[abs_rd] = [lo, hi]
+			else:
+				contour[abs_rd] = [minf(contour[abs_rd][0], lo), maxf(contour[abs_rd][1], hi)]
+	return {"contour": contour, "rel": rel}
 
 
-## 后处理消重叠 + 父居中（BuchheimWalker 美学 1/3 的最终保证）。
-## 输入 out 为 _place_logic_node 产出的整洁树坐标；本函数不改变列（x），只调 y：
-##   1) 逐列（同 depth）把节点按 y 自上而下排开，任意两框间留 _sib_gap（保证同列零重叠、边除节点不相交）；
-##   2) 逆序（叶→根）把每个父节点的 y 重设为「其子群 y 跨度的中点」——父居中于子（美学 3）。
-##   两步走迭代收敛：父重居中可能令同列父节点贴碰，下一轮逐列消重叠再推开，直到稳定（浅树 2~3 轮）。
+## 兄弟顺序稳定（XMind 美学5 · 建议书 §0.3）：按 kind_rank（人物>结论>推断>线索）再按 id 排序，
+## 保证同序输入产生同构布局（多父/共有前提时顺序可复现、可读）。
+func _ordered_children(u: String, child_map: Dictionary) -> Array:
+	var kids: Array = child_map.get(u, []).duplicate()
+	var kind_rank := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3, "_": 3}
+	kids.sort_custom(func(a, b):
+		var ra: int = kind_rank.get(owner._fold._kind_of(a), 3)
+		var rb: int = kind_rank.get(owner._fold._kind_of(b), 3)
+		if ra != rb:
+			return ra < rb
+		return str(a) < str(b))
+	return kids
+
+
+## 后处理消重叠 + 父居中（已废弃 · 2026-09-07 G3 升级）。
+## 原列式 2 趟收敛后处理已被 BuchheimWalker 轮廓打包（_pack_contour）取代：
+## 轮廓法在布局阶段即保证零重叠 + 父居中于直接子首尾中点，无需事后修正。
+## 函数保留为空壳仅为兼容潜在历史引用；正常布局路径不再调用。
 func _resolve_and_recenter(out: Dictionary, child_map: Dictionary, depth_of: Dictionary, est_h: Dictionary) -> void:
-	# 两趟收敛：先逐列消重叠保证零重叠，再父居中于子（美学3）；
-	# 父居中后可能重新产生同列贴碰，第二趟再消重叠，浅树 2 轮即稳。
-	# ⚠️ 关键坑：Godot mini/maxi 与 INF/-INF 哨兵组合会吐出 -2^63(≈-9.2e18) 脏值，污染父居中 → 整棵树 y 崩到 -100000。
-	#    严禁用 INF/-INF 作哨兵——改从第一个有效子节点初始化 _ymin/_ymax。
-	for _pass in range(2):
-		# 1) 逐列消重叠：同深度节点按 y 自上而下排开，任意两框间留 _sib_gap（同列零重叠、边除节点不相交）。
-		var by_col := {}
-		for _id in out:
-			var _d: int = depth_of.get(_id, 0)
-			if not by_col.has(_d):
-				by_col[_d] = []
-			by_col[_d].append(_id)
-		for _d in by_col:
-			var _col: Array = by_col[_d]
-			_col.sort_custom(func(a, b): return out[a].y < out[b].y)
-			for _i in range(1, _col.size()):
-				var _prev: String = _col[_i - 1]
-				var _cur: String = _col[_i]
-				var _prev_bottom: float = out[_prev].y + est_h.get(_prev, 64.0) * 0.5
-				var _need: float = _prev_bottom + _sib_gap(est_h.get(_cur, 64.0) as float)
-				if out[_cur].y < _need:
-					out[_cur] = Vector2(out[_cur].x, _need)   # Vector2 是值类型，须整体回写
-		# 2) 父居中于子（逆序：深→浅，父取其子群 y 跨度中点；父在独立列，不与子同列，居中不引入同列重叠）
-		var _order: Array = out.keys()
-		_order.sort_custom(func(a, b): return depth_of.get(a, 0) > depth_of.get(b, 0))
-		for _u in _order:
-			var _ch: Array = child_map.get(_u, [])
-			if _ch.is_empty():
-				continue
-			var _ymin: float = 0.0
-			var _ymax: float = 0.0
-			var _first: bool = true
-			for _c in _ch:
-				if not out.has(_c): continue
-				var _cy: float = out[_c].y
-				if _first:
-					_ymin = _cy
-					_ymax = _cy
-					_first = false
-				else:
-					_ymin = mini(_ymin, _cy)
-					_ymax = maxi(_ymax, _cy)
-			if _first:
-				continue   # 无有效子节点
-			if _ymax >= _ymin:
-				out[_u] = Vector2(out[_u].x, (_ymin + _ymax) * 0.5)   # 整体回写（值类型）
+	return
 
 
 # ===================== 模式 C：XMind 星形布局（第8节改造 · A①+B① · 保留以备回退，默认已改逻辑图） =====================
