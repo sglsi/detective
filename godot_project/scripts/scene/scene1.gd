@@ -215,7 +215,7 @@ func _create_observers() -> void:
 		# crop 为「锚点表缺失时」的回退取景，数值已与 clue_image_anchors.gd
 		# 中 watson_teaching.png 的定稿锚点对齐（x=cx-w/2, y=cy-h/2, cx=cx+w/2, cy=cy+h/2）
 		{"id":"wrist","label":"肤色黑白分明","x":580,"y":400,"w":100,"h":60,"desc":"手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来",
-		 "crop":{"x":0.04,"y":0.12,"cx":0.40,"cy":0.48},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
+		 "crop":{"x":0.10,"y":0.08,"cx":0.46,"cy":0.52},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
 		{"id":"arm","label":"左臂损伤","x":450,"y":450,"w":100,"h":70,"desc":"左臂动作略显僵硬——战场负伤留下的旧疾",
 		 "crop":{"x":0.60,"y":0.10,"cx":0.88,"cy":0.42},"image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
 		{"id":"face_dark","label":"脸色黝黑","x":520,"y":200,"w":110,"h":60,"desc":"脸部肤色明显偏深——长期热带日照的痕迹",

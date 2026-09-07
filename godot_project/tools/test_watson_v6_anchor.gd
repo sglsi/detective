@@ -24,11 +24,16 @@ func _initialize() -> void:
 		print("FAIL face pos"); ok = false
 	if float(face["cy"]) > 0.25:
 		print("FAIL face upper region"); ok = false
-	# 伸出的右手：画面左侧中上（cx≈0.20, cy≈0.33）
+	# 伸出的右手：画面左侧中上（cx≈0.26, cy≈0.285）
 	if float(wrist["cx"]) > 0.35:
 		print("FAIL wrist should be on left (outstretched hand)"); ok = false
 	if float(wrist["cy"]) < 0.20 or float(wrist["cy"]) > 0.45:
 		print("FAIL wrist mid-upper region"); ok = false
+	# 指尖右缘 0.427 实测：右缘必须覆盖到 0.44 以上（防指尖再被切）
+	if float(wrist["cx"]) + float(wrist["w"]) * 0.5 < 0.44:
+		print("FAIL wrist must cover fingertip right edge"); ok = false
+	if float(wrist["w"]) < 0.34 or float(wrist["h"]) < 0.35:
+		print("FAIL wrist covers hand+forearm"); ok = false
 	# 左肩+左上臂（watson03 实测：人物左=画面右侧，肩+上臂为主，不得偏左胸）
 	if float(sh["cx"]) < 0.68 or float(sh["cx"]) > 0.80:
 		print("FAIL shoulder on left-shoulder zone"); ok = false
