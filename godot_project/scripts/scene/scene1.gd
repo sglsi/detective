@@ -623,14 +623,14 @@ func _show_messenger_reasoning_wall() -> void:
 		"battlefield": {
 			"hypotheses": _messenger_hypotheses(),
 			"conclusions": [
-				{"id":"CL1-01","text":"在海军中当兵","kind":"true","dir":"affirm","subject":["信使"],"object":["海军"],"match_keys":["在海军当兵","海军服役","是海军","当过海军"],"gate_hypo_ids":["M-01","M-02","M-03"],"target":"person:NPC_SERGEANT"},
-				{"id":"CL1-02","text":"当过军士/士官","kind":"true","dir":"affirm","subject":["信使"],"object":["军士","士官"],"match_keys":["当过军士","是士官","军士衔","士官"],"gate_hypo_ids":["M-04"],"target":"person:NPC_SERGEANT"},
+				{"id":"CL1-01","text":"海军陆战队员","kind":"true","dir":"affirm","subject":["信使"],"object":["海军","海军陆战队"],"match_keys":["海军陆战队员","是陆战队员","海军陆战队"],"gate_hypo_ids":["M-01","M-02"],"adopt_desc":"在海军中当兵，又是正规军人出身——海军陆战队员。"},
+				{"id":"CL1-02","text":"海军军士","kind":"true","dir":"affirm","subject":["信使"],"object":["军士"],"match_keys":["海军军士","军士"],"gate_hypo_ids":["M-04","conclusion_CL1-01"],"target":"person:NPC_MSG","adopt_desc":"陆战队员的底子，再加发号施令的军士气度——他是海军军士。"},
 			],
 			"contradictions": [],
 		},
 		"milestones": [
-			{"id":"MM-1","text":"信使曾在海军中当兵"},
-			{"id":"MM-2","text":"信使当过军士/士官"},
+			{"id":"MM-1","text":"信使是海军陆战队员（海军当兵＋当过兵）"},
+			{"id":"MM-2","text":"信使是海军军士（陆战队员＋当过军士）"},
 			{"id":"MM-3","text":"袖口磨损/跛行为干扰项，非身份证据"},
 		],
 		# 裁定 5：练习墙不计分（信使墙为教学示范，干扰项用于教「信号 vs 噪音」）
@@ -672,10 +672,9 @@ func _on_messenger_verdict_end() -> void:
 ## 信使推理墙假设：仅当当前难度存在干扰线索时才纳入干扰假设（简单模式无干扰）。
 func _messenger_hypotheses() -> Array:
 	var arr := [
-		{"id":"M-01","text":"锚文身是海军士兵中的常见标志","correct":true,"gate_clue_ids":["tattoo"]},
-		{"id":"M-02","text":"络腮胡在军人中常见","correct":true,"gate_clue_ids":["beard"]},
-		{"id":"M-03","text":"挺拔站姿是军事训练中形成的肌肉记忆","correct":true,"gate_clue_ids":["posture"]},
-		{"id":"M-04","text":"发号施令中形成的气度","correct":true,"gate_clue_ids":["manner"]},
+		{"id":"M-01","text":"在海军中当兵","correct":true,"gate_clue_ids":["tattoo"]},
+		{"id":"M-02","text":"当过兵","correct":true,"gate_clue_ids":["beard","posture"]},
+		{"id":"M-04","text":"当过军士","correct":true,"gate_clue_ids":["manner"]},
 	]
 	if DifficultyManager.mislead_chance > 0.0:
 		arr.append({"id":"M-05","text":"袖口磨损=旧衣服（干扰）","correct":false,"gate_clue_ids":["sleeve"]})

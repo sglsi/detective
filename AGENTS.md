@@ -240,6 +240,7 @@ NO other objects, isolated, game asset
 
 ## 常见问题和预防
 
+- **信使推理链三层级重构（2026-09-07，用户表格规格）**：`CH01M` 真相链从两层改为三层：结论1（M-01 在海军中当兵←tattoo、M-02 当过兵←beard+posture 双线索 gate、M-04 当过军士←manner）→ 结论2（CL1-01 海军陆战队员←M-01+M-02）→ 结论3（CL1-02 海军军士←M-04+conclusion_CL1-01）→ 终点 **person:NPC_MSG（信使）**（原终点 NPC_SERGEANT 改为自由关联人物）。**M-03 废弃**（posture 并入 M-02 的 gate_clue_ids）；concl→concl 边 kind=support、gate 引用结论用 `conclusion_` 前缀、中间结论不写 target（与华生墙 C-A1→C-A2 同款）；推导文案（表格"推导"列）进 conclusions 的 `adopt_desc`。改真相链后必须跑闭合探针（边端点⊆节点集 + gate_clue_ids⊆线索集 + battlefield hypotheses id 对齐）；旧存档 M-03 relations 由 rebuild 权威列表剔除天然兼容。
 - 后端依赖 Supabase，需要配置 `.env`（参考 `backend/.env.example`）
 - Godot Web 构建的 `.wasm` 文件必须以 `application/wasm` MIME 类型提供
 - Web 原型为单文件应用，修改时注意保持内联 CSS/JS 的组织性

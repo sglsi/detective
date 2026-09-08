@@ -83,28 +83,27 @@ static func branches() -> Array:
 		},
 		{
 			"id": "CH01M", "name": "信使判定（练习）", "scene": "scene1", "core": false, "practice": true,
-			# 与 scene1._messenger_hypotheses 的 battlefield gate 同源：4 假设各绑 1 线索，
-			# CL1-01←M-01/02/03（海军当兵）、CL1-02←M-04（当过军士），结论均锚 person:NPC_SERGEANT。
+			# 与 scene1._messenger_hypotheses 的 battlefield gate 同源：4 线索→3 假设（beard+posture 同指 M-02 当过兵），
+			# M-01/02→CL1-01（海军陆战队员）、CL1-01+M-04→CL1-02（海军军士），终点锚 person:NPC_MSG（信使）。
 			"nodes": [
 				{"id": "tattoo", "layer": "clue"}, {"id": "beard", "layer": "clue"},
 				{"id": "manner", "layer": "clue"}, {"id": "posture", "layer": "clue"},
 				{"id": "sleeve", "layer": "clue"}, {"id": "limp", "layer": "clue"},
 				{"id": "M-01", "layer": "hypo"}, {"id": "M-02", "layer": "hypo"},
-				{"id": "M-03", "layer": "hypo"}, {"id": "M-04", "layer": "hypo"},
+				{"id": "M-04", "layer": "hypo"},
 				{"id": "CL1-01", "layer": "concl"}, {"id": "CL1-02", "layer": "concl"},
-				{"id": "person:NPC_SERGEANT", "layer": "person"},
+				{"id": "person:NPC_MSG", "layer": "person"},
 			],
 			"edges": [
 				{"from": "tattoo", "to": "M-01", "kind": "support"},
 				{"from": "beard", "to": "M-02", "kind": "support"},
-				{"from": "posture", "to": "M-03", "kind": "support"},
+				{"from": "posture", "to": "M-02", "kind": "support"},
 				{"from": "manner", "to": "M-04", "kind": "support"},
 				{"from": "M-01", "to": "CL1-01", "kind": "support"},
 				{"from": "M-02", "to": "CL1-01", "kind": "support"},
-				{"from": "M-03", "to": "CL1-01", "kind": "support"},
 				{"from": "M-04", "to": "CL1-02", "kind": "support"},
-				{"from": "CL1-01", "to": "person:NPC_SERGEANT", "kind": "target"},
-				{"from": "CL1-02", "to": "person:NPC_SERGEANT", "kind": "target"},
+				{"from": "CL1-01", "to": "CL1-02", "kind": "support"},
+				{"from": "CL1-02", "to": "person:NPC_MSG", "kind": "target"},
 			],
 			# 干扰项（袖口磨损、轻微跛行）不在真相边中：给它们建边会变大分母拉低正确率（教学点：分辨信号 vs 噪音）。
 			"misleads": [],
