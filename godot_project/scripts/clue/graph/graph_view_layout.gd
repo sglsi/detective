@@ -29,6 +29,18 @@ func _view_height(id: String) -> float:
 	return _est_node_h({})
 
 
+## 节点卡片真实宽度：视图已测量用视图，否则回退 kind 估算宽
+## 2026-09-08 修复：_make_node 实际宽度常大于 _node_width_for_kind 估算（如 hypo 140→238、conclusion 160→216），
+## 布局若按估算宽定列距，会导致相邻列节点左右贴在一起 / 重叠。
+func _view_width(id: String) -> float:
+	var v: Variant = owner._node_views.get(id)
+	if v != null:
+		var _sz: Vector2 = v.size
+		if _sz.x > 1.0:
+			return _sz.x
+	return _node_width_for_kind(str(owner._node_kind.get(id, "")))
+
+
 ## 同列纵向去重叠：同一列（x 相邻）节点按真实卡片高度，保证相邻卡片上下边距 ≥15px，
 ## 并把整列回居中避免整体下沉堆出画布
 func _apply_column_overlap_fix() -> void:
@@ -510,14 +522,15 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	# （保证父右缘 + 间隙 ≤ 子左缘，列间空带供流向连线通过，不穿框）
 	var width_of := {}
 	for nd in nodes:
-		width_of[nd.id] = _node_width_for_kind(owner._fold._kind_of(nd.id))
+		# 测量前置（2026-09-08）：布局消费真实渲染宽，避免估算宽偏小导致列距不足、左右贴在一起。
+		width_of[nd.id] = _view_width(nd.id)
 	var max_w := {}
 	for id in depth_of:
 		var d: int = depth_of[id]
 		var w: float = width_of.get(id, 150.0)
 		if not max_w.has(d) or w > max_w[d]:
 			max_w[d] = w
-	var level_sep: float = 64.0   # 列间水平间隙（父右缘→子左缘的流向连线空间）
+	var level_sep: float = 120.0   # 列间水平间隙（父右缘→子左缘的流向连线空间）；2026-09-08 由 64→120 解决「左右挤在一起」
 	var col_x := {}
 	col_x[0] = 0.0
 	# 列距按「父列半宽 + level_sep + 子列半宽」：保证任意父右缘与子左缘之间恒留 level_sep 间隙，
@@ -1213,7 +1226,13 @@ func _auto_rank_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out
 			rank[id0] = ISOLATED
 		graph_max = maxi(graph_max, rank[id0])
 	# 列 x：人物最右，向外逐列向左（参考示范「线索→推论→人物」由左及右汇聚）
-	var col_gap := maxf(_clue_box_height(), 300.0)   # 需求3：列间距下限 = 一个线索文本框高度
+	# 2026-09-08 修复：列间距必须按真实节点宽度定，不能只用 _node_width_for_kind 估算。
+	# _make_node 实际宽常大于估算（hypo 140→238、conclusion 160→216），按估算 300px 列距会导致左右贴/重叠。
+	var max_node_w: float = 0.0
+	for id0 in ids:
+		max_node_w = maxf(max_node_w, _view_width(id0))
+	var h_gap: float = 120.0   # 相邻列节点边缘间最小水平间隙；与 logic_tree level_sep 对齐（2026-09-08 由 64→120）
+	var col_gap := maxf(_clue_box_height(), max_node_w + h_gap)   # 需求3：列间距下限 ≥ 一个线索框高；宽度大时再加水平间隙
 	var right_x: float = center.x + float(graph_max) * col_gap * 0.5
 	# 同列按保存顺序/深度稳定初序
 	var by_rank := {}
