@@ -229,6 +229,20 @@ NO other objects, isolated, game asset
 - **用户场景二拖拽"故障依旧"的最终根因即在此**：用户的墙 state_store 持久化了 `graph_view_mode=MODE_B`（点过顶栏按钮或 chain 节点），而 MODE_B 分支完全没有钉位/拖动保持逻辑——此前所有拖拽修复都在 MODE_C 分支。删除 MODE B 后此路径不复存在。**教训：修"共用功能"先确认用户实测所处分支**。
 - 拖拽回弹完整根因链（三叠加）：①建边路径钉位写在 rebuild 后（钉回弹位）→已改为先钉玩家落点再 nudge/rebuild；②落点误判建边可成环→`_would_create_cycle` 拒绝+toast；③rebuild 后去重叠推走钉位节点→两个 overlap_fix 循环 continue `_manual_nodes` 成员。
 - **测试方法论**：`test_drag_follow.gd` 走简化参数路径非真实 `gv.build(dict)`——测试过≠用户实测过；`tools/t_drag_seq_repro.gd` 用真实 build(dict)+六步协程序列（拖结论/拖推断/归锚人物/拖人物/自动排列后再拖/收尾）作权威回归，**协程函数调用必须 await**（漏 await 会交错执行状态互相污染，输出全错）。
+- **_mode_b_btn 残留引用（2026-09-07 顺手修复）**：模式 B 删除时 wall_relations.gd 的「未记录节点高亮」分支仍引用已删的 `_mode_b_btn`（state 恢复走到该分支即 SCRIPT ERROR 中断后续逻辑）。空 state_store+假线索探针暴露此错。规则：删除功能要全项目 grep 变量名清引用，enum 保留不算清干净。
+
+## 推理链模块化（2026-09-07，进行中）
+
+**目标**：14+2 条推理链单源化——场景脚本零数据组装，truth 表由 gate 机械派生（消灭"真相表与 gate 同源"人工维护规则）。
+
+**已完成（场景一双链端到端）**：
+- **链描述库 `data/reasoning_chains.gd`**（class_name ReasoningChains）：`CHAINS` 常量每链一条（wall dict 全量数据 + 元数据）；API：`ids()/has(id)/build_wall_dict(id)/derive_truth(id)/validate(id)/validate_all()`。
+- **派生规则（真相表不再手写）**：clue 层=全部 hypotheses（含 correct:false 干扰）的 gate_clue_ids 并集；hypo 层=仅 correct:true；concl 层=conclusions；person 层=conclusions 的 target；边=gate 展开（clue→hypo、hypo→concl、conclusion_ 前缀→concl→concl）+ target→person，kind 全 support/target。**等价性已证**：派生结果与原手写 CH01W(18 节点/17 输)/CH01M(12 节点/9 边) 集合零差异（基线对比探针）。
+- **case_branch_truth.gd**：`branches()` 改为分流——链库已覆盖的 id 用 `derive_truth` 按原位替换，其余走 `_legacy_branches()`（原 16 条手工表未动）；`branch()/core_ids()/truth_size()` API 不变，evaluator 无感。**渐进迁移**：剩余 12 条链（CH02~CH09F）仍在 legacy 表，后续按同模式搬进链库即可。
+- **scene1 调用点替换**：`_show_watson_reasoning_wall`/`_show_messenger_reasoning_wall` 的 28 行内联 dict → `ReasoningChains.build_wall_dict("CH01W"/"CH01M")` 一行；孤儿 `_messenger_hypotheses()` 已删。**难度过滤收进工厂**：`build_wall_dict` 内按 `DifficultyManager.mislead_chance<=0` 剔除 correct:false 干扰假设（原条件逻辑从场景搬进链库）。
+- **端到端探针**：真实实例化 scene1 → `_open_wall("watson", build_wall_dict("CH01W"),...)` → `_wall_instance` 创建成功零脚本错误。探针注意：`_open_wall` 有"至少一条线索"闸门（headless 需先 `sc._clues=[{...}]`）；teaching 参数教学墙传 true；state_store 参数传 `{}` 不能 null；成员名是 `_wall_instance`。
+- **沙箱坑（重要）**：新增 class_name 脚本后必须跑 `--headless --import` 重建全局类缓存，否则其它脚本报 "Identifier not declared"（探针卡死模式：脚本崩后引擎主循环挂着不退出，表现为命令超时而非报错）。
+- **版本**：v=20260906q。
 
 ## 用户偏好与长期约束
 

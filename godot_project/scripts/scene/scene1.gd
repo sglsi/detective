@@ -487,38 +487,9 @@ func _show_watson_reasoning_wall() -> void:
 	_phase = Phase.WATSON_REASONING
 	if _ui: _ui.set_camera_enabled(false)   # 推理墙：禁用摄像机
 	# 华生教学链（2026-09-05 用户关系表）：三层结论逐级推导——
-	# 热带线：肤色→热带生活过→英国殖民地为阿富汗；军医线：军人气质＋医疗行业→是名军医（无结论2）；
-	# 伤痛线：旧伤＋久病→承受伤痛→伤害来自军事任务；三线汇聚"在阿富汗服役过"→锚华生。
-	# 维护规则：gate_hypo_ids 引用结论节点时必须写完整节点 id（"conclusion_C-A1"，含前缀），
-	# 真相表（case_branch_truth.gd CH01W）与 gate 同源，norm 会剥前缀。
-	var hypo := {"title": "华生刚从阿富汗回来？", "persons": [{"id": "NPC_WT"}], "description": "从华生身上的痕迹（手腕肤色分明、脸色黝黑、军人站姿、消毒液气味、左臂旧伤、面容憔悴）逐层推断：肤色→热带生活→英国殖民地为阿富汗；军人气质＋医疗行业→军医；旧伤＋久病→伤痛来自军事任务；三线闭合→在阿富汗服役过。",
-		"battlefield": {
-			"hypotheses": [
-				{"id":"W-A1","text":"不是原来的肤色","correct":true,"gate_clue_ids":["wrist","face_dark"]},
-				{"id":"W-B1","text":"多年军事行业形成的气质","correct":true,"gate_clue_ids":["pose"]},
-				{"id":"W-B2","text":"从事医疗行业","correct":true,"gate_clue_ids":["medical"]},
-				{"id":"W-C1","text":"左臂受过伤未完全恢复","correct":true,"gate_clue_ids":["arm"]},
-				{"id":"W-C2","text":"久病初愈而又历尽了苦难","correct":true,"gate_clue_ids":["face_haggard"]},
-			],
-			"conclusions": [
-				{"id":"C-A1","text":"曾经在热带生活过","correct":true,"dir":"affirm","subject":["华生"],"object":["热带"],"match_keys":["在热带生活过","热带生活","热带待过","在热带待过"],"gate_hypo_ids":["W-A1"],"adopt_desc":"肤色分明与黝黑的脸——他曾在热带生活过。"},
-				{"id":"C-B1","text":"是名军医","correct":true,"dir":"affirm","subject":["华生"],"object":["军医","医生"],"match_keys":["军医","是医生","医疗兵","医务人员"],"gate_hypo_ids":["W-B1","W-B2"],"adopt_desc":"军人气质与医疗行业的痕迹，合起来是一名军医。"},
-				{"id":"C-C1","text":"承受了这个年龄本不该承受的伤痛","correct":true,"dir":"affirm","subject":["华生"],"object":["伤痛","苦难"],"match_keys":["承受伤痛","不该承受的伤痛","经历过苦难","久病初愈"],"gate_hypo_ids":["W-C1","W-C2"],"adopt_desc":"旧伤未愈又久病初愈——他承受了不该承受的伤痛。"},
-				{"id":"C-A2","text":"英国在热带的殖民地为阿富汗","correct":true,"dir":"affirm","subject":["英国"],"object":["阿富汗"],"match_keys":["阿富汗","英国殖民地是阿富汗","热带殖民地是阿富汗","去过阿富汗"],"gate_hypo_ids":["conclusion_C-A1"],"adopt_desc":"英国在热带的殖民地——最近的那块是阿富汗。"},
-				{"id":"C-C2","text":"不该有的伤害只可能来自军事任务","correct":true,"dir":"affirm","subject":["伤害"],"object":["军事任务"],"match_keys":["军事任务","伤害来自军事","战场负伤","军旅负伤"],"gate_hypo_ids":["conclusion_C-C1"],"adopt_desc":"这样的伤痛，只可能来自军事任务。"},
-				{"id":"C-MAIN","text":"在阿富汗服役过","correct":true,"dir":"affirm","subject":["华生"],"object":["阿富汗","服役"],"match_keys":["在阿富汗服役","阿富汗服役过","去过阿富汗当兵","阿富汗当兵"],"gate_hypo_ids":["conclusion_C-A2","conclusion_C-B1","conclusion_C-C2"],"target":"person:NPC_WT","adopt_desc":"热带殖民地、军医身份、军事任务的伤痛——三线闭合，他在阿富汗服役过。"},
-			],
-			"contradictions": [],
-		},
-		"milestones": [
-			{"id":"MW-1","text":"华生曾在热带生活过（肤色推导）"},
-			{"id":"MW-2","text":"华生是名军医（军人气质＋医疗行业）"},
-			{"id":"MW-3","text":"华生承受过不该有的伤痛（旧伤＋久病）"},
-			{"id":"MW-4","text":"华生曾在阿富汗服役（三线闭合）"},
-		],
-		# 裁定 5：练习墙不计分。scene_id 供分枝评分引擎定位到场景一的练习链。
-		"scene_id": "scene1", "practice": true,
-	}
+	# 链数据单源于 data/reasoning_chains.gd——truth 表由 battlefield gate 机械派生，
+	# gate_hypo_ids 引用结论节点写完整 id（"conclusion_C-A1"，含前缀），norm 会剥前缀。
+	var hypo := ReasoningChains.build_wall_dict("CH01W")
 	_open_wall("watson", hypo, func(v: int):
 		_watson_v = v
 		_show_watson_verdict_dialogue(v)
@@ -613,29 +584,8 @@ func _show_messenger_reasoning_wall() -> void:
 	if _ui: _ui.set_camera_enabled(false)   # 推理墙：禁用摄像机
 	if _toolbar: _toolbar.hide_toolbar()
 	if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false
-	var hypo := {
-		"title": "信使是海军陆战队军士？",
-		"persons": [
-			{"id": "NPC_MSG", "name": "信使"},
-			{"id": "NPC_SERGEANT", "name": "海军军士"},
-		],
-		"description": "从信使身上（锚形文身、络腮胡、挺拔站姿、发号施令神态）推断其海军陆战队军士身份；注意分辨干扰项（袖口磨损、轻微跛行）。",
-		"battlefield": {
-			"hypotheses": _messenger_hypotheses(),
-			"conclusions": [
-				{"id":"CL1-01","text":"海军陆战队员","kind":"true","dir":"affirm","subject":["信使"],"object":["海军","海军陆战队"],"match_keys":["海军陆战队员","是陆战队员","海军陆战队"],"gate_hypo_ids":["M-01","M-02"],"adopt_desc":"在海军中当兵，又是正规军人出身——海军陆战队员。"},
-				{"id":"CL1-02","text":"海军军士","kind":"true","dir":"affirm","subject":["信使"],"object":["军士"],"match_keys":["海军军士","军士"],"gate_hypo_ids":["M-04","conclusion_CL1-01"],"target":"person:NPC_MSG","adopt_desc":"陆战队员的底子，再加发号施令的军士气度——他是海军军士。"},
-			],
-			"contradictions": [],
-		},
-		"milestones": [
-			{"id":"MM-1","text":"信使是海军陆战队员（海军当兵＋当过兵）"},
-			{"id":"MM-2","text":"信使是海军军士（陆战队员＋当过军士）"},
-			{"id":"MM-3","text":"袖口磨损/跛行为干扰项，非身份证据"},
-		],
-		# 裁定 5：练习墙不计分（信使墙为教学示范，干扰项用于教「信号 vs 噪音」）
-		"scene_id": "scene1", "practice": true,
-	}
+	# 裁定 5：练习墙不计分（信使墙为教学示范，干扰项用于教「信号 vs 噪音」）
+	var hypo := ReasoningChains.build_wall_dict("CH01M")
 	# 信使(教学示范)墙使用独立 state：不携带华生墙内容；每堵墙独立验证，故重置本墙 verified。
 	_messenger_wall_state["verified"] = false
 	_open_wall("messenger", hypo, func(v: int):
@@ -670,20 +620,6 @@ func _on_messenger_verdict_end() -> void:
 	_calc_stars(); _show_commission_letter_dialogue()
 
 ## 信使推理墙假设：仅当当前难度存在干扰线索时才纳入干扰假设（简单模式无干扰）。
-func _messenger_hypotheses() -> Array:
-	var arr := [
-		{"id":"M-01","text":"在海军中当兵","correct":true,"gate_clue_ids":["tattoo"]},
-		{"id":"M-02","text":"当过兵","correct":true,"gate_clue_ids":["beard","posture"]},
-		{"id":"M-04","text":"当过军士","correct":true,"gate_clue_ids":["manner"]},
-	]
-	if DifficultyManager.mislead_chance > 0.0:
-		arr.append({"id":"M-05","text":"袖口磨损=旧衣服（干扰）","correct":false,"gate_clue_ids":["sleeve"]})
-		arr.append({"id":"M-06","text":"轻微跛行=扭伤（干扰）","correct":false,"gate_clue_ids":["limp"]})
-	return arr
-
-## 推理墙「继续收集线索」回调：把玩家从推理墙状态带回未完成的线索收集页面。
-## 开墙时 _show_*_reasoning_wall 已把 phase 改为 *_REASONING 并隐藏立绘/观察器，
-## 这里据此还原回对应的 *_OBSERVE 阶段，重新显示人物与可点击热点。
 func _resume_observe() -> void:
 	_wall_auto = false
 	if _phase == Phase.WATSON_REASONING:

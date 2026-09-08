@@ -182,7 +182,6 @@ func _sync_top_bar() -> void:
 	if not owner._graph_view or not is_instance_valid(owner._graph_view): return
 	_sync_pen_buttons()
 	owner._mode_c_btn.button_pressed = (owner._graph_view._mode == 0)
-	owner._mode_b_btn.button_pressed = (owner._graph_view._mode == 1)
 	owner._top_focus_sel.clear()
 	var persons := owner._state_ctl._derive_persons()
 	for p in persons:

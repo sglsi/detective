@@ -37,7 +37,30 @@ const PRACTICE_SCENES := ["scene1"]
 
 
 ## 全部 14 条推理链真相。返回深拷贝，避免调用方污染。
+## 已迁入 data/reasoning_chains.gd 的链：真相表由链库 battlefield gate 机械派生（单一事实源，
+## 改链只改链库文件）；其余链暂从下方手工表取。branches() 的返回顺序与原手工表一致。
 static func branches() -> Array:
+	var out: Array = []
+	for b in _legacy_branches():
+		if ReasoningChains.has(b["id"]):
+			out.append(ReasoningChains.derive_truth(b["id"]))
+		else:
+			out.append(b)
+	for id in ReasoningChains.CHAINS:
+		var known := false
+		for b in out:
+			if b["id"] == id:
+				known = true
+				break
+		if not known:
+			out.append(ReasoningChains.derive_truth(id))
+	return out
+
+
+## 迁移期手工真相表：已迁入 data/reasoning_chains.gd 的链（CH01W/CH01M）在此跳过，
+## 由 ReasoningChains.derive_truth() 从链库 battlefield 机械派生（单一事实源）。
+## 其余链待逐批迁移；迁移完成后本函数可整体删除。
+static func _legacy_branches() -> Array:
 	return [
 		# ───────────────────────── 场景一 · 练习墙（不计分） ─────────────────────────
 		{
