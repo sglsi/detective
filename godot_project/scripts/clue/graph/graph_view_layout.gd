@@ -532,18 +532,16 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 			max_w[d] = w
 	var level_sep: float = 120.0   # 列间水平间隙（父右缘→子左缘的流向连线空间）；2026-09-08 由 64→120 解决「左右挤在一起」
 	var col_x := {}
-	col_x[0] = 0.0
+	# 人物(根)锚定画布水平中心：推理墙以人物为中心节点，主推导树向右展开（右向=父子结构）；
+	# 左侧预留镜像空间（若人物有父级上下文/同级衍生，则走子父结构·美学4 镜像对称）。
+	# 不再整体居中整树（那会把人物推到左三分之一，破坏「以人物为中心节点、右侧父子/左侧子父」的四条美学要求之一）。
+	col_x[0] = center.x
 	# 列距按「父列半宽 + level_sep + 子列半宽」：保证任意父右缘与子左缘之间恒留 level_sep 间隙，
 	# 不受个别节点（如超宽线索）影响，列间空带稳定供流向连线通过（不穿框/不交叉）。
 	for d in range(1, max_depth + 1):
 		var prev_half: float = max_w.get(d - 1, 150.0) * 0.5
 		var cur_half: float = max_w.get(d, 150.0) * 0.5
 		col_x[d] = col_x[d - 1] + prev_half + level_sep + cur_half
-	# 水平居中：整棵树按宽度居中于画布，root 列落在左侧舒适区（不贴边、不被裁；fit_view 进一步缩放看全）
-	var tree_w: float = col_x.get(max_depth, 0.0) + max_w.get(max_depth, 150.0)
-	var h_off: float = center.x - tree_w * 0.5
-	for d in col_x.keys():
-		col_x[d] += h_off
 
 	# 根排序：人物优先（各居独立水平带）；其余按 kind 顺序聚类（同 kind 相邻成带，亲近分组）
 	var kind_rank := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3}
