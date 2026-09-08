@@ -690,6 +690,18 @@ func _rebuild_graph() -> void:
 			_all_positions[_k] = _v
 
 	var nodes := _node_list()
+	# ★ 测量前置（2026-09-08 治本）：先填 kind/data 字典、再建全部视图拿真实 size.y，
+	# 供 _compute_layout 经 _real_node_height 消费真实尺寸；否则布局跑在视图前、_meas_lab 字体/主题
+	# 未就绪会量出虚高（实测线索框竟达 1227px），使 _sibling_sep 半高基数虚大、兄弟线索间隙过远（1299/626px）。
+	for nd in nodes:
+		_node_kind[nd.id] = nd.kind
+		_node_data[nd.id] = nd.data
+	for nd in nodes:
+		var v := _make_node(nd)
+		v.set_meta("graph_node", true)
+		_node_views[nd.id] = v
+		_canvas.add_child(v)
+		# 位置留待布局算出后再设；v.size 已由 _make_node 同步写入真实高
 	var pos: Dictionary
 	if _fold_keep_layout:
 		# 折叠/展开：一次性保持所有可见节点现有位置，仅增删视图，不整体重排 → 不影响其它/上级文本框
@@ -707,13 +719,8 @@ func _rebuild_graph() -> void:
 				_all_positions[id] = pos[id]
 	_node_center = pos
 	for nd in nodes:
-		var v := _make_node(nd)
-		v.set_meta("graph_node", true)
-		_node_views[nd.id] = v
-		_canvas.add_child(v)
+		var v: Control = _node_views[nd.id]
 		v.position = pos.get(nd.id, Vector2.ZERO) - v.size * 0.5
-		_node_kind[nd.id] = nd.kind
-		_node_data[nd.id] = nd.data
 	# 同列纵向去重叠：按真实卡片高度硬保证相邻卡片上下边距 ≥15px（不依赖布局/估算，避免任何覆盖）
 	# 跨场景累积改造（2026-08-29）：默认星形布局在高密度「多孤立根并入主根」时也会产生径向重叠，
 	# 全局跨列去重叠必须同样执行以保证「零重叠」硬要求；仅当 AABB 真实相交才下移，玩家自由拖动不推挤。

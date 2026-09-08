@@ -137,10 +137,13 @@ func _node_rect(id: String) -> Rect2:
 	var c: Vector2 = owner._node_center.get(id, Vector2.ZERO)
 	var k: String = str(owner._node_kind.get(id, "hypo"))
 	var w: float = _node_width_for_kind(k)
-	# 与 _intersects_any / _find_non_overlapping_position 同一碰撞高度模型：用「标签估算高」而非实时视图高——
-	# 去重叠在 _rebuild_graph 同步阶段执行，此时 Control 尚未由引擎完成布局，_view_height 不可靠（回退约 52）；
-	# 用标签估算高（兜底 110）使去重叠与碰撞检测口径一致，彻底消除「修了仍重叠」的时序错配。
-	var h: float = maxf(_est_node_h(owner._node_data.get(id, {})), 110.0)
+	# 测量前置（2026-09-08）：_rebuild_graph 已改为「先建视图→再布局→再去重叠」，故去重叠阶段
+	# _node_views 已就绪，直接用真实渲染高（_view_height 读 v.size.y）；不再套 110 兜底。
+	# 旧 110 兜底会让 48~77px 的真实线索被当成 110px 高，半框高间距(24~38px)误判重叠而被推开，
+	# 抵消 _sibling_sep 的「半框高」意图。仅视图确实未就绪时回退保守 110 模型，避免漏判重叠推散节点。
+	var h: float = _view_height(id)
+	if not owner._node_views.has(id) or h <= 1.0:
+		h = maxf(_est_node_h(owner._node_data.get(id, {})), 110.0)
 	return Rect2(c - Vector2(w, h) * 0.5, Vector2(w, h))
 
 
