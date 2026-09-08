@@ -80,25 +80,28 @@ func _initialize() -> void:
 	_chk(out["C4"].y > out["C1"].y, "C4 在 C1 之下 C4.y=%.0f > %.0f" % [out["C4"].y, out["C1"].y])
 	_chk(out["C4"].y <= out["C1"].y + 280.0, "C4 紧凑(距 C1 顶层≤280) C4.y=%.0f ≤ %.0f" % [out["C4"].y, out["C1"].y + 280.0])
 
-	# ④ 零重叠（与 test_logic_layout 同口径：grow 20）
+	# ④ 零重叠（与 test_logic_layout 同口径：真实高度模型 + grow 4）
+	# 2026-09-08 同步为真实高度模型（测量前置治本）：旧 _est_node_h 高估结论卡至 ~124px，
+	# 且 grow=20 为旧 200 兜底撑开的过松间距校准；现布局消费真实尺寸（结论卡 ~52px、兄弟间隙 24px），
+	# 故改用真实高 + 小间隙，仅作 float 容差与粗重叠护栏（详见 proposal §0.6/§8.5）。
 	var ids := out.keys()
 	var rects := {}
 	for id in ids:
 		var k: String = KIND[id]
 		var w: float = gv._layout._node_width_for_kind(k)
-		var h: float = maxf(gv._layout._est_node_h({"label": LABEL[id]}), 110.0)
+		var h: float = gv._layout._real_node_height(id, {"id": id, "kind": k, "label": LABEL[id]})
 		rects[id] = Rect2(out[id] - Vector2(w, h) * 0.5, Vector2(w, h))
 	var overlap := false
 	for i in ids.size():
 		for j in range(i + 1, ids.size()):
-			var ra: Rect2 = rects[ids[i]].grow(20.0)
-			var rb: Rect2 = rects[ids[j]].grow(20.0)
+			var ra: Rect2 = rects[ids[i]].grow(4.0)
+			var rb: Rect2 = rects[ids[j]].grow(4.0)
 			if ra.intersects(rb):
 				overlap = true
 				_ok = false
 				print("FAIL 重叠 %s↔%s" % [ids[i], ids[j]])
 	if not overlap:
-		_log.append("零重叠：%d 节点 AABB（含20间隙）两两不相交 ✓" % ids.size())
+		_log.append("零重叠：%d 节点 AABB（真实高度模型）两两不相交 ✓" % ids.size())
 
 	# ⑤ 多人物垂直分离
 	var _p1_set := ["P1","C1","C2","C3","C4","H1","CL1"]

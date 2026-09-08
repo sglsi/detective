@@ -60,7 +60,7 @@ func _ready() -> void:
 
 	# Subtitle
 	var sub1 = Label.new()
-	sub1.text = "THE  CASE  of  the  CRIMSON  LETTER"
+	sub1.text = "A  STUDY  IN  SCARLET"
 	sub1.add_theme_font_size_override("font_size", 26)
 	sub1.add_theme_color_override("font_color", Color(0.75, 0.30, 0.25))
 	sub1.position = Vector2(0, 425); sub1.size = Vector2(1920, 35)
@@ -68,7 +68,7 @@ func _ready() -> void:
 	_root.add_child(sub1)
 
 	var sub2 = Label.new()
-	sub2.text = "福尔摩斯：猩红情书"
+	sub2.text = "福尔摩斯：血字的研究"
 	sub2.add_theme_font_size_override("font_size", 32)
 	sub2.add_theme_color_override("font_color", Color(0.88, 0.74, 0.42))
 	sub2.position = Vector2(0, 470); sub2.size = Vector2(1920, 45)

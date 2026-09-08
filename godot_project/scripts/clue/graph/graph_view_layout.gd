@@ -14,6 +14,10 @@ var owner: GraphViewController
 ## 由 graph_view_edge._add_edge 在 _rebuild_graph 前点亮，_compute_layout 内消费后归位。
 var _relayout_on_edge := false
 
+## 测量前置复用的临时 Label（加入 _canvas 树以解析默认字体/主题）：
+## 布局期（视图尚未建）用它与 _make_node 同口径的字体度量即时测算节点真实高度。
+var _meas_lab: Label = null
+
 # ===================== 节点尺寸估算 =====================
 ## 节点卡片真实高度：视图已测量用视图，否则回退字符估算
 func _view_height(id: String) -> float:
@@ -188,6 +192,49 @@ func _est_node_h(nd: Dictionary) -> float:
 	var natural: float = maxf(float(txt.length()) * fs, 1.0)
 	var nlines: float = maxf(1.0, ceil(natural / wrap_w))
 	return nlines * line_h + sub_h + 2.0 + 12.0
+
+
+## 节点真实高度（测量前置 · XMind 式尺寸单一事实来源 · 2026-09-08 治本）：
+## 与 _make_node 同一套字体度量（Label.get_minimum_size），布局消费真实尺寸，消除「估算/兜底」两套口径。
+## 视图已渲染且尺寸可靠 → 直接读真实 size.y（最高保真）；否则用 _meas_lab 即时测量（同 _make_node 口径）。
+## 仅字体彻底不可用时回退 _base_h 估算（与 _make_node 同款兜底）。
+func _real_node_height(id: String, nd: Dictionary) -> float:
+	# 视图优先：已渲染节点直接消费真实 size.y（测量前置 · 视图已建则零误差）
+	var v: Variant = owner._node_views.get(id)
+	if v != null and v.size.y > 1.0:
+		return v.size.y
+	# 视图不可靠（首帧/布局期尚未建视图）→ 用与 _make_node 同口径的字体度量即时测量
+	if _meas_lab == null or not is_instance_valid(_meas_lab):
+		_meas_lab = Label.new()
+		_meas_lab.visible = false
+		_meas_lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		if owner._canvas != null and is_instance_valid(owner._canvas):
+			owner._canvas.add_child(_meas_lab)   # 入画布树 → 默认字体/主题解析就绪
+	var kind: String = owner._fold._kind_of(id)
+	var _cap: float = 840.0 if kind == "clue" else 420.0   # 与 _make_node 一致：线索封顶加倍
+	_meas_lab.add_theme_font_size_override("font_size", 28)
+	_meas_lab.text = str(nd.get("label", ""))
+	_meas_lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var _nat := _meas_lab.get_minimum_size()   # 单行自然宽
+	_meas_lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var _wrap_w := clampf(_nat.x, 0.0, _cap)
+	if _wrap_w < 1.0:
+		# 字体未就绪：回退 _base_h 估算（与 _make_node 同款）
+		var _base_h: float = 130.0
+		match kind:
+			"person": _base_h = 170.0
+			"conclusion": _base_h = 160.0
+			"chain": _base_h = 120.0
+			"hypo": _base_h = 130.0
+			"clue": _base_h = 130.0
+			"event": _base_h = 170.0
+		return _base_h + 12.0
+	_meas_lab.custom_minimum_size = Vector2(_wrap_w, 0)   # 设定换行宽度
+	var _lm := _meas_lab.get_minimum_size()   # 换行后真实高
+	_meas_lab.custom_minimum_size = Vector2.ZERO
+	if _lm.y > 1.0:
+		return _lm.y + 14.0   # +margin(12)+vb分离(2)，与 _make_node 卡片真实高度一致
+	return 130.0 + 12.0
 
 
 ## 一个线索文本框的高度（需求3）：取当前所有 clue 节点视图的最大实测高；
@@ -425,16 +472,15 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	if roots.is_empty() and not nodes.is_empty():
 		roots = [nodes[0].id]
 
-	# 估算高度（与 _make_node 实际卡片高口径一致：max(文本估算高, 真实卡最小高)）。
-	# ⚠️ 关键：est_h 下限必须等于真实卡高（_kind_min_h），否则按「矮估算」排开的兄弟/子树带
-	#    在真实高卡渲染时必然重叠（此前 64 下限过矮导致 C2↔H1/C3↔CL1 重叠）。
-	#    下限取真实卡高后，配合 sib_gap=0.5×卡高（思傅要求「半框高间距」），既零重叠又满足美学。
+	# 估算高度（测量前置治本 · XMind 式尺寸单一事实来源 · 2026-09-08）：
+	# 布局消费 _make_node 真实 size.y（视图已建则直接读、否则临时 Label 同口径即时测量），
+	# 不再套 _KIND_MIN_H 过度保守兜底（线索 200），消除兄弟线索 3~4 倍多余空隙（proposal §0.6/§8.5）。
+	# 旧 _est_node_h + _kind_min_h 双估算安全网已弃用（函数保留供碰撞去重叠兜底复用）。
 	var est_h := {}
+	var node_by_id := {}
 	for nd in nodes:
-		# ⚠️ 临时安全网（非 XMind 式测量前置）：_est_node_h 估算 + _KIND_MIN_H 兜底（线索→200），
-		#    保证 headless/未渲染时 est_h ≥ 真实卡高以防重叠。治本应替换为 _make_node 真实 size.y
-		#    （详见 agent/reasoning_wall_layout_proposal.md §0.6 尺寸单一事实来源 / §8.5 尺寸脱节偏差）。
-		est_h[nd.id] = maxf(_est_node_h(nd), _kind_min_h(owner._fold._kind_of(nd.id)))
+		node_by_id[nd.id] = nd
+		est_h[nd.id] = _real_node_height(nd.id, nd)
 
 	# BFS 真实树深（按 _build_parent_of 关系，非 kind）：串行结论沿链更深一层
 	var depth_of := {}
@@ -500,7 +546,7 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	var root_packed_h := {}
 	var total_h: float = 0.0
 	for r in roots:
-		var sub: Dictionary = _pack_contour(r, child_map, depth_of, est_h)
+		var sub: Dictionary = _pack_contour(r, child_map, depth_of, est_h, node_by_id)
 		root_contours[r] = sub
 		# 打包高度 = 全部深度轮廓的「全局最大下沿 − 全局最小上沿」（非各深度跨度的最大值）。
 		# 不同深度的节点处于不同 y，取各深度跨度最大值会严重低估整树垂直高度，
@@ -551,7 +597,7 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 ## 而是用轮廓比较把后放兄弟上提进先放兄弟深层子树在右侧留出的空白——紧凑性达理论上限。
 ## 父居中于「直接子节点首尾 y 范围中点」（XMind 局部对称细化，非整棵子树质心，见建议书 §0.3 美学3）。
 ## ⚠️ 不用 INF/-INF 哨兵（Godot mini/maxi 与其组合会吐 -2^63 脏值），用 -1e18 字面量兜底。
-func _pack_contour(u: String, child_map: Dictionary, depth_of: Dictionary, est_h: Dictionary) -> Dictionary:
+func _pack_contour(u: String, child_map: Dictionary, depth_of: Dictionary, est_h: Dictionary, node_by_id: Dictionary = {}) -> Dictionary:
 	var kids: Array = _ordered_children(u, child_map)
 	var rel := {}
 	rel[u] = 0.0
@@ -566,12 +612,12 @@ func _pack_contour(u: String, child_map: Dictionary, depth_of: Dictionary, est_h
 	var prev_bottom: float = -1e18
 	for i in range(kids.size()):
 		var c: String = kids[i]
-		var sub: Dictionary = _pack_contour(c, child_map, depth_of, est_h)
+		var sub: Dictionary = _pack_contour(c, child_map, depth_of, est_h, node_by_id)
 		sub_list.append(sub)
 		var kc: Dictionary = sub["contour"]
 		var ch_h: float = est_h.get(c, 140.0)
 		# 兜底顺序堆叠：兄弟沿 y 自上而下，上一兄弟子树底 + 间隙
-		var tentative: float = 0.0 if (i == 0) else (prev_bottom + _CONTOUR_SEP)
+		var tentative: float = 0.0 if (i == 0) else (prev_bottom + _sibling_sep(c, node_by_id))
 		# 轮廓比较：把 c 上提，直到其轮廓在共现深度上不与已放左兄弟轮廓重叠（留 _CONTOUR_SEP）。
 		# c 在父深+1，其子树的相对深度 rd 映射到父相对深度 rd+1；要求 c 顶 ≥ 左轮廓底 + 间隙。
 		var need: float = -1e18
@@ -582,7 +628,7 @@ func _pack_contour(u: String, child_map: Dictionary, depth_of: Dictionary, est_h
 				var kymax: float = kc[rd][1]
 				var mymin: float = merged[abs_rd][0]
 				var mymax: float = merged[abs_rd][1]
-				var req: float = mymax + _CONTOUR_SEP - kymin
+				var req: float = mymax + _sibling_sep(c, node_by_id) - kymin
 				need = maxf(need, req)
 		var ky: float = maxf(tentative, need)
 		ky_list.append(ky)
@@ -802,6 +848,14 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 	# 软钳制：仅防 NaN / 极端值（保留列间距，不收缩到画布 margin，否则深树列会重叠）。超出画布由 fit_view 缩放看全。
 	for idf in out:
 		out[idf] = _clamp_to_canvas(out[idf])
+
+
+## 兄弟子树轮廓间距（测量前置 · 2026-09-08）：线索兄弟按「半个线索文本框真实高度」分隔
+## （思傅要求：上一线索下沿→下一线索上沿 = 半个框高），其余类型沿用 _CONTOUR_SEP 紧凑间隙。
+func _sibling_sep(c_id: String, node_by_id: Dictionary = {}) -> float:
+	if owner._fold._kind_of(c_id) == "clue":
+		return 0.5 * _real_node_height(c_id, node_by_id.get(c_id, {}))
+	return _CONTOUR_SEP
 
 
 ## 兄弟节点垂直间距：约文本框高度的 1/4（XMind 式紧凑），下限 12。
