@@ -5,13 +5,13 @@
 [resource]
 script = ExtResource("1_clue")
 id = "manner"
-name = "神态平静"
-description = "信使神态从容淡定"
+name = "态度自高自大，带着发号施令的神气"
+description = "发号施令中形成的气质"
 category = "痕迹"
 location = "贝克街221B"
 discovery_condition = "点击观察信使神态"
-observation = "神态从容淡定。"
-analysis = "发号施令者气质。"
+observation = "态度自高自大，带着发号施令的神气。"
+analysis = "发号施令中形成的气质。"
 related_clues = []
 related_npcs = ["NPC_MSG"]
 timeline_position = 0.8

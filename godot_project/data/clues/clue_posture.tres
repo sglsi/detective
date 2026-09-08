@@ -5,13 +5,13 @@
 [resource]
 script = ExtResource("1_clue")
 id = "posture"
-name = "挺拔站姿"
-description = "信使站姿挺拔有力"
+name = "站姿笔挺，有军人气质"
+description = "在军事训练中形成的肌肉记忆"
 category = "痕迹"
 location = "贝克街221B"
 discovery_condition = "点击观察信使站姿"
-observation = "站姿挺拔有力。"
-analysis = "军事训练。"
+observation = "站姿笔挺，有军人气质。"
+analysis = "军事训练中形成的肌肉记忆。"
 related_clues = []
 related_npcs = ["NPC_MSG"]
 timeline_position = 0.7

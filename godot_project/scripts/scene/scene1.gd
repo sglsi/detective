@@ -160,7 +160,7 @@ func _phase_name(p: int) -> String:
 
 func _all_hotspots() -> Array:
 	var w = [{"id":"wrist","name":"肤色黑白分明","desc":"华生手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来"},{"id":"arm","name":"左臂损伤","desc":"华生左臂动作略显僵硬——战场负伤留下的旧疾"},{"id":"face_dark","name":"脸色黝黑","desc":"华生脸部肤色明显偏深——长期热带日照的痕迹"},{"id":"face_haggard","name":"面容憔悴","desc":"华生面容灰暗、眼窝深陷——久病初愈、长途劳顿的痕迹"},{"id":"pose","name":"军人气质","desc":"华生站姿挺拔、气质干练——典型的军人作风"},{"id":"medical","name":"身上有消毒液气味","desc":"华生身上有淡淡的消毒液气味——长期接触医院与战地救护的印记"}]
-	var m = [{"id":"tattoo","name":"锚形文身","desc":"信使手背上有蓝色锚形文身——皇家海军标志"},{"id":"beard","name":"络腮胡","desc":"信使留着军人式络腮胡"},{"id":"posture","name":"挺拔站姿","desc":"信使站姿挺拔有力"},{"id":"manner","name":"神态平静","desc":"信使神态从容淡定"},{"id":"sleeve","name":"袖口细节","desc":"信使袖口有磨损痕迹"},{"id":"limp","name":"轻微跛行","desc":"信使走路有轻微跛行"}]
+	var m = [{"id":"tattoo","name":"手臂上有锚的文身","desc":"锚文身是海员中的常见标志"},{"id":"beard","name":"军人式络腮胡","desc":"军人中常见"},{"id":"posture","name":"站姿笔挺，有军人气质","desc":"在军事训练中形成的肌肉记忆"},{"id":"manner","name":"态度自高自大，带着发号施令的神气","desc":"发号施令中形成的气质"},{"id":"sleeve","name":"袖口细节","desc":"信使袖口有磨损痕迹"},{"id":"limp","name":"轻微跛行","desc":"信使走路有轻微跛行"}]
 	var r: Array = []
 	r.append_array(w); r.append_array(m)
 	return r
@@ -236,13 +236,13 @@ func _create_observers() -> void:
 	var mess_tex = load("res://assets/characters/messenger/messenger_portrait.png")
 	var mhot := DifficultyManager.filter_hotspots_by_difficulty([
 		# 热点位置与新全身立绘 560,343/150,447（等比 0.75）对齐，观察时仍用 spritesheet 细节图
-		{"id":"tattoo","label":"手背锚文身","x":590,"y":628,"w":68,"h":30,"desc":"蓝色锚形文身 -> 海军标志","correct":true,
+		{"id":"tattoo","label":"手臂上有锚的文身","x":590,"y":628,"w":68,"h":30,"desc":"锚文身是海员中的常见标志","correct":true,
 		 "crop":{"x":0.16,"y":0.39,"cx":0.46,"cy":0.59},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"tattoo"},
-		{"id":"beard","label":"络腮胡须","x":598,"y":463,"w":68,"h":34,"desc":"军人式络腮胡 -> 军队常见","correct":true,
+		{"id":"beard","label":"军人式络腮胡","x":598,"y":463,"w":68,"h":34,"desc":"军人中常见","correct":true,
 		 "crop":{"x":0.36884,"y":0.1568,"cx":0.59970,"cy":0.3408},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"beard"},
-		{"id":"posture","label":"笔挺站姿","x":583,"y":583,"w":75,"h":41,"desc":"昂首挺胸 -> 军事训练","correct":true,
+		{"id":"posture","label":"站姿笔挺，有军人气质","x":583,"y":583,"w":75,"h":41,"desc":"在军事训练中形成的肌肉记忆","correct":true,
 		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"posture"},
-		{"id":"manner","label":"发号施令","x":594,"y":418,"w":71,"h":34,"desc":"发号施令 -> 军士/士官","correct":true,
+		{"id":"manner","label":"态度自高自大，带着发号施令的神气","x":594,"y":418,"w":71,"h":34,"desc":"发号施令中形成的气质","correct":true,
 		 "crop":{"x":0.35698,"y":0.0855,"cx":0.60997,"cy":0.3500},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"manner"},
 		{"id":"sleeve","label":"袖口磨损","x":631,"y":553,"w":60,"h":30,"desc":"袖口磨损 -> 干扰:衣服旧了","correct":false,
 		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"sleeve"},
@@ -540,12 +540,12 @@ func _start_messenger_phase() -> void:
 	var nodes: Array[Resource] = []
 	nodes.append(_dn("m0","赫德森太太","福尔摩斯先生，有一位信使要送一封信给您，让他进来吗？","click",["m1"],"平静",0,"门铃响起"))
 	nodes.append(_dn("m1","福尔摩斯","让他进来吧，谢谢你，女士。","click",["m2"]))
-	nodes.append(_dn("m2","信使","福尔摩斯先生，这是特白厄斯·葛莱森警官给您的信。","click",["m3"],"neutral",0,"递信封，手背露出锚形文身"))
-	nodes.append(_dn("m3","福尔摩斯","谢谢。您曾经是海军陆战队军士吧。","click",["m4"],"从容",0,"瞥了一眼信使手背，漫不经心"))
+	nodes.append(_dn("m2","信使","福尔摩斯先生，这是特白厄斯·葛莱森警官给您的信。","click",["m3"],"neutral",0,"递信封，手臂露出锚形文身"))
+	nodes.append(_dn("m3","福尔摩斯","谢谢。您曾经是海军陆战队军士吧。","click",["m4"],"从容",0,"瞥了一眼信使手臂，漫不经心"))
 	nodes.append(_dn("m4","信使","啊，您怎么知道我是海军陆战队的军士？","click",["m5"],"neutral",0,"惊讶"))
 	nodes.append(_dn("m5","福尔摩斯","又一个练习机会。这次，你来试试？","click",["m5_e","m5_n","m5_h"],"指导",0,"转向玩家"))
 	# 不同难度不同引导（链式为 next：m5_e→m5_n→m5_h→end，确保隐藏变体被跳过而非误结束）
-	nodes.append(_dn("m5_e","福尔摩斯","提示：他的手背文身、络腮胡、站姿、神态——都是军人标志，逐一找出。","click",["m5_n"],"指导",1))
+	nodes.append(_dn("m5_e","福尔摩斯","提示：他的手臂文身、络腮胡、站姿、神态——都是军人标志，逐一找出。","click",["m5_n"],"指导",1))
 	nodes.append(_dn("m5_n","福尔摩斯","这次靠你自己观察，找出信使身上的军人特征。","click",["m5_h"],"从容",2))
 	nodes.append(_dn("m5_h","福尔摩斯","……证据在他身上。自己看。","click",["end"],"从容",3,"望着信使"))
 	var res = DialogueResource.new(); res.scene_id="s1_mess"; res.nodes=nodes

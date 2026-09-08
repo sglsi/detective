@@ -5,13 +5,13 @@
 [resource]
 script = ExtResource("1_clue")
 id = "tattoo"
-name = "信使手背锚形文身"
-description = "信使手背上有蓝色锚形文身——皇家海军标志"
+name = "手臂上有锚的文身"
+description = "锚文身是海员中的常见标志"
 category = "痕迹"
 location = "贝克街221B"
-discovery_condition = "点击观察信使手背"
-observation = "手背蓝色锚形文身。"
-analysis = "海员背景。"
+discovery_condition = "点击观察信使手臂"
+observation = "手臂上的蓝色锚形文身。"
+analysis = "海员中的常见标志。"
 related_clues = []
 related_npcs = ["NPC_MSG"]
 timeline_position = 0.5

@@ -242,7 +242,9 @@ NO other objects, isolated, game asset
 - **scene1 调用点替换**：`_show_watson_reasoning_wall`/`_show_messenger_reasoning_wall` 的 28 行内联 dict → `ReasoningChains.build_wall_dict("CH01W"/"CH01M")` 一行；孤儿 `_messenger_hypotheses()` 已删。**难度过滤收进工厂**：`build_wall_dict` 内按 `DifficultyManager.mislead_chance<=0` 剔除 correct:false 干扰假设（原条件逻辑从场景搬进链库）。
 - **端到端探针**：真实实例化 scene1 → `_open_wall("watson", build_wall_dict("CH01W"),...)` → `_wall_instance` 创建成功零脚本错误。探针注意：`_open_wall` 有"至少一条线索"闸门（headless 需先 `sc._clues=[{...}]`）；teaching 参数教学墙传 true；state_store 参数传 `{}` 不能 null；成员名是 `_wall_instance`。
 - **沙箱坑（重要）**：新增 class_name 脚本后必须跑 `--headless --import` 重建全局类缓存，否则其它脚本报 "Identifier not declared"（探针卡死模式：脚本崩后引擎主循环挂着不退出，表现为命令超时而非报错）。
-- **版本**：v=20260906q。
+- **-s 探针两个坑（2026-09-08）**：①`-s` 脚本必须放项目内用 `res://` 路径加载，`/tmp` 绝对路径直接静默挂起超时；②`build_wall_dict` 曾在探针环境（`Engine.get_main_loop()` 为 null）崩在 `.root`——已加判空（ml/root 为 null 时跳过难度过滤全量返回），任何无主循环环境（-s 探针、工具脚本）可安全调用。
+- **信使线索数据三处对齐用户表格（2026-09-08）**：同一条线索的数据散在三处，改文案必须三处同步——①`data/clues/clue_*.tres`（线索库 name/description/observation/analysis，ClueSystem 加载）；②`scene1.gd _all_hotspots()` 的 m 数组（观察面板条目）+ 热点段 label/desc + 信使对话 stage_direction（"手背"→"手臂"）；③`reasoning_chains.gd` 假设卡 text/why + 墙 description。表格对齐后：manner="态度自高自大，带着发号施令的神气"（原"神态平静"语义相反）、tattoo="手臂上有锚的文身"、posture="站姿笔挺，有军人气质"、beard="军人式络腮胡"。**PCK 探针 `tools/t_pck_messenger.gd`** 验证 pck 内链库+tres 双源内容。
+- **版本**：v=20260906t。
 
 ## 用户偏好与长期约束
 
