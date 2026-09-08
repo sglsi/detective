@@ -54,9 +54,9 @@ const CHAINS := {
 			"description": "从信使身上（锚形文身、络腮胡、挺拔站姿、发号施令神态）推断其海军陆战队军士身份；注意分辨干扰项（袖口磨损、轻微跛行）。",
 			"battlefield": {
 				"hypotheses": [
-					{"id": "M-01", "text": "在海军中当过兵", "correct": true, "gate_clue_ids": ["tattoo"]},
-					{"id": "M-02", "text": "当过兵", "correct": true, "gate_clue_ids": ["beard", "posture"]},
-					{"id": "M-04", "text": "当过军士", "correct": true, "gate_clue_ids": ["manner"]},
+					{"id": "M-01", "text": "在海军中当兵", "correct": true, "gate_clue_ids": ["tattoo"], "why": "锚文身是海员中的常见标志"},
+					{"id": "M-02", "text": "当过兵", "correct": true, "gate_clue_ids": ["beard", "posture"], "why": "军人式络腮胡在军人中常见；挺拔站姿是军事训练中形成的肌肉记忆"},
+					{"id": "M-04", "text": "当过军士", "correct": true, "gate_clue_ids": ["manner"], "why": "发号施令中形成的气质"},
 					{"id": "M-05", "text": "袖口磨损说明常年奔波劳碌", "correct": false, "gate_clue_ids": ["sleeve"]},
 					{"id": "M-06", "text": "走路轻微跛行受过伤", "correct": false, "gate_clue_ids": ["limp"]},
 				],

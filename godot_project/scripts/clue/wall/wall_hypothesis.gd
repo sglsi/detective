@@ -81,6 +81,18 @@ func _make_hypothesis_node(h: Dictionary) -> Control:
 		tag.custom_minimum_size = Vector2(48, 20)
 		top_row.add_child(tag)
 
+	# 推导依据副行（why：线索→结论的推理依据，数据来自链描述库）
+	var why: String = h.get("why", "")
+	if why != "":
+		var why_lbl := Label.new()
+		why_lbl.text = why
+		why_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		why_lbl.add_theme_font_size_override("font_size", 13)
+		why_lbl.add_theme_color_override("font_color", Color(0.72, 0.66, 0.52))
+		why_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		why_lbl.custom_minimum_size = Vector2(160, 20)
+		vb.add_child(why_lbl)
+
 	# 子假设/证据行
 	var evi := _evidence_for_hypothesis(id)
 	var evi_lbl := Label.new()
