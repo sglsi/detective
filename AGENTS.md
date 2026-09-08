@@ -251,7 +251,7 @@ NO other objects, isolated, game asset
 
 ## 用户偏好与长期约束
 
-- **Git 提交与推送规则（2026-09-08 用户裁定，永久有效）**：工具类软件、临时性文件、过程类文件一律不推 GitHub。永不入库：①工具类二进制（Godot 编辑器本体、导出模板 zip/tpz、editor_extract/、任何 >10MB 文件——GitHub 单文件硬限 100MB）；②构建产物（web_build/ 的 pck/wasm；index.html 戳按历史模式除外）；③临时/过程文件（*.part、*.hdr.import、日志、下载分片、/tmp 内容）。正常入库：源码、游戏数据、设计文档、回归探针脚本（tools/t_*.gd）、工具脚本（如 setup_godot.sh——脚本入库、软件不入库）。**每次 commit 前**：git status --short 逐条过目 + git diff --cached --stat 扫描异常；**push 前**：`git rev-list --objects origin/main..HEAD | git cat-file --batch-check='%(objectsize) %(rest)' | awk '$1>10000000'` 体检；**新增大文件目录时**：git check-ignore -v 当场验证规则命中（已跟踪文件加 --no-index）。教训：.gitignore 规则路径必须与实际目录对齐（曾因 /tools/godot/ 实际在 godot_project/tools/godot/ 而规则失效，137MB 编辑器二进制进提交被 GitHub 拒收）。
+- **Git 提交与推送规则（2026-09-08 用户裁定，永久有效）**：工具类软件、临时性文件、过程类文件一律不推 GitHub。永不入库：①工具类二进制（Godot 编辑器本体、导出模板 zip/tpz、editor_extract/——GitHub 单文件硬限 100MB）；②构建产物（web_build/ 的 pck/wasm；index.html 戳按历史模式除外）；③临时/过程文件（*.part、*.hdr.import、日志、下载分片、/tmp 内容）。正常入库：源码、游戏数据、设计文档、回归探针脚本（tools/t_*.gd）、工具脚本（如 setup_godot.sh——脚本入库、软件不入库）。**每次 commit 前**：git status --short 逐条过目 + git diff --cached --stat 扫描异常；**push 前**：`git rev-list --objects origin/main..HEAD | git cat-file --batch-check='%(objectsize) %(rest)' | awk '$1>100000000'` 体检；**新增大文件目录时**：git check-ignore -v 当场验证规则命中（已跟踪文件加 --no-index）。教训：.gitignore 规则路径必须与实际目录对齐（曾因 /tools/godot/ 实际在 godot_project/tools/godot/ 而规则失效，137MB 编辑器二进制进提交被 GitHub 拒收）。
 - Node.js 项目使用 pnpm 管理依赖（禁止 npm/yarn）
 - Python 使用 uv 管理环境
 - 后端 API 端口固定 3000
