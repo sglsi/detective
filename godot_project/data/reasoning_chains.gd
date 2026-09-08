@@ -53,21 +53,27 @@ const CHAINS := {
 			],
 			"description": "从信使身上（手臂锚文身、军人式络腮胡、笔挺站姿、发号施令神态）推断其海军陆战队军士身份；注意分辨干扰项（袖口磨损、轻微跛行）。",
 			"battlefield": {
+				# 表格六列映射：线索→推导(MT 层)→结论1(M-01/02/04)→结论2(CL1-01)→结论3(CL1-02)→人物
 				"hypotheses": [
-					{"id": "M-01", "text": "在海军中当兵", "correct": true, "gate_clue_ids": ["tattoo"], "why": "锚文身是海员中的常见标志"},
-					{"id": "M-02", "text": "当过兵", "correct": true, "gate_clue_ids": ["beard", "posture"], "why": "军人中常见；在军事训练中形成的肌肉记忆"},
-					{"id": "M-04", "text": "当过军士", "correct": true, "gate_clue_ids": ["manner"], "why": "发号施令中形成的气质"},
+					{"id": "MT-1", "text": "锚文身是海员中的常见标志", "correct": true, "gate_clue_ids": ["tattoo"]},
+					{"id": "MT-2", "text": "军人式络腮胡，军人中常见", "correct": true, "gate_clue_ids": ["beard"]},
+					{"id": "MT-3", "text": "站姿笔挺是军事训练中形成的肌肉记忆", "correct": true, "gate_clue_ids": ["posture"]},
+					{"id": "MT-4", "text": "发号施令中形成的气质", "correct": true, "gate_clue_ids": ["manner"]},
 					{"id": "M-05", "text": "袖口磨损说明常年奔波劳碌", "correct": false, "gate_clue_ids": ["sleeve"]},
 					{"id": "M-06", "text": "走路轻微跛行受过伤", "correct": false, "gate_clue_ids": ["limp"]},
 				],
 				"conclusions": [
-					{"id": "CL1-01", "text": "海军陆战队员", "kind": "true", "dir": "affirm", "subject": ["信使"], "object": ["海军", "海军陆战队"], "match_keys": ["海军陆战队员", "是陆战队员", "海军陆战队"], "gate_hypo_ids": ["M-01", "M-02"], "adopt_desc": "在海军中当兵，又是正规军人出身——海军陆战队员。"},
-					{"id": "CL1-02", "text": "海军军士", "kind": "true", "dir": "affirm", "subject": ["信使"], "object": ["军士"], "match_keys": ["海军军士", "军士"], "gate_hypo_ids": ["M-04", "conclusion_CL1-01"], "target": "person:NPC_MSG", "adopt_desc": "陆战队员的底子，再加发号施令的军士气度——他是海军军士。"},
+					{"id": "M-01", "text": "在海军中当兵", "kind": "true", "dir": "affirm", "subject": ["信使"], "object": ["海军"], "match_keys": ["在海军中当兵", "海军"], "gate_hypo_ids": ["MT-1"]},
+					{"id": "M-02", "text": "当过兵", "kind": "true", "dir": "affirm", "subject": ["信使"], "object": ["兵"], "match_keys": ["当过兵", "军人"], "gate_hypo_ids": ["MT-2", "MT-3"]},
+					{"id": "M-04", "text": "当过军士", "kind": "true", "dir": "affirm", "subject": ["信使"], "object": ["军士"], "match_keys": ["当过军士", "军士"], "gate_hypo_ids": ["MT-4"]},
+					{"id": "CL1-01", "text": "海军陆战队员", "kind": "true", "dir": "affirm", "subject": ["信使"], "object": ["海军", "海军陆战队"], "match_keys": ["海军陆战队员", "是陆战队员", "海军陆战队"], "gate_hypo_ids": ["conclusion_M-01", "conclusion_M-02"], "adopt_desc": "在海军中当兵，又是正规军人出身——海军陆战队员。"},
+					{"id": "CL1-02", "text": "海军军士", "kind": "true", "dir": "affirm", "subject": ["信使"], "object": ["军士"], "match_keys": ["海军军士", "军士"], "gate_hypo_ids": ["conclusion_M-04", "conclusion_CL1-01"], "target": "person:NPC_MSG", "adopt_desc": "陆战队员的底子，再加发号施令的军士气度——他是海军军士。"},
 				],
 				"contradictions": [],
 			},
 			"milestones": [
-				{"id": "MM-1", "text": "信使是海军陆战队员（海军当兵＋当过兵）"},
+				{"id": "MM-0", "text": "先从线索归纳身份特征（海员标志、军人气质）"},
+				{"id": "MM-1", "text": "信使是海军陆战队员（在海军当兵＋当过兵）"},
 				{"id": "MM-2", "text": "信使是海军军士（陆战队员＋当过军士）"},
 				{"id": "MM-3", "text": "袖口磨损/跛行为干扰项，非身份证据"},
 			],

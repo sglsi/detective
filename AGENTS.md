@@ -244,7 +244,9 @@ NO other objects, isolated, game asset
 - **沙箱坑（重要）**：新增 class_name 脚本后必须跑 `--headless --import` 重建全局类缓存，否则其它脚本报 "Identifier not declared"（探针卡死模式：脚本崩后引擎主循环挂着不退出，表现为命令超时而非报错）。
 - **-s 探针两个坑（2026-09-08）**：①`-s` 脚本必须放项目内用 `res://` 路径加载，`/tmp` 绝对路径直接静默挂起超时；②`build_wall_dict` 曾在探针环境（`Engine.get_main_loop()` 为 null）崩在 `.root`——已加判空（ml/root 为 null 时跳过难度过滤全量返回），任何无主循环环境（-s 探针、工具脚本）可安全调用。
 - **信使线索数据三处对齐用户表格（2026-09-08）**：同一条线索的数据散在三处，改文案必须三处同步——①`data/clues/clue_*.tres`（线索库 name/description/observation/analysis，ClueSystem 加载）；②`scene1.gd _all_hotspots()` 的 m 数组（观察面板条目）+ 热点段 label/desc + 信使对话 stage_direction（"手背"→"手臂"）；③`reasoning_chains.gd` 假设卡 text/why + 墙 description。表格对齐后：manner="态度自高自大，带着发号施令的神气"（原"神态平静"语义相反）、tattoo="手臂上有锚的文身"、posture="站姿笔挺，有军人气质"、beard="军人式络腮胡"。**PCK 探针 `tools/t_pck_messenger.gd`** 验证 pck 内链库+tres 双源内容。
-- **版本**：v=20260906t。
+- **信使链层级修正（2026-09-08，用户"缺少一步推断流程"反馈）**：用户表格是 6 列（线索→推导→结论1×3→结论2→结论3→人物），此前实现把"推导"列做成假设卡 why 副文本、"结论1"降格为 hypo 层——玩家从线索直接连"在海军中当兵"，缺了推导层节点。修正后 CH01M 四层：hypo=MT-1~4（表格推导列文案：海员常见标志/军人中常见/军事训练肌肉记忆/发号施令气质，gate=单线索）→ concl=M-01/M-02/M-04（结论1，gate=[MT-*]，M-02 仍并入 MT-2+MT-3）→ CL1-01（gate=[conclusion_M-01,conclusion_M-02]）→ CL1-02（target=person:NPC_MSG）。**truth 表 16 节点/13 边，validate_all() 零闭合错误，派生规则全自动适配（改层级只动数据）**。华生链"没缺失"因为其表格推断列本来就映射为 hypo 节点层——两链同模块，差异纯在数据层级映射。**milestones 加 MM-0 推断层提示**。探针 `tools/t_flow_diff.gd`（双墙结构 dump）/`tools/t_validate_m.gd`（validate_all+truth 层 dump）。旧存档：玩家已产出的 M-01(hypo) 现为 concl，rebuild 权威列表天然剔除旧边（与 M-03 同理），练习墙重做可接受。
+- **mislead_chance 初始化矛盾（已诊断，未修，待用户定夺）**：`difficulty_manager.gd` 声明默认 `current_difficulty=NORMAL` 但 `mislead_chance=0.0`，`_ready()` 为 pass 不自举——玩家不经难度选择界面直接开始时 chance 恒 0（EASY 语义）：信使墙 M-05/06 干扰假设被 build_wall_dict 剔除、观察面板 sleeve/limp 热点被 filter_hotspots_by_difficulty 过滤、结论误导掺入失效。读档路径 `save_manager.gd:336` `data.get("difficulty", 0)` 缺字段默认 0=EASY 同样归零。修复候选：①一行改声明默认 0.0→0.3（影响面：全部场景干扰热点开始出现——此前从未出现过，属产品决策）；②_ready() 自举 set_difficulty(current_difficulty)（7 个参数会同时从声明默认变为 NORMAL 值，行为面更大）。未走难度选择的玩家此前一直处于这套混合态。
+- **版本**：v=20260906u。
 
 ## 用户偏好与长期约束
 
