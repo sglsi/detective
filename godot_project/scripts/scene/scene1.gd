@@ -16,6 +16,9 @@ var _messenger_portrait_ctrl: Control = null  # 信使立绘控件（仅在 MESS
 var _holmes_portrait_ctrl: Control = null  # 福尔摩斯全身立绘控件（仅在开场[MRS_HUDSON/OPENING]阶段显示）
 var _watson_v := 0
 var _messenger_v := 0
+# 华生/信使墙各自的三维星（观察/推理/洞察），由墙验证回调透传，供场景一总评直接聚合。
+var _watson_stars: Dictionary = {}
+var _messenger_stars: Dictionary = {}
 var _watson_clues: Array = []
 var _messenger_clues: Array = []
 # 教学墙状态隔离（需求：华生/信使为独立推理环节，互不携带内容）：各自独立的图谱 state 字典，
@@ -128,6 +131,8 @@ func _restore_saved_state() -> bool:
 			if ss.has("stars_insight"): _stars_insight = int(ss["stars_insight"])
 			if ss.has("watson_v"): _watson_v = int(ss["watson_v"])
 			if ss.has("messenger_v"): _messenger_v = int(ss["messenger_v"])
+			if ss.has("watson_stars"): _watson_stars = ss["watson_stars"]
+			if ss.has("messenger_stars"): _messenger_stars = ss["messenger_stars"]
 			_show_rating()
 			return true
 	return false
@@ -490,8 +495,9 @@ func _show_watson_reasoning_wall() -> void:
 	# 链数据单源于 data/reasoning_chains.gd——truth 表由 battlefield gate 机械派生，
 	# gate_hypo_ids 引用结论节点写完整 id（"conclusion_C-A1"，含前缀），norm 会剥前缀。
 	var hypo := ReasoningChains.build_wall_dict("CH01W")
-	_open_wall("watson", hypo, func(v: int):
+	_open_wall("watson", hypo, func(v: int, stars: Dictionary = {}):
 		_watson_v = v
+		_watson_stars = stars
 		_show_watson_verdict_dialogue(v)
 	, Callable(self, "_resume_observe"), true, _watson_wall_state)
 
@@ -588,8 +594,9 @@ func _show_messenger_reasoning_wall() -> void:
 	var hypo := ReasoningChains.build_wall_dict("CH01M")
 	# 信使(教学示范)墙使用独立 state：不携带华生墙内容；每堵墙独立验证，故重置本墙 verified。
 	_messenger_wall_state["verified"] = false
-	_open_wall("messenger", hypo, func(v: int):
+	_open_wall("messenger", hypo, func(v: int, stars: Dictionary = {}):
 		_messenger_v = v
+		_messenger_stars = stars
 		_show_messenger_verdict_dialogue(v)
 	, Callable(self, "_resume_observe"), true, _messenger_wall_state)
 
@@ -656,9 +663,18 @@ func _enter_transition() -> void:
 		_resume_observe()                        # 兜底：非推理阶段（预览墙不应到这）回观察
 
 func _calc_stars() -> void:
-	_stars_observe = 2 if _watson_obs.get_recorded() >= _watson_obs.needs_count() and _messenger_obs.get_recorded() >= _messenger_obs.needs_count() else 1
-	_stars_reason = 3 if _watson_v == 3 and _messenger_v == 3 else (2 if _watson_v >= 2 or _messenger_v >= 2 else 1)
-	_stars_insight = 2 if _watson_v >= 2 and _messenger_v >= 2 else 1
+	# 2026-09-08 改：直接聚合华生/信使两墙各自的三维星（由墙验证回调透传的 _last_stars），
+	# 与墙内评价体系统一口径、解除旧版观察/洞察硬封顶 2 星的不一致。
+	# 维度取两墙均值四舍五入（玩家完美完成双墙 → 三维均可满 3 星）。
+	var wo := int(_watson_stars.get("observation", 1))
+	var wr := int(_watson_stars.get("reasoning", 1))
+	var wi := int(_watson_stars.get("insight", 1))
+	var mo := int(_messenger_stars.get("observation", 1))
+	var mr := int(_messenger_stars.get("reasoning", 1))
+	var mi := int(_messenger_stars.get("insight", 1))
+	_stars_observe = int(round((wo + mo) / 2.0))
+	_stars_reason  = int(round((wr + mr) / 2.0))
+	_stars_insight = int(round((wi + mi) / 2.0))
 
 func _vname(v: int) -> String:
 	match v:
@@ -678,7 +694,14 @@ func _show_rating() -> void:
 	var tt = Label.new(); tt.text = "场景一 完成"; tt.add_theme_font_size_override("font_size", 32)
 	tt.add_theme_color_override("font_color", Color(0.92,0.82,0.45)); tt.position = Vector2(0,60); tt.size = Vector2(1920,50); tt.horizontal_alignment = 1
 	w.add_child(tt)
-	var items = [{"name":"观察之星","s":_stars_observe},{"name":"推理之星","s":_stars_reason,"d":"华生"+_vname(_watson_v)+" 信使"+_vname(_messenger_v)},{"name":"洞察之星","s":_stars_insight,"d":"双层验证综合判断"}]
+	var wo := int(_watson_stars.get("observation", 1)); var mo := int(_messenger_stars.get("observation", 1))
+	var wr := int(_watson_stars.get("reasoning", 1)); var mr := int(_messenger_stars.get("reasoning", 1))
+	var wi := int(_watson_stars.get("insight", 1)); var mi := int(_messenger_stars.get("insight", 1))
+	var items = [
+		{"name":"观察之星","s":_stars_observe,"d":"华生%d⭐ 信使%d⭐（两墙均值）" % [wo, mo]},
+		{"name":"推理之星","s":_stars_reason,"d":"华生%d⭐ 信使%d⭐（两墙均值）" % [wr, mr]},
+		{"name":"洞察之星","s":_stars_insight,"d":"华生%d⭐ 信使%d⭐（两墙均值）" % [wi, mi]},
+	]
 	for i in items.size():
 		var it = items[i]
 		var y = 170 + i*160
@@ -723,6 +746,8 @@ func _save_and_continue() -> void:
 				"stars_insight": _stars_insight,
 				"watson_v": _watson_v,
 				"messenger_v": _messenger_v,
+				"watson_stars": _watson_stars,
+				"messenger_stars": _messenger_stars,
 			})
 			_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")
@@ -798,6 +823,8 @@ func _accept_case() -> void:
 				"stars_insight": _stars_insight,
 				"watson_v": _watson_v,
 				"messenger_v": _messenger_v,
+				"watson_stars": _watson_stars,
+				"messenger_stars": _messenger_stars,
 			})
 			_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")

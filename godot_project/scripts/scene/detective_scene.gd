@@ -449,9 +449,11 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# 基类 _input 的 _advance_blocked(_wall_instance 有效即拦截) 会把验证对话的点击推进吞掉 → 卡死
 	# （场景一因自带 _input 不查该闸门才没暴露）。清空后 _advance_blocked 正确放行，对话可推进。
 	var _inner_verify: Callable = on_verify if on_verify.is_valid() else _default_wall_verify
+	# 2026-09-08：闭包内直接从本墙实例读取三维星 _last_stars 一并透传给 on_verify，
+	# 使场景一可聚合华生/信使两墙真实三维（wall_verify 仍按原 1 参 call(v) 调用，旧自定义回调不受影响）。
 	var cb := func(v: int) -> void:
 		_wall_instance = null
-		_inner_verify.call(v)
+		_inner_verify.call(v, wall._last_stars)
 	# advance 始终传入 _advance_now；是否真正推进由「已验证 + 实时状态」在
 	# _default_wall_verify / _on_back_pressed 中判定，避免开墙时刻的 _wall_auto
 	# 把「提前开的预览墙」永久锁死为不推进（场景二反复复现的卡死根因）。
@@ -483,7 +485,7 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 ## ⚠️ 推进判定在「提交验证」这一刻实时重算，绝不依赖开墙时算出的 _wall_auto：
 ## 若玩家在 OBSERVE 阶段、线索未收满时就点「思考」开了墙（_wall_auto 当时为 false），
 ## 之后收满线索再在该墙内提交验证，仍须推进过渡——否则会卡死（场景二反复复现的坑）。
-func _default_wall_verify(verdict: int) -> void:
+func _default_wall_verify(verdict: int, stars: Dictionary = {}) -> void:
 	var fb = {
 		0: ["错误 ❌", Color(0.95, 0.3, 0.3)],
 		1: ["存疑 ❓", Color(0.95, 0.8, 0.2)],

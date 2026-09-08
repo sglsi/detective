@@ -429,7 +429,8 @@ func _apply_restored_phase(p: int, ids: Array, _clues_arr: Array) -> bool:
 # 验证后按整体 verdict 播放场景二专属四档回应（对齐 08 稿场景二 Step6 + 阶段末教学），
 # 播完再按 advance 推进过渡（REASONING 阶段 / 线索收满）或回观察（预览墙）。
 # 机制与场景一 _show_*_verdict_dialogue 一致：墙只调 on_verify(verdict)，推进由本回调内部负责。
-func _default_wall_verify(verdict: int) -> void:
+# stars 为墙透传的三维星（基类 _open_wall 现已透传），本场景未使用但需保持签名兼容。
+func _default_wall_verify(verdict: int, stars: Dictionary = {}) -> void:
 	var fb = {
 		0: ["错误 ❌", Color(0.95, 0.3, 0.3)],
 		1: ["存疑 ❓", Color(0.95, 0.8, 0.2)],
