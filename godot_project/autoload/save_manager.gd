@@ -333,7 +333,8 @@ func _restore_from_dict(data: Dictionary) -> void:
 	GameManager.current_scene_id = data.get("scene_id", "")
 	if GameManager and "current_slot" in GameManager:
 		GameManager.current_slot = data.get("slot", 0)
-	DifficultyManager.set_difficulty(data.get("difficulty", 0))
+	# 缺 difficulty 字段的旧档沿用当前难度（新档必含此字段；0 在此不再被误当 EASY 兜底）
+	DifficultyManager.set_difficulty(int(data.get("difficulty", DifficultyManager.current_difficulty)))
 	StarRatingSystem.observation_score = data.get("observation_score", 0)
 	StarRatingSystem.reasoning_score = data.get("reasoning_score", 0)
 	StarRatingSystem.insight_score = data.get("insight_score", 0)

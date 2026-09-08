@@ -58,5 +58,10 @@ godot_project/tools/ck_*
 godot_project/tools/shots/
 
 # Godot 持久化工具链（大体积，不入库）
-/tools/godot/
+/tools/godot/*.zip
+/tools/godot/*.tpz
+/tools/godot/editor_extract/
 /godot_project/web_build/
+godot_project/tools/godot/*.zip
+godot_project/tools/godot/*.tpz*
+godot_project/tools/godot/editor_extract/

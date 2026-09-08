@@ -83,7 +83,8 @@ var auto_reveal_clues: bool = false
 
 
 func _ready() -> void:
-	pass
+	# 自举：把声明默认难度（NORMAL）的完整配置落地，消除"声明一套、运行一套"的混合态
+	set_difficulty(current_difficulty)
 
 
 func set_difficulty(difficulty: Difficulty) -> void:
