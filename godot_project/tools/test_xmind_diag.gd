@@ -79,8 +79,8 @@ func _check(g, nodes, saved_pos, relations, label: String) -> int:
 			var ndA = _find_nd(nodes, ew[i-1].id)
 			var ndB = _find_nd(nodes, ew[i].id)
 			if ndA == null or ndB == null: continue
-			var hp: float = g._est_node_h(ndA)
-			var hc: float = g._est_node_h(ndB)
+			var hp: float = g._layout._real_node_height(ndA.id, ndA)
+			var hc: float = g._layout._real_node_height(ndB.id, ndB)
 			var edge: float = (ew[i].y - ew[i-1].y) - (hp + hc) * 0.5
 			if edge < 14.99:
 				print("FAIL 同列卡片间距<15 x=%d %s↔%s edge=%.1f y=[%s,%s]" % [kx2, ew[i-1].id, ew[i].id, edge, ew[i-1].y, ew[i].y]); fail += 1

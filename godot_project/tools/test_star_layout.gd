@@ -63,8 +63,8 @@ func _initialize() -> void:
 	var rects := {}
 	for a in ids:
 		var w: float = gv._layout._node_width_for_kind(gv._node_kind.get(a, "hypo"))
-		var nd := {"label": gv._node_label(a)}
-		var h: float = gv._layout._est_node_h(nd)
+		var nd := {"id": a, "kind": gv._node_kind.get(a, "hypo"), "label": gv._node_label(a)}
+		var h: float = gv._layout._real_node_height(a, nd)
 		var p: Vector2 = gv._node_center[a]
 		rects[a] = Rect2(p.x - w*0.5, p.y - h*0.5, w, h)
 	var overlap := false

@@ -3,11 +3,12 @@ extends SceneTree
 ## 覆盖思傅 2026-09-07 反馈：① 垂直间距大；② 最上面两条串行结论文本框重叠。
 
 func _box(_unused: Dictionary, id: String, gv) -> Rect2:
+	# 2026-09-08 同步为真实高度模型（测量前置治本）：旧 _est_node_h + _kind_min_h 200 兜底与真实渲染脱节
+	# （结论卡真实 ~52px 却被撑到 172px）；现消费 _real_node_height 真实尺寸。
 	var kind: String = gv._fold._kind_of(id)
 	var w: float = gv._layout._node_width_for_kind(kind)
 	var label: String = gv._node_data.get(id, {}).get("label", "")
-	var est: float = gv._layout._est_node_h({"id": id, "kind": kind, "label": label})
-	var h: float = maxf(est, gv._layout._kind_min_h(kind))
+	var h: float = gv._layout._real_node_height(id, {"id": id, "kind": kind, "label": label})
 	var c: Vector2 = gv._node_center[id]
 	return Rect2(c - Vector2(w, h) * 0.5, Vector2(w, h))
 
@@ -67,8 +68,8 @@ func _initialize() -> void:
 					print("FAIL 重叠 %s ↔ %s" % [ids[i], ids[j]]); ok = false
 
 		# 3) 串行结论 C1/C0 的垂直中心偏移不应过大（避免长标签链出现对角重叠）。
-		var h_c1: float = maxf(gv._layout._est_node_h({"id":"conclusion_C1","kind":"conclusion","label":gv._node_data.get("conclusion_C1",{}).get("label","")}), gv._layout._kind_min_h("conclusion"))
-		var h_c0: float = maxf(gv._layout._est_node_h({"id":"conclusion_C0","kind":"conclusion","label":gv._node_data.get("conclusion_C0",{}).get("label","")}), gv._layout._kind_min_h("conclusion"))
+		var h_c1: float = gv._layout._real_node_height("conclusion_C1", {"id":"conclusion_C1","kind":"conclusion","label":gv._node_data.get("conclusion_C1",{}).get("label","")})
+		var h_c0: float = gv._layout._real_node_height("conclusion_C0", {"id":"conclusion_C0","kind":"conclusion","label":gv._node_data.get("conclusion_C0",{}).get("label","")})
 		var dy_c1_c0: float = abs(gv._node_center["conclusion_C1"].y - gv._node_center["conclusion_C0"].y)
 		if dy_c1_c0 > (h_c1 + h_c0) * 0.5:
 			print("FAIL C1/C0 垂直偏移 %.0f 过大" % dy_c1_c0); ok = false
