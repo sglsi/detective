@@ -159,24 +159,38 @@ func _draw_arc_dashed(a: Vector2, b: Vector2, col: Color, w: float, curvature: f
 ## 约定 e.to = 父（高层·在左），e.from = 子（低层·在右）；端点取节点边缘，曲线留在列间空带，
 ## 不穿框、不交叉；垂直幅度仅限父子 y 差，水平流向贴合「推导方向 = 右向轴」。
 func _draw_flow_edge(from_id: String, to_id: String, col: Color, w: float, dashed: bool = false) -> void:
-	var pa: Vector2 = owner._node_center.get(to_id, Vector2.ZERO)    # 父（左）
-	var cb: Vector2 = owner._node_center.get(from_id, Vector2.ZERO)  # 子（右）
+	var pa: Vector2 = owner._node_center.get(to_id, Vector2.ZERO)    # 父
+	var cb: Vector2 = owner._node_center.get(from_id, Vector2.ZERO)  # 子
 	if pa == Vector2.ZERO or cb == Vector2.ZERO:
 		return
-	var pk: String = owner._node_kind.get(to_id, "hypo")
-	var ck: String = owner._node_kind.get(from_id, "hypo")
-	var pw: float = owner._layout._node_width_for_kind(pk) * 0.5
-	var cw: float = owner._layout._node_width_for_kind(ck) * 0.5
-	var start: Vector2 = pa + Vector2(pw, 0.0)
-	var end: Vector2 = cb - Vector2(cw, 0.0)
-	# 兜底：若子反而在父左侧（如 person→person 嵌套），退回中心连线，避免反向错位
-	if start.x > end.x:
-		start = pa
-		end = cb
+	var ep: Array = _flow_endpoints(from_id, to_id, pa, cb)
+	var start: Vector2 = ep[0]
+	var end: Vector2 = ep[1]
 	if dashed:
 		_draw_flow_dashed(start, end, col, w)
 	else:
 		_draw_flow_line(start, end, col, w)
+
+
+## 流向连线端点（绘制与命中测试**唯一同源**）：右侧子树取「父右缘→子左缘」；
+## 左侧镜像子树（子在父左，2026-09-09 左右平衡布局引入）取「父左缘→子右缘」——
+## 否则原实现会因 start.x > end.x 退回中心连线，左侧连线穿框、观感与右侧不对称。
+## 端点交错（两框水平重叠）时退回中心连线，避免反向错位。
+func _flow_endpoints(from_id: String, to_id: String, pa: Vector2, cb: Vector2) -> Array:
+	var pw: float = owner._layout._node_width_for_kind(str(owner._node_kind.get(to_id, "hypo"))) * 0.5
+	var cw: float = owner._layout._node_width_for_kind(str(owner._node_kind.get(from_id, "hypo"))) * 0.5
+	if cb.x < pa.x:
+		# 左侧：父左缘 → 子右缘（叶-枝-干-根方向）
+		var sl: Vector2 = pa - Vector2(pw, 0.0)
+		var el: Vector2 = cb + Vector2(cw, 0.0)
+		if sl.x < el.x:
+			return [pa, cb]
+		return [sl, el]
+	var sr: Vector2 = pa + Vector2(pw, 0.0)
+	var er: Vector2 = cb - Vector2(cw, 0.0)
+	if sr.x > er.x:
+		return [pa, cb]
+	return [sr, er]
 
 
 ## 父右缘→子左缘 的流向实线（水平 S 三次贝塞尔，控制点在两中点，曲线沿流向轴）
@@ -377,18 +391,14 @@ func _edge_hit_test(lp: Vector2) -> int:
 		var tid: String = e.get("to", "")
 		if not (e.get("kind", "") in ["relate", "imply", "support", "oppose", "contradict", "target"]):
 			continue
-		var a: Vector2 = owner._node_center.get(tid, Vector2(-1e6, -1e6))    # 父（左）
-		var b: Vector2 = owner._node_center.get(fid, Vector2(-1e6, -1e6))   # 子（右）
+		var a: Vector2 = owner._node_center.get(tid, Vector2(-1e6, -1e6))    # 父
+		var b: Vector2 = owner._node_center.get(fid, Vector2(-1e6, -1e6))   # 子
 		if a.x < -1e5 or b.x < -1e5:
 			continue
-		var pw: float = owner._layout._node_width_for_kind(owner._node_kind.get(tid, "hypo")) * 0.5
-		var cw: float = owner._layout._node_width_for_kind(owner._node_kind.get(fid, "hypo")) * 0.5
-		var start: Vector2 = a + Vector2(pw, 0.0)
-		var end: Vector2 = b - Vector2(cw, 0.0)
-		# 与 _draw_flow_edge 一致的兜底：子反而在父左侧时退回中心连线
-		if start.x > end.x:
-			start = a
-			end = b
+		# 与绘制唯一同源（含左侧镜像子树的父左缘→子右缘分支）
+		var ep: Array = _flow_endpoints(fid, tid, a, b)
+		var start: Vector2 = ep[0]
+		var end: Vector2 = ep[1]
 		var dmin := 1e9
 		for p in _flow_curve_points(start, end):
 			var d: float = lp.distance_to(p)

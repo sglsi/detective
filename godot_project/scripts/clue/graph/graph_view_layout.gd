@@ -286,20 +286,14 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 			_relayout_on_edge = false
 		if saved_pos.is_empty():
 			# 无钉位：一次布局即可
-			if owner._use_rank_layout:
-				_auto_rank_layout(nodes, center, saved_pos, out)
-			else:
-				_logic_tree_layout(nodes, center, saved_pos, out)
+			_run_main_layout(nodes, center, saved_pos, out)
 		else:
 			# 有钉位：先清空钉位捕获纯布局，供未钉节点（非拖动子树）重新自动排布
 			var _backup: Dictionary = owner._root_anchor_pos.duplicate()
 			var _manual_backup: Array = owner._manual_nodes.duplicate()
 			owner._root_anchor_pos = {}
 			var _layout_out := {}
-			if owner._use_rank_layout:
-				_auto_rank_layout(nodes, center, {}, _layout_out)
-			else:
-				_logic_tree_layout(nodes, center, {}, _layout_out)
+			_run_main_layout(nodes, center, {}, _layout_out)
 			# 恢复钉位（供后续 _build_parent_of 等读取）
 			owner._root_anchor_pos = _backup
 			owner._manual_nodes = _manual_backup
@@ -338,11 +332,20 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 					stack.append(cs)
 	if owner._mode != GraphViewController.ViewMode.MODE_C:
 		# 兜底（实际恒定 MODE_C）：非 C 模式直接逻辑图布局，保证编译期全路径返回
-		if owner._use_rank_layout:
-			_auto_rank_layout(nodes, center, saved_pos, out)
-		else:
-			_logic_tree_layout(nodes, center, saved_pos, out)
+		_run_main_layout(nodes, center, saved_pos, out)
 	return out
+
+
+## 主布局分流（单一入口，避免多处 if/else 漂移）：
+##   _use_rank_layout（一次性 BFS 分列，DEPRECATED 保留）> _balanced_layout（左右平衡整洁树，
+##   顶栏「自动排列」进入后定格）> _logic_tree_layout（默认纯右向整洁树）。
+func _run_main_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
+	if owner._use_rank_layout:
+		_auto_rank_layout(nodes, center, saved_pos, out)
+	elif owner._balanced_layout:
+		_balanced_tree_layout(nodes, center, saved_pos, out)
+	else:
+		_logic_tree_layout(nodes, center, saved_pos, out)
 
 
 # ===================== 模式 C：按关系驱动的横向阶梯树（DEPRECATED · 已被 _logic_tree_layout 取代，保留不调用） =====================
@@ -603,6 +606,285 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 
 	for idf in out:
 		out[idf] = _clamp_to_canvas(out[idf])
+
+
+## ===================== 左右平衡整洁树（顶栏「自动排列」· 美学4 镜像对称） =====================
+## 思傅 2026-09-09 定案：
+##   ① 默认仍是纯右向 _logic_tree_layout；点顶栏「自动排列」→ 进入本布局并**定格**（不再切回）。
+##   ② 人物（中心节点）锚定画布中心；其**直接子（结论）整棵子树**为最小单位分派到左/右两侧。
+##   ③ 分派规则（思傅口述 = 数量均分前提下重量差最小的平衡划分）：
+##        n=1 → 全右；n=2 → 1左1右；n=3 → 最「茂盛」者独占一侧、另 2 个在另一侧；
+##        n=4 → 2左2右且「1茂盛+1稀疏」配对；以此类推。重量 = 子树节点数（茂盛度）。
+##   ④ 左右**只是 UI 展现差异**：不复制节点、不共享数据，每棵子树整体固定在被分派的一侧，
+##      改一侧的文本/结构绝不影响另一侧（不存在任何「联动镜像」）。
+##   ⑤ 列偏移相对根计算，左侧取相反方向（严格镜像 A4）：左侧天然呈「叶-枝-干-根」、
+##      右侧「根-干-枝-叶」。
+##   ⑥ 玩家把某结论拖过人物中线可覆盖自动分派（owner._subtree_sides，落盘持久）。
+func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
+	var parent_of := _build_parent_of()
+	var child_map := {}
+	for ch in parent_of:
+		var p: String = parent_of[ch]
+		if not child_map.has(p):
+			child_map[p] = []
+		if not (ch in child_map[p]):
+			child_map[p].append(ch)
+	var has_parent := {}
+	for ch in parent_of:
+		has_parent[ch] = true
+	var roots := []
+	for nd in nodes:
+		if not has_parent.has(nd.id):
+			if not (nd.id in roots):
+				roots.append(nd.id)
+	if roots.is_empty() and not nodes.is_empty():
+		roots = [nodes[0].id]
+
+	# 真实高度（测量前置，与默认布局同口径）
+	var est_h := {}
+	var node_by_id := {}
+	for nd in nodes:
+		node_by_id[nd.id] = nd
+		est_h[nd.id] = _real_node_height(nd.id, nd)
+
+	# BFS 真实树深
+	var depth_of := {}
+	var q := []
+	for r in roots:
+		if depth_of.has(r):
+			continue
+		depth_of[r] = 0
+		q.append(r)
+	while q.size() > 0:
+		var rest := []
+		for u in q:
+			for nb in child_map.get(u, []):
+				if depth_of.has(nb):
+					continue
+				depth_of[nb] = depth_of[u] + 1
+				rest.append(nb)
+		q = rest
+	var max_depth: int = 0
+	for d in depth_of.values():
+		max_depth = maxi(max_depth, d)
+
+	# 各深度最大真实宽 → 相对根的列偏移（左右共用同一组偏移，保证严格镜像）
+	var width_of := {}
+	for nd in nodes:
+		width_of[nd.id] = _view_width(nd.id)
+	var max_w := {}
+	for id in depth_of:
+		var d: int = depth_of[id]
+		var w: float = width_of.get(id, 150.0)
+		if not max_w.has(d) or w > max_w[d]:
+			max_w[d] = w
+	var level_sep: float = 120.0
+	var col_off := {}
+	col_off[0] = 0.0
+	for d in range(1, max_depth + 1):
+		var prev_half: float = max_w.get(d - 1, 150.0) * 0.5
+		var cur_half: float = max_w.get(d, 150.0) * 0.5
+		col_off[d] = float(col_off[d - 1]) + prev_half + level_sep + cur_half
+
+	# 主中心根 = 首个人物根（无人物则首个根）：仅它做左右平衡分派，其余根沿用右向堆叠
+	var main_root: String = ""
+	for r in roots:
+		if owner._fold._kind_of(r) == "person":
+			main_root = str(r)
+			break
+	if main_root == "" and roots.size() > 0:
+		main_root = str(roots[0])
+
+	# 左右分派（玩家覆盖优先 + 按茂盛度平衡划分）
+	var sides: Dictionary = _assign_balanced_sides(main_root, child_map)
+	owner._last_layout_sides = sides.duplicate()
+	var left_group := []
+	var right_group := []
+	for c in _ordered_children(main_root, child_map):
+		if str(sides.get(str(c), "R")) == "L":
+			left_group.append(c)
+		else:
+			right_group.append(c)
+
+	# 根排序（与默认布局同口径）
+	var kind_rank := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3}
+	roots.sort_custom(func(a, b):
+		var ra: int = kind_rank.get(owner._fold._kind_of(a), 3)
+		var rb: int = kind_rank.get(owner._fold._kind_of(b), 3)
+		if ra != rb:
+			return ra < rb
+		return str(a) < str(b))
+
+	# 预打包：主根按「左右两半各自轮廓打包」（两侧都垂直居中于根 = 美学3+4），其余根照旧整棵右向
+	var subtree_sep: float = 40.0
+	var root_contours := {}
+	var root_packed_h := {}
+	var total_h: float = 0.0
+	for r in roots:
+		var parts := {}
+		if str(r) == main_root:
+			var cm_l: Dictionary = child_map.duplicate()
+			var cm_r: Dictionary = child_map.duplicate()
+			cm_l[main_root] = left_group
+			cm_r[main_root] = right_group
+			parts["L"] = _pack_contour(str(r), cm_l, depth_of, est_h, node_by_id)
+			parts["R"] = _pack_contour(str(r), cm_r, depth_of, est_h, node_by_id)
+		else:
+			parts["R"] = _pack_contour(str(r), child_map, depth_of, est_h, node_by_id)
+		root_contours[r] = parts
+		var gmin: float = 1e18
+		var gmax: float = -1e18
+		for sk in parts.keys():
+			var cont: Dictionary = parts[sk]["contour"]
+			for rd in cont.keys():
+				gmin = minf(gmin, cont[rd][0])
+				gmax = maxf(gmax, cont[rd][1])
+		var ph: float = gmax - gmin
+		root_packed_h[r] = ph
+		total_h += ph + subtree_sep
+	total_h = maxf(0.0, total_h - subtree_sep)
+	var cur_y: float = center.y - total_h * 0.5
+	for r in roots:
+		var parts2: Dictionary = root_contours[r]
+		var ph2: float = root_packed_h[r]
+		var min_c: float = 0.0
+		for sk in parts2.keys():
+			var cont2: Dictionary = parts2[sk]["contour"]
+			for rd in cont2.keys():
+				min_c = minf(min_c, cont2[rd][0])
+		var sv: Variant = saved_pos.get(r, null)
+		var rx: float = center.x
+		var ry: float = cur_y - min_c
+		if sv is Vector2:
+			rx = sv.x
+			ry = sv.y
+		out[r] = Vector2(rx, ry)
+		for sk in parts2.keys():
+			var dirv: float = -1.0 if str(sk) == "L" else 1.0
+			var rel: Dictionary = parts2[sk]["rel"]
+			for nid in rel.keys():
+				if str(nid) == str(r):
+					continue
+				var d2: int = int(depth_of.get(nid, 0))
+				out[nid] = Vector2(rx + dirv * float(col_off.get(d2, 0.0)), ry + float(rel[nid]))
+		cur_y += ph2 + subtree_sep
+
+	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
+	for mid2 in owner._manual_nodes:
+		var sv3: Variant = saved_pos.get(mid2, null)
+		if sv3 is Vector2 and out.has(mid2):
+			out[mid2] = sv3
+
+	for idf in out:
+		out[idf] = _clamp_to_canvas(out[idf])
+
+
+## 左右平衡划分：把根的直接子（结论）**整棵子树**分成 L/R 两组。
+## 数量均分（左 floor(n/2)、右 ceil(n/2)——右侧多担一枝，延续「默认向右」手感），
+## 在数量约束下使两侧茂盛度总和差最小；并列时偏好把较重的一组放右侧、首枝留右侧（稳定可复现）。
+## 玩家手动 side（owner._subtree_sides）优先固定，其余在剩余名额内做最优划分。
+## 返回 {子节点id: "L"/"R"}；n=1 恒为 "R"（除玩家显式指定左）。
+func _assign_balanced_sides(root: String, child_map: Dictionary) -> Dictionary:
+	var res := {}
+	if root == "":
+		return res
+	var kids: Array = _ordered_children(root, child_map)
+	var n: int = kids.size()
+	if n == 0:
+		return res
+	var wmemo := {}
+	var wt := {}
+	for c in kids:
+		wt[str(c)] = float(_subtree_node_count(str(c), child_map, wmemo))
+	var forced_l := []
+	var forced_r := []
+	var free := []
+	for c in kids:
+		var s: String = str(owner._subtree_sides.get(str(c), ""))
+		if s == "L":
+			forced_l.append(str(c))
+		elif s == "R":
+			forced_r.append(str(c))
+		else:
+			free.append(str(c))
+	if n == 1:
+		res[str(kids[0])] = "L" if forced_l.size() > 0 else "R"
+		return res
+	var target_l: int = n / 2      # 整除 = floor：左少右多
+	var need_l: int = clampi(target_l - forced_l.size(), 0, free.size())
+	var wl0: float = 0.0
+	for c in forced_l:
+		wl0 += float(wt.get(c, 1.0))
+	var wr0: float = 0.0
+	for c in forced_r:
+		wr0 += float(wt.get(c, 1.0))
+	var best_mask: int = -1
+	var best_cost: float = 1e18
+	if free.size() <= 14:
+		# 穷举（实际结论数 2~8，C(14,7)=3432 上限可忽略）：取两侧茂盛度差最小的组合
+		var total_masks: int = 1 << free.size()
+		for mask in total_masks:
+			var cnt: int = 0
+			var wl: float = wl0
+			var wr: float = wr0
+			for i in free.size():
+				if (mask & (1 << i)) != 0:
+					cnt += 1
+					wl += float(wt.get(free[i], 1.0))
+				else:
+					wr += float(wt.get(free[i], 1.0))
+			if cnt != need_l:
+				continue
+			var cost: float = absf(wl - wr)
+			if wl > wr:
+				cost += 0.01          # 并列时较重一组优先放右
+			if (mask & 1) != 0:
+				cost += 0.001         # 并列时首枝优先留右
+			if cost < best_cost:
+				best_cost = cost
+				best_mask = mask
+	if best_mask < 0:
+		# 兜底贪心（超大分枝数）：按茂盛度降序，逐枝投给「当前较轻且仍有名额」的一侧
+		var order: Array = free.duplicate()
+		order.sort_custom(func(a, b): return float(wt.get(str(a), 1.0)) > float(wt.get(str(b), 1.0)))
+		var wl2: float = wl0
+		var wr2: float = wr0
+		var lslot: int = need_l
+		var rslot: int = free.size() - need_l
+		for c in order:
+			var put_left := false
+			if lslot > 0 and rslot > 0:
+				put_left = wl2 < wr2
+			elif lslot > 0:
+				put_left = true
+			if put_left:
+				res[str(c)] = "L"
+				wl2 += float(wt.get(str(c), 1.0))
+				lslot -= 1
+			else:
+				res[str(c)] = "R"
+				wr2 += float(wt.get(str(c), 1.0))
+				rslot -= 1
+	else:
+		for i in free.size():
+			res[str(free[i])] = "L" if (best_mask & (1 << i)) != 0 else "R"
+	for c in forced_l:
+		res[str(c)] = "L"
+	for c in forced_r:
+		res[str(c)] = "R"
+	return res
+
+
+## 子树「茂盛度」= 子树节点总数（含自身），左右平衡划分的重量口径
+func _subtree_node_count(u: String, child_map: Dictionary, memo: Dictionary) -> int:
+	if memo.has(u):
+		return int(memo[u])
+	memo[u] = 1        # 先占位防环（_build_parent_of 已保证单父树，此处纯防御）
+	var s: int = 1
+	for c in child_map.get(u, []):
+		s += _subtree_node_count(str(c), child_map, memo)
+	memo[u] = s
+	return s
 
 
 ## BuchheimWalker 轮廓打包（左向右向 tidy tree · G3 升级 2026-09-07）：深度→x 列，兄弟沿 y 用轮廓比较紧凑打包。

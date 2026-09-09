@@ -72,7 +72,14 @@ var _clip: Control = null           # 裁剪视口（视觉显示，IGNORE）
 var hit_off_top: int = 110          # 契入让出区上缘（顶栏高）——由推理墙传入，谱图 _clip 从顶栏之下开始
 var hit_off_left: int = 540         # 契入让出区左缘（左栏右缘宽）——由推理墙传入，谱图 _clip 从左栏之右开始
 var _did_initial_fit: bool = false  # 契入模式首帧已 fit_view（只在打开时缩放一次，后续 rebuild 不重置玩家缩放）
-var _use_rank_layout: bool = false  # 顶栏「自动排列」一次性标志：布局层据其走 BFS 深度分列 + barycenter 减交叉
+var _use_rank_layout: bool = false  # （DEPRECATED 保留）旧 BFS 深度分列一次性标志；顶栏「自动排列」已改走左右平衡
+## 左右平衡整洁树（思傅 2026-09-09 定案）：默认 false = 纯右向；点顶栏「自动排列」后置 true 并**定格**
+## （不再切回右向），布局层据其走 _balanced_tree_layout：人物居中、结论子树按茂盛度平衡分派左右。
+var _balanced_layout: bool = false
+## 玩家手动换侧覆盖 {人物直接子（结论）id: "L"/"R"}：把某分支拖过人物中线即记录，落盘持久
+var _subtree_sides: Dictionary = {}
+## 上一次平衡布局实际算出的分派结果 {子id: "L"/"R"}（供拖拽判定「当前在哪一侧」）
+var _last_layout_sides: Dictionary = {}
 var _fold_keep_layout: bool = false # 折叠/展开一次性标志：重建时跳过整体重排，仅按 _all_positions 摆放，避免折叠扰动其它/上级文本框
 var _canvas: Control = null         # _world：节点与连线挂此（STOP，承接平移/缩放/空白点击）
 var _hint_layer: Control = null     # 难度提示圈（最底）
@@ -317,6 +324,9 @@ func build(data: Dictionary) -> void:
 	_manual_nodes = (Array(_state_store.get("graph_manual_nodes", [])) as Array).duplicate()
 	_root_anchor_pos = (Dictionary(_state_store.get("graph_root_anchors", {})) as Dictionary).duplicate()
 	_node_offsets = (Dictionary(_state_store.get("graph_node_offsets", {})) as Dictionary).duplicate()   # 需求3/5
+	# 左右平衡布局（2026-09-09）：模式与玩家手动换侧结果随存档还原（点过「自动排列」后定格）
+	_balanced_layout = bool(_state_store.get("graph_balanced_layout", false))
+	_subtree_sides = (Dictionary(_state_store.get("graph_subtree_sides", {})) as Dictionary).duplicate()
 	_graph_nodes = (Array(_state_store.get("graph_nodes", [])) as Array).duplicate()
 	_graph_deleted = (Array(_state_store.get("graph_deleted_nodes", [])) as Array).duplicate()
 	_edited_texts = (Dictionary(_state_store.get("graph_edited_texts", {})) as Dictionary).duplicate()
@@ -1308,6 +1318,7 @@ func _handle_connect_click(id: String, kind: String) -> bool:
 func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 	var gp: Vector2 = get_viewport().get_mouse_position() if at == Vector2.INF else at
 	var moved := gp.distance_to(_drag_start) > 8.0
+	var _side_switched := false
 	if moved and _state == State.EDITABLE:
 		var drop: String = _drop_node_except(gp, id)
 		if drop == "":
@@ -1319,6 +1330,9 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 			if _layout._descendants(drop).has(id):
 				_toast_msg("不能连接到自己的下级节点，已按移动处理")
 				drop = ""
+		if drop == "":
+			# 需求（思傅 2026-09-09）：把「人物直接子（结论）」整棵子树拖过人物中线 → 换侧重排
+			_side_switched = _try_switch_subtree_side(id, gp)
 		if drop != "":
 			var drop_kind: String = _node_kind.get(drop, "")
 			var id_kind: String = _node_kind.get(id, "")
@@ -1343,7 +1357,7 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 				_root_anchor_pos[id] = _node_center[id]
 				if not (id in _manual_nodes):
 					_manual_nodes.append(id)
-		if moved:
+		if moved and not _side_switched:
 			# 规则1/2/3：被拖节点(X)停在玩家手动位(新位置钉入 _root_anchor_pos + 登记 _manual_nodes)，
 			# 而其全部后代的「旧手动位」一律清空——让它们从 X 的新位置自动重新派生(向上不动、随上属走)。
 			# 这同时修复两类观感异常：
@@ -1379,9 +1393,57 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 	_fold._sync_fold_controls_positions()
 	# 第8节改造（A①+B①）：移动/建关系后整树按星形重排——根锚点保留、子节点回派生位
 	if moved:
-		_post_drag = true   # 拖拽引发的 rebuild：去重叠不再推走任何非被拖子树节点（见 _rebuild_graph）
+		# 换侧 = 整墙按左右平衡重排，需要执行去重叠；普通拖动仍跳过（否则上游节点被推走=观感"自动排列"）
+		_post_drag = not _side_switched
 		_rebuild_graph()
+		if _side_switched:
+			_persist_view()
+			fit_view()
 	_redraw_all()
+
+
+## 拖拽换侧（思傅 2026-09-09 需求2）：把「人物的直接子（结论）」整棵子树拖过人物中线 → 改挂另一侧。
+## 判定：① 被拖节点的父必须是人物（换侧最小单位 = 整棵结论子树，拖推断/线索不触发）；
+##       ② 落点相对人物中心越过 ±40px 阈值，且与当前所在侧相反。
+## 触发后：记录 side（落盘持久）→ 进入左右平衡布局并定格 → 清掉本子树与人物根的钉位/偏移，
+##       使人物回中心、本子树按「左=叶-枝-干-根 / 右=根-干-枝-叶」整洁重排。返回是否触发。
+func _try_switch_subtree_side(id: String, gp: Vector2) -> bool:
+	if _canvas == null or not is_instance_valid(_canvas):
+		return false
+	var parent_of: Dictionary = _layout._build_parent_of()
+	var par: String = str(parent_of.get(id, ""))
+	if par == "" or str(_node_kind.get(par, "")) != "person":
+		return false
+	var root_c: Vector2 = _node_center.get(par, Vector2.ZERO)
+	var local: Vector2 = _canvas.get_global_transform().affine_inverse() * gp
+	# 当前侧：玩家已手动指定优先，其次取上次平衡布局的分派结果，默认右（默认布局纯右向）
+	var cur_side: String = str(_subtree_sides.get(id, _last_layout_sides.get(id, "R")))
+	var new_side: String = cur_side
+	if local.x < root_c.x - 40.0:
+		new_side = "L"
+	elif local.x > root_c.x + 40.0:
+		new_side = "R"
+	if new_side == cur_side:
+		return false
+	_subtree_sides[id] = new_side
+	_balanced_layout = true          # 换侧需侧向布局支撑：进入左右平衡布局并定格
+	# 本子树 + 人物根回归自动排布（清钉位/偏移），否则会停在落点、不按整洁顺序展现
+	var _release: Array = [id, par]
+	for _d in _layout._descendants(id):
+		_release.append(str(_d))
+	for _rid in _release:
+		var rs: String = str(_rid)
+		_root_anchor_pos.erase(rs)
+		_manual_nodes.erase(rs)
+		_node_offsets.erase(rs)
+	_state_store["graph_root_anchors"] = _root_anchor_pos
+	_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
+	_state_store["graph_node_offsets"] = _node_offsets.duplicate()
+	_state_store["graph_subtree_sides"] = _subtree_sides.duplicate()
+	_state_store["graph_balanced_layout"] = true
+	_layout._relayout_on_edge = true   # 忽略拖前旧位，按新侧全量重排
+	_toast_msg("已把该分支移到人物%s侧" % ("左" if new_side == "L" else "右"))
+	return true
 
 
 ## 查找 gp 处命中的节点，排除 exclude_id（拖动中被拖节点自身可能压住目标）
@@ -1943,15 +2005,23 @@ func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 	_zoom = ns
 	
 
-## 顶栏「自动排列」：第8节改造（B①）——按 BFS 深度分列 + barycenter 减交叉的严格层级布局重排全部节点，
-## 人物在右、结论→推断/链→线索逐列向左阶梯铺开，重排后持久化根锚点 + 适应画布看全。仅在模式 C（图谱）可用。
+## 顶栏「自动排列」（思傅 2026-09-09 改定 · B1）：进入「左右平衡整洁树」并**定格**（不再切回纯右向）。
+## 人物居画布中心，其直接子（结论）整棵子树按茂盛度平衡分派到左右两侧——
+## 左侧呈「叶-枝-干-根」、右侧「根-干-枝-叶」（美学4 镜像对称）。
+## 一键排列语义 = 整墙整洁复位：清空手动钉位/偏移（否则被钉节点与其后代不参与重排、看不出平衡效果），
+## 但**保留玩家的手动换侧选择**（_subtree_sides）。仅在模式 C（图谱）可用。
+## 旧 BFS 深度分列（_auto_rank_layout / _use_rank_layout）保留代码但不再由本按钮触发。
 func auto_layout() -> void:
 	if _mode != GraphViewController.ViewMode.MODE_C:
 		return
-	_use_rank_layout = true
-	_node_offsets = {}   # 一键自动排列：清空手动相对偏移，重排即回到整洁层级（需求3/5 复位）
+	_balanced_layout = true
+	_node_offsets = {}        # 清空手动相对偏移，重排即回到整洁层级（需求3/5 复位）
+	_manual_nodes = []        # 清空钉位登记：整墙全部节点参与平衡重排
+	_root_anchor_pos = {}
+	_state_store["graph_root_anchors"] = {}
+	_state_store["graph_manual_nodes"] = []
+	_layout._relayout_on_edge = true   # 强制忽略拖前旧位，按新结构全量重排
 	_rebuild_graph()
-	_use_rank_layout = false
 	_persist_view()
 	fit_view()
 
@@ -2377,6 +2447,8 @@ func _persist_view() -> void:
 	_state_store["graph_edited_texts"] = _edited_texts.duplicate()
 	_state_store["graph_deleted_target"] = _deleted_target_edges   # 需求1：持久化已删除的结论→人物边
 	_state_store["graph_node_offsets"] = _node_offsets.duplicate()   # 需求3/5：非根节点相对偏移持久化
+	_state_store["graph_balanced_layout"] = _balanced_layout          # 2026-09-09：左右平衡布局已定格
+	_state_store["graph_subtree_sides"] = _subtree_sides.duplicate()  # 2026-09-09：玩家手动换侧结果
 	_state_store["graph_deleted_nodes"] = _state_store.get("graph_deleted_nodes", [])
 	_layout._persist_node_positions()
 

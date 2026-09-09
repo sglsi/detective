@@ -476,7 +476,7 @@ func _create_top_bar() -> Control:
 	row1.add_child(fit_btn)
 
 	var auto_btn := _mk_top_btn("自动排列", false)
-	auto_btn.tooltip_text = "按推理层级自动重排文本框（人物在右，结论/推断/线索逐列向左），尽量减小连线交叉"
+	auto_btn.tooltip_text = "左右平衡自动排列：人物居中，各条结论分支按繁简分派到左右两侧（左侧叶→根、右侧根→叶），视觉均衡不重叠；也可手动把分支拖到人物另一侧"
 	auto_btn.pressed.connect(_on_auto_arrange_pressed)
 	row1.add_child(auto_btn)
 
