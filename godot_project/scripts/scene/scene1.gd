@@ -748,6 +748,8 @@ func _save_and_continue() -> void:
 				"messenger_v": _messenger_v,
 				"watson_stars": _watson_stars,
 				"messenger_stars": _messenger_stars,
+				"wall_state_watson": _watson_wall_state.duplicate(true),
+				"wall_state_messenger": _messenger_wall_state.duplicate(true),
 			})
 			_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")
@@ -825,6 +827,8 @@ func _accept_case() -> void:
 				"messenger_v": _messenger_v,
 				"watson_stars": _watson_stars,
 				"messenger_stars": _messenger_stars,
+				"wall_state_watson": _watson_wall_state.duplicate(true),
+				"wall_state_messenger": _messenger_wall_state.duplicate(true),
 			})
 			_create_notification("进度已保存")
 	else: _create_notification("注册后可解锁云端存档")
