@@ -476,7 +476,10 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# case_wide 由 use_case_wide 显式指定（场景二~八全案墙列全部人物；场景一教学墙为 false）。
 	# 教学墙（场景一 watson/messenger）传入独立 state_store_override，与案件共享态隔离；
 	# 否则沿用本实例 _wall_state（案件级大墙在上方已切换为 ClueSystem.case_wall_state）。
-	var effective_state: Dictionary = state_store_override if (not state_store_override.is_empty()) else _wall_state
+	# ⚠️ 关键修复：教学墙首开时 override 本就是空字典({})，若用 is_empty() 判定会误判为「未传 override」
+	# 而退回 _wall_state——而 scene1._do_save 只存 wall_state_watson/messenger，从不存 _wall_state，
+	# 导致教学墙关系退出→存档→读档后全部丢失。故 teaching 墙强制使用传入的 override（按引用写回关系）。
+	var effective_state: Dictionary = state_store_override if (teaching or not state_store_override.is_empty()) else _wall_state
 	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, effective_state, advance, true, local_count, Callable(self, "_do_save"), false, _scene_clue_ids, use_case_wide, teaching)
 
 ## 默认验证回调：展示判定结果；满足「推理阶段」或「线索已收满」则自动推进过渡。
