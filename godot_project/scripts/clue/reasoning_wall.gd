@@ -111,6 +111,7 @@ var _hist_win: PanelContainer = null          # 可拖动的窗口本体
 var _hist_drag := false
 var _hist_drag_offset := Vector2.ZERO
 var _verify_win: Control = null               # 「提交验证」结果窗口
+var _verify_confirm_win: Control = null       # 「提交验证」前置确认框
 var _verify_v: int = 0                        # 当前判定等级（供 ESC 确认）
 var _verify_drag := false
 var _verify_drag_offset := Vector2.ZERO
@@ -1374,6 +1375,12 @@ func _input(event: InputEvent) -> void:
 		if event is InputEventMouseMotion and _verify_win and is_instance_valid(_verify_win):
 			_verify_win.global_position = get_viewport().get_mouse_position() - _verify_drag_offset
 			return
+	# 提交确认框：ESC 视为取消
+	if _verify_confirm_win and is_instance_valid(_verify_confirm_win):
+		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+			get_viewport().set_input_as_handled()
+			_verify_ctl.call_deferred("_cancel_verify_confirm")
+		return
 	# 验证结果窗口：ESC 直接确认
 	if _verify_win and is_instance_valid(_verify_win):
 		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:

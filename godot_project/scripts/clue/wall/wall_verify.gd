@@ -29,7 +29,90 @@ func _update_verdict_label() -> void:
 func _on_verify_pressed() -> void:
 	if owner._verifying: return
 	if owner._verified: return   # 已提交过验证的墙不允许重复提交（顶栏/图谱入口共用）
+	# 提交验证前先弹确认框，避免玩家借"先看到评价结果→不点确定→回去改图"作弊
+	_show_verify_confirm()
+
+func _show_verify_confirm() -> void:
+	if owner._verify_confirm_win and is_instance_valid(owner._verify_confirm_win): return
 	owner._verifying = true
+	# 半透明遮罩
+	var backdrop := ColorRect.new()
+	backdrop.color = Color(0, 0, 0, 0.7)
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	backdrop.z_index = 19
+	backdrop.name = "VerifyConfirmBackdrop"
+	owner.add_child(backdrop)
+	# 居中确认小窗
+	var w2 := PanelContainer.new()
+	w2.custom_minimum_size = Vector2(460, 240)
+	w2.size = Vector2(460, 240)
+	w2.z_index = 20
+	w2.name = "VerifyConfirm"
+	owner.add_child(w2)
+	w2.position = (owner.get_viewport_rect().size - w2.size) / 2
+	var p2 := StyleBoxFlat.new()
+	p2.bg_color = Color(0.10, 0.08, 0.06, 0.98)
+	p2.border_color = owner.COL_GOLD
+	p2.border_width_left = 3; p2.border_width_right = 3
+	p2.border_width_top = 3; p2.border_width_bottom = 3
+	p2.set_corner_radius_all(10)
+	w2.add_theme_stylebox_override("panel", p2)
+	var m2 := MarginContainer.new()
+	m2.add_theme_constant_override("margin_left", 24)
+	m2.add_theme_constant_override("margin_top", 20)
+	m2.add_theme_constant_override("margin_right", 24)
+	m2.add_theme_constant_override("margin_bottom", 20)
+	w2.add_child(m2)
+	var v2 := VBoxContainer.new()
+	v2.add_theme_constant_override("separation", 16)
+	m2.add_child(v2)
+	var msg := Label.new()
+	msg.text = "是否提交当前推理进行验证？\n确认后本墙将锁定，无法再修改推理。"
+	msg.add_theme_font_size_override("font_size", 20)
+	msg.add_theme_color_override("font_color", Color(0.92, 0.88, 0.80))
+	msg.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v2.add_child(msg)
+	var hb2 := HBoxContainer.new()
+	hb2.alignment = BoxContainer.ALIGNMENT_CENTER
+	hb2.add_theme_constant_override("separation", 24)
+	v2.add_child(hb2)
+	var cancel_b := Button.new()
+	cancel_b.text = "取消"
+	cancel_b.add_theme_font_size_override("font_size", 18)
+	cancel_b.custom_minimum_size = Vector2(120, 44)
+	cancel_b.pressed.connect(_cancel_verify_confirm)
+	hb2.add_child(cancel_b)
+	var ok_b := Button.new()
+	ok_b.text = "确认提交"
+	ok_b.add_theme_font_size_override("font_size", 18)
+	ok_b.add_theme_color_override("font_color", owner.COL_GOLD)
+	ok_b.custom_minimum_size = Vector2(140, 44)
+	var ok_s := StyleBoxFlat.new()
+	ok_s.bg_color = Color(0.50, 0.10, 0.10, 0.95)
+	ok_s.border_color = Color(0.85, 0.65, 0.25)
+	ok_s.border_width_left = 2; ok_s.border_width_right = 2
+	ok_s.border_width_top = 2; ok_s.border_width_bottom = 2
+	ok_s.set_corner_radius_all(4)
+	ok_b.add_theme_stylebox_override("normal", ok_s)
+	ok_b.pressed.connect(_open_verify_result)
+	hb2.add_child(ok_b)
+	owner._verify_confirm_win = w2
+
+func _cancel_verify_confirm() -> void:
+	owner._verifying = false
+	if owner._verify_confirm_win and is_instance_valid(owner._verify_confirm_win):
+		owner._verify_confirm_win.queue_free()
+		owner._verify_confirm_win = null
+
+func _open_verify_result() -> void:
+	# 确认提交：锁定墙，杜绝"看评价→✕关窗→改图→再提交"的作弊路径
+	owner._verified = true
+	if owner._graph_view:
+		owner._graph_view._editable = false
+	_cancel_verify_confirm()
 	var v := owner.get_verdict()
 	# 提交验证瞬间按玩家最终图谱重算三星并写入 StarRatingSystem，确保评价面板读到最终星级（问题4）
 	owner._state_ctl._update_star_rating()

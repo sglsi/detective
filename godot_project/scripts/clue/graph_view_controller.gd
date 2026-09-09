@@ -420,9 +420,9 @@ func build(data: Dictionary) -> void:
 	# 这里不再创建图谱自带的第二套 dock（System B），避免"两套已收集线索"冗余。
 	# _create_clue_dock()
 
-	# 教学墙首次进入强制展示引导（缓解首次玩困惑）；非教学仅在从未看过时展示。
-	# 工具栏「?」按钮可随时重开；关闭后写入 graph_tutorial_seen，非教学墙不再自动弹。
-	if _teaching or not _state_store.get("graph_tutorial_seen", false):
+	# 欢迎引导仅首次进入时展示（教学墙/普通墙一致）：关闭后写入 graph_tutorial_seen，再次进入不再自动弹。
+	# 工具栏「?」按钮可随时重开。
+	if not _state_store.get("graph_tutorial_seen", false):
 		_show_tutorial()
 
 
