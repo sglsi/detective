@@ -105,9 +105,9 @@ func _direct_outer_neighbors(id: String) -> Array:
 func _compute_hidden() -> Dictionary:
 	var hidden := {}
 	for root in owner._folded_nodes:
-		# 叶子节点（如线索）折叠=收起自身（无更深子树可收），故把自身也计入隐藏集
+		# 叶子节点（如线索）折叠：自身保持可见，仅无更深子树可收；
+		# 恢复控件由 _rebuild_graph 为已折叠叶子补建，避免叶子一折就「消失且无法展开」。
 		if _is_leaf(root):
-			hidden[root] = true
 			continue
 		# 沿玩家关系树收起整棵下游子树：结论→结论同层边也能收起（Issue 1）
 		for s in owner._layout._descendants(root):

@@ -741,10 +741,10 @@ func _rebuild_graph() -> void:
 			_layout._apply_column_overlap_fix()
 		_layout._apply_global_overlap_fix()
 	_post_drag = false
-	# 创建连线出口折叠控件（XMind 式 −/+N）。设计：圆圈仅当该节点「有关系、有下级」时显示，
-	# 即高一级节点下确实有低一级节点才在其上画圈；无下级的叶子不建，避免任何线索常驻圆圈。
+	# 创建连线出口折叠控件（XMind 式 −/+N）。
+	# 设计：非折叠叶子无下级，不常驻圆圈；但已折叠的叶子/根仍需保留控件，否则玩家无法展开。
 	for nd in nodes:
-		if _fold._direct_outer_neighbors(nd.id).is_empty():
+		if _fold._direct_outer_neighbors(nd.id).is_empty() and not _folded_nodes.has(nd.id):
 			continue
 		var fc := _fold._make_fold_control(nd.id)
 		fc.set_meta("graph_node", true)
