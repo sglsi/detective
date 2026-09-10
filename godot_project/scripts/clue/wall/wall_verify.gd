@@ -16,7 +16,7 @@ func _update_verdict_label() -> void:
 	if not owner._verdict_lbl: return
 	var v := owner.get_verdict()
 	if owner._difficulty == ReasoningWall.Diff.HARD:
-		owner._verdict_lbl.text = "困难模式：以提交软比对为准（不判定对错）"
+		owner._verdict_lbl.text = "困难模式 · 定性反馈（按真相而非作者链）"
 		owner._verdict_lbl.add_theme_color_override("font_color", Color(0.85, 0.65, 0.25))
 		return
 	var txt: String = ["矛盾冲突", "证据不足", "倾向成立", "已获证实"][v]
@@ -43,6 +43,7 @@ func _show_verify_confirm() -> void:
 	backdrop.z_index = 19
 	backdrop.name = "VerifyConfirmBackdrop"
 	owner.add_child(backdrop)
+	owner._verify_confirm_backdrop = backdrop
 	# 居中确认小窗
 	var w2 := PanelContainer.new()
 	w2.custom_minimum_size = Vector2(460, 240)
@@ -103,6 +104,10 @@ func _show_verify_confirm() -> void:
 
 func _cancel_verify_confirm() -> void:
 	owner._verifying = false
+	# 清理确认框遮罩：它覆盖全屏且 MOUSE_FILTER_STOP，若不释放会残留透明层吞掉所有点击 → 界面假死
+	if owner._verify_confirm_backdrop and is_instance_valid(owner._verify_confirm_backdrop):
+		owner._verify_confirm_backdrop.queue_free()
+		owner._verify_confirm_backdrop = null
 	if owner._verify_confirm_win and is_instance_valid(owner._verify_confirm_win):
 		owner._verify_confirm_win.queue_free()
 		owner._verify_confirm_win = null
@@ -130,6 +135,7 @@ func _open_verify_result() -> void:
 	backdrop.z_index = 19
 	backdrop.name = "VerifyBackdrop"
 	owner.add_child(backdrop)
+	owner._verify_result_backdrop = backdrop
 
 	# 居中结果窗口（手动计算 position 确保真正居中；PRESET_CENTER 在 add_child 前因 size=0 失效）
 	# 加大尺寸 + 内容区可滚动，避免报告过长把底部「确定」按钮挤出可视区（问题2）。
@@ -304,6 +310,8 @@ func _build_verify_summary() -> String:
 	if owner._practice_mode:
 		return _teaching_report()
 	var br: Dictionary = owner._last_branch
+	if not br.is_empty() and bool(br.get("four_dim", false)):
+		return _four_dim_report(br)
 	if not br.is_empty():
 		var stars: int = int(br.get("stars", 0))
 		var pct: int = int(round(float(br.get("ratio", 0.0)) * 100.0))
@@ -316,6 +324,33 @@ func _build_verify_summary() -> String:
 	var st: Dictionary = owner._last_stars
 	return "验证等级：%s\n观察%d⭐ 推理%d⭐ 洞察%d⭐" % [levels[v], st.get("observation", 0), st.get("reasoning", 0), st.get("insight", 0)]
 
+
+# ===================== 困难模式四维定性反馈 =====================
+## 不暴露「作者链正确率」，改为四维度量 + 一句话 + 要点（不告诉错在哪，错处留到场景八）。
+func _four_dim_report(br: Dictionary) -> String:
+	var four: Dictionary = br.get("four", {})
+	var lines: Array[String] = []
+	lines.append("困难模式 · 推理质量：%s（%d★）" % [str(br.get("grade", "")), int(br.get("stars", 0))])
+	var dims := [
+		["结论准确性", float(four.get("conclusion", 0.0))],
+		["证据支撑度", float(four.get("evidence", 0.0))],
+		["结构完整性", float(four.get("structure", 0.0))],
+		["步骤连贯性", float(four.get("step", 0.0))],
+	]
+	for d in dims:
+		var name: String = d[0]
+		var v: float = d[1]
+		var n: int = int(round(v * 10.0))
+		var bar: String = "#".repeat(n) + "-".repeat(10 - n)
+		lines.append("  %s  %s  %d%%" % [name, bar, int(round(v * 100.0))])
+	if bool(br.get("conclusion_correct", false)):
+		lines.append("  [已] 得出核心终局结论")
+	else:
+		lines.append("  [未] 尚未得出核心终局结论（建议向人物身份/事件真相推进）")
+	for rs in br.get("reasons", []):
+		lines.append("· " + str(rs))
+	lines.append(str(br.get("summary", "")))
+	return "\n".join(lines)
 
 # ===================== 教学明细反馈（练习墙专用） =====================
 ## 逐链列出：缺哪些推断/结论、缺哪些连线、哪些方向反了、哪些连线不属于真相链。
@@ -439,6 +474,10 @@ func _pretty_id(pid: String) -> String:
 func _close_verify_win() -> void:
 	owner._verify_drag = false
 	owner._verifying = false
+	# 清理结果窗口遮罩（同确认框遮罩，覆盖全屏 STOP，须随窗口一起释放）
+	if owner._verify_result_backdrop and is_instance_valid(owner._verify_result_backdrop):
+		owner._verify_result_backdrop.queue_free()
+		owner._verify_result_backdrop = null
 	if owner._verify_win and is_instance_valid(owner._verify_win):
 		owner._verify_win.queue_free()
 		owner._verify_win = null

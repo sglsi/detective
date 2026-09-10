@@ -1,6 +1,8 @@
 extends RefCounted
 class_name WallState
 
+const DIFF_HARD := 2   # 与 ReasoningWall.Diff.HARD(=2) 对齐，避免引入枚举耦合
+
 ## 推理墙 · 状态层（拆自 reasoning_wall.gd，Request C 后架构分层）
 ##
 ## 职责：身份揭示门控（NPC 中文名）、verdict 信号（contradiction/support 实时计数）、
@@ -196,6 +198,19 @@ func _evaluate_branch() -> Dictionary:
 	if not gv.has_method("snapshot_player_work"):
 		return {}
 	var snap: Dictionary = gv.snapshot_player_work()
+	# 困难模式：走确定性四维定性反馈引擎（比对真相而非作者链，避免自由推理正确率崩 0）。
+	if owner._difficulty == DIFF_HARD:
+		var hm = load("res://scripts/clue/hard_mode_evaluator.gd")
+		if hm == null:
+			return {}
+		var hres: Dictionary = hm.evaluate(
+			snap.get("relations", []),
+			snap.get("graph_nodes", []),
+			snap.get("derived_conclusions", []),
+			owner._scene_id,
+			owner._practice_mode)
+		owner._last_branch = hres
+		return hres
 	var ev = load("res://scripts/clue/wall_branch_evaluator.gd")
 	if ev == null:
 		return {}

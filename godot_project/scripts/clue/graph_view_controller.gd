@@ -2606,6 +2606,7 @@ func snapshot_player_work() -> Dictionary:
 		nodes.append({
 			"id": str(gn.get("id", "")),
 			"kind": str(gn.get("kind", "hypo")),
+			"text": str(gn.get("label", "")),   # 困难模式评价需要玩家自由节点文本（标注器用）
 			"data": gn.get("data", {}).duplicate(true),
 		})
 	var cons: Array = []

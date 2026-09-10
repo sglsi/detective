@@ -67,7 +67,9 @@ static func _legacy_branches() -> Array:
 			"id": "CH01W", "name": "华生教学（练习）", "scene": "scene1", "core": false, "practice": true,
 			# 与 scene1._show_watson_reasoning_wall 的 battlefield gate 同源（2026-09-05 用户三层结论关系表）：
 			# 热带线（wrist/face_dark→W-A1→C-A1→C-A2）、军医线（pose/medical→W-B1/W-B2→C-B1）、
-			# 伤痛线（arm/face_haggard→W-C1/W-C2→C-C1→C-C2）三线汇聚 C-MAIN（在阿富汗服役过）→锚华生。
+			# 伤痛线（arm/face_haggard→W-C1/W-C2→C-C2）三线汇聚 C-MAIN（在阿富汗服役过）→锚华生。
+			# 2026-09-10：去除过渡结论 C-C1（承受伤痛），W-C1/W-C2 直接指向 C-C2（军事任务）。
+			# 注：CH01W 已迁入 ReasoningChains，branches() 走 derive_truth() 机械派生，本 legacy 条目仅作结构与注释参考。
 			# 结论→结论边（C-A1→C-A2 等）norm 剥 conclusion_ 前缀后匹配。
 			"nodes": [
 				{"id": "wrist", "layer": "clue"}, {"id": "face_dark", "layer": "clue"},
@@ -77,7 +79,7 @@ static func _legacy_branches() -> Array:
 				{"id": "W-B2", "layer": "hypo"}, {"id": "W-C1", "layer": "hypo"},
 				{"id": "W-C2", "layer": "hypo"},
 				{"id": "C-A1", "layer": "concl"}, {"id": "C-B1", "layer": "concl"},
-				{"id": "C-C1", "layer": "concl"}, {"id": "C-A2", "layer": "concl"},
+				{"id": "C-A2", "layer": "concl"},
 				{"id": "C-C2", "layer": "concl"}, {"id": "C-MAIN", "layer": "concl"},
 				{"id": "person:NPC_WT", "layer": "person"},
 			],
@@ -91,11 +93,10 @@ static func _legacy_branches() -> Array:
 				{"from": "W-A1", "to": "C-A1", "kind": "support"},
 				{"from": "W-B1", "to": "C-B1", "kind": "support"},
 				{"from": "W-B2", "to": "C-B1", "kind": "support"},
-				{"from": "W-C1", "to": "C-C1", "kind": "support"},
-				{"from": "W-C2", "to": "C-C1", "kind": "support"},
+				{"from": "W-C1", "to": "C-C2", "kind": "support"},
+				{"from": "W-C2", "to": "C-C2", "kind": "support"},
 				# 结论→结论（阶段性结论1→2→3，玩家从结论节点拖线连接）
 				{"from": "C-A1", "to": "C-A2", "kind": "support"},
-				{"from": "C-C1", "to": "C-C2", "kind": "support"},
 				{"from": "C-A2", "to": "C-MAIN", "kind": "support"},
 				{"from": "C-B1", "to": "C-MAIN", "kind": "support"},
 				{"from": "C-C2", "to": "C-MAIN", "kind": "support"},

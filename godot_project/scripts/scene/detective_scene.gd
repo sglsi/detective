@@ -194,13 +194,15 @@ func _on_clue_recorded(_clue_id: String, _clue_data: Dictionary) -> void:
 		)
 	var total := hotspots().size()
 	_ui.show_notification("线索已记录：" + str(_clue_data.get("name", "")) + "（" + str(_clues.size()) + "/" + str(total) + "）")
-	# ⚠️ 关键修复（2026-08-15 用户反馈「点线索后其他线索被放大场景隐藏、流程卡死」）：
-	# 原 M2 实现在记录线索后调用 focus_world_point(wp, 2.2) 把摄像机推近并锁定在刚记录的线索处，
-	# 导致其余未记录线索被推出视口外、点不到，流程无法继续。改为记录后回到「统览原场景」
-	# （zoom=1, position=0），确保其余未记录线索始终可见、可点，直到全部收集完毕。
-	# 推近镜头本只是「观察互动」的调味，却破坏了多线索勘查的可用性，故移除。
+	# ⚠️ 关键修复（2026-08-15 思路延续，2026-09-09 强化）：
+	# 记录线索后让摄像机「聚焦到仍需收集的线索」——框选全部剩余未记录线索使其在视野内、可点；
+	# 分布过广无法全纳入时自动回退统览（zoom=1 全可见）。
+	# 既避免「锁定刚记录线索推近」把其余线索推出视口（旧 bug），也满足「镜头始终对准待收集线索」的要求。
+	# 用 _current_observer() 而非 _obs：场景二/三未建基类 _obs（用 place observer），必须通过 virtual 取正确观察器。
 	if _ui:
-		_ui.reset_camera()
+		var obs = _current_observer()
+		if obs != null:
+			_ui.frame_world_points(obs.get_remaining_clue_world_points())
 
 ## 全部线索记录完成 → 进入推理（virtual：子类可加华生点评）
 func _on_all_done(_clues_arr: Array) -> void:

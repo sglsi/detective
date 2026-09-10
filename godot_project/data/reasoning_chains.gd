@@ -24,10 +24,11 @@ const CHAINS := {
 				],
 				"conclusions": [
 					{"id": "C-A1", "text": "曾经在热带生活过", "correct": true, "dir": "affirm", "subject": ["华生"], "object": ["热带"], "match_keys": ["在热带生活过", "热带生活", "热带待过", "在热带待过"], "gate_hypo_ids": ["W-A1"], "adopt_desc": "肤色分明与黝黑的脸——他曾在热带生活过。"},
-					{"id": "C-B1", "text": "是名军医", "correct": true, "dir": "affirm", "subject": ["华生"], "object": ["军医", "医生"], "match_keys": ["军医", "是医生", "医疗兵", "医务人员"], "gate_hypo_ids": ["W-B1", "W-B2"], "adopt_desc": "军人气质与医疗行业的痕迹，合起来是一名军医。"},
-					{"id": "C-C1", "text": "承受了这个年龄本不该承受的伤痛", "correct": true, "dir": "affirm", "subject": ["华生"], "object": ["伤痛", "苦难"], "match_keys": ["承受伤痛", "不该承受的伤痛", "经历过苦难", "久病初愈"], "gate_hypo_ids": ["W-C1", "W-C2"], "adopt_desc": "旧伤未愈又久病初愈——他承受了不该承受的伤痛。"},
-					{"id": "C-A2", "text": "英国在热带的殖民地为阿富汗", "correct": true, "dir": "affirm", "subject": ["英国"], "object": ["阿富汗"], "match_keys": ["阿富汗", "英国殖民地是阿富汗", "热带殖民地是阿富汗", "去过阿富汗"], "gate_hypo_ids": ["conclusion_C-A1"], "adopt_desc": "英国在热带的殖民地——最近的那块是阿富汗。"},
-					{"id": "C-C2", "text": "不该有的伤害只可能来自军事任务", "correct": true, "dir": "affirm", "subject": ["伤害"], "object": ["军事任务"], "match_keys": ["军事任务", "伤害来自军事", "战场负伤", "军旅负伤"], "gate_hypo_ids": ["conclusion_C-C1"], "adopt_desc": "这样的伤痛，只可能来自军事任务。"},
+				{"id": "C-B1", "text": "是名军医", "correct": true, "dir": "affirm", "subject": ["华生"], "object": ["军医", "医生"], "match_keys": ["军医", "是医生", "医疗兵", "医务人员"], "gate_hypo_ids": ["W-B1", "W-B2"], "adopt_desc": "军人气质与医疗行业的痕迹，合起来是一名军医。"},
+				{"id": "C-A2", "text": "英国在热带的殖民地为阿富汗", "correct": true, "dir": "affirm", "subject": ["英国"], "object": ["阿富汗"], "match_keys": ["阿富汗", "英国殖民地是阿富汗", "热带殖民地是阿富汗", "去过阿富汗"], "gate_hypo_ids": ["conclusion_C-A1"], "adopt_desc": "英国在热带的殖民地——最近的那块是阿富汗。"},
+				# 2026-09-10：去除过渡结论「承受了这个年龄本不该承受的伤痛」(原 C-C1)，
+				# W-C1(左臂旧伤) 与 W-C2(久病初愈) 直接指向 C-C2(军事任务)，伤痛线缩短为 2 层。
+				{"id": "C-C2", "text": "不该有的伤害只可能来自军事任务", "correct": true, "dir": "affirm", "subject": ["伤害"], "object": ["军事任务"], "match_keys": ["军事任务", "伤害来自军事", "战场负伤", "军旅负伤"], "gate_hypo_ids": ["W-C1", "W-C2"], "adopt_desc": "旧伤未愈、久病初愈——这样的伤痛，只可能来自军事任务。"},
 					{"id": "C-MAIN", "text": "在阿富汗服役过", "correct": true, "dir": "affirm", "subject": ["华生"], "object": ["阿富汗", "服役"], "match_keys": ["在阿富汗服役", "阿富汗服役过", "去过阿富汗当兵", "阿富汗当兵"], "gate_hypo_ids": ["conclusion_C-A2", "conclusion_C-B1", "conclusion_C-C2"], "target": "person:NPC_WT", "adopt_desc": "热带殖民地、军医身份、军事任务的伤痛——三线闭合，他在阿富汗服役过。"},
 				],
 				"contradictions": [],
@@ -35,7 +36,7 @@ const CHAINS := {
 			"milestones": [
 				{"id": "MW-1", "text": "华生曾在热带生活过（肤色推导）"},
 				{"id": "MW-2", "text": "华生是名军医（军人气质＋医疗行业）"},
-				{"id": "MW-3", "text": "华生承受过不该有的伤痛（旧伤＋久病）"},
+				{"id": "MW-3", "text": "华生的旧伤与久病指向军事任务（不该有的伤害只可能来自军事任务）"},
 				{"id": "MW-4", "text": "华生曾在阿富汗服役（三线闭合）"},
 			],
 			# 裁定 5：练习墙不计分。scene_id 供分枝评分引擎定位到场景一的练习链。

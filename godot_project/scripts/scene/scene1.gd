@@ -41,10 +41,13 @@ func scene_background() -> Texture2D: return load("res://assets/backgrounds/scre
 func _opendoor_bg() -> Texture2D: return load("res://assets/backgrounds/screen01-opendoor.png")
 
 func _ready() -> void:
-	super._ready()
-	# GDScript 类级 Dictionary 默认值是实例间共享的，必须逐实例重建（基类已对 _wall_state 这样做）。
+	# ⚠️ 必须在 super._ready() 之前逐实例重建教学墙状态字典（避免类级共享默认值的跨实例泄漏）。
+	# 基类 DetectiveScene._ready() 内会调用 _restore_saved_state()，用存档覆盖 _watson_wall_state /
+	# _messenger_wall_state。若放到 super._ready() 之后，已恢复的字典会被这里的新 {} 覆盖，导致
+	# 「读档后进入墙正确、退出再进变初始页」「读档后操作再存读变初始页」两个 bug（2026-09-09 定位）。
 	_watson_wall_state = {}
 	_messenger_wall_state = {}
+	super._ready()
 
 ## 恢复存档进度 — 返回 true 表示有存档且已恢复，false 表示新游戏。
 ## 两组观察器分别同步 ClueSystem（单一真相源），并以存档 clue_ids 为权威，
@@ -283,13 +286,12 @@ func _on_collect_clue(clue_id: String, clue_data: Dictionary, source: String) ->
 			clue_data.get("image", ""),
 			clue_data.get("anchor", "")
 		)
-	# M1 摄像机：记录一条线索后平滑推近到该部位（点线索推近）
+	# M1 摄像机：记录一条线索后，始终聚焦「仍需收集」的线索（框选全部剩余线索使其在视野内、可点），
+	# 而非锁在刚记录线索推近——后者会把其余未收集圆圈推出视口外、点不到（用户 2026-09-09 反馈）。
 	if _ui:
 		var obs = _current_observer()
 		if obs != null:
-			var wp = obs.get_clue_world_point(clue_id)
-			if wp != Vector2.ZERO:
-				_ui.focus_world_point(wp, 2.2)
+			_ui.frame_world_points(obs.get_remaining_clue_world_points())
 
 # ===== 基类钩子：地图 / 案件簿（内容） =====
 func map_locations() -> Array:

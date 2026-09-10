@@ -14,6 +14,7 @@ const saveRoutes = require('./routes/saves');
 const progressRoutes = require('./routes/progress');
 const healthRoutes = require('./routes/health');
 const editorRoutes = require('./routes/editor');
+const evaluateRoutes = require('./routes/evaluate');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,6 +43,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/saves', saveRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/editor', editorRoutes);
+app.use('/api/evaluate', evaluateRoutes);
 
 // ===== 404 =====
 app.use((req, res) => {

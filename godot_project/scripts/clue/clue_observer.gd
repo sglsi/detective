@@ -359,6 +359,20 @@ func get_clue_world_point(clue_id: String) -> Vector2:
 	var cy0 := float(hs_d.get("y", 0.0)) - _world_offset.y + float(hs_d.get("h", 0.0)) * 0.5
 	return Vector2(cx0, cy0)
 
+## 返回所有「尚未记录」的线索在世界层局部坐标系中的中心点数组，
+## 供摄像机框选聚焦——记录后让「仍需收集」的线索始终在视野内、可点
+## （用户 2026-09-09 反馈：原镜头锁在刚记录线索导致其余出界）。
+func get_remaining_clue_world_points() -> Array:
+	var pts: Array = []
+	for hs in _hotspots:
+		var cid = hs["id"]
+		if _recorded_ids.has(cid):
+			continue
+		var wp := get_clue_world_point(cid)
+		if wp != Vector2.ZERO:
+			pts.append(wp)
+	return pts
+
 ## 把每个热点按钮定位到立绘上的锚点部位（与高亮圆圈同一局部坐标），
 ## 使「可点击命中区」与「视觉高亮」重合。仅在 _portrait_ctrl 有效时调用（show 时尺寸已就绪）。
 func _position_buttons() -> void:

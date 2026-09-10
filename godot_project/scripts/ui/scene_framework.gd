@@ -854,6 +854,34 @@ func reset_camera() -> void:
 	if not _world: return
 	_tween_camera(Vector2.ZERO, Vector2(CAM_OVERVIEW_ZOOM, CAM_OVERVIEW_ZOOM))
 
+## 调整摄像机使给定世界坐标点集合全部进入视野（带边距）并居中。
+## 用于「记录线索后始终聚焦到仍需收集的线索上」：框选全部剩余未记录线索，
+## 使其始终在视野内、可点（用户 2026-09-09 反馈：原锁在刚记录线索导致其余出界）。
+## points 为空 → 回统览；分布过广（缩放需 < CAM_ZOOM_MIN 才能全纳入）→ 自动回退统览（zoom=1 时世界=视野，全可见）。
+func frame_world_points(points: Array, padding: float = 80.0) -> void:
+	if not _world: return
+	if points.is_empty():
+		reset_camera()
+		return
+	var min_x: float = INF; var min_y: float = INF; var max_x: float = -INF; var max_y: float = -INF
+	for p in points:
+		min_x = min(min_x, p.x); min_y = min(min_y, p.y)
+		max_x = max(max_x, p.x); max_y = max(max_y, p.y)
+	var bw: float = max(max_x - min_x, 1.0)
+	var bh: float = max(max_y - min_y, 1.0)
+	var view: Vector2 = _scene_area.size
+	var zx: float = (view.x - padding * 2.0) / bw
+	var zy: float = (view.y - padding * 2.0) / bh
+	var fit: float = min(zx, zy)
+	# 需要 < 最小缩放才能全纳入（线索分布过广）→ 回退统览（zoom=1 时世界=视野，全可见）
+	if fit < CAM_ZOOM_MIN:
+		reset_camera()
+		return
+	var zoom: float = clamp(fit, CAM_ZOOM_MIN, CAM_ZOOM_MAX)
+	var center: Vector2 = Vector2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5)
+	var target_pos: Vector2 = view * 0.5 - center * zoom
+	_tween_camera(target_pos, Vector2(zoom, zoom))
+
 ## Tab 切换：非统览态→回到统览；已在统览态→忽略
 func toggle_overview() -> void:
 	if not _world: return
