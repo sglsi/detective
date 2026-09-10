@@ -65,3 +65,7 @@ godot_project/tools/shots/
 godot_project/tools/godot/*.zip
 godot_project/tools/godot/*.tpz*
 godot_project/tools/godot/editor_extract/
+
+# 根目录历史误提交的构建产物（防再引入）
+/index.pck
+/index.wasm
