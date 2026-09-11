@@ -23,6 +23,9 @@ func _ready() -> void:
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(dim)
 
+	# 菜单 BGM（主菜单界面）
+	AudioManager.play_scene_bgm("menu")
+
 	_root = Control.new()
 	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(_root)

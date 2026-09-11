@@ -20,6 +20,11 @@ var settings: Dictionary = {
 
 func _ready() -> void:
 	_load_settings()
+	# 启动时把已存音量重新应用到音频总线
+	# （_load_settings 仅读入 settings 字典，不会自动 apply，导致读档后音量不生效）
+	for key in ["master_volume", "music_volume", "sfx_volume", "voice_volume"]:
+		if settings.has(key):
+			_apply_setting(key, settings[key])
 
 func get_setting(key: String):
 	return settings.get(key, null)

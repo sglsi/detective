@@ -53,6 +53,10 @@ ToolSystem="*res://autoload/tool_system.gd"
 PackManager="*res://autoload/pack_manager.gd"
 SceneLoader="*res://autoload/scene_loader.gd"
 
+[audio]
+
+buses/bus_layout="res://default_bus_layout.tres"
+
 [display]
 
 window/size/viewport_width=1920
