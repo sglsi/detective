@@ -175,6 +175,9 @@ func _street_to_path_transition() -> void:
 	_ui.set_scene_background(load("res://assets/scenes/sc02_facade.png"))
 	_ui.set_camera_enabled(false)            # 演出期间锁住玩家拖拽/滚轮，避免与推镜打架
 	_ui.reset_camera()                        # 远：全景 zoom=1.0
+	# 原著方法论（《四签名》）：勘查开场先立规矩——未掌握证据前不许先下结论
+	_ui.set_dialogue("福尔摩斯", "（站在街对面）在掌握全部证据之前就提出理论，是最大的错误——它会让你的判断偏离事实。所以，先看，先记，先量。", "哲理")
+	await get_tree().create_timer(1.8).timeout
 	_ui.set_dialogue("福尔摩斯", "（站在街对面）劳瑞斯顿花园街三号……先从远处看个全貌。", "从容")
 	await get_tree().create_timer(0.45).timeout   # 让镜头先稳到全景（远）
 	_ui.focus_world_point(Vector2(960, 540), 1.7)   # 中：走近几步，推近房屋
