@@ -38,7 +38,7 @@ func clue_source() -> String: return "scene8"
 func hotspots() -> Array: return HOTSPOTS
 func scene_title() -> String: return "贝克街221B 起居室"
 func scene_time_text() -> String: return "DAY 3 凌晨"
-func scene_background() -> Texture2D: return load("res://assets/scenes/sc_08_finale.jpg")
+func scene_background() -> Texture2D: return load("res://assets/backgrounds/baker_street_parlor.jpg")  # Tier1: 1920x1080 高清（原 sc_08_finale 512x288 模糊；暂复用 parlor，待 ImageGen 生成专属起居室图）
 
 func _phase_name(p: int) -> String:
 	match p:

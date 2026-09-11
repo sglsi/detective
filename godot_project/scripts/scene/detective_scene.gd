@@ -75,7 +75,7 @@ func _build_ui() -> void:
 		_ui.setup(scene_title(), scene_time_text(), null)
 	else:
 		_ui = SceneFramework.new(); _ui.name = "ui"; add_child(_ui)
-		_ui.setup(scene_title(), scene_time_text(), scene_background())
+		_ui.setup(scene_title(), scene_time_text(), scene_background(), [], scene_id())
 	# 工具栏（v2：真实图标 + 主动操作交互）
 	_setup_toolbar()
 

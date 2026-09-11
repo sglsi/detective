@@ -51,7 +51,7 @@ func clue_source() -> String: return "scene5"
 func hotspots() -> Array: return []
 func scene_title() -> String: return "贝克街 221B 会客厅"
 func scene_time_text() -> String: return "DAY 1 晚 20:00-21:00"
-func scene_background() -> Texture2D: return load("res://assets/scenes/sc_05_parlor.jpg")
+func scene_background() -> Texture2D: return load("res://assets/backgrounds/baker_street_parlor.jpg")  # Tier1: 1920x1080 高清（原 sc_05_parlor 512x288 模糊）
 
 ## 氛围遮罩已按需求移除（谜雾/灯光按钮及相关功能）。
 func wants_atmosphere() -> bool: return false

@@ -65,7 +65,7 @@ func scene_time_text() -> String: return "DAY 1 上午11:15"
 func use_procedural_background() -> bool: return procedural_bg
 func wants_atmosphere() -> bool: return false
 
-func scene_background() -> Texture2D: return load("res://assets/scenes/sc02_street.png")
+func scene_background() -> Texture2D: return load("res://assets/scenes/sc_02_garden.png")  # Tier1: 1920x1080 高清（原 sc02_street 1024x576 模糊）
 
 # ===== 阶段 / 进度判断 =====
 func _is_terminal_phase(p: int) -> bool:

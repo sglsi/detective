@@ -14,6 +14,21 @@ const TOP_H := 50
 const LEFT_W := 140
 const DIALOGUE_H := 230
 
+# 场景氛围配置（Tier 1 #4）：暗角 + 煤气灯暖光闪烁 + 雾 + 浮尘。
+# key = DetectiveScene.scene_id() 返回值（scene1 默认返回 "sceneX"，故单独配 "sceneX"）。
+# lamps 为「场景区域归一化 UV(0..1)」中的灯光位置（最多 2 盏）；fog_color 室内偏暖、室外/夜偏冷。
+const SCENE_ATMOSPHERE := {
+	"scene1": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.50, 0.60), Vector2(0.80, 0.45)], "lamp_intensity": 1.1, "lamp_radius": 0.13, "dust": true},
+	"sceneX": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.50, 0.60), Vector2(0.80, 0.45)], "lamp_intensity": 1.1, "lamp_radius": 0.13, "dust": true},
+	"scene2": {"vignette": 1.05, "fog": 0.30, "fog_color": Color(0.18, 0.20, 0.28, 0.42), "lamps": [Vector2(0.30, 0.35), Vector2(0.72, 0.42)], "lamp_intensity": 1.0, "lamp_radius": 0.12, "dust": true},
+	"scene3": {"vignette": 1.0, "fog": 0.24, "fog_color": Color(0.24, 0.18, 0.14, 0.40), "lamps": [Vector2(0.50, 0.55), Vector2(0.78, 0.50)], "lamp_intensity": 1.1, "lamp_radius": 0.13, "dust": true},
+	"scene4": {"vignette": 1.1, "fog": 0.34, "fog_color": Color(0.16, 0.18, 0.26, 0.45), "lamps": [Vector2(0.35, 0.40), Vector2(0.70, 0.45)], "lamp_intensity": 1.2, "lamp_radius": 0.12, "dust": true},
+	"scene5": {"vignette": 1.0, "fog": 0.22, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.50, 0.58), Vector2(0.80, 0.45)], "lamp_intensity": 1.1, "lamp_radius": 0.13, "dust": true},
+	"scene6": {"vignette": 1.0, "fog": 0.26, "fog_color": Color(0.20, 0.18, 0.16, 0.42), "lamps": [Vector2(0.60, 0.42)], "lamp_intensity": 1.0, "lamp_radius": 0.12, "dust": true},
+	"scene7": {"vignette": 1.15, "fog": 0.28, "fog_color": Color(0.18, 0.16, 0.20, 0.45), "lamps": [Vector2(0.50, 0.45)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
+	"scene8": {"vignette": 1.25, "fog": 0.28, "fog_color": Color(0.24, 0.18, 0.14, 0.42), "lamps": [Vector2(0.50, 0.50), Vector2(0.80, 0.50)], "lamp_intensity": 1.3, "lamp_radius": 0.13, "dust": true},
+}
+
 # 配色（维多利亚古典）
 const COL_BG := Color(0.07, 0.05, 0.03)              # 深褐底
 const COL_GOLD := Color(0.86, 0.70, 0.32)            # 烫金
@@ -27,6 +42,7 @@ const COL_SHADOW := Color(0.03, 0.02, 0.0)            # 描边黑
 
 var _location := ""
 var _time_text := "DAY 1 上午10:30"
+var _scene_id := ""
 var _top_bar: Control
 var _left_bar: Control
 var _scene_area: Control
@@ -41,17 +57,24 @@ var _nav_btns: Dictionary = {}
 # 放大镜可观察节点：背景 + 各立绘图片纹理（供 ToolBar 直接放大其真实纹理，不依赖屏幕捕获）
 var _mag_bg: TextureRect = null
 var _mag_portraits: Array[TextureRect] = []
+# 立绘 Juice：出场滑入 + 呼吸 bob（纯 Tween，零美术成本）
+var _portrait_bob_tween: Tween = null
+var _portrait_slide_tween: Tween = null
+var _portrait_base_pos := Vector2.ZERO
 
 # 摄像机/观察层：可缩放+平移的「世界子树」（背景+立绘+线索圈都挂这里），
 # 与对话框/工具栏/推理墙等 UI 分离 —— 缩放世界层时 UI 永远不变形。
 # 这是 Control 架构下对 Camera2D 的等价替代（Camera2D 只影响 Node2D，不作用于 Control）。
 var _world: Control = null
+# 氛围层（AtmosphereLayer 实例）。用 CanvasItem 类型 + 显式 preload 引用，避免依赖全局 class_name 注册时序。
+var _atmosphere: CanvasItem = null
+const ATMOSPHERE_LAYER_SCRIPT := preload("res://scripts/background/atmosphere_layer.gd")
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_all()
 
-func setup(location: String, time_str: String, bg_tex: Texture2D = null, portraits: Array = []) -> void:
+func setup(location: String, time_str: String, bg_tex: Texture2D = null, portraits: Array = [], scene_id_arg: String = "") -> void:
 	# ⚠️ 关键时序修复：父节点（DetectiveScene）在自身 _ready 内 add_child 本框架后，
 	# 会立刻调用 _create_observers() → _ui.get_world_layer()。但子节点 _ready 被 Godot 延迟到
 	# 父 _ready 之后才执行，届时 _build_all 才建 _world。若此处不同步建好 _world，
@@ -60,6 +83,7 @@ func setup(location: String, time_str: String, bg_tex: Texture2D = null, portrai
 	_ensure_world()
 	_location = location
 	_time_text = time_str
+	_scene_id = scene_id_arg
 	_set_top_bar_text()
 	if bg_tex: set_scene_background(bg_tex)
 	for p in portraits:
@@ -70,6 +94,10 @@ func set_scene_background(tex: Texture2D) -> void:
 	if not _world: return
 	var existing = _world.find_child("scene_bg", true, false)
 	if existing: existing.queue_free()
+	# 旧氛围层随背景一起清理，避免跨场景残留
+	var old_atmo = _world.find_child("atmosphere", true, false)
+	if old_atmo: old_atmo.queue_free()
+	_atmosphere = null
 	var bg = TextureRect.new()
 	bg.name = "scene_bg"
 	bg.texture = tex
@@ -82,6 +110,20 @@ func set_scene_background(tex: Texture2D) -> void:
 	_world.add_child(bg)
 	_world.move_child(bg, 0)
 	_mag_bg = bg   # 供放大镜直接放大背景纹理
+	_apply_atmosphere()
+
+## 按场景 id 从 SCENE_ATMOSPHERE 取配置并挂载氛围层（暗角/煤气灯闪烁/雾/浮尘）。
+## 仅在有配置时挂载；_world 尺寸即场景区域，用于浮尘发射范围。
+func _apply_atmosphere() -> void:
+	if not _world: return
+	if not SCENE_ATMOSPHERE.has(_scene_id): return
+	if _atmosphere != null and is_instance_valid(_atmosphere): return
+	var layer := ATMOSPHERE_LAYER_SCRIPT.new()
+	layer.name = "atmosphere"
+	layer.configure(SCENE_ATMOSPHERE[_scene_id], _world.size)
+	_world.add_child(layer)
+	_world.move_child(layer, 1)   # 紧跟背景(bg 已移到 index 0)，立绘默认 z=0 在其上
+	_atmosphere = layer
 
 func add_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vector2, flip: bool = false) -> Control:
 	var port = _make_portrait(tex, name_text, pos, size, flip)
@@ -132,6 +174,7 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 	if _speaker_portrait:
 		var tex: Texture2D = PortraitLibrary.get_portrait(speaker, mood)
 		if tex != null:
+			var changed := (_speaker_portrait.texture != tex) or (not _speaker_portrait.visible)
 			_speaker_portrait.texture = tex
 			_speaker_portrait.show()
 			# 手动算 contain 进 220x220 框（EXPAND_IGNORE_SIZE 让 size 生效；expand_mode=2 会正方形化）
@@ -142,9 +185,16 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 			var dw: float = tw * sc
 			var dh: float = th * sc
 			_speaker_portrait.size = Vector2(dw, dh)
+			# 立绘落位：仅在首次出现或换人/换表情时重设 position，避免每句重设打断 bob 呼吸
+			if changed:
+				match pos:
+					POS_BL:  # 福尔摩斯：立绘在框内左侧(220x220)居中
+						_speaker_portrait.position = Vector2(15, 5) + (box - Vector2(dw, dh)) * 0.5
+					POS_TR:  # 其他人物：立绘在框内右侧(220x220)居中
+						_speaker_portrait.position = Vector2(1920 - 15 - 220, 5) + (box - Vector2(dw, dh)) * 0.5
+				_animate_speaker_portrait(speaker, true)
 			match pos:
-				POS_BL:  # 福尔摩斯：立绘在框内左侧(220x220)居中，名字框与正文在右侧、名字在正文上方（左对齐）
-					_speaker_portrait.position = Vector2(15, 5) + (box - Vector2(dw, dh)) * 0.5
+				POS_BL:  # 名字框与正文在右侧、名字在正文上方（左对齐）
 					if _name_panel:
 						_name_panel.show()
 						_name_panel.position = Vector2(250, 8)
@@ -155,8 +205,7 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 					if _dialogue_label:
 						_dialogue_label.position = Vector2(250, 50)
 						_dialogue_label.size = Vector2(1650, 168)
-				POS_TR:  # 其他人物：立绘在框内右侧(220x220)居中，名字框与正文在左侧、名字在正文上方（右对齐）
-					_speaker_portrait.position = Vector2(1920 - 15 - 220, 5) + (box - Vector2(dw, dh)) * 0.5
+				POS_TR:  # 名字框与正文在左侧、名字在正文上方（右对齐）
 					if _name_panel:
 						_name_panel.show()
 						_name_panel.position = Vector2(20, 8)
@@ -170,6 +219,7 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 		else:
 			# 无立绘：名字框与正文占满整框，名字在正文上方
 			_speaker_portrait.hide()
+			_stop_portrait_juice()
 			if _name_panel:
 				_name_panel.show()
 				_name_panel.position = Vector2(20, 8)
@@ -180,6 +230,47 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 			if _dialogue_label:
 				_dialogue_label.position = Vector2(20, 50)
 				_dialogue_label.size = Vector2(1880, 168)
+
+# ===== 立绘 Juice：出场滑入 + 呼吸 bob（纯 Tween，零美术成本） =====
+## speaker 换人/换表情时调用：从侧边偏移 + 缩放 + 淡入回弹落位，随后启动持续呼吸 bob。
+func _animate_speaker_portrait(speaker: String, do_slide: bool) -> void:
+	if not _speaker_portrait or not _speaker_portrait.visible:
+		return
+	_portrait_base_pos = _speaker_portrait.position
+	if _portrait_bob_tween and _portrait_bob_tween.is_valid():
+		_portrait_bob_tween.kill()
+	if _portrait_slide_tween and _portrait_slide_tween.is_valid():
+		_portrait_slide_tween.kill()
+	if do_slide:
+		# 出场滑入方向：福尔摩斯在左→从更左滑入；其余在右→从更右滑入
+		var dir := -1.0 if speaker == "福尔摩斯" else 1.0
+		_speaker_portrait.position.x = _portrait_base_pos.x + 70.0 * dir
+		_speaker_portrait.modulate.a = 0.0
+		_speaker_portrait.scale = Vector2(0.92, 0.92)
+		_portrait_slide_tween = create_tween()
+		_portrait_slide_tween.tween_property(_speaker_portrait, "position:x", _portrait_base_pos.x, 0.34).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+		_portrait_slide_tween.parallel().tween_property(_speaker_portrait, "modulate:a", 1.0, 0.26)
+		_portrait_slide_tween.parallel().tween_property(_speaker_portrait, "scale", Vector2.ONE, 0.34).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	# 呼吸 bob（持续循环）：position.y 上下微浮 + scale.y 轻微呼吸
+	_portrait_bob_tween = create_tween().set_loops()
+	var by := _portrait_base_pos.y - 4.0
+	_portrait_bob_tween.tween_property(_speaker_portrait, "position:y", by, 1.15).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	_portrait_bob_tween.tween_property(_speaker_portrait, "position:y", _portrait_base_pos.y, 1.15).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	var sy := _speaker_portrait.scale.y
+	_portrait_bob_tween.parallel().tween_property(_speaker_portrait, "scale:y", sy * 1.025, 1.15).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	_portrait_bob_tween.parallel().tween_property(_speaker_portrait, "scale:y", sy, 1.15).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+
+## 立绘隐藏时停止并复位 Juice，避免下一句残留缩放/透明度。
+func _stop_portrait_juice() -> void:
+	if _portrait_bob_tween and _portrait_bob_tween.is_valid():
+		_portrait_bob_tween.kill()
+		_portrait_bob_tween = null
+	if _portrait_slide_tween and _portrait_slide_tween.is_valid():
+		_portrait_slide_tween.kill()
+		_portrait_slide_tween = null
+	if _speaker_portrait:
+		_speaker_portrait.scale = Vector2.ONE
+		_speaker_portrait.modulate.a = 1.0
 
 func set_dialogue_color(c: Color) -> void:
 	if _speaker_label: _speaker_label.add_theme_color_override("font_color", c)

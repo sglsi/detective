@@ -44,7 +44,7 @@ var _telegraph_confirmed: bool = false    # 场景四选C → 场景六末电报
 func hotspots() -> Array: return HOTSPOTS
 func scene_title() -> String: return "郝黎代旅馆"
 func scene_time_text() -> String: return "DAY 2 深夜"
-func scene_background() -> Texture2D: return load("res://assets/scenes/sc_07_hotel.jpg")
+func scene_background() -> Texture2D: return load("res://assets/scenes/victorian_room.jpg")  # Tier1: 1920x1080 高清（原 sc_07_hotel 512x288 模糊；暂复用 victorian_room，待 ImageGen 生成专属旅馆图）
 
 func _phase_name(p: int) -> String:
 	match p:

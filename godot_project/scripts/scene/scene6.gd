@@ -46,7 +46,7 @@ func clue_source() -> String: return "scene6"
 func hotspots() -> Array: return []
 func scene_title() -> String: return "卡彭蒂耶公寓"
 func scene_time_text() -> String: return "DAY 2 上午"
-func scene_background() -> Texture2D: return load("res://assets/scenes/sc_06_apartment.jpg")
+func scene_background() -> Texture2D: return load("res://assets/scenes/victorian_room.jpg")  # Tier1: 1920x1080 高清（原 sc_06_apartment 512x288 模糊）
 
 func _phase_name(p: int) -> String:
 	match p:
