@@ -401,9 +401,15 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	var rw = load("res://scripts/clue/reasoning_wall.gd")
 	if not rw: _ui.show_notification("推理墙模块未找到"); return
 	var wall = rw.new(); wall.name = "ReasoningWall"; add_child(wall)
+	# 开墙 → 切「思维殿堂」专属 BGM（wall.wav）
+	AudioManager.play_scene_bgm("wall")
 	# 墙销毁时自动清空单例引用，保证下次「思考」能正确开关
 	wall.tree_exiting.connect(func():
 		if _wall_instance == wall: _wall_instance = null
+		# 墙关闭（返回探索 / 验证后过渡 / ESC）统一在此恢复本场景 BGM。
+		# 选 tree_exiting 是因为它是所有关闭路径的唯一公共出口，
+		# 逐个监听关闭按钮会漏掉「验证后自动过渡」等分支。
+		AudioManager.play_scene_bgm(scene_id())
 		# 墙关闭（返回探索 或 验证后过渡）：恢复摄像机并归位到统览态。
 		# 根治「观察推近后开墙/验证」残留放大态，导致下一阶段看不到场景
 		# （场景一华生→信使同款 bug：华生推近后切信使，镜头停在放大态挡住信使立绘）。

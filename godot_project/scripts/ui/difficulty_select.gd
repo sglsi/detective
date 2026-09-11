@@ -11,6 +11,8 @@ signal difficulty_selected(difficulty: int)
 @onready var hard_btn: Button = $Panel/HardBtn
 
 func _ready() -> void:
+	# 难度选择是「抉择」时刻，切中性带重量的专属 BGM（difficulty.wav）
+	AudioManager.play_scene_bgm("difficulty")
 	for b: Button in [easy_btn, normal_btn, hard_btn]:
 		b.add_theme_font_size_override("font_size", 20)
 		b.add_theme_constant_override("icon_max_width", 34)
