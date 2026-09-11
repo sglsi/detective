@@ -121,7 +121,7 @@ func _ready() -> void:
 ## 兜底：即便 JS 探测失效（返回 no-bridge），超时后也强制解锁并 play，避免永久静音死锁。
 var _poll_accum := 0.0
 var _since_ready := 0.0
-const FORCE_UNLOCK_AFTER := 12.0
+const FORCE_UNLOCK_AFTER := 6.0
 func _process(delta: float) -> void:
 	if _audio_unlocked or not OS.has_feature("web"):
 		return
@@ -131,9 +131,10 @@ func _process(delta: float) -> void:
 		return
 	_poll_accum = 0.0
 	# head_include 注入的探针（页面层，不依赖 JavaScriptBridge 注入时机）
+	# 返回形如 "C:running@48000x1" / "G:running@48000" / "no-ctx"
 	var st = JavaScriptBridge.eval("window.__gdAudioState ? window.__gdAudioState() : 'no-bridge'", true)
-	if typeof(st) == TYPE_STRING and str(st).begins_with("running"):
-		print("[Audio] ctx running -> 解锁并补播: ", _pending_bgm)
+	if typeof(st) == TYPE_STRING and str(st).contains("running"):
+		print("[Audio] ctx running -> 解锁并补播: ", _pending_bgm, " (", st, ")")
 		_unlock_audio()
 	elif _since_ready > FORCE_UNLOCK_AFTER:
 		print("[Audio] 超时兜底解锁（ctx=", st, "）-> 强制播放: ", _pending_bgm)
