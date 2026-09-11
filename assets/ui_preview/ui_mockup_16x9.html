@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>推理战场 · UI 原型 16:9</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1920px; height:1080px; overflow:hidden; }
+  body {
+    font-family:"Noto Serif SC","STSong","SimSun",serif;
+    position:relative;
+    background:
+      radial-gradient(ellipse 1400px 900px at 46% 44%, rgba(214,178,116,.10), rgba(0,0,0,0) 55%),
+      radial-gradient(ellipse 2400px 1500px at 50% 50%, rgba(0,0,0,0) 30%, rgba(0,0,0,.55) 100%),
+      repeating-linear-gradient(0deg, rgba(255,225,170,.014) 0 1px, rgba(0,0,0,.02) 1px 3px),
+      repeating-linear-gradient(90deg, rgba(255,225,170,.012) 0 1px, rgba(0,0,0,.018) 1px 3px),
+      linear-gradient(160deg,#241b12 0%, #191310 45%, #120d0a 100%);
+  }
+  /* 伦敦地图暗纹：细网格街道线 */
+  .map-lines { position:absolute; inset:0; opacity:.05; pointer-events:none;
+    background-image:
+      repeating-linear-gradient(83deg, transparent 0 90px, rgba(214,178,116,.5) 90px 91px, transparent 91px 210px),
+      repeating-linear-gradient(12deg, transparent 0 140px, rgba(214,178,116,.4) 140px 141px, transparent 141px 320px),
+      repeating-linear-gradient(-40deg, transparent 0 220px, rgba(214,178,116,.3) 220px 221px, transparent 221px 460px);
+  }
+
+  /* ============ 顶栏 Row1 ============ */
+  .topbar1 { position:absolute; top:0; left:0; right:0; height:96px; z-index:30;
+    background:linear-gradient(180deg,#241a10 0%, #1d150c 100%);
+    border-bottom:2px solid #8a6d3b; box-shadow:0 2px 14px rgba(0,0,0,.6);
+    display:flex; align-items:center; padding:0 28px; gap:18px; }
+  .plaque { position:relative; background:linear-gradient(180deg,#e8d5a8 0%,#d3ba85 55%,#c2a768 100%);
+    border:2px solid #8a6d3b; border-radius:8px; padding:8px 44px; text-align:center;
+    box-shadow:0 3px 10px rgba(0,0,0,.5), inset 0 0 0 3px rgba(122,90,42,.25); }
+  .plaque::before,.plaque::after { content:""; position:absolute; top:-7px; width:26px; height:20px;
+    background:linear-gradient(180deg,#e8d5a8,#c2a768); border:2px solid #8a6d3b; border-radius:0 0 12px 12px; }
+  .plaque::before { left:-16px; } .plaque::after { right:-16px; }
+  .plaque h1 { font-size:30px; color:#4a3213; letter-spacing:6px; line-height:1.15; }
+  .plaque .sub { font-size:12px; color:#6b4f22; letter-spacing:2px; margin-top:2px; }
+  .diff-badge { background:#3a2417; border:1px solid #a67c3d; color:#e8c987; border-radius:14px;
+    font-size:13px; padding:3px 14px; letter-spacing:2px; }
+  .divider { width:2px; height:44px; background:linear-gradient(180deg,rgba(166,124,61,.1),#8a6d3b 50%,rgba(166,124,61,.1)); border-radius:2px; }
+  .tlabel { font-size:13px; color:#c8a765; letter-spacing:2px; }
+  .btn { background:linear-gradient(180deg,#2e2214 0%, #241a10 100%);
+    border:1px solid #7a5c2e; color:#e3cd97; border-radius:6px; font-size:14px;
+    padding:7px 14px; letter-spacing:1px; cursor:pointer;
+    box-shadow:0 2px 5px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,220,150,.08);
+    font-family:inherit; display:inline-flex; align-items:center; gap:6px; }
+  .btn:hover { border-color:#d9b25f; color:#f4e2ac; box-shadow:0 0 8px rgba(217,178,95,.25), 0 2px 5px rgba(0,0,0,.45); }
+  .btn.round { width:36px; height:36px; padding:0; justify-content:center; border-radius:50%; }
+  .btn.red { background:linear-gradient(180deg,#7e2c22 0%,#5e1f18 100%); border-color:#c8924a; color:#f7e3b0;
+    font-size:15px; padding:8px 20px; box-shadow:0 2px 8px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,225,170,.12); }
+  .btn.active { background:#3d2c16; border-color:#d9b25f; color:#f7e6b2; box-shadow:inset 0 2px 4px rgba(0,0,0,.5), 0 0 6px rgba(217,178,95,.2); }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; box-shadow:inset 0 0 2px rgba(0,0,0,.5); }
+  .select { background:#14100b; border:1px solid #6b5228; color:#d9c088; border-radius:6px;
+    font-size:13px; padding:7px 12px; letter-spacing:1px; box-shadow:inset 0 2px 5px rgba(0,0,0,.5); font-family:inherit; }
+  .spacer { flex:1; }
+
+  /* ============ 顶栏 Row2 ============ */
+  .topbar2 { position:absolute; top:96px; left:0; right:0; height:56px; z-index:29;
+    background:linear-gradient(180deg,#1a130b 0%,#171008 100%);
+    border-bottom:1px solid #5e4926; display:flex; align-items:center; gap:14px; padding:0 28px; }
+  .search { position:relative; width:340px; }
+  .search input { width:100%; background:#14100b; border:1px solid #4f3d1f; border-bottom:2px solid #b98f45;
+    border-radius:6px 6px 3px 3px; color:#e8d5a0; font-size:14px; padding:8px 12px 8px 34px;
+    outline:none; font-family:inherit; letter-spacing:1px; box-shadow:inset 0 2px 6px rgba(0,0,0,.55); }
+  .search .mag { position:absolute; left:10px; top:9px; font-size:14px; color:#a67c3d; }
+
+  /* ============ 左栏 ============ */
+  .sidebar { position:absolute; top:152px; left:0; bottom:0; width:270px; z-index:20;
+    background:linear-gradient(180deg,rgba(30,22,13,.94),rgba(22,16,9,.96));
+    border-right:1.5px solid #7a5c2e; box-shadow:2px 0 12px rgba(0,0,0,.5);
+    padding:16px 14px; overflow:hidden; }
+  .badge { display:inline-block; background:linear-gradient(180deg,#3a2c16,#241a10); border:1px solid #b98f45;
+    color:#eccf8c; border-radius:14px; font-size:13px; padding:4px 14px; letter-spacing:1px; margin-bottom:14px; }
+  .clue-card { position:relative; margin:0 auto 12px; width:222px;
+    background:linear-gradient(160deg,#d9cba0 0%,#cbb884 60%,#bfa96e 100%);
+    border:1px solid #8a6d3b; border-radius:3px; padding:10px 12px;
+    box-shadow:0 2px 6px rgba(0,0,0,.5), inset 0 0 0 2px rgba(122,90,42,.18);
+    font-size:13px; color:#3d2c12; line-height:1.45; letter-spacing:.5px; }
+  .clue-card::before { content:""; position:absolute; top:-5px; left:18px; width:11px; height:11px;
+    border-radius:50%; background:radial-gradient(circle at 35% 35%,#e8c87a,#8a6428 70%); box-shadow:0 1px 2px rgba(0,0,0,.5); }
+  .clue-card.dim { transform:rotate(1.6deg); }
+  .clue-card.done { opacity:.85; }
+  .clue-card .tag { display:inline-block; font-size:11px; color:#7a5a24; border:1px solid rgba(122,90,42,.4);
+    border-radius:3px; padding:0 5px; margin-top:5px; }
+
+  /* ============ 画布 ============ */
+  .canvas { position:absolute; top:152px; left:270px; right:0; bottom:0; z-index:10; }
+  svg.wires { position:absolute; inset:0; width:100%; height:100%; }
+  .card { position:absolute; z-index:12; text-align:center;
+    border-radius:4px; letter-spacing:1px;
+    box-shadow:0 3px 8px rgba(0,0,0,.5), inset 0 0 0 2px rgba(122,90,42,.22), 0 0 0 1px #8a6d3b;
+    display:flex; align-items:center; justify-content:center; }
+  /* 羊皮纸质感：纸色渐变 + 纤维噪声 */
+  .card::after { content:""; position:absolute; inset:0; border-radius:4px; opacity:.35; pointer-events:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/><feColorMatrix type='matrix' values='0 0 0 0 .55 0 0 0 0 .45 0 0 0 0 .3 0 0 0 .5 0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>"); }
+  .card .inner { position:relative; z-index:2; width:100%; padding:6px 10px; }
+  /* 四层语义色（对齐实际游戏） */
+  .c-person { width:58px; height:96px; background:linear-gradient(165deg,#b96a55 0%,#a55543 55%,#96483a 100%); border-radius:6px; }
+  .c-person .inner { font-size:17px; color:#f6e8d2; writing-mode:vertical-rl; letter-spacing:5px; }
+  .c-clue { width:128px; height:56px; background:linear-gradient(165deg,#d3b98a 0%,#c4a874 55%,#b59762 100%); }
+  .c-clue .inner, .c-hypo .inner { font-size:14px; color:#3b2a12; line-height:1.4; }
+  .c-hypo { width:128px; height:56px; background:linear-gradient(165deg,#c9d3d8 0%,#b7c3cb 55%,#a5b3bd 100%); }
+  .c-concl { width:270px; height:46px; background:linear-gradient(165deg,#cfdcb2 0%,#c0d09e 55%,#b0c28c 100%); }
+  .c-concl .inner { font-size:14px; color:#33401f; }
+  .pin { position:absolute; top:-5px; left:50%; margin-left:-5px; width:10px; height:10px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%,#e8c87a,#8a6428 70%); box-shadow:0 1px 2px rgba(0,0,0,.5); z-index:3; }
+  .edge-tag { position:absolute; z-index:13; transform:translate(-50%,-50%);
+    background:linear-gradient(180deg,#3a2c16,#241a10); border:1px solid #b98f45; color:#eccf8c;
+    border-radius:10px; font-size:11px; padding:2px 10px; letter-spacing:2px; box-shadow:0 1px 4px rgba(0,0,0,.5); }
+
+  /* ============ 弹窗 ============ */
+  .modal { position:absolute; right:56px; bottom:64px; width:430px; z-index:40;
+    background:linear-gradient(180deg,#281f13 0%,#221a10 100%);
+    border:2px solid #b98f45; border-radius:10px; padding:22px 26px;
+    box-shadow:0 8px 30px rgba(0,0,0,.7), inset 0 0 0 5px rgba(30,22,12,.9), inset 0 0 0 6px rgba(185,143,69,.5); }
+  .modal h2 { color:#d84a38; font-size:20px; letter-spacing:4px; margin-bottom:12px; display:flex; align-items:center; gap:10px; }
+  .modal h2::after { content:""; flex:1; height:1px; background:linear-gradient(90deg,#8a6d3b,transparent); }
+  .modal p { color:#e2d3ab; font-size:14px; line-height:1.9; letter-spacing:1px; }
+  .modal .sig { text-align:right; font-family:"Segoe Script","Brush Script MT",cursive; color:#c8a765; font-size:22px; margin-top:14px; }
+  .modal .btns { display:flex; gap:12px; margin-top:14px; justify-content:flex-end; }
+
+  /* 左下角装饰 */
+  .corner { position:absolute; left:28px; bottom:24px; z-index:35; display:flex; align-items:center; gap:12px; }
+  .legend-btn { width:40px; height:40px; border-radius:50%; background:#2e2214; border:1.5px solid #8a6d3b;
+    color:#e3cd97; font-size:20px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.5); }
+  .deco { font-size:44px; opacity:.22; filter:sepia(1); }
+</style>
+</head>
+<body>
+  <div class="map-lines"></div>
+
+  <!-- 顶栏 Row1 -->
+  <div class="topbar1">
+    <div class="plaque"><h1>推理战场</h1><div class="sub">血字的研究 · 1881</div></div>
+    <div class="diff-badge">难度 · 普通</div>
+    <div class="divider"></div>
+    <span class="tlabel">线型</span>
+    <button class="btn round active">─</button>
+    <button class="btn round">┄</button>
+    <div class="divider"></div>
+    <span class="tlabel">性质</span>
+    <button class="btn active"><span class="dot" style="background:#7fae5a"></span>支持</button>
+    <button class="btn"><span class="dot" style="background:#cf9440"></span>矛盾存疑</button>
+    <button class="btn"><span class="dot" style="background:#c25545"></span>反对</button>
+    <button class="btn"><span class="dot" style="background:#8b8578"></span>弱关联</button>
+    <div class="spacer"></div>
+    <button class="btn">● 人物星型</button>
+    <select class="select"><option>焦点 · 华生</option></select>
+    <button class="btn round">↶</button>
+    <button class="btn round">↷</button>
+    <button class="btn red">提交验证</button>
+    <button class="btn">求助</button>
+    <button class="btn">适应</button>
+    <button class="btn">自动排列</button>
+  </div>
+
+  <!-- 顶栏 Row2 -->
+  <div class="topbar2">
+    <div class="search"><span class="mag">🔍</span><input placeholder="搜索 线索 / 推断 / 人物 ..."></div>
+    <select class="select"><option>按标记过滤 · 全部</option></select>
+    <div class="spacer"></div>
+    <button class="btn">折叠</button>
+    <button class="btn">导出</button>
+    <button class="btn">存档导出</button>
+  </div>
+
+  <!-- 左栏 -->
+  <div class="sidebar">
+    <span class="badge">线索 5 / 8 已收集</span>
+    <div class="clue-card done">在热带长期服役的痕迹<div class="tag">已锁定</div></div>
+    <div class="clue-card dim">阿富汗战场旧伤</div>
+    <div class="clue-card">军医职业背景</div>
+    <div class="clue-card">手腕皮肤晒痕分界</div>
+    <div class="clue-card">左臂僵硬旧患</div>
+  </div>
+
+  <!-- 画布 -->
+  <div class="canvas">
+    <svg class="wires" viewBox="0 0 1650 928" fill="none">
+      <!-- 华生 → 阿富汗旧伤 -->
+      <path d="M 92 470 C 130 470, 140 470, 168 470" stroke="#b08d4f" stroke-width="2.2"/>
+      <!-- 阿富汗旧伤 → 3 推断 -->
+      <path d="M 292 456 C 340 456, 350 210, 396 210" stroke="#b08d4f" stroke-width="2.2"/>
+      <path d="M 292 470 C 340 470, 350 470, 396 470" stroke="#b08d4f" stroke-width="2.2"/>
+      <path d="M 292 484 C 340 484, 350 730, 396 730" stroke="#b08d4f" stroke-width="2.2"/>
+      <!-- 在热带待过 → 被晒黑的 -->
+      <path d="M 522 196 C 560 196, 570 130, 606 130" stroke="#b08d4f" stroke-width="2.2"/>
+      <!-- 受过伤 → 大蒜气味 / 左臂僵硬绿条 -->
+      <path d="M 522 470 C 560 470, 570 300, 606 300" stroke="#b08d4f" stroke-width="2.2"/>
+      <!-- 军医 → 从事医学 / 当过兵 -->
+      <path d="M 522 744 C 560 744, 570 640, 606 640" stroke="#b08d4f" stroke-width="2.2"/>
+      <path d="M 522 758 C 560 758, 570 800, 606 800" stroke="#b08d4f" stroke-width="2.2"/>
+      <!-- 蓝 → 绿条（斜向自然连线） -->
+      <path d="M 732 116 C 800 116, 830 70, 900 70" stroke="#b08d4f" stroke-width="2"/>
+      <path d="M 732 130 C 810 130, 840 190, 900 190" stroke="#b08d4f" stroke-width="2"/>
+      <path d="M 732 300 C 800 300, 830 310, 900 310" stroke="#b08d4f" stroke-width="2"/>
+      <path d="M 732 626 C 800 626, 830 550, 900 550" stroke="#b08d4f" stroke-width="2"/>
+      <path d="M 732 640 C 810 640, 840 430, 900 430" stroke="#b08d4f" stroke-width="2"/>
+      <path d="M 732 812 C 810 812, 840 730, 900 730" stroke="#b08d4f" stroke-width="2"/>
+    </svg>
+
+    <!-- 第一层：人物 -->
+    <div class="card c-person" style="left:34px; top:422px;"><div class="inner">华生</div></div>
+    <!-- 第二层：线索 -->
+    <div class="card c-clue" style="left:168px; top:442px;"><span class="pin"></span><div class="inner">阿富汗旧伤</div></div>
+    <!-- 第三层：推断（棕） -->
+    <div class="card c-clue" style="left:398px; top:182px;"><span class="pin"></span><div class="inner">在热带待过</div></div>
+    <div class="card c-clue" style="left:398px; top:442px;"><div class="inner">受过伤</div></div>
+    <div class="card c-clue" style="left:398px; top:702px;"><div class="inner">军医</div></div>
+    <!-- 第四层：推断（蓝灰） -->
+    <div class="card c-hypo" style="left:608px; top:102px;"><div class="inner">被晒黑的</div></div>
+    <div class="card c-hypo" style="left:608px; top:272px;"><div class="inner">大蒜气味</div></div>
+    <div class="card c-hypo" style="left:608px; top:612px;"><span class="pin"></span><div class="inner">从事医学工作</div></div>
+    <div class="card c-hypo" style="left:608px; top:784px;"><div class="inner">当过兵</div></div>
+    <!-- 第五层：结论（绿横条） -->
+    <div class="card c-concl" style="left:900px; top:47px;"><div class="inner">华生脸色黝黑</div></div>
+    <div class="card c-concl" style="left:900px; top:167px;"><div class="inner">华生手腕色分界</div></div>
+    <div class="card c-concl" style="left:900px; top:287px;"><div class="inner">华生左臂僵硬</div></div>
+    <div class="card c-concl" style="left:900px; top:407px;"><div class="inner">华生面部憔悴</div></div>
+    <div class="card c-concl" style="left:900px; top:527px;"><div class="inner">身上有消毒液气味</div></div>
+    <div class="card c-concl" style="left:900px; top:707px;"><div class="inner">华生站姿军人气质</div></div>
+    <!-- 悬停边的关系标签 -->
+    <div class="edge-tag" style="left:740px; top:255px;">支 撑</div>
+  </div>
+
+  <!-- 评价弹窗 -->
+  <div class="modal">
+    <h2>推理结论</h2>
+    <p>当前推理：华生曾赴阿富汗服役，旧伤未愈。皮肤晒痕与消毒液气味相互印证，足以确定其军医身份与战场经历。</p>
+    <div class="sig">Sherlock Holmes</div>
+    <div class="btns"><button class="btn">继续推理</button><button class="btn red">确认评价</button></div>
+  </div>
+
+  <!-- 左下角 -->
+  <div class="corner"><div class="legend-btn">?</div><div class="deco">🔍</div></div>
+</body>
+</html>
