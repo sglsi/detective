@@ -103,6 +103,7 @@ func _ready() -> void:
 	# 故改用：①JS 在真实手势调用栈内 resume ctx；②GDScript 每帧轮询 ctx.state，一旦 running 立即
 	# 解锁并补播（不再依赖 _input）。两条路径并存，互不冲突。
 	set_process_input(true)
+	set_process(true)
 	if OS.has_feature("web"):
 		var js := """
 (function(){
@@ -127,7 +128,6 @@ func _ready() -> void:
 })();
 """
 		JavaScriptBridge.eval(js)
-		set_process(true)
 
 ## Web 音频解锁轮询：GDScript 直接探测 AudioContext 状态，一旦 running 立即解锁并补播。
 ## 不依赖 _input（预览 iframe 下 _input 常收不到），根治"ctx 已 resume 但 BGM 没 play"的静音。
@@ -137,8 +137,42 @@ func _ready() -> void:
 var _poll_accum := 0.0
 var _since_ready := 0.0
 const FORCE_UNLOCK_AFTER := 6.0
+## 焦点感知：只有正在被操作的窗口/标签页才出声，后台实例自动静音。
+## 解决同一游戏开多份（多标签页 / 预览面板 / 后台窗口）时声音叠加、且刷新当前页
+## 也消不掉其他实例声音的问题。
+var _focus_accum := 0.0
+var _last_focus := true
+
+func _set_app_focused(on: bool) -> void:
+	if on == _last_focus:
+		return
+	_last_focus = on
+	if bgm_player != null and bgm_player.playing:
+		bgm_player.stream_paused = not on
+	print("[Audio] 焦点变化 focused=", on, " -> BGM paused=", not on)
+
+## 通用路径：引擎应用焦点通知（桌面端/导出版均生效）
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		_set_app_focused(true)
+	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_set_app_focused(false)
+
+## Web 兜底：iframe/预览面板下引擎通知未必可靠，直接问页面 document.hasFocus()
+func _check_focus_pause(delta: float) -> void:
+	_focus_accum += delta
+	if _focus_accum < 0.4:
+		return
+	_focus_accum = 0.0
+	var raw = JavaScriptBridge.eval("document.hasFocus()", true)
+	_set_app_focused(bool(raw))
+
 func _process(delta: float) -> void:
-	if _audio_unlocked or not OS.has_feature("web"):
+	if not OS.has_feature("web"):
+		set_process(false)
+		return
+	_check_focus_pause(delta)
+	if _audio_unlocked:
 		return
 	_poll_accum += delta
 	_since_ready += delta
