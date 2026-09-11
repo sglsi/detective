@@ -47,7 +47,7 @@ func play_stinger(id: String) -> void:
 func _on_clue_recorded(_clue_id: String) -> void:
 	play_stinger("clue_found")
 
-## 首次用户手势 → 解锁音频上下文并补播待定 BGM（规避浏览器自动播放拦截）
+## 首次用户手势 → 解锁音频上下文并补播待定 BGM（作为 JS 轮询之外的兜底路径）
 func _input(event: InputEvent) -> void:
 	if _audio_unlocked:
 		return
@@ -81,28 +81,53 @@ func _ready() -> void:
 	# 线索被正式记录 → 触发「发现线索」stinger
 	if is_instance_valid(ClueEventBus):
 		ClueEventBus.clue_recorded.connect(_on_clue_recorded)
-	# 监听首次用户手势以解锁 Web 音频（规避浏览器自动播放拦截）
+	# Web 音频根治（v3 健壮方案）：
+	# 浏览器要求用户手势后才能 resume AudioContext；Godot 4.7 的 index.js 自身不注册任何输入监听
+	# 来 resume，完全靠我们注入 DOM 级手势监听。但旧方案里 GDScript 仅靠 _input 翻转 _audio_unlocked，
+	# 在预览 iframe 下 _input 常收不到 → ctx 已被 resume、BGM 却从未 play() → 全程静音。
+	# 故改用：①JS 在真实手势调用栈内 resume ctx；②GDScript 每帧轮询 ctx.state，一旦 running 立即
+	# 解锁并补播（不再依赖 _input）。两条路径并存，互不冲突。
 	set_process_input(true)
-	# Web 端音频根治：Godot 仅在自身处理到输入事件时才 resume AudioContext，
-	# 若 canvas 焦点/iframe 手势未传到 Godot 输入循环，ctx 会一直 suspended → 全程静音。
-	# 因此直接在 DOM 层用真实用户手势 resume Godot 的 AudioContext（页面全局 GodotAudio.ctx），
-	# 该监听不受 Godot 输入焦点影响，且必在手势调用栈内，浏览器允许 resume。
 	if OS.has_feature("web"):
 		var js := """
 (function(){
-	function __resumeGodotAudio(){
-		try {
-			if (window.GodotAudio && GodotAudio.ctx && GodotAudio.ctx.state !== 'running') {
-				GodotAudio.ctx.resume();
-			}
-		} catch(e){}
-	}
-	['pointerdown','mousedown','keydown','touchstart'].forEach(function(ev){
-		window.addEventListener(ev, __resumeGodotAudio);
-	});
+  function __godotResume(){
+    try {
+      if (window.GodotAudio && GodotAudio.ctx && GodotAudio.ctx.state !== 'running') {
+        GodotAudio.ctx.resume();
+        console.log('[Audio] GodotAudio.ctx.resume() ->', GodotAudio.ctx.state);
+      }
+    } catch(e){ console.log('[Audio] resume error', e); }
+  }
+  ['pointerdown','mousedown','keydown','touchstart'].forEach(function(ev){
+    window.addEventListener(ev, __godotResume, {capture:true});
+  });
+  window.__godotAudioState = function(){
+    try {
+      if (window.GodotAudio && GodotAudio.ctx) return GodotAudio.ctx.state;
+    } catch(e){}
+    return 'no-ctx';
+  };
+  console.log('[Audio] Web audio unlock injected');
 })();
 """
 		JavaScriptBridge.eval(js)
+		set_process(true)
+
+## Web 音频解锁轮询：GDScript 直接探测 AudioContext 状态，一旦 running 立即解锁并补播。
+## 不依赖 _input（预览 iframe 下 _input 常收不到），根治"ctx 已 resume 但 BGM 没 play"的静音。
+var _poll_accum := 0.0
+func _process(delta: float) -> void:
+	if _audio_unlocked or not OS.has_feature("web"):
+		return
+	_poll_accum += delta
+	if _poll_accum < 0.2:
+		return
+	_poll_accum = 0.0
+	var st = JavaScriptBridge.eval("window.__godotAudioState ? window.__godotAudioState() : 'no-bridge'", true)
+	if st == "running":
+		print("[Audio] ctx running detected -> unlock & play pending: ", _pending_bgm)
+		_unlock_audio()
 func play_bgm(bgm_path: String, fade_in: float = 1.0) -> void:
 	# Web 自动播放策略：首次用户手势前不真正播放，仅记录期望 BGM，待解锁后补播
 	if not _audio_unlocked:
@@ -113,8 +138,12 @@ func play_bgm(bgm_path: String, fade_in: float = 1.0) -> void:
 	current_bgm = bgm_path
 	var path = "res://assets/audio/bgm/%s" % bgm_path
 	if not ResourceLoader.exists(path):
+		push_warning("[Audio] BGM 资源缺失: " + path)
 		return
 	var stream = load(path)
+	if stream == null:
+		push_warning("[Audio] BGM 加载失败: " + path)
+		return
 	if stream:
 		bgm_player.stream = stream
 		# Godot 4.7：循环由流资源自身控制（AudioStreamPlayer 已无 loop 属性）
