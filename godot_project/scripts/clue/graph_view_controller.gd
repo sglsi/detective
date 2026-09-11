@@ -2619,7 +2619,7 @@ func snapshot_player_work() -> Dictionary:
 	# 玩家自定义结论（custom_N）在验证时与正确推理链的结论做方向性比对：命中则别名成
 	# conclusion_X，使布局树/评分引擎/边判定全部复用现有逻辑（与预设结论零分叉）。
 	# 判定规则：同 dir（affirm/negate）+ 文本/subject/object 命中（见 _match_conclusion）。
-	var custom_alias: Dictionary = {}      # "custom_N" -> "conclusion_X"
+	var custom_alias: Dictionary = {}      # 别名键含两种形态：derived 记录的 "custom_N" 与节点 id "conclusion_custom_N"
 	for dc in _derived_conclusions:
 		var cid: String = str(dc.get("id", ""))
 		if not cid.begins_with("custom"):
@@ -2627,8 +2627,12 @@ func snapshot_player_work() -> Dictionary:
 		var ctext: String = str(dc.get("text", ""))
 		var cdir: String = str(dc.get("dir", _derive_dir(ctext, [])))
 		var matched: String = _match_conclusion(ctext, cdir)
-		if matched != "":
-			custom_alias[cid] = "conclusion_" + matched
+		# 统一成「节点 id 形态」，使 derived 记录 id 与关系 from/to 对齐（否则困难模式「证据支撑度」
+		# 按 player_concl_id 反查支撑边时对不上 → 玩家自定义结论白写、拿不到证据分）：
+		#   命中真相 → conclusion_<真相id>；未命中 → conclusion_<custom_N>（沿用自定义节点 id）。
+		var target_id: String = ("conclusion_" + matched) if matched != "" else ("conclusion_" + cid)
+		custom_alias[cid] = target_id
+		custom_alias["conclusion_" + cid] = target_id
 	if not custom_alias.is_empty():
 		var cons2: Array = []
 		for dc in cons:
@@ -2884,6 +2888,47 @@ func _derive_hypo(cid: String, hid: String) -> void:
 			break
 	if _has_cand:
 		call_deferred("_open_conclusion_choice", hid)
+
+
+## 困难模式：拖线索 → 玩家手写推断（自由文本），生成「推断」文本框并把线索连到它。
+## 生成的节点 id 形如 note_hypo_N（与顶栏「添文本框」同构，困难模式评价引擎按 kind=hypo + text 计入）。
+## 建边方向 = from=线索(子/前提) → to=推断(父/结论方向)，绿实线 support，与其余推导路径一致。
+## 落尾自动打开「自定义结论」输入窗（可取消），把 线索→推断→结论 三步串成一条顺滑链路。
+func _derive_hypo_custom(cid: String, text: String) -> void:
+	if _state != State.EDITABLE:
+		_ui_toast("推理墙已封存，仅可浏览")
+		return
+	var t2 := text.strip_edges()
+	if t2 == "":
+		_ui_toast("推断内容不能为空")
+		return
+	var seq: int = 0
+	var nid: String = ""
+	while true:
+		nid = "note_hypo_%d" % seq
+		var _dup: bool = _node_center.has(nid) or _graph_nodes.any(func(n): return str(n.get("id", "")) == nid)
+		if not _dup:
+			break
+		seq += 1
+	_graph_nodes.append({"id": nid, "kind": "hypo", "label": t2, "sub": "推断",
+		"data": {"correct": true, "player_made": true}})
+	# 锚定到来源线索落点，螺旋碰撞检测避免与现有节点叠加
+	var base: Vector2 = _node_center.get(cid, _canvas.size * 0.5)
+	var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "hypo", _node_center)
+	_node_center[nid] = pos
+	var nps: Dictionary = _state_store.get("graph_node_positions", {})
+	nps[nid] = pos
+	_state_store["graph_node_positions"] = nps
+	# 线索→推断 绿 support 边（属玩家「拖线索推导」的明确连线）
+	if cid != "" and not any_edge(cid, nid) and not _relations.any(func(r): return r.get("from", "") == cid and r.get("to", "") == nid):
+		_edge._add_edge(cid, nid, "support", "green", false)
+	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
+	_persist_view()
+	_rebuild_graph()
+	_focus_on(nid)
+	# 续接结论：困难模式无预设结论候选，直接开「自定义结论」输入窗（玩家可取消）
+	if _dockctl != null:
+		_dockctl.call_deferred("_open_custom_conclusion_popup", nid)
 
 
 ## 拖推断推导推断（方案B：推断可由多个推断/结论组合推得，如 W-C1+W-C2→W-C3）

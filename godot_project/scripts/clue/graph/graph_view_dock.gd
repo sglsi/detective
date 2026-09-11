@@ -349,17 +349,33 @@ func _open_derive_popup(cid: String) -> void:
 	owner._link_popup_clue_id = cid
 	var cands := _derive_candidates()
 	var _clue_name: String = owner._data._find_clue(cid).get("name", cid)
-	var _shell: Array = _popup_shell("由线索「%s」推导推断（任选其一）：" % _clue_name, Vector2(640, 520), Vector2(488, 420))
+	# 困难模式（无任何预设推断可列）→ 本窗改为「玩家手写推断」输入窗；有预设候选时维持原「任选其一」列表。
+	var _title: String = "由线索「%s」推导推断（任选其一）：" % _clue_name
+	if cands.is_empty():
+		_title = "由线索「%s」写下你的推断：" % _clue_name
+	var _shell: Array = _popup_shell(_title, Vector2(640, 520), Vector2(488, 420))
 	var popup: Control = _shell[0]
 	var panel: PanelContainer = _shell[1]
 	var vb: VBoxContainer = _shell[2]
+	var le: LineEdit = null
 	if cands.is_empty():
+		# 无预设推断可列（困难模式）→ 让玩家用自己的话写下推断；「下一步」生成推断文本框并自动续接结论输入。
 		var hint := Label.new()
-		hint.text = "该线索没有预设的可推导推断。可用「自定义连线…」手动建立关系，或用顶部按钮自行添加推断。"
+		hint.text = "本模式不提供预设推断。请根据这条线索，用自己的话写下你得到的推断："
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		hint.add_theme_font_size_override("font_size", 26)
+		hint.add_theme_font_size_override("font_size", 24)
 		hint.add_theme_color_override("font_color", owner.COL_GREY)
 		vb.add_child(hint)
+		le = LineEdit.new()
+		le.placeholder_text = "输入推断，例如：他的皮肤黝黑，说明他长期在户外暴晒…"
+		le.add_theme_font_size_override("font_size", 24)
+		vb.add_child(le)
+		var nxt := Button.new()
+		nxt.text = "下一步：推出结论 ▶"
+		nxt.add_theme_font_size_override("font_size", 26)
+		nxt.pressed.connect(_confirm_derive_custom.bind(cid, le))
+		vb.add_child(nxt)
+		le.text_submitted.connect(func(_t: String): _confirm_derive_custom(cid, le))
 	else:
 		for cnd in cands:
 			var hid: String = str(cnd.get("id", ""))
@@ -382,6 +398,18 @@ func _open_derive_popup(cid: String) -> void:
 	vb.add_child(cancel)
 	owner.add_child(popup)
 	owner._link_popup = popup
+	if le != null:
+		le.call_deferred("grab_focus")
+
+
+## 困难模式：确认玩家手写的推断文本 → 生成推断文本框（并自动续接结论输入窗）
+func _confirm_derive_custom(cid: String, le: LineEdit) -> void:
+	var text: String = le.text
+	if text.strip_edges() == "":
+		owner._ui_toast("推断内容不能为空")
+		return
+	_close_link_popup()
+	owner._derive_hypo_custom(cid, text)
 
 
 ## 候选口径：列出本场景全部（按难度可见的）预设推断，供玩家任选其一；
