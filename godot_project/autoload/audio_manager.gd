@@ -83,7 +83,26 @@ func _ready() -> void:
 		ClueEventBus.clue_recorded.connect(_on_clue_recorded)
 	# 监听首次用户手势以解锁 Web 音频（规避浏览器自动播放拦截）
 	set_process_input(true)
-
+	# Web 端音频根治：Godot 仅在自身处理到输入事件时才 resume AudioContext，
+	# 若 canvas 焦点/iframe 手势未传到 Godot 输入循环，ctx 会一直 suspended → 全程静音。
+	# 因此直接在 DOM 层用真实用户手势 resume Godot 的 AudioContext（页面全局 GodotAudio.ctx），
+	# 该监听不受 Godot 输入焦点影响，且必在手势调用栈内，浏览器允许 resume。
+	if OS.has_feature("web"):
+		var js := """
+(function(){
+	function __resumeGodotAudio(){
+		try {
+			if (window.GodotAudio && GodotAudio.ctx && GodotAudio.ctx.state !== 'running') {
+				GodotAudio.ctx.resume();
+			}
+		} catch(e){}
+	}
+	['pointerdown','mousedown','keydown','touchstart'].forEach(function(ev){
+		window.addEventListener(ev, __resumeGodotAudio);
+	});
+})();
+"""
+		JavaScriptBridge.eval(js)
 func play_bgm(bgm_path: String, fade_in: float = 1.0) -> void:
 	# Web 自动播放策略：首次用户手势前不真正播放，仅记录期望 BGM，待解锁后补播
 	if not _audio_unlocked:
