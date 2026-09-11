@@ -475,11 +475,27 @@ func _show_options() -> void:
 	f.add_child(sep)
 
 	var ph = Label.new()
-	ph.text = "    难度选择      普通 / 困难 / 简单\n\n    音效与音乐    即将开放\n\n    画面质量      自适应\n\n    语言          简体中文\n\n    操作说明      点击 / Enter 推进对话"
+	ph.text = "    难度选择      普通 / 困难 / 简单\n\n    画面质量      自适应\n\n    语言          简体中文\n\n    操作说明      点击 / Enter 推进对话"
 	ph.add_theme_font_size_override("font_size", 18)
 	ph.add_theme_color_override("font_color", Color(0.85, 0.78, 0.62))
-	ph.position = Vector2(40, 110); ph.size = Vector2(560, 280)
+	ph.position = Vector2(40, 110); ph.size = Vector2(560, 170)
 	f.add_child(ph)
+
+	# 音效与音乐：打开真实设置面板（音乐音量 / 音效音量 / 全屏），绑定 SettingsManager
+	var bsnd = mkbtn("音 效 与 音 乐 设 置", Vector2(120, 290), Vector2(400, 46), false, true)
+	bsnd.pressed.connect(func():
+		var sp_script = preload("res://scripts/ui/settings_panel.gd")
+		var sp = sp_script.new()
+		add_child(sp)
+	)
+	f.add_child(bsnd)
+
+	# 诊断入口：强制重播主菜单 BGM，用于确认音频链路（资源 / 总线 / 上下文）是否通畅
+	var btest = mkbtn("测 试 播 放 背 景 音 乐", Vector2(120, 345), Vector2(400, 46), false, true)
+	btest.pressed.connect(func():
+		AudioManager.play_scene_bgm("menu")
+	)
+	f.add_child(btest)
 
 	var bc = mkbtn("返    回", Vector2(180, 400), Vector2(280, 50), true)
 	BtnIconCenter.apply_center(bc, "res://assets/ui/icons/back_arrow.png", 26, 8)

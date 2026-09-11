@@ -116,17 +116,27 @@ func _ready() -> void:
 
 ## Web 音频解锁轮询：GDScript 直接探测 AudioContext 状态，一旦 running 立即解锁并补播。
 ## 不依赖 _input（预览 iframe 下 _input 常收不到），根治"ctx 已 resume 但 BGM 没 play"的静音。
+## Web 音频解锁轮询（v4）：GDScript 直接探测 AudioContext 状态，一旦 running 立即解锁并补播。
+## 不依赖 _input（预览 iframe 下 _input 常收不到），根治"ctx 已 resume 但 BGM 没 play"的静音。
+## 兜底：即便 JS 探测失效（返回 no-bridge），超时后也强制解锁并 play，避免永久静音死锁。
 var _poll_accum := 0.0
+var _since_ready := 0.0
+const FORCE_UNLOCK_AFTER := 12.0
 func _process(delta: float) -> void:
 	if _audio_unlocked or not OS.has_feature("web"):
 		return
 	_poll_accum += delta
+	_since_ready += delta
 	if _poll_accum < 0.2:
 		return
 	_poll_accum = 0.0
-	var st = JavaScriptBridge.eval("window.__godotAudioState ? window.__godotAudioState() : 'no-bridge'", true)
-	if st == "running":
-		print("[Audio] ctx running detected -> unlock & play pending: ", _pending_bgm)
+	# head_include 注入的探针（页面层，不依赖 JavaScriptBridge 注入时机）
+	var st = JavaScriptBridge.eval("window.__gdAudioState ? window.__gdAudioState() : 'no-bridge'", true)
+	if typeof(st) == TYPE_STRING and str(st).begins_with("running"):
+		print("[Audio] ctx running -> 解锁并补播: ", _pending_bgm)
+		_unlock_audio()
+	elif _since_ready > FORCE_UNLOCK_AFTER:
+		print("[Audio] 超时兜底解锁（ctx=", st, "）-> 强制播放: ", _pending_bgm)
 		_unlock_audio()
 func play_bgm(bgm_path: String, fade_in: float = 1.0) -> void:
 	# Web 自动播放策略：首次用户手势前不真正播放，仅记录期望 BGM，待解锁后补播
