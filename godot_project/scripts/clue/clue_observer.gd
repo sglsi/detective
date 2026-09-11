@@ -288,7 +288,31 @@ func _remove_clue_circle(clue_id: String) -> void:
 			continue
 		var c = parent.get_node_or_null("hl_" + clue_id)
 		if c != null:
+			_spawn_collect_burst(parent, c)
 			c.queue_free()
+
+## 取证即时反馈（Tier 1.5）：在原圆圈位置生成一圈快速扩散并淡出的光环，
+## 与 clue_found 音效同步给出明确正反馈。播放完自动释放，不参与任何逻辑判定。
+## 唯一调用点是 _close_zoom（线索成功收集时），故不会在清场/切阶段时误触发。
+func _spawn_collect_burst(parent: Node, circle: Node) -> void:
+	if parent == null or circle == null:
+		return
+	var rc = circle.get("_center")
+	if not (rc is Vector2):
+		return
+	var center: Vector2 = rc
+	var radius: float = float(circle.get("_radius"))
+	var raw_col = circle.get("_color")
+	var col: Color = raw_col if raw_col is Color else Color(0.98, 0.82, 0.30)
+	var burst := ClueHighlightCircle.new()
+	burst.setup(center, radius, col)
+	burst.name = "clue_burst"
+	burst.pivot_offset = center   # 以圆心为缩放原点，避免放大时整体偏移
+	parent.add_child(burst)
+	var tw := burst.create_tween()
+	tw.tween_property(burst, "scale", Vector2(2.0, 2.0), 0.36).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	tw.parallel().tween_property(burst, "modulate:a", 0.0, 0.36)
+	tw.tween_callback(burst.queue_free)
 
 ## 计算某锚点对应人物部位在立绘控件(_portrait_ctrl)局部坐标系中的矩形（命中区/圆圈共用）。
 ## 与 _mark_clue_at_anchor 完全一致的坐标推导，确保「可点击区」与「高亮圆圈」重合。

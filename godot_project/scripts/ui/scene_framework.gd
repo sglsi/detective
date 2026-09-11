@@ -17,6 +17,9 @@ const DIALOGUE_H := 230
 # 场景氛围配置（Tier 1 #4）：暗角 + 煤气灯暖光闪烁 + 雾 + 浮尘。
 # key = DetectiveScene.scene_id() 返回值（scene1 默认返回 "sceneX"，故单独配 "sceneX"）。
 # lamps 为「场景区域归一化 UV(0..1)」中的灯光位置（最多 2 盏）；fog_color 室内偏暖、室外/夜偏冷。
+## 背景交叉淡化时长（Tier 1.5：消除切图硬切）
+const BG_FADE_TIME := 0.35
+
 const SCENE_ATMOSPHERE := {
 	"scene1": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.50, 0.60), Vector2(0.80, 0.45)], "lamp_intensity": 1.1, "lamp_radius": 0.13, "dust": true},
 	"sceneX": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.50, 0.60), Vector2(0.80, 0.45)], "lamp_intensity": 1.1, "lamp_radius": 0.13, "dust": true},
@@ -73,6 +76,7 @@ const ATMOSPHERE_LAYER_SCRIPT := preload("res://scripts/background/atmosphere_la
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_all()
+	set_process(true)   # 镜头呼吸（Tier 1.5）需要每帧驱动
 
 func setup(location: String, time_str: String, bg_tex: Texture2D = null, portraits: Array = [], scene_id_arg: String = "") -> void:
 	# ⚠️ 关键时序修复：父节点（DetectiveScene）在自身 _ready 内 add_child 本框架后，
@@ -92,8 +96,16 @@ func setup(location: String, time_str: String, bg_tex: Texture2D = null, portrai
 
 func set_scene_background(tex: Texture2D) -> void:
 	if not _world: return
+	# 上一次的淡出残留先清掉，避免连续切图时堆积
+	var stale = _world.find_child("scene_bg_old", true, false)
+	if stale: stale.queue_free()
 	var existing = _world.find_child("scene_bg", true, false)
-	if existing: existing.queue_free()
+	if existing:
+		# 交叉淡化：旧背景改名后淡出，新背景同时淡入，消除切图硬切（Tier 1.5）
+		existing.name = "scene_bg_old"
+		var tout := create_tween()
+		tout.tween_property(existing, "modulate:a", 0.0, BG_FADE_TIME)
+		tout.tween_callback(existing.queue_free)
 	# 旧氛围层随背景一起清理，避免跨场景残留
 	var old_atmo = _world.find_child("atmosphere", true, false)
 	if old_atmo: old_atmo.queue_free()
@@ -107,9 +119,14 @@ func set_scene_background(tex: Texture2D) -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# 背景置于最底层，确保迷雾/灯光层（z_index=-5）叠在背景之上、人物立绘（z=0）之下。
 	bg.z_index = -10
+	if existing:
+		bg.modulate.a = 0.0
 	_world.add_child(bg)
 	_world.move_child(bg, 0)
 	_mag_bg = bg   # 供放大镜直接放大背景纹理
+	if existing:
+		var tin := create_tween()
+		tin.tween_property(bg, "modulate:a", 1.0, BG_FADE_TIME)
 	_apply_atmosphere()
 
 ## 按场景 id 从 SCENE_ATMOSPHERE 取配置并挂载氛围层（暗角/煤气灯闪烁/雾/浮尘）。
@@ -123,6 +140,10 @@ func _apply_atmosphere() -> void:
 	layer.configure(SCENE_ATMOSPHERE[_scene_id], _world.size)
 	_world.add_child(layer)
 	_world.move_child(layer, 1)   # 紧跟背景(bg 已移到 index 0)，立绘默认 z=0 在其上
+	# 氛围层同步淡入，避免随背景切换突然出现（Tier 1.5）
+	layer.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_property(layer, "modulate:a", 1.0, 0.5)
 	_atmosphere = layer
 
 func add_portrait(tex: Texture2D, name_text: String, pos: Vector2, size: Vector2, flip: bool = false) -> Control:
@@ -192,7 +213,7 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 						_speaker_portrait.position = Vector2(15, 5) + (box - Vector2(dw, dh)) * 0.5
 					POS_TR:  # 其他人物：立绘在框内右侧(220x220)居中
 						_speaker_portrait.position = Vector2(1920 - 15 - 220, 5) + (box - Vector2(dw, dh)) * 0.5
-				_animate_speaker_portrait(speaker, true)
+				_animate_speaker_portrait(speaker, true, mood)
 			match pos:
 				POS_BL:  # 名字框与正文在右侧、名字在正文上方（左对齐）
 					if _name_panel:
@@ -232,8 +253,13 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 				_dialogue_label.size = Vector2(1880, 168)
 
 # ===== 立绘 Juice：出场滑入 + 呼吸 bob（纯 Tween，零美术成本） =====
+## 情绪爆发触发的 mood：出现这些情绪时，立绘在落位后追加一次短促抖动（Tier 1.5）
+const BURST_MOODS: Array[String] = ["吃惊", "惊讶", "震惊", "愤怒", "激动", "恐惧", "焦急"]
+
 ## speaker 换人/换表情时调用：从侧边偏移 + 缩放 + 淡入回弹落位，随后启动持续呼吸 bob。
-func _animate_speaker_portrait(speaker: String, do_slide: bool) -> void:
+## mood 命中 BURST_MOODS 时追加「情绪爆发」：落位后来一段短促左右抖动（只改 position:x，
+## 与 bob 的 position:y 互不干扰，避免两个 Tween 争抢同一属性）。
+func _animate_speaker_portrait(speaker: String, do_slide: bool, mood: String = "") -> void:
 	if not _speaker_portrait or not _speaker_portrait.visible:
 		return
 	_portrait_base_pos = _speaker_portrait.position
@@ -251,6 +277,16 @@ func _animate_speaker_portrait(speaker: String, do_slide: bool) -> void:
 		_portrait_slide_tween.tween_property(_speaker_portrait, "position:x", _portrait_base_pos.x, 0.34).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 		_portrait_slide_tween.parallel().tween_property(_speaker_portrait, "modulate:a", 1.0, 0.26)
 		_portrait_slide_tween.parallel().tween_property(_speaker_portrait, "scale", Vector2.ONE, 0.34).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	# 情绪爆发（Tier 1.5）：落位后短促左右抖动，强化震惊/愤怒类情绪的戏剧张力。
+	# 只动 position:x —— bob 只动 position:y，两者不争抢属性，不会互相打断。
+	if BURST_MOODS.has(mood):
+		var bx: float = _portrait_base_pos.x
+		var bt := create_tween()
+		bt.tween_interval(0.30)
+		bt.tween_property(_speaker_portrait, "position:x", bx + 7.0, 0.05)
+		bt.tween_property(_speaker_portrait, "position:x", bx - 6.0, 0.05)
+		bt.tween_property(_speaker_portrait, "position:x", bx + 4.0, 0.05)
+		bt.tween_property(_speaker_portrait, "position:x", bx, 0.06)
 	# 呼吸 bob（持续循环）：position.y 上下微浮 + scale.y 轻微呼吸
 	_portrait_bob_tween = create_tween().set_loops()
 	var by := _portrait_base_pos.y - 4.0
@@ -945,6 +981,25 @@ func focus_world_point(world_pt: Vector2, zoom: float) -> void:
 	var center_local := _scene_area.size * 0.5
 	var target_pos := center_local - world_pt * zoom
 	_tween_camera(target_pos, Vector2(zoom, zoom))
+
+## 镜头呼吸（Tier 1.5）：统览态下让画面做极缓慢的缩放起伏，避免画面像一张死图。
+## 触发条件刻意收紧，防止与玩家操作/推镜打架：
+##   ① 相机启用且未在拖拽  ② 无正在运行的相机 Tween（推近/复位期间不介入）
+##   ③ 仅统览态（zoom≈1）  ④ 幅度极小（±0.5%）——肉眼几乎察觉不到，但画面"活"了
+var _cam_breath_t := 0.0
+const CAM_BREATH_AMP := 0.005
+const CAM_BREATH_PERIOD := 9.0
+func _process(delta: float) -> void:
+	_update_camera_breath(delta)
+
+func _update_camera_breath(delta: float) -> void:
+	if not _world: return
+	if not _camera_enabled or _camera_panning: return
+	if _camera_tween != null and _camera_tween.is_valid() and _camera_tween.is_running(): return
+	if absf(_camera_zoom - CAM_OVERVIEW_ZOOM) > 0.02: return
+	_cam_breath_t += delta
+	var b: float = 1.0 + CAM_BREATH_AMP * sin(_cam_breath_t * TAU / CAM_BREATH_PERIOD)
+	_world.scale = Vector2(b, b)
 
 ## 回到统览态（zoom=1, position=0）
 func reset_camera() -> void:
