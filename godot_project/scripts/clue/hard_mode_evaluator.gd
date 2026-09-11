@@ -54,8 +54,9 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 	for gn in graph_nodes:
 		var gkind: String = str(gn.get("kind", ""))
 		var gid: String = str(gn.get("id", ""))
-		if gid.begins_with("note_"):
-			continue
+		# 玩家「添文本框」新增的节点 id 形如 note_conclusion_0 / note_hypo_0，它们即是玩家在困难模式下的
+		# 全部推理贡献（困难模式不预设任何推断，玩家须自行用文本框搭建）。旧代码曾以 note_ 前缀整段跳过 → 四维全 0、0★。
+		# 项目内 note_ 前缀仅用于玩家文本框（add_text_node / restore_text_node），无系统占位节点，故不再跳过。
 		if gkind == "conclusion":
 			player_concl_texts.append(str(gn.get("text", "")))
 			player_concl_ids.append(gid)
