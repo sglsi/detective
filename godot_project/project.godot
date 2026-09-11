@@ -55,7 +55,7 @@ SceneLoader="*res://autoload/scene_loader.gd"
 
 [audio]
 
-buses/bus_layout="res://default_bus_layout.tres"
+bus_layout="res://default_bus_layout.tres"
 
 [display]
 

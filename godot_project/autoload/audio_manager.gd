@@ -8,6 +8,11 @@ var bgm_player: AudioStreamPlayer
 var sfx_player: AudioStreamPlayer
 var ambient_player: AudioStreamPlayer
 
+## Web 音频自动播放策略：浏览器要求在用户手势后才能启动 AudioContext。
+## 因此在首次手势前不真正 play，只记录"期望播放的 BGM"，待解锁后补播。
+var _audio_unlocked := false
+var _pending_bgm := ""
+
 ## 场景/流程节点 → BGM 文件名（位于 res://assets/audio/bgm/）
 ## 注：scene1 未覆盖 scene_id()，基类默认返回 "sceneX"，故以此键映射教学关 BGM。
 const SCENE_BGM := {
@@ -42,6 +47,25 @@ func play_stinger(id: String) -> void:
 func _on_clue_recorded(_clue_id: String) -> void:
 	play_stinger("clue_found")
 
+## 首次用户手势 → 解锁音频上下文并补播待定 BGM（规避浏览器自动播放拦截）
+func _input(event: InputEvent) -> void:
+	if _audio_unlocked:
+		return
+	var gesture := false
+	if event is InputEventMouseButton:
+		gesture = (event as InputEventMouseButton).pressed
+	elif event is InputEventKey:
+		gesture = (event as InputEventKey).pressed
+	if gesture:
+		_unlock_audio()
+
+func _unlock_audio() -> void:
+	_audio_unlocked = true
+	if _pending_bgm != "":
+		var p := _pending_bgm
+		_pending_bgm = ""
+		play_bgm(p, 1.5)
+
 func _ready() -> void:
 	bgm_player = AudioStreamPlayer.new()
 	sfx_player = AudioStreamPlayer.new()
@@ -57,8 +81,14 @@ func _ready() -> void:
 	# 线索被正式记录 → 触发「发现线索」stinger
 	if is_instance_valid(ClueEventBus):
 		ClueEventBus.clue_recorded.connect(_on_clue_recorded)
+	# 监听首次用户手势以解锁 Web 音频（规避浏览器自动播放拦截）
+	set_process_input(true)
 
 func play_bgm(bgm_path: String, fade_in: float = 1.0) -> void:
+	# Web 自动播放策略：首次用户手势前不真正播放，仅记录期望 BGM，待解锁后补播
+	if not _audio_unlocked:
+		_pending_bgm = bgm_path
+		return
 	if current_bgm == bgm_path:
 		return
 	current_bgm = bgm_path
