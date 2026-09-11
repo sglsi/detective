@@ -33,6 +33,8 @@ const GraphViewEdge = preload("res://scripts/clue/graph/graph_view_edge.gd")
 var _edge: GraphViewEdge
 const GraphViewDock = preload("res://scripts/clue/graph/graph_view_dock.gd")
 var _dockctl: GraphViewDock   # 左线索栏 dock 逻辑（注意：_dock 已用于线索栏 UI 节点本体）
+# 结论文本宽容匹配（与 HardModeEvaluator 共用同一实现，避免口径漂移）
+const ConclusionMatcher = preload("res://scripts/clue/conclusion_matcher.gd")
 
 # === 入参数据（由推理墙传入，本控制器只读 + 通过回调回写）===
 var _clues: Array = []
@@ -2657,8 +2659,8 @@ func snapshot_player_work() -> Dictionary:
 
 
 ## 困难模式自定义结论匹配：玩家自由文本 → 真相结论 id（方向性一致才判对）。
-## 命中阈值 0.5；优先 match_keys（作者写的可接受表述），回退 subject/object/结论文本 关键词重叠。
-const _CONCL_MATCH_THRESHOLD := 0.5
+## 命中阈值 0.45；宽容口径（match_keys 字面 + 概念 F1 + 实词 Dice + subject/object 重叠）见 conclusion_matcher.gd。
+const _CONCL_MATCH_THRESHOLD := ConclusionMatcher.MATCH_THRESHOLD
 func _match_conclusion(text: String, dir_hint: String = "") -> String:
 	var t: String = text.strip_edges().to_lower()
 	if t == "":
@@ -2680,31 +2682,8 @@ func _match_conclusion(text: String, dir_hint: String = "") -> String:
 
 
 func _conclusion_text_match(t: String, c: Dictionary) -> float:
-	var best := 0.0
-	for k in c.get("match_keys", []):
-		var kk: String = str(k).to_lower()
-		if kk == "":
-			continue
-		if t == kk:
-			return 1.0
-		if t.find(kk) >= 0 or kk.find(t) >= 0:
-			best = maxf(best, 0.8)
-	var total := 0
-	var hits := 0
-	for ssub in c.get("subject", []):
-		total += 1
-		if t.find(str(ssub).to_lower()) >= 0:
-			hits += 1
-	for sobj in c.get("object", []):
-		total += 1
-		if t.find(str(sobj).to_lower()) >= 0:
-			hits += 1
-	if total > 0:
-		best = maxf(best, float(hits) / float(total))
-	var ctext: String = str(c.get("text", "")).to_lower()
-	if ctext != "" and (t.find(ctext) >= 0 or ctext.find(t) >= 0):
-		best = maxf(best, 0.7)
-	return best
+	# 宽容匹配口径统一在 conclusion_matcher.gd；此处仅转发（与 HardModeEvaluator 同源）。
+	return ConclusionMatcher.score(t, c)
 
 
 func _node_label(id: String) -> String:

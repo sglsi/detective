@@ -26,6 +26,7 @@ class_name HardModeEvaluator
 
 const RC := preload("res://data/reasoning_chains.gd")
 const Truth = preload("res://data/case_branch_truth.gd")
+const CM := preload("res://scripts/clue/conclusion_matcher.gd")   # 结论文本宽容匹配（单一事实源）
 
 # 维度权重（用户裁定：结论35 / 证据25 / 结构20 / 步骤20）
 const W_CONCLUSION := 0.35
@@ -38,7 +39,7 @@ const STAR_3 := 0.80
 const STAR_2 := 0.55
 const STAR_1 := 0.25
 
-const CONCL_MATCH_THRESHOLD := 0.5
+const CONCL_MATCH_THRESHOLD := CM.MATCH_THRESHOLD   # 与宽容匹配器同源（0.45）
 
 
 ## 主入口（与 WallBranchEvaluator.evaluate 同签名，便于 wall_state 接线）。
@@ -299,36 +300,10 @@ static func _match_concept_ids(t_in: String, concept_dict: Dictionary) -> Array:
 	return out
 
 
-## 结论文本 → 真相结论匹配分（复用 graph_view_controller._conclusion_text_match 口径）。
+## 结论文本 → 真相结论匹配分。宽容口径统一在 conclusion_matcher.gd（单一事实源），
+## 此处仅转发，避免与 graph_view_controller 两处口径漂移。
 static func _match_conclusion_text(t_in: String, c: Dictionary) -> float:
-	var t: String = str(t_in).strip_edges().to_lower()
-	if t == "":
-		return 0.0
-	var best: float = 0.0
-	for k in c.get("match_keys", []):
-		var kk: String = str(k).to_lower()
-		if kk == "":
-			continue
-		if t == kk:
-			return 1.0
-		if t.find(kk) >= 0 or kk.find(t) >= 0:
-			best = maxf(best, 0.8)
-	var total: int = 0
-	var hits: int = 0
-	for ssub in c.get("subject", []):
-		total += 1
-		if t.find(str(ssub).to_lower()) >= 0:
-			hits += 1
-	for sobj in c.get("object", []):
-		total += 1
-		if t.find(str(sobj).to_lower()) >= 0:
-			hits += 1
-	if total > 0:
-		best = maxf(best, float(hits) / float(total))
-	var ctext: String = str(c.get("text", "")).to_lower()
-	if ctext != "" and (t.find(ctext) >= 0 or ctext.find(t) >= 0):
-		best = maxf(best, 0.7)
-	return best
+	return CM.score(t_in, c)
 
 
 # ===================== 图形态辅助 =====================
