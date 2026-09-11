@@ -61,10 +61,20 @@ func _input(event: InputEvent) -> void:
 
 func _unlock_audio() -> void:
 	_audio_unlocked = true
+	# 1.5 秒后打印一次音频树诊断（播放状态 / 音量 / 总线 / 静音），便于远程定位无声
+	get_tree().create_timer(1.5).timeout.connect(_print_audio_diag)
 	if _pending_bgm != "":
 		var p := _pending_bgm
 		_pending_bgm = ""
 		play_bgm(p, 1.5)
+
+func _print_audio_diag() -> void:
+	var music_idx := AudioServer.get_bus_index("Music")
+	print("[Audio][diag] playing=", bgm_player.playing,
+		" player_vol_db=", bgm_player.volume_db,
+		" stream_ok=", bgm_player.stream != null,
+		" music_bus_db=", AudioServer.get_bus_volume_db(music_idx) if music_idx >= 0 else -999.0,
+		" music_mute=", AudioServer.is_bus_mute(music_idx) if music_idx >= 0 else true)
 
 func _ready() -> void:
 	bgm_player = AudioStreamPlayer.new()
@@ -157,9 +167,15 @@ func play_bgm(bgm_path: String, fade_in: float = 1.0) -> void:
 		return
 	if stream:
 		bgm_player.stream = stream
-		# Godot 4.7：循环由流资源自身控制（AudioStreamPlayer 已无 loop 属性）
+		# Godot 4.7：循环由流资源自身控制（AudioStreamPlayer 已无 loop 属性）。
+		# ⚠️ 坑：AudioStreamWAV.loop_end 默认为 0，只设 loop_mode=LOOP_FORWARD 会让播放头
+		# 立即循环回第 0 帧 → 声音卡死成静音（ctx running 却无声的元凶）。必须显式设 loop_end。
 		if stream is AudioStreamWAV:
-			stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			var wav := stream as AudioStreamWAV
+			wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			wav.loop_begin = 0
+			var bytes_per_frame := 2 * (2 if wav.stereo else 1)  # FORMAT_16_BITS
+			wav.loop_end = wav.data.size() / bytes_per_frame
 		if fade_in > 0.0:
 			# 淡入：从静音(-80dB) tween 到满音量(0dB)
 			bgm_player.volume_db = -80.0
