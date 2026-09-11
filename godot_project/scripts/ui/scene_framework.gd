@@ -465,7 +465,10 @@ func _build_top_bar() -> void:
 	for i in navs.size():
 		var n = navs[i]
 		var btn = _make_nav_button(n, nav_x0 + i * 110, nav_y, 106, nav_h)
-		btn.pressed.connect(func(nid=n["id"]): nav_clicked.emit(nid))
+		btn.pressed.connect(func(nid=n["id"]):
+			AudioManager.play_ui_sfx("click")
+			nav_clicked.emit(nid)
+		)
 		_top_bar.add_child(btn)
 		_nav_btns[n["id"]] = btn
 
@@ -596,7 +599,10 @@ func _build_left_bar() -> void:
 		var btn = _make_action_button(a, btn_w, btn_h, i)
 		btn.custom_minimum_size = Vector2(btn_w, btn_h)
 		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		btn.pressed.connect(func(aid=a["id"]): action_clicked.emit(aid))
+		btn.pressed.connect(func(aid=a["id"]):
+			AudioManager.play_ui_sfx("click")
+			action_clicked.emit(aid)
+		)
 		vb.add_child(btn)
 		_action_btns[a["id"]] = btn
 

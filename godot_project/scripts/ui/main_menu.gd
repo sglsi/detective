@@ -168,6 +168,8 @@ func mkbtn(text: String, pos: Vector2, sz: Vector2, primary: bool, small := fals
 	btn.add_theme_stylebox_override("hover", sh)
 	btn.add_theme_stylebox_override("pressed", sp)
 	btn.add_theme_stylebox_override("focus", sh)
+	# 统一的按钮点击音效（所有主菜单按钮自动带上，无需逐个接线）
+	btn.pressed.connect(func(): AudioManager.play_ui_sfx("click"))
 	return btn
 
 # -- 开始游戏流程 --

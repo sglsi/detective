@@ -32,6 +32,11 @@ const STINGERS := {
 	"wall_conflict": "wall_conflict.wav",
 	"reveal": "reveal.wav",
 }
+## UI 交互音效（按钮点击等）；资源由 tools/gen_placeholder_audio.py 生成
+const UI_SFX := {
+	"click": "ui_click.wav",
+	"hover": "ui_hover.wav",
+}
 
 ## 按场景/流程 id 播放对应 BGM（带淡入）；id 未知则忽略
 func play_scene_bgm(id: String) -> void:
@@ -204,14 +209,26 @@ func _fade_volume(player: AudioStreamPlayer, to_db: float, duration: float) -> T
 	tw.tween_property(player, "volume_db", to_db, duration)
 	return tw
 
+## 播放 UI 交互音效（如按钮点击）
+func play_ui_sfx(id: String) -> void:
+	if UI_SFX.has(id):
+		play_sfx(UI_SFX[id])
+
+## 播放一次性音效。用独立播放器而非共享 sfx_player：
+## UI 连点不会互相打断/截断 stinger，短促音效得以完整播完。
 func play_sfx(sfx_path: String) -> void:
 	var path = "res://assets/audio/sfx/%s" % sfx_path
 	if not ResourceLoader.exists(path):
 		return
 	var stream = load(path)
-	if stream:
-		sfx_player.stream = stream
-		sfx_player.play()
+	if stream == null:
+		return
+	var p := AudioStreamPlayer.new()
+	p.bus = "SFX"
+	p.stream = stream
+	p.finished.connect(p.queue_free)
+	add_child(p)
+	p.play()
 
 func play_ambient(ambient_path: String) -> void:
 	var path = "res://assets/audio/sfx/%s" % ambient_path
