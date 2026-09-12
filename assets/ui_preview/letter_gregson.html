@@ -6,66 +6,106 @@
 @font-face { font-family:'MSZ'; src:url('file:///tmp/MaShanZheng.ttf') format('truetype'); }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { width:1400px; height:2000px; overflow:hidden; }
-.sheet {
-  position:relative; width:1400px; height:2000px;
+.sheet { position:relative; width:1400px; height:2000px;
   background:
-    radial-gradient(ellipse 120% 90% at 50% 40%, rgba(238,225,196,0) 55%, rgba(160,130,80,.18) 88%, rgba(120,95,55,.30) 100%),
-    linear-gradient(178deg, #efe4cb 0%, #ece0c4 30%, #eee3c9 62%, #e9dbbc 100%);
-  font-family:'MSZ', serif; color:#26364e;
-}
-/* 纸纤维噪声 */
-.sheet::before { content:''; position:absolute; inset:0;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.26 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity:.55; pointer-events:none; }
-/* 折痕 */
-.fold { position:absolute; left:0; right:0; height:3px; opacity:.5;
-  background:linear-gradient(180deg, rgba(90,70,40,0) 0%, rgba(90,70,40,.30) 45%, rgba(255,250,235,.5) 55%, rgba(90,70,40,0) 100%); }
-/* 斑驳渍点 */
+    radial-gradient(ellipse 115% 85% at 50% 42%, rgba(0,0,0,0) 52%, rgba(84,68,40,.22) 84%, rgba(60,48,26,.45) 100%),
+    linear-gradient(176deg, #c0b18d 0%, #b7a682 28%, #bcaa85 60%, #ab9974 100%);
+  font-family:'MSZ', serif; color:#3a3020; }
+.sheet::before { content:''; position:absolute; inset:0; pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.38 0 0 0 0 0.31 0 0 0 0 0.18 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='260' height='260' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity:.6; }
 .stain { position:absolute; border-radius:50%; pointer-events:none; }
-.s1 { width:230px; height:210px; left:64px; top:120px; border:10px solid rgba(146,110,58,.10); filter:blur(2px); }
-.s2 { width:120px; height:118px; right:90px; bottom:420px; border:7px solid rgba(146,110,58,.08); filter:blur(2px); }
-.s3 { width:60px; height:52px; left:180px; bottom:300px; background:radial-gradient(circle, rgba(120,90,45,.12), rgba(120,90,45,0) 70%); }
-.inner { position:absolute; left:150px; right:150px; top:120px; bottom:120px; }
-/* 信头 */
-.head { display:flex; justify-content:space-between; align-items:baseline; }
-.head .date { font-size:30px; letter-spacing:2px; opacity:.85; }
-.head .dept { font-size:30px; letter-spacing:2px; opacity:.85; }
-.rule { margin:26px 0 40px; height:14px; position:relative;
-  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1100' height='14' viewBox='0 0 1100 14'%3E%3Cpath d='M0 7 Q 30 0 60 7 T 120 7 T 180 7 T 240 7 T 300 7 T 360 7 T 420 7 T 480 7 T 540 7 T 600 7 T 660 7 T 720 7 T 780 7 T 840 7 T 900 7 T 960 7 T 1020 7 T 1080 7 T 1100 7' stroke='%238a7248' fill='none' stroke-width='1.6' opacity='0.75'/%3E%3C/svg%3E") center/100% 100% no-repeat; }
-.salute { font-size:52px; letter-spacing:4px; margin-bottom:44px; }
-.p { font-size:42px; line-height:2.05; letter-spacing:3px; text-align:justify; margin-bottom:40px; transform:rotate(-.15deg); }
-.p b { font-weight:normal; color:#1d2b44; }
-.sig { margin-top:70px; text-align:right; font-size:46px; line-height:1.9; letter-spacing:3px; transform:rotate(-.5deg); }
-.sig .name { font-size:52px; }
-/* 火漆 */
-.seal { position:absolute; right:120px; bottom:135px; width:150px; height:150px;
-  filter:drop-shadow(2px 4px 5px rgba(60,30,20,.35)); }
-.pennib { position:absolute; left:120px; bottom:130px; width:340px; height:120px; opacity:.9; }
+.s1 { width:190px; height:170px; left:70px; top:430px; border:9px solid rgba(96,78,42,.10); filter:blur(3px); }
+.s2 { width:130px; height:120px; right:80px; top:1120px; border:6px solid rgba(96,78,42,.09); filter:blur(3px); }
+.s3 { width:80px; height:64px; left:200px; bottom:250px; background:radial-gradient(circle, rgba(90,72,38,.13), rgba(90,72,38,0) 70%); }
+/* 边框：SVG 画三段式（顶部留纹章缺口） */
+.frame { position:absolute; inset:0; pointer-events:none; }
+/* 纹章 */
+.crest { position:absolute; left:50%; top:42px; transform:translateX(-50%); width:400px; height:250px; }
+/* 正文 */
+.inner { position:absolute; left:112px; right:112px; top:330px; bottom:150px; }
+.salute { font-size:50px; letter-spacing:6px; margin-bottom:40px; }
+.p { font-size:41px; line-height:2.02; letter-spacing:3.5px; text-align:justify; margin-bottom:34px; text-indent:84px; transform:rotate(-.12deg); }
+.sig { margin-top:52px; margin-left:auto; width:62%; text-align:center; font-size:44px; line-height:2.0; letter-spacing:4px; transform:rotate(-.4deg); }
+.sig .name { font-size:50px; letter-spacing:6px; }
+/* 底部角花 */
+.corner { position:absolute; bottom:36px; width:300px; height:100px; opacity:.8; }
+.corner.l { left:60px; } .corner.r { right:60px; transform:scaleX(-1); }
 </style>
 </head>
 <body>
 <div class="sheet">
-  <div class="fold" style="top:33%"></div>
-  <div class="fold" style="top:66%"></div>
   <div class="stain s1"></div><div class="stain s2"></div><div class="stain s3"></div>
+
+  <svg class="frame" viewBox="0 0 1400 2000" preserveAspectRatio="none">
+    <g stroke="#7a6a45" stroke-width="2" fill="none" opacity=".85">
+      <line x1="55" y1="335" x2="55" y2="1945"/>
+      <line x1="1345" y1="335" x2="1345" y2="1945"/>
+      <line x1="55" y1="1945" x2="1345" y2="1945"/>
+      <line x1="55" y1="335" x2="470" y2="335"/>
+      <line x1="930" y1="335" x2="1345" y2="335"/>
+      <line x1="55" y1="150" x2="470" y2="150"/>
+      <line x1="930" y1="150" x2="1345" y2="150"/>
+    </g>
+  </svg>
+
+  <svg class="crest" viewBox="0 0 400 250">
+    <defs>
+      <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#9a854f"/><stop offset="50%" stop-color="#7d6a3c"/><stop offset="100%" stop-color="#6b5a32"/>
+      </linearGradient>
+    </defs>
+    <!-- 皇冠 -->
+    <g fill="url(#gold)" stroke="#5a4a28" stroke-width="1.2">
+      <path d="M170 62 L170 34 L186 14 L200 30 L214 14 L230 34 L230 62 Z"/>
+      <circle cx="170" cy="30" r="4"/><circle cx="200" cy="12" r="5"/><circle cx="230" cy="30" r="4"/>
+      <rect x="162" y="62" width="76" height="12" rx="3"/>
+      <circle cx="175" cy="52" r="3.2" fill="#8c3a3a" stroke="none"/><circle cx="200" cy="50" r="3.2" fill="#2f4a6e" stroke="none"/><circle cx="225" cy="52" r="3.2" fill="#2f6e42" stroke="none"/>
+    </g>
+    <!-- 盾 -->
+    <g fill="#8f7c4a" stroke="#5a4a28" stroke-width="1.6">
+      <path d="M200 84 L246 96 L246 148 Q246 182 200 202 Q154 182 154 148 L154 96 Z"/>
+    </g>
+    <g stroke="#5a4a28" stroke-width="1" opacity=".8" fill="none">
+      <line x1="200" y1="86" x2="200" y2="200"/>
+      <line x1="156" y1="144" x2="244" y2="144"/>
+      <path d="M164 100 q6 -8 12 0 q6 8 12 0 M164 114 q6 -8 12 0 q6 8 12 0 M164 128 q6 -8 12 0 q6 8 12 0" />
+      <path d="M210 100 q6 -8 12 0 q6 8 12 0 M210 114 q6 -8 12 0 q6 8 12 0 M210 128 q6 -8 12 0 q6 8 12 0" />
+      <path d="M192 156 q8 10 16 0 q-8 18 -16 0" fill="#5a4a28"/>
+    </g>
+    <!-- 双狮剪影 -->
+    <g fill="#79683c" stroke="#5a4a28" stroke-width="1">
+      <path d="M148 196 Q120 186 112 158 Q108 138 118 122 Q124 112 118 102 Q130 104 134 116 Q140 106 136 92 Q150 98 150 114 Q152 136 142 152 Q136 170 152 184 Z"/>
+      <path d="M118 122 Q100 118 96 104 M112 158 Q96 160 90 150"/>
+      <path d="M252 196 Q280 186 288 158 Q292 138 282 122 Q276 112 282 102 Q270 104 266 116 Q260 106 264 92 Q250 98 250 114 Q248 136 258 152 Q264 170 248 184 Z"/>
+      <path d="M282 122 Q300 118 304 104 M288 158 Q304 160 310 150"/>
+    </g>
+    <!-- V.R. -->
+    <text x="200" y="242" font-family="Georgia, serif" font-size="34" letter-spacing="14" fill="#5a4a28" text-anchor="middle">V·R</text>
+  </svg>
+
   <div class="inner">
-    <div class="head"><div class="date">一八八一年三月四日 晨</div><div class="dept">苏格兰场 刑事调查部</div></div>
-    <div class="rule"></div>
     <div class="salute">亲爱的福尔摩斯先生：</div>
-    <div class="p">昨夜，在布瑞克斯顿路的尽头、劳瑞斯顿花园街三号发生了一件凶杀案。今晨两点左右，巡逻警察忽见该处有灯光，因素悉该房无人居住，故而怀疑出了什么问题。该巡警发现房门大开，前室空无一物，内有男尸一具。该尸衣着整齐，袋中装有名片，上有「伊诺克·J.德雷伯，美国俄亥俄州克利夫兰」字样。既无被抢劫迹象，亦未发现任何能说明致死原因之证据。屋中虽有几处血迹，但死者身上并无伤痕。死者如何在空屋里遇害，我等百思不得其解，深感此案棘手之至。</div>
+    <div class="p">昨夜，在布瑞克斯顿路的尽头、劳瑞斯顿花园街三号发生了一件凶杀案。今晨两点左右，巡逻警察忽见该处有灯光，因素悉该房无人居住，故而怀疑出了什么问题。该巡警发现房门大开，前室空无一物，内有男尸一具。该尸衣着整齐，袋中装有名片，上有"伊诺克·J.德雷伯，美国俄亥俄州克利夫兰"字样。既无被抢劫迹象，亦未发现任何能说明致死原因之证据。屋中虽有几处血迹，但死者身上并无伤痕。死者如何在空屋里遇害，我等百思不得其解，深感此案棘手之至。</div>
     <div class="p">希望阁下在十二点之前惠临，我将在此恭候。在接信回示前，现场一切均将保持原状。如果不能莅临，亦必将详情告之，倘蒙指教，不胜感激之至。</div>
     <div class="sig">您忠实的<br><span class="name">特白厄斯·葛莱森</span></div>
   </div>
-  <svg class="seal" viewBox="0 0 150 150">
-    <defs><radialGradient id="wax" cx="40%" cy="35%"><stop offset="0%" stop-color="#a83232"/><stop offset="60%" stop-color="#8c1f1f"/><stop offset="100%" stop-color="#6e1414"/></radialGradient></defs>
-    <path d="M75 8 L96 20 L120 16 L128 40 L146 55 L138 78 L146 100 L124 112 L116 136 L92 134 L75 148 L58 134 L34 136 L26 112 L4 100 L12 78 L4 55 L22 40 L30 16 L54 20 Z" fill="url(#wax)"/>
-    <circle cx="75" cy="78" r="44" fill="none" stroke="#5c0f0f" stroke-width="2.5" opacity=".8"/>
-    <text x="75" y="95" font-family="Georgia, serif" font-size="46" font-style="italic" fill="#4a0c0c" text-anchor="middle" opacity=".9">G</text>
+
+  <svg class="corner l" viewBox="0 0 300 100">
+    <g stroke="#7a6a45" stroke-width="1.8" fill="none" opacity=".9">
+      <path d="M10 90 Q40 60 80 62 Q120 64 140 40"/>
+      <path d="M60 92 Q80 74 108 72 Q134 70 150 52"/>
+      <path d="M120 88 Q150 70 178 74"/>
+      <circle cx="80" cy="62" r="3" fill="#7a6a45"/><circle cx="140" cy="40" r="3" fill="#7a6a45"/><circle cx="178" cy="74" r="3" fill="#7a6a45"/>
+    </g>
   </svg>
-  <svg class="pennib" viewBox="0 0 340 120">
-    <path d="M10 96 C 90 92, 190 78, 268 44 C 286 36, 300 28, 310 20" stroke="#26364e" stroke-width="2.2" fill="none" opacity=".8"/>
-    <path d="M262 48 C 280 38, 296 28, 306 20 C 312 26, 310 38, 302 46 C 292 56, 274 58, 262 48 Z" fill="#3a3a3a"/>
-    <path d="M258 60 C 250 72, 240 82, 228 90" stroke="#26364e" stroke-width="1.6" fill="none" opacity=".55"/>
+  <svg class="corner r" viewBox="0 0 300 100">
+    <g stroke="#7a6a45" stroke-width="1.8" fill="none" opacity=".9">
+      <path d="M10 90 Q40 60 80 62 Q120 64 140 40"/>
+      <path d="M60 92 Q80 74 108 72 Q134 70 150 52"/>
+      <path d="M120 88 Q150 70 178 74"/>
+      <circle cx="80" cy="62" r="3" fill="#7a6a45"/><circle cx="140" cy="40" r="3" fill="#7a6a45"/><circle cx="178" cy="74" r="3" fill="#7a6a45"/>
+    </g>
   </svg>
 </div>
 </body>
