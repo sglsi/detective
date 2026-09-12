@@ -21,12 +21,14 @@ body { width:1400px; height:2000px; overflow:hidden; }
 /* 边框：SVG 画三段式（顶部留纹章缺口） */
 .frame { position:absolute; inset:0; pointer-events:none; }
 /* 纹章 */
-.crest { position:absolute; left:50%; top:42px; transform:translateX(-50%); width:400px; height:250px; }
+.crest { position:absolute; left:50%; top:28px; transform:translateX(-50%); width:290px; }
+.crest img { display:block; width:100%; }
+.vr { position:absolute; left:0; right:0; top:272px; text-align:center; font-family:Georgia, serif; font-size:30px; letter-spacing:16px; color:#5a4a28; text-indent:16px; }
 /* 正文 */
-.inner { position:absolute; left:112px; right:112px; top:330px; bottom:150px; }
+.inner { position:absolute; left:112px; right:112px; top:345px; bottom:150px; }
 .salute { font-size:50px; letter-spacing:6px; margin-bottom:40px; }
-.p { font-size:41px; line-height:2.02; letter-spacing:3.5px; text-align:justify; margin-bottom:34px; text-indent:84px; transform:rotate(-.12deg); }
-.sig { margin-top:52px; margin-left:auto; width:62%; text-align:center; font-size:44px; line-height:2.0; letter-spacing:4px; transform:rotate(-.4deg); }
+.p { font-size:41px; line-height:1.98; letter-spacing:3.5px; text-align:justify; margin-bottom:34px; text-indent:84px; transform:rotate(-.12deg); }
+.sig { margin-top:40px; margin-left:auto; width:62%; text-align:center; font-size:44px; line-height:2.0; letter-spacing:4px; transform:rotate(-.4deg); }
 .sig .name { font-size:50px; letter-spacing:6px; }
 /* 底部角花 */
 .corner { position:absolute; bottom:36px; width:300px; height:100px; opacity:.8; }
@@ -39,50 +41,16 @@ body { width:1400px; height:2000px; overflow:hidden; }
 
   <svg class="frame" viewBox="0 0 1400 2000" preserveAspectRatio="none">
     <g stroke="#7a6a45" stroke-width="2" fill="none" opacity=".85">
-      <line x1="55" y1="335" x2="55" y2="1945"/>
-      <line x1="1345" y1="335" x2="1345" y2="1945"/>
+      <line x1="55" y1="310" x2="55" y2="1945"/>
+      <line x1="1345" y1="310" x2="1345" y2="1945"/>
       <line x1="55" y1="1945" x2="1345" y2="1945"/>
-      <line x1="55" y1="335" x2="470" y2="335"/>
-      <line x1="930" y1="335" x2="1345" y2="335"/>
-      <line x1="55" y1="150" x2="470" y2="150"/>
-      <line x1="930" y1="150" x2="1345" y2="150"/>
+      <line x1="55" y1="310" x2="460" y2="310"/>
+      <line x1="940" y1="310" x2="1345" y2="310"/>
     </g>
   </svg>
 
-  <svg class="crest" viewBox="0 0 400 250">
-    <defs>
-      <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#9a854f"/><stop offset="50%" stop-color="#7d6a3c"/><stop offset="100%" stop-color="#6b5a32"/>
-      </linearGradient>
-    </defs>
-    <!-- 皇冠 -->
-    <g fill="url(#gold)" stroke="#5a4a28" stroke-width="1.2">
-      <path d="M170 62 L170 34 L186 14 L200 30 L214 14 L230 34 L230 62 Z"/>
-      <circle cx="170" cy="30" r="4"/><circle cx="200" cy="12" r="5"/><circle cx="230" cy="30" r="4"/>
-      <rect x="162" y="62" width="76" height="12" rx="3"/>
-      <circle cx="175" cy="52" r="3.2" fill="#8c3a3a" stroke="none"/><circle cx="200" cy="50" r="3.2" fill="#2f4a6e" stroke="none"/><circle cx="225" cy="52" r="3.2" fill="#2f6e42" stroke="none"/>
-    </g>
-    <!-- 盾 -->
-    <g fill="#8f7c4a" stroke="#5a4a28" stroke-width="1.6">
-      <path d="M200 84 L246 96 L246 148 Q246 182 200 202 Q154 182 154 148 L154 96 Z"/>
-    </g>
-    <g stroke="#5a4a28" stroke-width="1" opacity=".8" fill="none">
-      <line x1="200" y1="86" x2="200" y2="200"/>
-      <line x1="156" y1="144" x2="244" y2="144"/>
-      <path d="M164 100 q6 -8 12 0 q6 8 12 0 M164 114 q6 -8 12 0 q6 8 12 0 M164 128 q6 -8 12 0 q6 8 12 0" />
-      <path d="M210 100 q6 -8 12 0 q6 8 12 0 M210 114 q6 -8 12 0 q6 8 12 0 M210 128 q6 -8 12 0 q6 8 12 0" />
-      <path d="M192 156 q8 10 16 0 q-8 18 -16 0" fill="#5a4a28"/>
-    </g>
-    <!-- 双狮剪影 -->
-    <g fill="#79683c" stroke="#5a4a28" stroke-width="1">
-      <path d="M148 196 Q120 186 112 158 Q108 138 118 122 Q124 112 118 102 Q130 104 134 116 Q140 106 136 92 Q150 98 150 114 Q152 136 142 152 Q136 170 152 184 Z"/>
-      <path d="M118 122 Q100 118 96 104 M112 158 Q96 160 90 150"/>
-      <path d="M252 196 Q280 186 288 158 Q292 138 282 122 Q276 112 282 102 Q270 104 266 116 Q260 106 264 92 Q250 98 250 114 Q248 136 258 152 Q264 170 248 184 Z"/>
-      <path d="M282 122 Q300 118 304 104 M288 158 Q304 160 310 150"/>
-    </g>
-    <!-- V.R. -->
-    <text x="200" y="242" font-family="Georgia, serif" font-size="34" letter-spacing="14" fill="#5a4a28" text-anchor="middle">V·R</text>
-  </svg>
+  <div class="crest"><img src="crest_royal_tinted.png" alt=""></div>
+  <div class="vr">V·R</div>
 
   <div class="inner">
     <div class="salute">亲爱的福尔摩斯先生：</div>
