@@ -139,6 +139,10 @@ func _apply_atmosphere() -> void:
 	if _atmosphere != null and is_instance_valid(_atmosphere): return
 	var layer := ATMOSPHERE_LAYER_SCRIPT.new()
 	layer.name = "atmosphere"
+	# 关键修复：Control 必须显式定尺寸，否则其内部用 PRESET_FULL_RECT 的雾/暗角叠加层为 0×0、
+	# 完全不可见（浮尘是 Node2D 绝对坐标所以照常显示，掩盖了该 bug）。
+	layer.size = _world.size
+	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.configure(SCENE_ATMOSPHERE[_scene_id], _world.size)
 	_world.add_child(layer)
 	_world.move_child(layer, 1)   # 紧跟背景(bg 已移到 index 0)，立绘默认 z=0 在其上

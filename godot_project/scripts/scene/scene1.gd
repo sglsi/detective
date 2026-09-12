@@ -181,7 +181,9 @@ func _init_game_state() -> void:
 
 func _build_ui() -> void:
 	_ui = SceneFramework.new(); _ui.name = "ui"; add_child(_ui)
-	_ui.setup("贝克街221B", "DAY 1 上午10:30", scene_background())
+	# 第 5 参 scene_id_arg 必须传：否则 _scene_id="" → SceneFramework._apply_atmosphere() 直接 return，
+	# 场景一将完全没有氛围层（雾/暗角/浮尘）。scene1 未覆盖 scene_id()，基类返回 "sceneX"（SCENE_ATMOSPHERE 有该键）。
+	_ui.setup("贝克街221B", "DAY 1 上午10:30", scene_background(), [], scene_id())
 	# 实例化道具工具栏（基类 _setup_toolbar 在 super._build_ui 中，但本场景覆盖了 _build_ui，
 	# 故在此显式调用，否则 _toolbar 为 null → 调查按钮无法显示/选择工具）
 	_setup_toolbar()
