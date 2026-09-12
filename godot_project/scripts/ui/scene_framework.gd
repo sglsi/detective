@@ -21,19 +21,19 @@ const DIALOGUE_H := 230
 const BG_FADE_TIME := 0.35
 
 const SCENE_ATMOSPHERE := {
-	# lamps = 该场景背景里「真实存在的灯/烛/炉火」在场景区归一化 UV(0..1) 里的位置（最多 2 盏）。
-	# 位置按各背景实测（2026-09-12）；
-	# 室内无灯/烛的场景留空 lamps → 不产生光晕（scene3/4 是仅靠窗光的昏暗房间）。
-	# dust = 浮尘：仅室内场景开启（室外街景 scene2 关闭，飘尘读感不对）。
-	"scene1": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.90, 0.42), Vector2(0.91, 0.62)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
-	"sceneX": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.90, 0.42), Vector2(0.91, 0.62)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
-	"scene2": {"vignette": 1.05, "fog": 0.30, "fog_color": Color(0.18, 0.20, 0.28, 0.42), "lamps": [Vector2(0.90, 0.42)], "lamp_intensity": 0.7, "lamp_radius": 0.10, "dust": false},
+	# lamps = 该场景背景里「真实点亮的灯/烛/炉火」在场景区归一化 UV(0..1) 里的位置（最多 2 盏）。
+	# 位置用「亮暖光源连通域质心」精测（2026-09-12 夜，并画圈目视核验），勿再凭目测填。
+	# 室内无灯/烛的场景留空 lamps → 不产生光晕（scene3/4 仅靠窗光）。
+	# dust = 浮尘：仅室内场景开启（室外街景 scene2 关闭）。
+	"scene1": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.83, 0.33)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
+	"sceneX": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.83, 0.33)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
+	"scene2": {"vignette": 1.05, "fog": 0.30, "fog_color": Color(0.18, 0.20, 0.28, 0.42), "lamps": [Vector2(0.865, 0.50)], "lamp_intensity": 0.7, "lamp_radius": 0.10, "dust": false},
 	"scene3": {"vignette": 1.0, "fog": 0.24, "fog_color": Color(0.24, 0.18, 0.14, 0.40), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.10, "dust": true},
 	"scene4": {"vignette": 1.1, "fog": 0.34, "fog_color": Color(0.16, 0.18, 0.26, 0.45), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.10, "dust": true},
-	"scene5": {"vignette": 1.0, "fog": 0.22, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.12, 0.28), Vector2(0.37, 0.78)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
-	"scene6": {"vignette": 1.0, "fog": 0.26, "fog_color": Color(0.20, 0.18, 0.16, 0.42), "lamps": [Vector2(0.10, 0.68), Vector2(0.87, 0.48)], "lamp_intensity": 0.95, "lamp_radius": 0.11, "dust": true},
-	"scene7": {"vignette": 1.15, "fog": 0.28, "fog_color": Color(0.18, 0.16, 0.20, 0.45), "lamps": [Vector2(0.10, 0.68), Vector2(0.87, 0.48)], "lamp_intensity": 0.9, "lamp_radius": 0.11, "dust": true},
-	"scene8": {"vignette": 1.25, "fog": 0.28, "fog_color": Color(0.24, 0.18, 0.14, 0.42), "lamps": [Vector2(0.12, 0.28), Vector2(0.37, 0.78)], "lamp_intensity": 1.1, "lamp_radius": 0.11, "dust": true},
+	"scene5": {"vignette": 1.0, "fog": 0.22, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.377, 0.788), Vector2(0.526, 0.207)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
+	"scene6": {"vignette": 1.0, "fog": 0.26, "fog_color": Color(0.20, 0.18, 0.16, 0.42), "lamps": [Vector2(0.73, 0.50)], "lamp_intensity": 0.95, "lamp_radius": 0.11, "dust": true},
+	"scene7": {"vignette": 1.15, "fog": 0.28, "fog_color": Color(0.18, 0.16, 0.20, 0.45), "lamps": [Vector2(0.73, 0.50)], "lamp_intensity": 0.9, "lamp_radius": 0.11, "dust": true},
+	"scene8": {"vignette": 1.25, "fog": 0.28, "fog_color": Color(0.24, 0.18, 0.14, 0.42), "lamps": [Vector2(0.377, 0.788), Vector2(0.526, 0.207)], "lamp_intensity": 1.1, "lamp_radius": 0.11, "dust": true},
 }
 
 # 配色（维多利亚古典）
