@@ -286,12 +286,10 @@ func _on_collect_clue(clue_id: String, clue_data: Dictionary, source: String) ->
 			clue_data.get("image", ""),
 			clue_data.get("anchor", "")
 		)
-	# M1 摄像机：记录一条线索后，始终聚焦「仍需收集」的线索（框选全部剩余线索使其在视野内、可点），
-	# 而非锁在刚记录线索推近——后者会把其余未收集圆圈推出视口外、点不到（用户 2026-09-09 反馈）。
+	# 记录线索后回到统览原场景（zoom=1），使其余待收集线索始终可见、可点；
+	# 2026-09-12 回退 frame_world_points 框选，恢复「收集后平滑回统览」的设计（用户反馈推近/缩回生硬）。
 	if _ui:
-		var obs = _current_observer()
-		if obs != null:
-			_ui.frame_world_points(obs.get_remaining_clue_world_points())
+		_ui.reset_camera()
 
 # ===== 基类钩子：地图 / 案件簿（内容） =====
 func map_locations() -> Array:

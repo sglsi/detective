@@ -195,15 +195,12 @@ func _on_clue_recorded(_clue_id: String, _clue_data: Dictionary) -> void:
 		)
 	var total := hotspots().size()
 	_ui.show_notification("线索已记录：" + str(_clue_data.get("name", "")) + "（" + str(_clues.size()) + "/" + str(total) + "）")
-	# ⚠️ 关键修复（2026-08-15 思路延续，2026-09-09 强化）：
-	# 记录线索后让摄像机「聚焦到仍需收集的线索」——框选全部剩余未记录线索使其在视野内、可点；
-	# 分布过广无法全纳入时自动回退统览（zoom=1 全可见）。
-	# 既避免「锁定刚记录线索推近」把其余线索推出视口（旧 bug），也满足「镜头始终对准待收集线索」的要求。
-	# 用 _current_observer() 而非 _obs：场景二/三未建基类 _obs（用 place observer），必须通过 virtual 取正确观察器。
+	# 记录线索后回到「统览原场景」（zoom=1, position=0），确保其余未记录线索始终可见、可点。
+	# 2026-09-12 回退：此前 32d3484 改为 frame_world_points 框选剩余线索，虽能保证在视野内，
+	# 但每次收集都会把镜头推近到剩余线索簇、再因分布变化快速缩回，观感生硬；
+	# 恢复「收集后平滑回到统览」这一此前完善的设计（用户反馈）。
 	if _ui:
-		var obs = _current_observer()
-		if obs != null:
-			_ui.frame_world_points(obs.get_remaining_clue_world_points())
+		_ui.reset_camera()
 
 ## 全部线索记录完成 → 进入推理（virtual：子类可加华生点评）
 func _on_all_done(_clues_arr: Array) -> void:
