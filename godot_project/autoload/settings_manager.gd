@@ -6,6 +6,7 @@ extends Node
 var settings: Dictionary = {
 	"master_volume": 1.0,
 	"music_volume": 0.8,
+	"music_enabled": true,
 	"sfx_volume": 1.0,
 	"voice_volume": 0.7,
 	"resolution": "1920x1080",
@@ -22,7 +23,7 @@ func _ready() -> void:
 	_load_settings()
 	# 启动时把已存音量重新应用到音频总线
 	# （_load_settings 仅读入 settings 字典，不会自动 apply，导致读档后音量不生效）
-	for key in ["master_volume", "music_volume", "sfx_volume", "voice_volume"]:
+	for key in ["master_volume", "music_volume", "music_enabled", "sfx_volume", "voice_volume"]:
 		if settings.has(key):
 			_apply_setting(key, settings[key])
 
@@ -43,6 +44,11 @@ func _apply_setting(key: String, value) -> void:
 	match key:
 		"master_volume": AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Master"), linear_to_db(value))
 		"music_volume": AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(value))
+		"music_enabled":
+			# 音乐总开关（喇叭按钮）：静音/取消静音 Music 总线，独立于音量滑块
+			var mi := AudioServer.get_bus_index("Music")
+			if mi >= 0:
+				AudioServer.set_bus_mute(mi, not bool(value))
 		"sfx_volume": AudioServer.set_bus_volume_db(AudioServer.get_bus_index("SFX"), linear_to_db(value))
 		"voice_volume": AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Voice"), linear_to_db(value))
 		"fullscreen":

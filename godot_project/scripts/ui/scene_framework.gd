@@ -57,6 +57,8 @@ var _name_panel: Panel
 var _portraits: Array = []
 var _action_btns: Dictionary = {}
 var _nav_btns: Dictionary = {}
+var _music_btn: Button
+var _music_icon            # 矢量喇叭图标（scripts/ui/music_icon.gd，无 class_name，动态调用 set_on）
 # 放大镜可观察节点：背景 + 各立绘图片纹理（供 ToolBar 直接放大其真实纹理，不依赖屏幕捕获）
 var _mag_bg: TextureRect = null
 var _mag_portraits: Array[TextureRect] = []
@@ -528,6 +530,43 @@ func _build_top_bar() -> void:
 	tl.horizontal_alignment = 1; tl.vertical_alignment = 1
 	tl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_top_bar.add_child(tl)
+
+	# 右上：常驻音乐开关（喇叭按钮，位于时间框左侧）
+	_music_btn = _make_music_button()
+	_top_bar.add_child(_music_btn)
+
+## 常驻音乐开关按钮：金色喇叭图标，点击切换 Music 总线静音，状态持久化到 SettingsManager。
+func _make_music_button() -> Button:
+	var w := 46
+	var h := TOP_H - 8
+	var btn := Button.new()
+	btn.name = "music_toggle"
+	btn.tooltip_text = "音乐开关"
+	btn.position = Vector2(1920 - 8 - 180 - 8 - w, 4)   # 时间框左侧
+	btn.size = Vector2(w, h)
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.add_theme_stylebox_override("normal", _mk_gold_box(w, h, 3))
+	var sh := _mk_gold_box(w, h, 3)
+	sh.bg_color = Color(0.20, 0.14, 0.07, 0.95)
+	sh.border_color = COL_GOLD_LIGHT
+	btn.add_theme_stylebox_override("hover", sh)
+	btn.add_theme_stylebox_override("pressed", sh)
+	var ic = load("res://scripts/ui/music_icon.gd").new()
+	ic.name = "music_icon"
+	ic.position = Vector2((w - 24) * 0.5, (h - 24) * 0.5)
+	ic.size = Vector2(24, 24)
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ic.set_on(AudioManager.is_music_on())
+	btn.add_child(ic)
+	_music_icon = ic
+	btn.pressed.connect(_on_music_toggle)
+	return btn
+
+func _on_music_toggle() -> void:
+	var on := AudioManager.toggle_music()
+	if _music_icon:
+		_music_icon.set_on(on)
+	AudioManager.play_ui_sfx("click")
 
 func _make_nav_button(n: Dictionary, x: int, y: int, w: int, h: int) -> Button:
 	var btn = Button.new()

@@ -49,6 +49,24 @@ func play_scene_bgm(id: String) -> void:
 	if SCENE_BGM.has(id):
 		play_bgm(SCENE_BGM[id], 1.5)
 
+## 音乐总开关（供界面常驻喇叭按钮调用）。
+## 状态存于 SettingsManager.music_enabled，应用时静音/取消静音 Music 总线（独立于音量滑块）。
+func is_music_on() -> bool:
+	if SettingsManager:
+		var v = SettingsManager.get_setting("music_enabled")
+		return true if v == null else bool(v)
+	return true
+
+func set_music_on(on: bool) -> void:
+	if SettingsManager:
+		SettingsManager.set_setting("music_enabled", on)
+
+## 切换音乐开关，返回切换后的状态（true=开）
+func toggle_music() -> bool:
+	var on := not is_music_on()
+	set_music_on(on)
+	return on
+
 ## 播放一次性事件音效（stinger）
 func play_stinger(id: String) -> void:
 	if STINGERS.has(id):

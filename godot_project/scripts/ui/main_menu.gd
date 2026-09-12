@@ -126,6 +126,24 @@ func _ready() -> void:
 	footer.horizontal_alignment = 1
 	_root.add_child(footer)
 
+	# 常驻音乐开关（右上角喇叭按钮）
+	var mb = mkbtn("", Vector2(1920 - 20 - 52, 18), Vector2(52, 52), false, true)
+	mb.name = "music_toggle"
+	mb.tooltip_text = "音乐开关"
+	mb.focus_mode = Control.FOCUS_NONE
+	var mic = load("res://scripts/ui/music_icon.gd").new()
+	mic.name = "music_icon"
+	mic.position = Vector2(14, 14)
+	mic.size = Vector2(24, 24)
+	mic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mic.set_on(AudioManager.is_music_on())
+	mb.add_child(mic)
+	mb.pressed.connect(func():
+		var on = AudioManager.toggle_music()
+		mic.set_on(on)
+	)
+	_root.add_child(mb)
+
 	# Auth signals
 	if AuthManager:
 		AuthManager.login_success.connect(func(_id, _un):
