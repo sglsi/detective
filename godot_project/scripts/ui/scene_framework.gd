@@ -25,9 +25,15 @@ const SCENE_ATMOSPHERE := {
 	# 位置用「亮暖光源连通域质心」精测（2026-09-12 夜，并画圈目视核验），勿再凭目测填。
 	# 室内无灯/烛的场景留空 lamps → 不产生光晕（scene3/4 仅靠窗光）。
 	# dust = 浮尘：仅室内场景开启（室外街景 scene2 关闭）。
-	"scene1": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.83, 0.33)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
-	"sceneX": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.83, 0.33)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
-	"scene2": {"vignette": 1.05, "fog": 0.30, "fog_color": Color(0.18, 0.20, 0.28, 0.42), "lamps": [Vector2(0.865, 0.50)], "lamp_intensity": 0.7, "lamp_radius": 0.10, "dust": false},
+	# ⚠️ 同一场景多张背景图光源不同时（如 scene1 sofa01/opendoor）：加 "<id>_<变体>" 条目，
+	#    切图时调 set_scene_background(tex, atmo_id) 同步切换灯位（2026-09-13）。
+	# scene1 图A(sofa01)：烛台未点燃 → 不设灯。
+	"scene1": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.11, "dust": true},
+	"sceneX": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.11, "dust": true},
+	# scene1 图B(opendoor)：右侧绿罩台灯（灯罩 (0.754,0.290) + 罩下暖光 (0.749,0.363)，光源中心取 (0.75,0.34)）
+	"scene1_opendoor": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.75, 0.34)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
+	# scene2 全部背景（garden/street/facade/path）都是白天阴天场景，路灯未点亮 → 不打光
+	"scene2": {"vignette": 1.05, "fog": 0.30, "fog_color": Color(0.18, 0.20, 0.28, 0.42), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.10, "dust": false},
 	"scene3": {"vignette": 1.0, "fog": 0.24, "fog_color": Color(0.24, 0.18, 0.14, 0.40), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.10, "dust": true},
 	"scene4": {"vignette": 1.1, "fog": 0.34, "fog_color": Color(0.16, 0.18, 0.26, 0.45), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.10, "dust": true},
 	"scene5": {"vignette": 1.0, "fog": 0.22, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.377, 0.788), Vector2(0.526, 0.207)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
@@ -50,6 +56,9 @@ const COL_SHADOW := Color(0.03, 0.02, 0.0)            # 描边黑
 var _location := ""
 var _time_text := "DAY 1 上午10:30"
 var _scene_id := ""
+# 同一场景切换背景图时，用该 key 覆盖氛围配置（如 scene1 的 sofa01→opendoor 两张图光源不同）。
+# 空串 = 使用 _scene_id 对应的默认配置；setup() 进入新场景时重置。
+var _atmo_override := ""
 var _top_bar: Control
 var _left_bar: Control
 var _scene_area: Control
@@ -94,14 +103,19 @@ func setup(location: String, time_str: String, bg_tex: Texture2D = null, portrai
 	_location = location
 	_time_text = time_str
 	_scene_id = scene_id_arg
+	_atmo_override = ""
 	_set_top_bar_text()
 	if bg_tex: set_scene_background(bg_tex)
 	for p in portraits:
 		if p is Dictionary and p.has("texture"):
 			add_portrait(p["texture"], p.get("name", ""), p.get("pos", Vector2(50, 350)), p.get("size", Vector2(280, 360)))
 
-func set_scene_background(tex: Texture2D) -> void:
+## atmo_id 非空时，氛围层改用 SCENE_ATMOSPHERE[atmo_id]（用于同一场景多张背景图、
+## 各图光源不同的情况，如 scene1 的 sofa01 无灯 → opendoor 有台灯）。
+func set_scene_background(tex: Texture2D, atmo_id: String = "") -> void:
 	if not _world: return
+	if atmo_id != "":
+		_atmo_override = atmo_id
 	# 上一次的淡出残留先清掉，避免连续切图时堆积
 	var stale = _world.find_child("scene_bg_old", true, false)
 	if stale: stale.queue_free()
@@ -139,7 +153,8 @@ func set_scene_background(tex: Texture2D) -> void:
 ## 仅在有配置时挂载；_world 尺寸即场景区域，用于浮尘发射范围。
 func _apply_atmosphere() -> void:
 	if not _world: return
-	if not SCENE_ATMOSPHERE.has(_scene_id): return
+	var atmo_key := _atmo_override if _atmo_override != "" else _scene_id
+	if not SCENE_ATMOSPHERE.has(atmo_key): return
 	if _atmosphere != null and is_instance_valid(_atmosphere): return
 	var layer := ATMOSPHERE_LAYER_SCRIPT.new()
 	layer.name = "atmosphere"
@@ -147,7 +162,7 @@ func _apply_atmosphere() -> void:
 	# 完全不可见（浮尘是 Node2D 绝对坐标所以照常显示，掩盖了该 bug）。
 	layer.size = _world.size
 	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.configure(SCENE_ATMOSPHERE[_scene_id], _world.size)
+	layer.configure(SCENE_ATMOSPHERE[atmo_key], _world.size)
 	_world.add_child(layer)
 	_world.move_child(layer, 1)   # 紧跟背景(bg 已移到 index 0)，立绘默认 z=0 在其上
 	# 氛围层同步淡入，避免随背景切换突然出现（Tier 1.5）

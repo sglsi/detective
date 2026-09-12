@@ -88,7 +88,7 @@ func _restore_saved_state() -> bool:
 	_create_notification("✅ 读档成功 — 已恢复至「" + _phase_name(saved_phase) + "」")
 	# 读档恢复到「华生观察及其后」阶段时，使用开门(门廊视角)背景，福尔摩斯全身立绘隐藏（仅开场显示）
 	if saved_phase >= Phase.OBSERVE_WATSON:
-		_ui.set_scene_background(_opendoor_bg())
+		_ui.set_scene_background(_opendoor_bg(), "scene1_opendoor")
 		if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = false
 	else:
 		if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = true
@@ -477,7 +477,7 @@ func _show_opening_dialogue() -> void:
 func _on_opening_end() -> void:
 	_phase = Phase.OBSERVE_WATSON
 	# 进入华生观察阶段起切换到「从门廊向内看」背景（含之后信使观察等全部阶段）
-	if _ui: _ui.set_scene_background(load("res://assets/backgrounds/screen01-opendoor.png"))
+	if _ui: _ui.set_scene_background(load("res://assets/backgrounds/screen01-opendoor.png"), "scene1_opendoor")
 	if _ui: _ui.set_camera_enabled(true)   # 进入观察：启用摄像机（统览/缩放/拖拽）
 	# 福尔摩斯全身立绘仅属于开场（sofa 场景），华生观察开始时隐藏
 	if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = false
