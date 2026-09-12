@@ -69,3 +69,8 @@ godot_project/tools/godot/editor_extract/
 # 根目录历史误提交的构建产物（防再引入）
 /index.pck
 /index.wasm
+
+# ===== Audio import settings (EXCEPTION: must be versioned) =====
+# *.import stores import params such as compress/mode. Audio is now uncompressed PCM;
+# if these are not versioned, re-import elsewhere falls back to the default Lossy.
+!godot_project/assets/audio/**/*.import

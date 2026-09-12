@@ -25,6 +25,12 @@ const SCENE_BGM := {
 	"scene6": "scene6.wav",
 	"scene7": "scene7.wav",
 	"scene8": "scene8.wav",
+	# 流程节点曲（非场景）：推理墙 / 结算 / 难度选择
+	"wall": "wall.wav",
+	"settlement": "settlement.wav",
+	"difficulty": "difficulty.wav",
+	# 终局收束曲（scene8 揭晓后接此曲），由终局流程显式调用
+	"scene8_resolve": "scene8_resolve.wav",
 }
 ## 事件 → stinger 文件名（位于 res://assets/audio/sfx/）
 const STINGERS := {
