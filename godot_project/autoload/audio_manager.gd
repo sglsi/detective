@@ -219,8 +219,10 @@ func play_bgm(bgm_path: String, fade_in: float = 1.0) -> void:
 			var wav := stream as AudioStreamWAV
 			wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
 			wav.loop_begin = 0
-			var bytes_per_frame := 2 * (2 if wav.stereo else 1)  # FORMAT_16_BITS
-			wav.loop_end = wav.data.size() / bytes_per_frame
+			# ⚠️ QOA 压缩坑：data.size() 是压缩后字节，不能按 PCM 16bit 每帧字节数反推帧数。
+			# 用 get_length()（秒）× 采样率 得到总帧数，PCM/QOA 均正确。所有 BGM 经 tools/prepare_bgm.py 统一为 44100Hz。
+			var sample_rate := 44100
+			wav.loop_end = int(wav.get_length() * float(sample_rate))
 		if fade_in > 0.0:
 			# 淡入：从静音(-80dB) tween 到满音量(0dB)
 			bgm_player.volume_db = -80.0

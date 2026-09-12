@@ -1010,6 +1010,8 @@ func reset_camera() -> void:
 ## 用于「记录线索后始终聚焦到仍需收集的线索上」：框选全部剩余未记录线索，
 ## 使其始终在视野内、可点（用户 2026-09-09 反馈：原锁在刚记录线索导致其余出界）。
 ## points 为空 → 回统览；分布过广（缩放需 < CAM_ZOOM_MIN 才能全纳入）→ 自动回退统览（zoom=1 时世界=视野，全可见）。
+const MAX_ZOOM_FOR_FRAMING := 2.2   # 框选剩余线索时不要太贴近，保留上下文，避免玩家“找不到其他圈”
+
 func frame_world_points(points: Array, padding: float = 80.0) -> void:
 	if not _world: return
 	if points.is_empty():
@@ -1017,10 +1019,12 @@ func frame_world_points(points: Array, padding: float = 80.0) -> void:
 		return
 	var min_x: float = INF; var min_y: float = INF; var max_x: float = -INF; var max_y: float = -INF
 	for p in points:
-		min_x = min(min_x, p.x); min_y = min(min_y, p.y)
-		max_x = max(max_x, p.x); max_y = max(max_y, p.y)
-	var bw: float = max(max_x - min_x, 1.0)
-	var bh: float = max(max_y - min_y, 1.0)
+		if p is Vector2:
+			min_x = min(min_x, p.x); min_y = min(min_y, p.y)
+			max_x = max(max_x, p.x); max_y = max(max_y, p.y)
+	# 单点/点很挤时，给一个最小包围盒，避免 zoom 拉到 3x 导致只剩一个点、其他提示圈被裁掉
+	var bw: float = max(max_x - min_x, 360.0)
+	var bh: float = max(max_y - min_y, 360.0)
 	var view: Vector2 = _scene_area.size
 	var zx: float = (view.x - padding * 2.0) / bw
 	var zy: float = (view.y - padding * 2.0) / bh
@@ -1029,9 +1033,10 @@ func frame_world_points(points: Array, padding: float = 80.0) -> void:
 	if fit < CAM_ZOOM_MIN:
 		reset_camera()
 		return
-	var zoom: float = clamp(fit, CAM_ZOOM_MIN, CAM_ZOOM_MAX)
+	var zoom: float = clamp(fit, CAM_ZOOM_MIN, min(CAM_ZOOM_MAX, MAX_ZOOM_FOR_FRAMING))
 	var center: Vector2 = Vector2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5)
 	var target_pos: Vector2 = view * 0.5 - center * zoom
+	print("[Camera] frame points count=", points.size(), " bbox=", Rect2(min_x, min_y, max_x - min_x, max_y - min_y), " zoom=", snapped(zoom, 0.01), " target_pos=", snapped(target_pos, Vector2.ONE))
 	_tween_camera(target_pos, Vector2(zoom, zoom))
 
 ## Tab 切换：非统览态→回到统览；已在统览态→忽略
