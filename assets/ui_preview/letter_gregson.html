@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<style>
+@font-face { font-family:'MSZ'; src:url('file:///tmp/MaShanZheng.ttf') format('truetype'); }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { width:1400px; height:2000px; overflow:hidden; }
+.sheet {
+  position:relative; width:1400px; height:2000px;
+  background:
+    radial-gradient(ellipse 120% 90% at 50% 40%, rgba(238,225,196,0) 55%, rgba(160,130,80,.18) 88%, rgba(120,95,55,.30) 100%),
+    linear-gradient(178deg, #efe4cb 0%, #ece0c4 30%, #eee3c9 62%, #e9dbbc 100%);
+  font-family:'MSZ', serif; color:#26364e;
+}
+/* 纸纤维噪声 */
+.sheet::before { content:''; position:absolute; inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.26 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity:.55; pointer-events:none; }
+/* 折痕 */
+.fold { position:absolute; left:0; right:0; height:3px; opacity:.5;
+  background:linear-gradient(180deg, rgba(90,70,40,0) 0%, rgba(90,70,40,.30) 45%, rgba(255,250,235,.5) 55%, rgba(90,70,40,0) 100%); }
+/* 斑驳渍点 */
+.stain { position:absolute; border-radius:50%; pointer-events:none; }
+.s1 { width:230px; height:210px; left:64px; top:120px; border:10px solid rgba(146,110,58,.10); filter:blur(2px); }
+.s2 { width:120px; height:118px; right:90px; bottom:420px; border:7px solid rgba(146,110,58,.08); filter:blur(2px); }
+.s3 { width:60px; height:52px; left:180px; bottom:300px; background:radial-gradient(circle, rgba(120,90,45,.12), rgba(120,90,45,0) 70%); }
+.inner { position:absolute; left:150px; right:150px; top:120px; bottom:120px; }
+/* 信头 */
+.head { display:flex; justify-content:space-between; align-items:baseline; }
+.head .date { font-size:30px; letter-spacing:2px; opacity:.85; }
+.head .dept { font-size:30px; letter-spacing:2px; opacity:.85; }
+.rule { margin:26px 0 40px; height:14px; position:relative;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1100' height='14' viewBox='0 0 1100 14'%3E%3Cpath d='M0 7 Q 30 0 60 7 T 120 7 T 180 7 T 240 7 T 300 7 T 360 7 T 420 7 T 480 7 T 540 7 T 600 7 T 660 7 T 720 7 T 780 7 T 840 7 T 900 7 T 960 7 T 1020 7 T 1080 7 T 1100 7' stroke='%238a7248' fill='none' stroke-width='1.6' opacity='0.75'/%3E%3C/svg%3E") center/100% 100% no-repeat; }
+.salute { font-size:52px; letter-spacing:4px; margin-bottom:44px; }
+.p { font-size:42px; line-height:2.05; letter-spacing:3px; text-align:justify; margin-bottom:40px; transform:rotate(-.15deg); }
+.p b { font-weight:normal; color:#1d2b44; }
+.sig { margin-top:70px; text-align:right; font-size:46px; line-height:1.9; letter-spacing:3px; transform:rotate(-.5deg); }
+.sig .name { font-size:52px; }
+/* 火漆 */
+.seal { position:absolute; right:120px; bottom:135px; width:150px; height:150px;
+  filter:drop-shadow(2px 4px 5px rgba(60,30,20,.35)); }
+.pennib { position:absolute; left:120px; bottom:130px; width:340px; height:120px; opacity:.9; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="fold" style="top:33%"></div>
+  <div class="fold" style="top:66%"></div>
+  <div class="stain s1"></div><div class="stain s2"></div><div class="stain s3"></div>
+  <div class="inner">
+    <div class="head"><div class="date">一八八一年三月四日 晨</div><div class="dept">苏格兰场 刑事调查部</div></div>
+    <div class="rule"></div>
+    <div class="salute">亲爱的福尔摩斯先生：</div>
+    <div class="p">昨夜，在布瑞克斯顿路的尽头、劳瑞斯顿花园街三号发生了一件凶杀案。今晨两点左右，巡逻警察忽见该处有灯光，因素悉该房无人居住，故而怀疑出了什么问题。该巡警发现房门大开，前室空无一物，内有男尸一具。该尸衣着整齐，袋中装有名片，上有「伊诺克·J.德雷伯，美国俄亥俄州克利夫兰」字样。既无被抢劫迹象，亦未发现任何能说明致死原因之证据。屋中虽有几处血迹，但死者身上并无伤痕。死者如何在空屋里遇害，我等百思不得其解，深感此案棘手之至。</div>
+    <div class="p">希望阁下在十二点之前惠临，我将在此恭候。在接信回示前，现场一切均将保持原状。如果不能莅临，亦必将详情告之，倘蒙指教，不胜感激之至。</div>
+    <div class="sig">您忠实的<br><span class="name">特白厄斯·葛莱森</span></div>
+  </div>
+  <svg class="seal" viewBox="0 0 150 150">
+    <defs><radialGradient id="wax" cx="40%" cy="35%"><stop offset="0%" stop-color="#a83232"/><stop offset="60%" stop-color="#8c1f1f"/><stop offset="100%" stop-color="#6e1414"/></radialGradient></defs>
+    <path d="M75 8 L96 20 L120 16 L128 40 L146 55 L138 78 L146 100 L124 112 L116 136 L92 134 L75 148 L58 134 L34 136 L26 112 L4 100 L12 78 L4 55 L22 40 L30 16 L54 20 Z" fill="url(#wax)"/>
+    <circle cx="75" cy="78" r="44" fill="none" stroke="#5c0f0f" stroke-width="2.5" opacity=".8"/>
+    <text x="75" y="95" font-family="Georgia, serif" font-size="46" font-style="italic" fill="#4a0c0c" text-anchor="middle" opacity=".9">G</text>
+  </svg>
+  <svg class="pennib" viewBox="0 0 340 120">
+    <path d="M10 96 C 90 92, 190 78, 268 44 C 286 36, 300 28, 310 20" stroke="#26364e" stroke-width="2.2" fill="none" opacity=".8"/>
+    <path d="M262 48 C 280 38, 296 28, 306 20 C 312 26, 310 38, 302 46 C 292 56, 274 58, 262 48 Z" fill="#3a3a3a"/>
+    <path d="M258 60 C 250 72, 240 82, 228 90" stroke="#26364e" stroke-width="1.6" fill="none" opacity=".55"/>
+  </svg>
+</div>
+</body>
+</html>
