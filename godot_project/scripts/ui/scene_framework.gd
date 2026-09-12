@@ -30,8 +30,9 @@ const SCENE_ATMOSPHERE := {
 	# scene1 图A(sofa01)：烛台未点燃 → 不设灯。
 	"scene1": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.11, "dust": true},
 	"sceneX": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.11, "dust": true},
-	# scene1 图B(opendoor)：右侧绿罩台灯（灯罩 (0.754,0.290) + 罩下暖光 (0.749,0.363)，光源中心取 (0.75,0.34)）
-	"scene1_opendoor": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.75, 0.34)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
+	# scene1 图B(opendoor)：右侧绿罩台灯——灯光中心在灯罩垂直中点 (0.750,0.268)（灯罩上下沿
+	# 0.215/0.320，2026-09-13 精测+画圈核验；灯泡位置即灯罩中部，而非罩下暖光区）
+	"scene1_opendoor": {"vignette": 0.95, "fog": 0.20, "fog_color": Color(0.26, 0.20, 0.14, 0.40), "lamps": [Vector2(0.75, 0.27)], "lamp_intensity": 1.0, "lamp_radius": 0.11, "dust": true},
 	# scene2 全部背景（garden/street/facade/path）都是白天阴天场景，路灯未点亮 → 不打光
 	"scene2": {"vignette": 1.05, "fog": 0.30, "fog_color": Color(0.18, 0.20, 0.28, 0.42), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.10, "dust": false},
 	"scene3": {"vignette": 1.0, "fog": 0.24, "fog_color": Color(0.24, 0.18, 0.14, 0.40), "lamps": [], "lamp_intensity": 0.0, "lamp_radius": 0.10, "dust": true},
