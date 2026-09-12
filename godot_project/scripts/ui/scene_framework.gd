@@ -266,9 +266,10 @@ func _apply_dialogue(speaker: String, text: String, mood: String = "") -> void:
 ## 情绪爆发触发的 mood：出现这些情绪时，立绘在落位后追加一次短促抖动（Tier 1.5）
 const BURST_MOODS: Array[String] = ["吃惊", "惊讶", "震惊", "愤怒", "激动", "恐惧", "焦急"]
 
-## speaker 换人/换表情时调用：从侧边偏移 + 缩放 + 淡入回弹落位，随后启动持续呼吸 bob。
-## mood 命中 BURST_MOODS 时追加「情绪爆发」：落位后来一段短促左右抖动（只改 position:x，
-## 与 bob 的 position:y 互不干扰，避免两个 Tween 争抢同一属性）。
+## speaker 换人/换表情时调用：横向滑入 + 淡入落位，随后启动持续呼吸 bob。
+## ⚠️ 明令禁止（思傅 2026-09-12）：
+##   ① 立绘「先压缩后扩充」的缩放弹跳 —— 尺寸全程保持 1:1，只靠位移/淡入表达动感；
+##   ② 人物「来回左右快速晃动」—— 情绪爆发抖动已移除，滑入也不做过冲回弹（改用 CUBIC 平滑到位）。
 func _animate_speaker_portrait(speaker: String, do_slide: bool, mood: String = "") -> void:
 	if not _speaker_portrait or not _speaker_portrait.visible:
 		return
@@ -282,21 +283,14 @@ func _animate_speaker_portrait(speaker: String, do_slide: bool, mood: String = "
 		var dir := -1.0 if speaker == "福尔摩斯" else 1.0
 		_speaker_portrait.position.x = _portrait_base_pos.x + 70.0 * dir
 		_speaker_portrait.modulate.a = 0.0
-		_speaker_portrait.scale = Vector2(0.92, 0.92)
+		# 不做缩放弹跳：立绘尺寸恒为 1:1（禁止先压缩后扩充）
+		_speaker_portrait.scale = Vector2.ONE
 		_portrait_slide_tween = create_tween()
-		_portrait_slide_tween.tween_property(_speaker_portrait, "position:x", _portrait_base_pos.x, 0.34).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+		# 用 CUBIC 而非 BACK：平滑到位、无过冲回弹，避免出现左右回晃观感
+		_portrait_slide_tween.tween_property(_speaker_portrait, "position:x", _portrait_base_pos.x, 0.34).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 		_portrait_slide_tween.parallel().tween_property(_speaker_portrait, "modulate:a", 1.0, 0.26)
-		_portrait_slide_tween.parallel().tween_property(_speaker_portrait, "scale", Vector2.ONE, 0.34).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
-	# 情绪爆发（Tier 1.5）：落位后短促左右抖动，强化震惊/愤怒类情绪的戏剧张力。
-	# 只动 position:x —— bob 只动 position:y，两者不争抢属性，不会互相打断。
-	if BURST_MOODS.has(mood):
-		var bx: float = _portrait_base_pos.x
-		var bt := create_tween()
-		bt.tween_interval(0.30)
-		bt.tween_property(_speaker_portrait, "position:x", bx + 7.0, 0.05)
-		bt.tween_property(_speaker_portrait, "position:x", bx - 6.0, 0.05)
-		bt.tween_property(_speaker_portrait, "position:x", bx + 4.0, 0.05)
-		bt.tween_property(_speaker_portrait, "position:x", bx, 0.06)
+	# 情绪爆发抖动已按需求移除（原为命中 BURST_MOODS 后，以 0.05s 一档做 ±7/∓6/+4 的 position:x 横向抖动）。
+	# BURST_MOODS 保留仅作情绪标记，不再驱动任何位移动画。
 	# 呼吸 bob（持续循环）：position.y 上下微浮 + scale.y 轻微呼吸
 	_portrait_bob_tween = create_tween().set_loops()
 	var by := _portrait_base_pos.y - 4.0
