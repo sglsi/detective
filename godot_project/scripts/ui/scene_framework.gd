@@ -1019,7 +1019,6 @@ func get_saved_clue_ids() -> Array:
 const CAM_ZOOM_MIN := 1.0        # 最小=统览全场景（背景正好铺满视野，不能再缩小）
 const CAM_ZOOM_MAX := 3.0        # 最大=推近看细节
 const CAM_OVERVIEW_ZOOM := 1.0
-var _camera_zoom := 1.0
 var _camera_enabled := true
 var _camera_panning := false
 var _camera_tween: Tween = null
@@ -1052,7 +1051,10 @@ func _update_camera_breath(delta: float) -> void:
 	if not _world: return
 	if not _camera_enabled or _camera_panning: return
 	if _camera_tween != null and _camera_tween.is_valid() and _camera_tween.is_running(): return
-	if absf(_camera_zoom - CAM_OVERVIEW_ZOOM) > 0.02: return
+	# ⚠️ 必须读 _world.scale.x 实际值，不能用独立的 _camera_zoom 记账变量：
+	# 滚轮 _zoom_at 只改 _world.scale 不回写记账 → 记账恒为 1 → 呼吸每帧把 scale 拉回 ≈1
+	# 而 position 保留上次缩放的负值 → 连续滚轮时 position 无限向左上累积（整体飞走 bug，2026-09-13）。
+	if absf(_world.scale.x - CAM_OVERVIEW_ZOOM) > 0.02: return
 	_cam_breath_t += delta
 	var b: float = 1.0 + CAM_BREATH_AMP * sin(_cam_breath_t * TAU / CAM_BREATH_PERIOD)
 	_world.scale = Vector2(b, b)
