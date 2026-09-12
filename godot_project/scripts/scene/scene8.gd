@@ -195,6 +195,8 @@ func _enter_reasoning() -> void:
 
 func _enter_transition() -> void:
 	_phase = Phase.TRANSITION
+	# 终局收束曲：双钩子尾声（善恶升华 + 四签名预告）开始即切片尾曲
+	AudioManager.play_scene_bgm("scene8_resolve")
 	_award()
 	# 双钩子（08 §12；02 §16 §12）：案件完结升华（善恶灰色）+ 四签名预告
 	_start_dialogue([
@@ -211,6 +213,8 @@ func _award() -> void:
 	pass
 
 func _go_to_next_scene() -> void:
+	# 结算曲：弹出「全案侦破评定」成绩单界面时切换
+	AudioManager.play_scene_bgm("settlement")
 	# 结局：先评全案（结局档位 + 各链星级概览），点继续再结案并回主菜单
 	_show_scene_rating("案件告破 · 全案侦破评定", "", Callable(self, "_scene8_continue"), true)
 
