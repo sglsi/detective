@@ -29,6 +29,7 @@ var _messenger_wall_state: Dictionary = {}
 var _stars_observe := 1
 var _stars_reason := 1
 var _stars_insight := 1
+var _letter_view: Control = null   # 委托信信笺全屏展示层
 var _look_active := false
 var _talk_active := false
 
@@ -822,10 +823,61 @@ func _show_commission_letter_dialogue() -> void:
 			true, "commission")
 	_dm = DialogueManager.new(); add_child(_dm)
 	_dm.dialogue_advanced.connect(_on_line)
+	_dm.dialogue_ended.connect(_open_letter_view)   # cl0 说完 → 信笺全屏展示
+	var nodes: Array[Resource] = []
+	nodes.append(_dn("cl0","福尔摩斯","信使留下的，是葛莱森警长的委托信。","click",["end"],"从容"))
+	# cl1（对话栏信件全文）已移除：委托信改由信笺全屏展示 _open_letter_view()（2026-09-13 用户裁定）
+	var res = DialogueResource.new(); res.scene_id="s1_letter"; res.nodes=nodes
+	res.easy_start_node="cl0"; res.normal_start_node="cl0"; res.hard_start_node="cl0"
+	_dm.dialogue_resource=res; _dm.start_dialogue()
+
+## 委托信信笺全屏展示：暗底 + 等比居中信笺图，点击任意处关闭并续播后半段对话
+func _open_letter_view() -> void:
+	if _letter_view: return
+	var layer := Control.new()
+	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	var bg := ColorRect.new()
+	bg.color = Color(0.05, 0.04, 0.02, 0.88)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(bg)
+	var tex := TextureRect.new()
+	tex.texture = load("res://assets/ui/letter_gregson.jpg")
+	tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tex.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(tex)
+	var hint := Label.new()
+	hint.text = "—— 轻触任意位置继续 ——"
+	hint.add_theme_font_size_override("font_size", 22)
+	hint.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45, 0.85))
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	hint.offset_top = -46
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(hint)
+	layer.gui_input.connect(_on_letter_view_input)
+	add_child(layer)
+	_letter_view = layer
+
+func _on_letter_view_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_close_letter_view()
+
+func _close_letter_view() -> void:
+	if not _letter_view: return
+	_letter_view.queue_free()
+	_letter_view = null
+	_start_commission_rest()
+
+## 委托信后半段对话（原 cl2~cl9）：信笺关闭后续播
+func _start_commission_rest() -> void:
+	_dm = DialogueManager.new(); add_child(_dm)
+	_dm.dialogue_advanced.connect(_on_line)
 	_dm.dialogue_ended.connect(_on_commission_ended)
 	var nodes: Array[Resource] = []
-	nodes.append(_dn("cl0","福尔摩斯","信使留下的，是葛莱森警长的委托信。","click",["cl1"],"从容"))
-	nodes.append(_dn("cl1","系统","〔葛莱森警长来信 · 全文〕\n\n亲爱的福尔摩斯先生：\n\n昨夜，在布瑞克斯顿路的尽头、劳瑞斯顿花园街三号发生了一件凶杀案。今晨两点左右，巡逻警察忽见该处有灯光，因素悉该房无人居住，故而怀疑出了什么问题。该巡警发现房门大开，前室空无一物，内有男尸一具。该尸衣着整齐，袋中装有名片，上有“伊诺克·J.德雷伯，美国俄亥俄州克利夫兰”字样。既无被抢劫迹象，亦未发现任何能说明致死原因之证据。屋中虽有几处血迹，但死者身上并无伤痕。死者如何在空屋里遇害，我等百思不得其解，深感此案棘手之至。希望阁下在十二点之前惠临，我将在此恭候。在接信回示前，现场一切均将保持原状。如果不能莅临，亦必将详情告之，倘蒙指教，不胜感激之至。\n\n您忠实的　特白厄斯·葛莱森","click",["cl2"],"信件"))
 	nodes.append(_dn("cl2","福尔摩斯","葛莱森是苏格兰场首屈一指的能干人物。中士，请转告葛莱森警长，我会在十二点之前到达。","click",["cl3"],"从容"))
 	nodes.append(_dn("cl3","信使","好的，谢谢！福尔摩斯先生，那我就先告辞了。","click",["cl4"],"平静"))
 	nodes.append(_dn("cl4","福尔摩斯","准备好了吗？一场真正的探案开始了。","click",["cl5"],"从容",0,"对玩家，眼神锐利"))
@@ -834,8 +886,8 @@ func _show_commission_letter_dialogue() -> void:
 	nodes.append(_dn("cl7","华生","听起来是个大案子！福尔摩斯，我们什么时候出发？","click",["cl8"],"好奇",0,"在一旁兴奋"))
 	nodes.append(_dn("cl8","福尔摩斯","现在就出发。但记住三条原则：第一，先观察再动手；第二，每样东西都值得量一量、记一记；第三，在有全部证据之前，不要急于下结论。","click",["cl9"],"自信",0,"拿起帽子"))
 	nodes.append(_dn("cl9","系统","【推理墙解锁新功能】案件推理链已创建（空链，等待玩家填充）\n【侦探笔记新增】案件档案：血字的研究 · 劳瑞斯顿花园街三号","click",["end"],"guide"))
-	var res = DialogueResource.new(); res.scene_id="s1_letter"; res.nodes=nodes
-	res.easy_start_node="cl0"; res.normal_start_node="cl0"; res.hard_start_node="cl0"
+	var res = DialogueResource.new(); res.scene_id="s1_letter_rest"; res.nodes=nodes
+	res.easy_start_node="cl2"; res.normal_start_node="cl2"; res.hard_start_node="cl2"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
 
 func _on_commission_ended() -> void:
