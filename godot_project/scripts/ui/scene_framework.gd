@@ -92,7 +92,6 @@ const ATMOSPHERE_LAYER_SCRIPT := preload("res://scripts/background/atmosphere_la
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_all()
-	set_process(true)   # 镜头呼吸（Tier 1.5）需要每帧驱动
 
 func setup(location: String, time_str: String, bg_tex: Texture2D = null, portraits: Array = [], scene_id_arg: String = "") -> void:
 	# ⚠️ 关键时序修复：父节点（DetectiveScene）在自身 _ready 内 add_child 本框架后，
@@ -1037,28 +1036,6 @@ func focus_world_point(world_pt: Vector2, zoom: float) -> void:
 	var center_local := _scene_area.size * 0.5
 	var target_pos := center_local - world_pt * zoom
 	_tween_camera(target_pos, Vector2(zoom, zoom))
-
-## 镜头呼吸（Tier 1.5）：统览态下让画面做极缓慢的缩放起伏，避免画面像一张死图。
-## 触发条件刻意收紧，防止与玩家操作/推镜打架：
-##   ① 相机启用且未在拖拽  ② 无正在运行的相机 Tween（推近/复位期间不介入）
-##   ③ 仅统览态（zoom≈1）  ④ 幅度极小（±0.5%）——肉眼几乎察觉不到，但画面"活"了
-var _cam_breath_t := 0.0
-const CAM_BREATH_AMP := 0.005
-const CAM_BREATH_PERIOD := 9.0
-func _process(delta: float) -> void:
-	_update_camera_breath(delta)
-
-func _update_camera_breath(delta: float) -> void:
-	if not _world: return
-	if not _camera_enabled or _camera_panning: return
-	if _camera_tween != null and _camera_tween.is_valid() and _camera_tween.is_running(): return
-	# ⚠️ 必须读 _world.scale.x 实际值，不能用独立的 _camera_zoom 记账变量：
-	# 滚轮 _zoom_at 只改 _world.scale 不回写记账 → 记账恒为 1 → 呼吸每帧把 scale 拉回 ≈1
-	# 而 position 保留上次缩放的负值 → 连续滚轮时 position 无限向左上累积（整体飞走 bug，2026-09-13）。
-	if absf(_world.scale.x - CAM_OVERVIEW_ZOOM) > 0.02: return
-	_cam_breath_t += delta
-	var b: float = 1.0 + CAM_BREATH_AMP * sin(_cam_breath_t * TAU / CAM_BREATH_PERIOD)
-	_world.scale = Vector2(b, b)
 
 ## 回到统览态（zoom=1, position=0）
 func reset_camera() -> void:
