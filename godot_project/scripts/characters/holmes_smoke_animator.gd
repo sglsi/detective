@@ -1,7 +1,10 @@
 extends Node
 ## 福尔摩斯全身立绘抽烟动画控制器
-## 将 smoke00-07 序列按指定帧率循环切换目标 TextureRect 的 texture。
-## 设计为挂到立绘 Control 下的子节点，由 scene1.gd 在开场对话阶段启停。
+## 两种驱动方式：
+##   A) 自动循环（auto_play + fps）—— 默认关闭，按固定帧率循环
+##   B) 对话驱动（推荐）：由 scene1.gd 在「每句对话推进」时调用 advance_frame()，
+##      逐帧推进并循环（末帧后回到第 0 帧）。首句对话保持第 0 帧不跳变。
+## 设计为挂到立绘 Control 下的子节点。
 
 @export var target: TextureRect
 @export var frames: Array[Texture2D] = []
@@ -12,6 +15,7 @@ extends Node
 var _timer: Timer = null
 var _idx: int = 0
 var _playing: bool = false
+var _first_consumed: bool = false
 
 signal cycle_finished
 
@@ -26,6 +30,25 @@ func _ready() -> void:
 	add_child(_timer)
 	if auto_play:
 		play()
+
+## 对话驱动启动：显示第 0 帧并停掉自动循环，准备接收逐句 advance。
+## 每段对话（赫德森太太 / 开场教程）开始时调用，使第一句对话对应 smoke00。
+func start_dialogue_driven() -> void:
+	stop(false)
+	_idx = 0
+	_update_frame()
+	_first_consumed = false
+
+## 对话驱动：在每句对话推进时调用，逐帧前进而循环。
+## 首句对话仅消费标记（保持第 0 帧），之后每句推进一帧，到第 0 帧循环。
+func advance_frame() -> void:
+	if frames.is_empty() or target == null:
+		return
+	if not _first_consumed:
+		_first_consumed = true
+		return
+	_idx = (_idx + 1) % frames.size()
+	_update_frame()
 
 func play(reset: bool = false) -> void:
 	if frames.is_empty() or target == null:

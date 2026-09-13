@@ -450,7 +450,7 @@ func _dn(id, sp, txt, tri, nxt, mood="neutral", diff_filter: int = 0, sd: String
 func _show_mrs_hudson_dialogue() -> void:
 	if _ui: _ui.set_camera_enabled(false)   # 对话阶段禁用摄像机
 	# 对齐 08 稿 v3.16.0 §阶段1初次见面（L133-153）：悬念开场 + 赫德森太太端茶
-	if _holmes_anim: _holmes_anim.play(true)   # 福尔摩斯抽烟动画随对话节奏启动
+	if _holmes_anim: _holmes_anim.start_dialogue_driven()   # 福尔摩斯抽烟动画按对话逐句推进
 	_dm = DialogueManager.new(); add_child(_dm)
 	_dm.dialogue_advanced.connect(_on_line)
 	_dm.dialogue_ended.connect(_on_mrs_hudson_end)
@@ -492,7 +492,7 @@ func _show_opening_dialogue() -> void:
 	# ⚠️ 不同难度不同台词：三难度各走独立链（start_node 分流），
 	#    EASY 逐条点出部位+全部高亮 / NORMAL 标准提示 / HARD 无引导、严格证据
 	_phase = Phase.OPENING
-	if _holmes_anim: _holmes_anim.play(true)   # 开场教程对话继续播放抽烟动画
+	if _holmes_anim: _holmes_anim.start_dialogue_driven()   # 开场教程对话按对话逐句推进抽烟动画
 	var nodes: Array[Resource] = []
 	# —— 简单（EASY）：详细引导，逐条点出部位 ——
 	nodes.append(_dn("s0_e","福尔摩斯","看这位朋友——职业与经历就写在他的袖口、手背和站姿上。手腕的晒痕、左臂的旧伤、脸色的黝黑、面容的憔悴、军人的站姿、身上消毒液的气味，都在说他刚从战场回来。来，我们把这些一条条看清楚。","click",["s1_e"],"从容"))
@@ -526,6 +526,9 @@ func _on_opening_end() -> void:
 	if _toolbar: _toolbar.show_toolbar()
 
 func _on_line(_id: String) -> void:
+	# 福尔摩斯抽烟序列：每句对话推进一帧（仅开场立绘可见阶段驱动）
+	if _holmes_anim and _holmes_portrait_ctrl and _holmes_portrait_ctrl.visible:
+		_holmes_anim.advance_frame()
 	var n = _dm.current_node; if not n: return
 	var sp = n.speaker
 	var col = Color(0.7,0.8,0.9) if sp=="华生" else Color(0.5,0.9,0.5) if sp=="system" else Color(0.85,0.75,0.45)
