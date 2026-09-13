@@ -14,6 +14,7 @@ var _messenger_obs: ClueObserver
 var _portrait_ctrl: Control = null   # 华生立绘控件（仅在 OBSERVE_WATSON 阶段显示）
 var _messenger_portrait_ctrl: Control = null  # 信使立绘控件（仅在 MESSENGER_OBSERVE 阶段显示）
 var _holmes_portrait_ctrl: Control = null  # 福尔摩斯全身立绘控件（仅在开场[MRS_HUDSON/OPENING]阶段显示）
+var _holmes_anim: Node = null              # 福尔摩斯抽烟序列动画控制器（挂到立绘 Control 下）
 var _watson_v := 0
 var _messenger_v := 0
 # 华生/信使墙各自的三维星（观察/推理/洞察），由墙验证回调透传，供场景一总评直接聚合。
@@ -90,8 +91,10 @@ func _restore_saved_state() -> bool:
 	if saved_phase >= Phase.OBSERVE_WATSON:
 		_ui.set_scene_background(_opendoor_bg(), "scene1_opendoor")
 		if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = false
+		if _holmes_anim: _holmes_anim.stop(true)
 	else:
 		if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = true
+		if _holmes_anim: _holmes_anim.stop(true)   # 停到 idle，后续 _show_*_dialogue 再启动
 
 	match saved_phase:
 		Phase.MRS_HUDSON:
@@ -211,6 +214,37 @@ func _build_ui() -> void:
 	if htex:
 		_holmes_portrait_ctrl = _ui.add_portrait(htex, "福尔摩斯", Vector2(210, 86), Vector2(373, 843), false)
 		# 默认显示：开场阶段（sofa 场景）即可见，进入华生观察（_on_opening_end）时隐藏
+		_setup_holmes_smoke_animation()
+
+## 挂载福尔摩斯抽烟序列动画控制器（scene1 开场全身立绘专用）
+## 将 smoke00-07 按 4fps 循环切换，使开场对话阶段人物保持轻微动态。
+func _setup_holmes_smoke_animation() -> void:
+	if _holmes_portrait_ctrl == null:
+		return
+	var img := _holmes_portrait_ctrl.get_node_or_null("img") as TextureRect
+	if img == null:
+		return
+	var anim := Node.new()
+	anim.name = "HolmesSmokeAnimator"
+	var script := load("res://scripts/characters/holmes_smoke_animator.gd") as Script
+	if script == null:
+		return
+	anim.set_script(script)
+	anim.set("target", img)
+	var frames: Array[Texture2D] = []
+	for i in range(8):
+		var t := load("res://assets/characters/holmes/smoke%02d.png" % i) as Texture2D
+		if t:
+			frames.append(t)
+	if frames.is_empty():
+		anim.queue_free()
+		return
+	anim.set("frames", frames)
+	anim.set("fps", 4.0)
+	anim.set("loop", true)
+	anim.set("auto_play", false)
+	_holmes_portrait_ctrl.add_child(anim)
+	_holmes_anim = anim
 
 ## 场景一用 UI 内部对话标签渲染观察层，不需要占位标签
 func _create_dummy_labels() -> void:
@@ -416,6 +450,7 @@ func _dn(id, sp, txt, tri, nxt, mood="neutral", diff_filter: int = 0, sd: String
 func _show_mrs_hudson_dialogue() -> void:
 	if _ui: _ui.set_camera_enabled(false)   # 对话阶段禁用摄像机
 	# 对齐 08 稿 v3.16.0 §阶段1初次见面（L133-153）：悬念开场 + 赫德森太太端茶
+	if _holmes_anim: _holmes_anim.play(true)   # 福尔摩斯抽烟动画随对话节奏启动
 	_dm = DialogueManager.new(); add_child(_dm)
 	_dm.dialogue_advanced.connect(_on_line)
 	_dm.dialogue_ended.connect(_on_mrs_hudson_end)
@@ -457,6 +492,7 @@ func _show_opening_dialogue() -> void:
 	# ⚠️ 不同难度不同台词：三难度各走独立链（start_node 分流），
 	#    EASY 逐条点出部位+全部高亮 / NORMAL 标准提示 / HARD 无引导、严格证据
 	_phase = Phase.OPENING
+	if _holmes_anim: _holmes_anim.play(true)   # 开场教程对话继续播放抽烟动画
 	var nodes: Array[Resource] = []
 	# —— 简单（EASY）：详细引导，逐条点出部位 ——
 	nodes.append(_dn("s0_e","福尔摩斯","看这位朋友——职业与经历就写在他的袖口、手背和站姿上。手腕的晒痕、左臂的旧伤、脸色的黝黑、面容的憔悴、军人的站姿、身上消毒液的气味，都在说他刚从战场回来。来，我们把这些一条条看清楚。","click",["s1_e"],"从容"))
@@ -479,7 +515,8 @@ func _on_opening_end() -> void:
 	# 进入华生观察阶段起切换到「从门廊向内看」背景（含之后信使观察等全部阶段）
 	if _ui: _ui.set_scene_background(load("res://assets/backgrounds/screen01-opendoor.png"), "scene1_opendoor")
 	if _ui: _ui.set_camera_enabled(true)   # 进入观察：启用摄像机（统览/缩放/拖拽）
-	# 福尔摩斯全身立绘仅属于开场（sofa 场景），华生观察开始时隐藏
+	# 福尔摩斯全身立绘仅属于开场（sofa 场景），华生观察开始时隐藏；动画停止并回到 idle 帧
+	if _holmes_anim: _holmes_anim.stop(true)
 	if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = false
 	if _portrait_ctrl: _portrait_ctrl.visible = true
 	_watson_obs.show()
