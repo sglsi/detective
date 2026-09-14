@@ -260,6 +260,21 @@ NO other objects, isolated, game asset
 - Web 预览端口固定 5000
 - Godot 项目需要 Compatibility 渲染器以支持 Web 导出
 
+## 参考书库（design_docs/reference_books/，2026-09-14）
+
+**14 本公共领域犯罪学/法医学/侦探学书**，作为探案游戏设计语料：
+
+- **Gutenberg 直下 10 本**（可达源）：Hans Gross Criminal Psychology (#1320)、Witthaus Medical Jurisprudence v1 (#49027)、Robertson Aids to Forensic Medicine (#19019)、Galton Finger Prints (#36979)、Gina Lombroso Criminal Man 英译 (#29895)、Cesare Lombroso L'uomo delinquente 意语 (#59298)、Dilnot Scotland Yard (#31629)、Pinkerton Expressman (#22155)/Burglar's Fate (#17762)/Moffett True Detective Stories (#33922)。URL 模式 `https://www.gutenberg.org/cache/epub/{id}/pg{id}.txt`；**连续请求有限速，单循环批量会超时，分小批（2-3 本）下载**。
+- **Wellcome Collection API 拼接 4 本**（Taylor Principles & Practice 1865、Taylor Manual 1874、Henry Classification and Uses of Finger Prints 1900、Guy Principles of Forensic Medicine vol.2）：
+  - **通道**：主站 `wellcomecollection.org` 有 Cloudflare 挡爬，但 **`api.wellcomecollection.org/catalogue/v2/works?query=...`（v3 已下线，必须用 v2）+ `include=items` 拿 IIIF digitised id（b 号）→ `iiif.wellcomecollection.org/presentation/v2/{b}`（manifest，canvas 数=页数）→ `api.wellcomecollection.org/text/alto/{b}/{bid}_{nnnn}.jp2`（每页一个 ALTO XML，CONTENT 属性抽出即 OCR 文本）**。
+  - **工具**：`tools/wellcome_alto_fetch.sh`（bash+curl 版，断点续传按输出文件 `=== page N` 标记计数，失败重试 3 次）。**python 版后台 nohup 在沙箱会挂死（CPU 0:00），必须用 bash 版**。
+  - **限速**：Wellcome 对持续抓取降速——前 ~400 页 ~1.2s/页，之后降至 ~1 页/分钟。Taylor 两本（1289/871 页）只抓到 401 页（part1 已入库），part2 在 `/tmp/{pp,tm}_part2.txt` 续传中（`/tmp/{pp,tm}_pages.txt` 为页表），完成后 `cat part1 part2 > final` 合并。**沙箱回收会丢 /tmp 与后台进程，续传需重新生成 seed（part1 页数个 SKIP 标记）再跑**。
+- **未获得（archive.org 系，沙箱+用户本机均不可达）**：Gross Criminal Investigation 1906 英译（id=criminalinvestig00grosuoft）、Gross Handbuch für Untersuchungsrichter 1908 德文、Vincent Police Code 1881、Byrnes Professional Criminals 1886、Bertillon Signaletic Instructions 1896。Gutenberg 无收录；待用户本机有条件时从 archive.org 下载（djvu.txt 或 epub/pdf）上传补齐。
+
+**沙箱网络可达性地图（2026-09-14 实测）**：
+- ✅ gutenberg.org / gutenberg.net.au / librivox.org / standardebooks.org / fadedpage.com / zenodo.org / api.wellcomecollection.org / iiif.wellcomecollection.org / dlcs.io / jsdelivr / gh.ddlc.top / 对象存储
+- ❌ archive.org 全系（含 ia*.us.archive.org、web.archive.org Wayback）/ hathitrust 全系 / openlibrary / wikimedia 全系（wikipedia/wikisource/commons/api.wikimedia）/ Wellcome 主站（Cloudflare 挑战）/ gallica.bnf.fr（SRU 403）/ books.google.com / r.jina.ai / archive.today 主域（ph 系）/ projekt-gutenberg.org / dweb.link
+
 ## 常见问题和预防
 
 - **信使推理链三层级重构（2026-09-07，用户表格规格）**：`CH01M` 真相链从两层改为三层：结论1（M-01 在海军中当兵←tattoo、M-02 当过兵←beard+posture 双线索 gate、M-04 当过军士←manner）→ 结论2（CL1-01 海军陆战队员←M-01+M-02）→ 结论3（CL1-02 海军军士←M-04+conclusion_CL1-01）→ 终点 **person:NPC_MSG（信使）**（原终点 NPC_SERGEANT 改为自由关联人物）。**M-03 废弃**（posture 并入 M-02 的 gate_clue_ids）；concl→concl 边 kind=support、gate 引用结论用 `conclusion_` 前缀、中间结论不写 target（与华生墙 C-A1→C-A2 同款）；推导文案（表格"推导"列）进 conclusions 的 `adopt_desc`。改真相链后必须跑闭合探针（边端点⊆节点集 + gate_clue_ids⊆线索集 + battlefield hypotheses id 对齐）；旧存档 M-03 relations 由 rebuild 权威列表剔除天然兼容。
