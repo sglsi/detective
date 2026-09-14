@@ -37,10 +37,10 @@ var _talk_active := false
 ## ⚠️ 曾误挂 crime_scene_1920x1080.jpg（命案现场），与场景三「劳瑞斯顿花园街3号·室内」
 ## 内容撞车，玩家在场景一会看到场景三的现场图。换图时注意与各场景所在地对应：
 ##   scene1 贝克街221B室内 / scene2 花园外景 / scene3 命案现场室内。
-func scene_background() -> Texture2D: return load("res://assets/backgrounds/screen01-sofa01.png")
+func scene_background() -> Texture2D: return load("res://assets/backgrounds/screen01-sofa01.jpg")
 
 # 华生观察及之后阶段使用「开门(门廊视角)」背景
-func _opendoor_bg() -> Texture2D: return load("res://assets/backgrounds/screen01-opendoor.png")
+func _opendoor_bg() -> Texture2D: return load("res://assets/backgrounds/screen01-opendoor.jpg")
 
 func _ready() -> void:
 	# ⚠️ 必须在 super._ready() 之前逐实例重建教学墙状态字典（避免类级共享默认值的跨实例泄漏）。
@@ -514,7 +514,7 @@ func _show_opening_dialogue() -> void:
 func _on_opening_end() -> void:
 	_phase = Phase.OBSERVE_WATSON
 	# 进入华生观察阶段起切换到「从门廊向内看」背景（含之后信使观察等全部阶段）
-	if _ui: _ui.set_scene_background(load("res://assets/backgrounds/screen01-opendoor.png"), "scene1_opendoor")
+	if _ui: _ui.set_scene_background(load("res://assets/backgrounds/screen01-opendoor.jpg"), "scene1_opendoor")
 	if _ui: _ui.set_camera_enabled(true)   # 进入观察：启用摄像机（统览/缩放/拖拽）
 	# 福尔摩斯全身立绘仅属于开场（sofa 场景），华生观察开始时隐藏；动画停止并回到 idle 帧
 	if _holmes_anim: _holmes_anim.stop(true)
