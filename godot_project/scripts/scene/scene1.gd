@@ -356,6 +356,7 @@ func _on_action(action_id: String) -> void:
 		"examine": _do_examine()
 		"think": _do_think()
 		"journal": _open_notebook()
+		"kb": _open_knowledge_base()   # 知识库（基类实现；此前 match 漏掉「kb」导致场景一无法打开百科）
 		"save": _do_save()
 		"load": _do_load()
 		_: _create_notification("「" + action_id + "」已激活")
