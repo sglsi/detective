@@ -34,6 +34,20 @@ func _mouse_click() -> InputEventMouseButton:
 	e.global_position = e.position
 	return e
 
+## 关闭信笺判定的是"左键**抬起**且位移很小"（以支持放大后拖动平移），
+## 故必须按下 + 抬起成对投递；只投 pressed=true 不会关闭。
+func _mouse_release() -> InputEventMouseButton:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = false
+	e.position = Vector2(400, 300)
+	e.global_position = e.position
+	return e
+
+func _click(s) -> void:
+	s._on_letter_view_input(_mouse_click())
+	s._on_letter_view_input(_mouse_release())
+
 func _key(k: int) -> InputEventKey:
 	var e := InputEventKey.new()
 	e.keycode = k
@@ -89,8 +103,8 @@ func _run() -> void:
 	_chk(visual_all_ignore, "(A2) 纯视觉子节点(贴图/提示字)均为 IGNORE，不拦截点击")
 	_chk(lv.focus_mode != Control.FOCUS_NONE, "(A3) 信笺层可获焦（键盘事件能送进 gui_input）")
 
-	# ③ (B) 鼠标左键 → 关闭并续播
-	s._on_letter_view_input(_mouse_click())
+	# ③ (B) 鼠标左键（按下+抬起）→ 关闭并续播
+	_click(s)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_chk(s._letter_view == null, "(B1) 鼠标左键 → 信笺关闭（修复前不响应=卡死）")

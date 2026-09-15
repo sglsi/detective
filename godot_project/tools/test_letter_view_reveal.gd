@@ -52,6 +52,40 @@ func _wheel(up: bool) -> InputEventMouseButton:
 	e.global_position = e.position
 	return e
 
+## 关闭信笺判定的是"左键**抬起**且位移很小"（以支持放大后拖动平移），
+## 故必须按下 + 抬起成对投递
+func _mouse_release() -> InputEventMouseButton:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = false
+	e.position = Vector2(400, 300)
+	e.global_position = e.position
+	return e
+
+func _click(s) -> void:
+	s._on_letter_view_input(_mouse_click())
+	s._on_letter_view_input(_mouse_release())
+
+## 完整一次拖动：按下 → 移动 → 抬起
+func _drag(s, from: Vector2, to: Vector2) -> void:
+	var d := InputEventMouseButton.new()
+	d.button_index = MOUSE_BUTTON_LEFT
+	d.pressed = true
+	d.position = from
+	d.global_position = from
+	s._on_letter_view_input(d)
+	var m := InputEventMouseMotion.new()
+	m.position = to
+	m.global_position = to
+	m.relative = to - from
+	s._on_letter_view_input(m)
+	var u := InputEventMouseButton.new()
+	u.button_index = MOUSE_BUTTON_LEFT
+	u.pressed = false
+	u.position = to
+	u.global_position = to
+	s._on_letter_view_input(u)
+
 
 func _run() -> void:
 	await get_tree().process_frame
@@ -72,12 +106,15 @@ func _run() -> void:
 		var opened := s._letter_view != null
 		var ev: InputEvent = _mouse_click() if tag == "鼠标左键" else _key(KEY_SPACE)
 		# 不 await 地投递：与 _open_letter_view 处于**同一帧**，模拟"_input 阶段开启 → 同事件走 GUI 阶段"。
+		# 鼠标要**按下+抬起成对**投递：真实点击就是一对，抬起单独来也可能关掉信笺（曾漏判）。
 		# 然后再等一帧（让 call_deferred 的 _close_letter_view 有机会执行）才断言，
 		# 否则"同帧被关"在同步断言下看不出来（deferred 尚未 flush）＝假通过。
 		s._on_letter_view_input(ev)
+		if tag == "鼠标左键":
+			s._on_letter_view_input(_mouse_release())
 		await get_tree().process_frame
 		var still := s._letter_view != null
-		_chk(opened and still, "(A) %s：同帧输入后信笺仍在（旧代码=同帧被关，玩家看不到）" % tag)
+		_chk(opened and still, "(A) %s：同帧按下+抬起后信笺仍在（旧代码=同帧被关，玩家看不到）" % tag)
 		# 清理，避免影响下一轮
 		if s._letter_view != null:
 			s._letter_view.queue_free()
@@ -91,10 +128,10 @@ func _run() -> void:
 	s._open_letter_view()
 	await get_tree().process_frame
 	_chk(s._letter_view != null, "(B1) 信笺已打开")
-	s._on_letter_view_input(_mouse_click())
+	_click(s)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_chk(s._letter_view == null, "(B2) 隔帧点击 → 信笺关闭（不能因修复而点不动）")
+	_chk(s._letter_view == null, "(B2) 点击（按下+抬起）→ 信笺关闭（不能因修复而点不动）")
 	var r = s._dm.dialogue_resource if s._dm != null else null
 	var sid: String = str(r.scene_id) if r != null else ""
 	_chk(sid == "s1_letter_rest", "(B3) 关闭后启动后半段对话 s1_letter_rest（实=%s）" % sid)
@@ -116,10 +153,11 @@ func _run() -> void:
 		await get_tree().process_frame
 		_chk(s._letter_view != null, "(C) 真实按键推进到信笺后，信笺仍在（旧代码=被同一次按键关掉）")
 		if s._letter_view != null:
-			# 再确认隔帧能正常关闭
-			s._on_letter_view_input(_mouse_click())
+			# 再确认隔帧能正常关闭（按下+抬起）
+			_click(s)
 			await get_tree().process_frame
 			await get_tree().process_frame
+			_chk(s._letter_view == null, "(C1) 端到端点掉信笺 → 关闭")
 			var r2 = s._dm.dialogue_resource if s._dm != null else null
 			var s2: String = str(r2.scene_id) if r2 != null else ""
 			_chk(s2 == "s1_letter_rest", "(C2) 端到端关闭后仍进 s1_letter_rest（实=%s）" % s2)
@@ -186,9 +224,40 @@ func _run() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_chk(absf(s._letter_zoom - 1.0) < 0.001, "(E10) 重新打开 → 缩放复位 100%")
-	s._on_letter_view_input(_mouse_click())
+	_click(s)
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+	# ---------- F. 放大后拖动平移 ----------
+	print("--- F. 拖动平移（放大后查看边缘字迹）---")
+	s._letter_view = null
+	s._open_letter_view()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_drag(s, Vector2(960, 540), Vector2(1200, 700))
+	await get_tree().process_frame
+	_chk(s._letter_pan.length() < 0.001, "(F1) 未放大（100%）时拖不动，pan 钳制为 0")
+	for _k in 8:
+		s._on_letter_view_input(_wheel(true))
+	await get_tree().process_frame
+	_chk(s._letter_zoom > 1.5, "(F2) 已放大到 %.2f" % s._letter_zoom)
+	_drag(s, Vector2(960, 540), Vector2(1160, 740))
+	await get_tree().process_frame
+	_chk(s._letter_pan.length() > 1.0, "(F3) 放大后拖动 → 平移生效（pan=%s）" % str(s._letter_pan))
+	_chk(s._letter_view != null, "(F4) 拖动**不会**关闭信笺")
+	for _m in 40:
+		_drag(s, Vector2(200, 200), Vector2(1800, 1000))
+	await get_tree().process_frame
+	var saturated: Vector2 = s._clamp_letter_pan(s._letter_pan * 100.0)
+	_chk(s._letter_pan.distance_to(saturated) < 0.001,
+		"(F5) 平移有界，会停在可视边界而非无限拖走（pan=%s）" % str(s._letter_pan))
+	_click(s)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_chk(s._letter_view == null, "(F6) 拖动之后再点击 → 仍能正常关闭并续播")
+	var r4 = s._dm.dialogue_resource if s._dm != null else null
+	var s4: String = str(r4.scene_id) if r4 != null else ""
+	_chk(s4 == "s1_letter_rest", "(F7) 拖动后关闭仍进 s1_letter_rest（实=%s）" % s4)
 
 	print("=== LETTER_REVEAL: %s (fail=%d) ===" % ["PASS" if _fail == 0 else "FAIL", _fail])
 	get_tree().quit(0 if _fail == 0 else 1)

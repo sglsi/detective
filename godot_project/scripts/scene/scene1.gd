@@ -852,9 +852,16 @@ var _letter_tex_path := "res://assets/ui/letter_gregson.jpg"
 const _LETTER_ZOOM_MIN := 0.5
 const _LETTER_ZOOM_MAX := 3.0
 const _LETTER_ZOOM_STEP := 1.15
+# 拖动阈值：按下后移动不超过此像素数视为"点击"（关闭信笺），超过则视为"拖动平移"
+const _LETTER_DRAG_EPS := 6.0
 var _letter_zoom: float = 1.0
+var _letter_pan := Vector2.ZERO
 var _letter_tex: TextureRect = null
 var _letter_hint: Label = null
+var _letter_dragging := false
+var _letter_drag_start := Vector2.ZERO
+var _letter_pan_on_drag := Vector2.ZERO
+var _letter_drag_dist := 0.0
 
 func _open_letter_view() -> void:
 	if _letter_view: return
@@ -892,6 +899,8 @@ func _open_letter_view() -> void:
 	layer.add_child(tex)
 	_letter_tex = tex
 	_letter_zoom = 1.0
+	_letter_pan = Vector2.ZERO
+	_letter_dragging = false
 	var hint := Label.new()
 	hint.text = _letter_hint_text()
 	hint.add_theme_font_size_override("font_size", 22)
@@ -921,32 +930,55 @@ func _on_letter_view_input(event: InputEvent) -> void:
 	#   修复：忽略与"开启信笺"处于同一帧的输入，下一帧起才接受（用户随手一按也不会误关）。
 	if Engine.get_process_frames() <= _letter_opened_frame:
 		return
-	# ★ 鼠标滚轮缩放（不关闭信笺）：向上放大、向下缩小，以屏幕中心为轴
+	var vp := get_viewport()
+	# （1）滚轮缩放：向上放大、向下缩小，以屏幕中心为轴；不关闭信笺
 	var mb := event as InputEventMouseButton
 	if mb and mb.pressed:
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_set_letter_zoom(_letter_zoom * _LETTER_ZOOM_STEP)
-			var v0 := get_viewport()
-			if v0 != null:
-				v0.set_input_as_handled()
+			if vp != null: vp.set_input_as_handled()
 			return
 		if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_set_letter_zoom(_letter_zoom / _LETTER_ZOOM_STEP)
-			var v1 := get_viewport()
-			if v1 != null:
-				v1.set_input_as_handled()
+			if vp != null: vp.set_input_as_handled()
 			return
+		# （2）左键**按下**＝开始拖动（平移）；不再在此处关闭，
+		#     否则"一按就关"、放大后根本没法拖着看。
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			_letter_dragging = true
+			_letter_drag_start = mb.position
+			_letter_pan_on_drag = _letter_pan
+			_letter_drag_dist = 0.0
+			if vp != null: vp.set_input_as_handled()
+			return
+	# （3）拖动中：按位移平移信笺（放大后用于查看边缘字迹）
+	if event is InputEventMouseMotion and _letter_dragging:
+		var mm := event as InputEventMouseMotion
+		var delta := mm.position - _letter_drag_start
+		_letter_drag_dist = delta.length()
+		_set_letter_pan(_letter_pan_on_drag + delta)
+		if vp != null: vp.set_input_as_handled()
+		return
+	# （4）左键**抬起**：仅当此前真的收到过"按下"（_letter_dragging）且位移很小 ＝ 点击 → 关闭。
+	#     🔴 若"按下"被上面的帧守卫吞掉（开启信笺的那一次点击），_letter_dragging 为 false，
+	#        此处的抬起**必须**被忽略 —— 否则同一次点击的抬起会把刚弹出的信笺关掉（同帧生灭的变体）。
+	if mb and not mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+		var was_click: bool = _letter_dragging and _letter_drag_dist <= _LETTER_DRAG_EPS
+		_letter_dragging = false
+		if not was_click:
+			if vp != null: vp.set_input_as_handled()
+			return
+	# （5）其余：按键 → 关闭
 	var go := false
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		go = true
-	elif event is InputEventKey and event.pressed and not event.echo:
+	if event is InputEventKey and event.pressed and not event.echo:
 		go = true   # Esc / 空格 / 回车 / 任意键均可继续
+	elif mb and not mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+		go = true   # 上面判定的"点击"
 	if not go:
 		return
 	if _letter_closing or _letter_view == null:
 		return
 	_letter_closing = true
-	var vp := get_viewport()
 	if vp != null:
 		vp.set_input_as_handled()   # 消费掉本次输入，避免同一次点击再触发下层 UI
 	# 帧末再销毁信笺并重建后段对话：避免在输入回调里重建自身（Web 栈溢出/灰屏的历史教训）
@@ -959,11 +991,25 @@ func _close_letter_view() -> void:
 	_letter_tex = null
 	_letter_hint = null
 	_letter_zoom = 1.0
+	_letter_pan = Vector2.ZERO
+	_letter_dragging = false
 	_start_commission_rest()
 
-## 信笺缩放：钳制到 [MIN, MAX] 后应用到贴图 Control（以自身中心为轴），并刷新提示文案
+## 信笺缩放：钳制到 [MIN, MAX] → 平移量随之重新钳制 → 应用到贴图 Control 并刷新提示
 func _set_letter_zoom(z: float) -> void:
 	_letter_zoom = clampf(z, _LETTER_ZOOM_MIN, _LETTER_ZOOM_MAX)
+	_set_letter_pan(_letter_pan)   # 缩放变化后重新钳制平移，避免内容被拖出屏幕
+	_apply_letter_transform()
+	_refresh_letter_hint()
+
+## 信笺平移：钳制到"内容仍覆盖屏幕"的范围内（未放大时为 0，即拖不动）
+func _set_letter_pan(p: Vector2) -> void:
+	_letter_pan = _clamp_letter_pan(p)
+	_apply_letter_transform()
+	_refresh_letter_hint()
+
+## 把 zoom / pan 落到贴图 Control 上：以自身中心为缩放轴，position 承载平移
+func _apply_letter_transform() -> void:
 	if _letter_tex == null or not is_instance_valid(_letter_tex):
 		return
 	var s := _letter_tex.size
@@ -971,13 +1017,37 @@ func _set_letter_zoom(z: float) -> void:
 		return
 	_letter_tex.pivot_offset = s * 0.5
 	_letter_tex.scale = Vector2(_letter_zoom, _letter_zoom)
+	_letter_tex.position = _letter_pan
+
+## 平移上限：按"实际绘制内容尺寸"计算（贴图是 KEEP_ASPECT_CENTERED，比控件窄/矮）
+func _clamp_letter_pan(p: Vector2) -> Vector2:
+	if _letter_tex == null or not is_instance_valid(_letter_tex):
+		return Vector2.ZERO
+	var s := _letter_tex.size
+	if s.x <= 0.0 or s.y <= 0.0:
+		return p
+	var t := _letter_tex.texture
+	var drawn := s
+	if t != null:
+		var ts: Vector2 = t.get_size()
+		if ts.x > 0.0 and ts.y > 0.0:
+			var ar := ts.x / ts.y
+			drawn = Vector2(s.y * ar, s.y) if s.x / s.y > ar else Vector2(s.x, s.x / ar)
+	var lim: Vector2 = (drawn * _letter_zoom - s) * 0.5
+	return Vector2(
+		clampf(p.x, -maxf(lim.x, 0.0), maxf(lim.x, 0.0)),
+		clampf(p.y, -maxf(lim.y, 0.0), maxf(lim.y, 0.0)))
+
+func _refresh_letter_hint() -> void:
 	if _letter_hint != null and is_instance_valid(_letter_hint):
 		_letter_hint.text = _letter_hint_text()
 
 func _letter_hint_text() -> String:
 	if absf(_letter_zoom - 1.0) < 0.001:
 		return "—— 滚轮缩放信笺 · 点击 / 按任意键继续 ——"
-	return "—— 缩放 %d%% · 滚轮继续缩放 · 点击 / 按任意键继续 ——" % int(round(_letter_zoom * 100.0))
+	if _letter_pan.length() > 1.0:
+		return "—— 缩放 %d%% · 滚轮缩放 / 拖动查看 · 点击 / 按任意键继续 ——" % int(round(_letter_zoom * 100.0))
+	return "—— 缩放 %d%% · 滚轮缩放 · 放大后可拖动查看 · 点击 / 按任意键继续 ——" % int(round(_letter_zoom * 100.0))
 
 ## 信笺贴图不可用时的**文本兜底**：在对话栏逐段呈递信件全文，然后照常续播后半段。
 ## 目的：保证「警长给福尔摩斯的手写信」的内容在任何运行环境下都能在剧情中呈现，
