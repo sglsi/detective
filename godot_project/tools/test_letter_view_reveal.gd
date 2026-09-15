@@ -44,6 +44,14 @@ func _key(k: int) -> InputEventKey:
 	e.pressed = true
 	return e
 
+func _wheel(up: bool) -> InputEventMouseButton:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_WHEEL_UP if up else MOUSE_BUTTON_WHEEL_DOWN
+	e.pressed = true
+	e.position = Vector2(960, 540)
+	e.global_position = e.position
+	return e
+
 
 func _run() -> void:
 	await get_tree().process_frame
@@ -137,6 +145,50 @@ func _run() -> void:
 				has_body = true
 	_chk(has_body, "(D3) 兜底文案确实包含信件正文（不是空文本）")
 	s._letter_tex_path = saved_path
+
+	# ---------- E. 鼠标滚轮缩放 ----------
+	print("--- E. 滚轮缩放（放大/缩小/上下限/重开复位）---")
+	s._letter_view = null
+	s._open_letter_view()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_chk(s._letter_view != null, "(E1) 信笺已打开")
+	_chk(absf(s._letter_zoom - 1.0) < 0.001, "(E2) 初始缩放 = 100%")
+	var z0: float = s._letter_zoom
+	s._on_letter_view_input(_wheel(true))
+	s._on_letter_view_input(_wheel(true))
+	s._on_letter_view_input(_wheel(true))
+	await get_tree().process_frame
+	_chk(s._letter_zoom > z0, "(E3) 向上滚轮 → 放大（%.3f → %.3f）" % [z0, s._letter_zoom])
+	_chk(s._letter_view != null, "(E4) 滚轮**不会**关闭信笺")
+	if s._letter_tex != null:
+		var sz: Vector2 = s._letter_tex.size
+		_chk(sz.x > 0.0 and sz.y > 0.0, "(E5) 贴图控件已有尺寸（%s）→ 缩放可实际生效" % str(sz))
+		if sz.x > 0.0:
+			_chk(absf(s._letter_tex.scale.x - s._letter_zoom) < 0.001,
+				"(E6) 缩放已应用到贴图（scale=%.3f / zoom=%.3f）" % [s._letter_tex.scale.x, s._letter_zoom])
+	var z1: float = s._letter_zoom
+	s._on_letter_view_input(_wheel(false))
+	await get_tree().process_frame
+	_chk(s._letter_zoom < z1, "(E7) 向下滚轮 → 缩小（%.3f → %.3f）" % [z1, s._letter_zoom])
+	for _i in 60:
+		s._on_letter_view_input(_wheel(true))
+	await get_tree().process_frame
+	_chk(s._letter_zoom <= s._LETTER_ZOOM_MAX + 0.001,
+		"(E8) 放大有上限 %.1f（实=%.3f）" % [s._LETTER_ZOOM_MAX, s._letter_zoom])
+	for _j in 200:
+		s._on_letter_view_input(_wheel(false))
+	await get_tree().process_frame
+	_chk(s._letter_zoom >= s._LETTER_ZOOM_MIN - 0.001,
+		"(E9) 缩小有下限 %.1f（实=%.3f）" % [s._LETTER_ZOOM_MIN, s._letter_zoom])
+	s._letter_view = null
+	s._open_letter_view()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_chk(absf(s._letter_zoom - 1.0) < 0.001, "(E10) 重新打开 → 缩放复位 100%")
+	s._on_letter_view_input(_mouse_click())
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 	print("=== LETTER_REVEAL: %s (fail=%d) ===" % ["PASS" if _fail == 0 else "FAIL", _fail])
 	get_tree().quit(0 if _fail == 0 else 1)

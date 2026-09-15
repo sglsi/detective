@@ -845,6 +845,16 @@ var _letter_closing := false
 var _letter_opened_frame := -1   # 信笺开启所在的帧号：用于忽略"开启它的那一次输入"（见 _on_letter_view_input）
 # 委托信信笺贴图路径（提为成员：便于测试用非法路径验证"贴图缺失时的文本兜底"）
 var _letter_tex_path := "res://assets/ui/letter_gregson.jpg"
+# ===== 信笺缩放（鼠标滚轮）=====
+# 1.0 = 恰好铺满屏幕高度（初始值）；向上滚轮放大、向下滚轮缩小，以屏幕中心为轴。
+# 为什么安全：信笺显示时 _dm 已失活（dialogue_manager._end_dialogue 先置 dialogue_active=false
+# 再发 dialogue_ended），故基类 _input 的滚轮"回看台词"会提前 return，不会抢事件。
+const _LETTER_ZOOM_MIN := 0.5
+const _LETTER_ZOOM_MAX := 3.0
+const _LETTER_ZOOM_STEP := 1.15
+var _letter_zoom: float = 1.0
+var _letter_tex: TextureRect = null
+var _letter_hint: Label = null
 
 func _open_letter_view() -> void:
 	if _letter_view: return
@@ -880,8 +890,10 @@ func _open_letter_view() -> void:
 	tex.set_anchors_preset(Control.PRESET_FULL_RECT)
 	tex.mouse_filter = Control.MOUSE_FILTER_IGNORE   # 纯视觉，不拦截
 	layer.add_child(tex)
+	_letter_tex = tex
+	_letter_zoom = 1.0
 	var hint := Label.new()
-	hint.text = "—— 点击 / 按任意键继续 ——"
+	hint.text = _letter_hint_text()
 	hint.add_theme_font_size_override("font_size", 22)
 	hint.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45, 0.85))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -889,6 +901,7 @@ func _open_letter_view() -> void:
 	hint.offset_top = -46
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE   # 纯视觉，不拦截
 	layer.add_child(hint)
+	_letter_hint = hint
 	# 双接：拾取命中 bg 或 layer 任一都能响应（_letter_closing 保证只关一次）
 	layer.gui_input.connect(_on_letter_view_input)
 	# 键盘支持：Control 需可获焦才会把按键送进自己的 gui_input
@@ -908,6 +921,21 @@ func _on_letter_view_input(event: InputEvent) -> void:
 	#   修复：忽略与"开启信笺"处于同一帧的输入，下一帧起才接受（用户随手一按也不会误关）。
 	if Engine.get_process_frames() <= _letter_opened_frame:
 		return
+	# ★ 鼠标滚轮缩放（不关闭信笺）：向上放大、向下缩小，以屏幕中心为轴
+	var mb := event as InputEventMouseButton
+	if mb and mb.pressed:
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_set_letter_zoom(_letter_zoom * _LETTER_ZOOM_STEP)
+			var v0 := get_viewport()
+			if v0 != null:
+				v0.set_input_as_handled()
+			return
+		if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_set_letter_zoom(_letter_zoom / _LETTER_ZOOM_STEP)
+			var v1 := get_viewport()
+			if v1 != null:
+				v1.set_input_as_handled()
+			return
 	var go := false
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		go = true
@@ -928,7 +956,28 @@ func _close_letter_view() -> void:
 	if not _letter_view: return
 	_letter_view.queue_free()
 	_letter_view = null
+	_letter_tex = null
+	_letter_hint = null
+	_letter_zoom = 1.0
 	_start_commission_rest()
+
+## 信笺缩放：钳制到 [MIN, MAX] 后应用到贴图 Control（以自身中心为轴），并刷新提示文案
+func _set_letter_zoom(z: float) -> void:
+	_letter_zoom = clampf(z, _LETTER_ZOOM_MIN, _LETTER_ZOOM_MAX)
+	if _letter_tex == null or not is_instance_valid(_letter_tex):
+		return
+	var s := _letter_tex.size
+	if s.x <= 0.0 or s.y <= 0.0:
+		return
+	_letter_tex.pivot_offset = s * 0.5
+	_letter_tex.scale = Vector2(_letter_zoom, _letter_zoom)
+	if _letter_hint != null and is_instance_valid(_letter_hint):
+		_letter_hint.text = _letter_hint_text()
+
+func _letter_hint_text() -> String:
+	if absf(_letter_zoom - 1.0) < 0.001:
+		return "—— 滚轮缩放信笺 · 点击 / 按任意键继续 ——"
+	return "—— 缩放 %d%% · 滚轮继续缩放 · 点击 / 按任意键继续 ——" % int(round(_letter_zoom * 100.0))
 
 ## 信笺贴图不可用时的**文本兜底**：在对话栏逐段呈递信件全文，然后照常续播后半段。
 ## 目的：保证「警长给福尔摩斯的手写信」的内容在任何运行环境下都能在剧情中呈现，
