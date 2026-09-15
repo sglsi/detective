@@ -109,9 +109,89 @@ B C F G G G F F F H H D D B B C F G G G F F F H H D D B B C G
 ## 5. 该曲的"生成内容"还原（反推 prompt）
 
 > ⚠️ 再次声明：这是**从实测特征反推的等效描述**，用于给我们的生成工具做参照；原曲是人工作曲。
+>
+> 🔴 **2026-09-15 修订**：最初写出的"技术分析版"**生成一直失败**，原因见 5.1。请**直接使用 5.2 的精简版**。
+
+### 5.1 为什么会生成失败（按嫌疑排序）
+
+对原提示词逐项审计，结论：
+
+| # | 问题 | 具体位置 | 后果 |
+|---|---|---|---|
+| 1 | **字数超限（最主要）** | 全文 **250 字**，Suno 的 style 框上限约 **200 字符** | 被截断/直接报错；中文一字即一字符，标点也算 |
+| 2 | **写了混音/母带指标** | 「频谱斜率约 −8 dB/oct」「响度恒定」「混音整体压暗」 | 生成模型**不理解**这些；"响度恒定"还与模型固有的段落起伏冲突 → 常见失败源 |
+| 3 | **特殊字符** | `−`（U+2212 数学减号，不是普通连字符）、`F#` 的 `#`、`dB/oct` 的 `/`、中文引号 `""` | 部分平台校验失败或截断 |
+| 4 | **长度 / 循环指令** | 「做成 **140 秒**的循环单元」「能无缝循环」 | Suno **不认秒数**（固定出约 2 分钟片段），也不认"循环"指令 |
+| 5 | **否定式堆叠** | 「完全**没有**镲片的高频亮度」「**无**人声」 | 模型对"不要什么"服从度差，堆叠否定拉低命中率 |
+| 6 | **生僻术语** | 「三全音」「凹谷」 | 中文平台识别度低，属无效信息 |
+
+最占地方的一句是那句 **61 字**的混音描述——它同时也是"不是生成参数"的那部分，删掉即可省掉四分之一篇幅。
+
+### 5.2 ✅ 精简版（可直接粘贴，均已核验字数）
+
+**中文版（147 字，Suno／海绵音乐／Mureka 通用）**
+
+```
+暗色电子管弦 Boss 主题，89 BPM。厚重的持续低音床以 G 为踏板，升 F 的半音来回摇动，紧绷不松；中音区是密集的八分固定音型不断推进，快速段加入十六分跑动。鼓只留低沉底鼓与闷响军鼓，不用镲片，高频极少、音色发闷。和声多用半音与不协和色彩。气质不退让、紧绷、一路向前。纯器乐，无演唱。
+```
+
+**英文极简版（194 字符，兼容 Suno v3 的 200 上限）**
+
+```
+Dark orchestral-electronic boss track, 89 BPM, sub-bass drone on G pedal, F-sharp neighbour,
+eighth-note ostinato, deep kick, muffled snare, no cymbals, dark low-passed, relentless, instrumental
+```
+
+**英文完整版（390 字符，仅 Suno v4+ / Udio 可用）**
+
+```
+Dark electronic orchestral boss theme, 89 BPM. Heavy sustained sub-bass drone on a G pedal with a
+restless F-sharp semitone neighbour. Dense eighth-note ostinato, sixteenth-note runs in the fast section.
+Deep kick and muffled snare only, no cymbals, dark low-passed tone with almost no high end.
+Chromatic dissonant harmony. Relentless, tense, driving forward. Instrumental only, no vocals.
+```
+
+**负向词**（有负面词框的工具才填）
+```
+bright cymbals, airy hi-hats, sparkling highs, gentle, soothing, lullaby, pastoral,
+melancholy dirge, slow, sparse, ambient drone, swing, jazz, waltz
+```
+
+### 5.3 结构与"凹谷/最亮段" → 交给分段，不要塞进 style 框
+
+Suno 的 style 框不收结构；把它写进**歌词框的段落标签**，或用于海绵音乐/Mureka 的自定义模式：
+
+```
+[Intro 引子 0–10s]   低音床独奏 + 远处脉冲，极暗
+[A 暗色框 10–40s]    低音踏板 + 稀疏八分音型
+[Break 凹谷一]       只剩低音床，约 2 小节留白
+[B 主题 40–70s]      完整八分固定音型进入
+[C 发展 70–100s]     密度上升
+[D 推进 100–120s]    十六分跑动（全曲最亮段）
+[Break 凹谷二]       只剩低音床，约 2 小节留白
+[A 收束 120–140s]    回到暗色框，可无缝接回引子
+```
+
+> 时长处理：Suno 固定出约 2 分钟片段，生成后**裁到 140 秒**即可；要更长用 Extend。
+
+### 5.4 原「混音指标」→ 改成生成后的音频处理（这一步必须在 DAW/ffmpeg 做）
+
+"频谱斜率 −8 dB/oct""响度恒定"**不是生成参数**，而是后期处理目标：
+
+| 目标 | 处理方式 | ffmpeg 参考 |
+|---|---|---|
+| 高频压暗（≈ −8 dB/oct 的听感） | 低通滤波 5–6 kHz | `lowpass=f=5500` |
+| 响度恒定、动态收窄 | 响度归一化 + 轻度限制 | `loudnorm=I=-14:TP=-1.5:LRA=7` |
+| 无缝循环 | 头尾各 10–30 ms 交叉淡化，或裁到整小节 | `afade` / 直接裁剪 |
+
+示例：
+```bash
+ffmpeg -i in.wav -af "lowpass=f=5500,loudnorm=I=-14:TP=-1.5:LRA=7" out.wav
+```
+
+### 5.5 技术分析版（原文保留备查，**不要直接粘进生成工具**）
 
 **Prompt（英文）**
-
 ```
 Dark electronic-orchestral boss theme, heavy sustained sub-bass bed on a G pedal with a
 half-step neighbour F# rocking underneath, driving eighth-note ostinato in the mid register,
@@ -123,14 +203,8 @@ relentless, tense and forward-driving, looped and seamlessly repeatable,
 instrumental only, no vocals
 ```
 
-**负向词**
-```
-bright cymbals, airy hi-hats, sparkling highs, gentle, soothing, lullaby, pastoral,
-melancholy dirge, slow, sparse, ambient drone, swing, jazz, waltz
-```
-
-**中文自然语言版**
-> 暗色电子 + 管弦的 Boss 主题。低音是一条厚重的**持续低音床**，以 G 为踏板，底下用半音邻近的 F# 来回摇动；中音区是**密集的八分固定音型**推动，打击瞬态适中但**完全没有镲片的高频亮度**，快速段落加入十六分密度的跑动。整曲以 G 为中心，大量使用半音与三全音的染色。速度 89 BPM，做成**140 秒的循环单元**。混音**整体压暗**（高频几乎没有空气感，频谱斜率约 −8 dB/oct），**响度几乎恒定**，只在两处做短暂的"凹谷"，另有一段最亮的段落。气质是**不退让的、紧绷的、向前的推进感**，能无缝循环。纯器乐，无人声。
+**中文自然语言版**（250 字，超限；含混音指标与特殊字符 `−` `F#` `dB/oct`）
+> 暗色电子 + 管弦的 Boss 主题。低音是一条厚重的持续低音床，以 G 为踏板，底下用半音邻近的 F# 来回摇动；中音区是密集的八分固定音型推动，打击瞬态适中但完全没有镲片的高频亮度，快速段落加入十六分密度的跑动。整曲以 G 为中心，大量使用半音与三全音的染色。速度 89 BPM，做成140 秒的循环单元。混音整体压暗（高频几乎没有空气感，频谱斜率约 −8 dB/oct），响度恒定，只在两处做短暂的"凹谷"，另有一段最亮的段落。气质是不退让的、紧绷的、向前的推进感，能无缝循环。纯器乐，无人声。
 
 ## 6. 可视化
 
