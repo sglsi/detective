@@ -842,10 +842,12 @@ func _show_commission_letter_dialogue() -> void:
 ##         ② layer 可获焦并 grab_focus，于是键盘（Esc/空格/回车/任意键）也能继续；
 ##         ③ 关闭动作 call_deferred 到帧末，避免在输入回调里销毁+重建对话（历史教训：_input 内重建自身 → Web 栈溢出/灰屏）。
 var _letter_closing := false
+var _letter_opened_frame := -1   # 信笺开启所在的帧号：用于忽略"开启它的那一次输入"（见 _on_letter_view_input）
 
 func _open_letter_view() -> void:
 	if _letter_view: return
 	_letter_closing = false
+	_letter_opened_frame = Engine.get_process_frames()
 	var layer := Control.new()
 	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -881,6 +883,16 @@ func _open_letter_view() -> void:
 	_letter_view = layer
 
 func _on_letter_view_input(event: InputEvent) -> void:
+	# 🔴 2026-09-15 第二处根因修复「推进到委托信后信笺没有展示出来（同帧生灭）」：
+	#   _open_letter_view 是挂在 dialogue_ended 上的，而该信号在 `advance()` 里**同步**发出，
+	#   而 advance() 又是在 `detective_scene._input()` 里被点击/按键触发的 →
+	#   于是信笺层在 **`_input` 阶段**就已创建、连接 gui_input 并 grab_focus。
+	#   Godot 单事件传播顺序为 `_input` → GUI(`_gui_input`)，**同一次点击/按键随后会再落到刚弹出的信笺层上**
+	#   （全屏承接者 / 已获焦的 layer）→ 立刻 _close_letter_view()：信笺同帧生灭，玩家看不到
+	#   （但流程能继续，所以不表现为之前的"卡死"，而是"整封信凭空消失"）。
+	#   修复：忽略与"开启信笺"处于同一帧的输入，下一帧起才接受（用户随手一按也不会误关）。
+	if Engine.get_process_frames() <= _letter_opened_frame:
+		return
 	var go := false
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		go = true
