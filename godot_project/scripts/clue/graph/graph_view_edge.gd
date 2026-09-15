@@ -348,6 +348,8 @@ func _remove_edge(from: String, to: String, kind: String) -> void:
 			if _in_list:
 				owner._deleted_target_edges[from] = to
 				owner._persist_view()
+				# 结构性变更（删边）→ 与 _add_edge 同口径全量重排，避免沿用拖前旧位而互相覆盖
+				owner._layout._relayout_on_edge = true
 				owner._rebuild_graph()
 				owner._toast_msg("已删除结论与人物连线（可重连）")
 				return
@@ -362,6 +364,9 @@ func _remove_edge(from: String, to: String, kind: String) -> void:
 	if owner._cb_relations_changed.is_valid():
 		owner._cb_relations_changed.call(owner._relations.duplicate())
 	owner._persist_view()
+	# 2026-09-15：删边同属结构性变更 → 与 _add_edge 一致点亮全量重排，
+	# 否则 _compute_layout 沿用拖前旧位，树结构已变而位置不变 → 文本框互相覆盖。
+	owner._layout._relayout_on_edge = true
 	owner._rebuild_graph()
 	owner._toast_msg("已删除%s的连线（Ctrl+Z 可恢复）" % _rel_verb(kind))
 

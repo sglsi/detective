@@ -1321,6 +1321,7 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 	var gp: Vector2 = get_viewport().get_mouse_position() if at == Vector2.INF else at
 	var moved := gp.distance_to(_drag_start) > 8.0
 	var _side_switched := false
+	var _edge_created := false   # 本次拖动是否建立了关系（=结构性变更，须跑去重叠）
 	if moved and _state == State.EDITABLE:
 		var drop: String = _drop_node_except(gp, id)
 		if drop == "":
@@ -1349,9 +1350,11 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 					_tag_person(other_id, person_id)
 				else:
 					_edge._add_edge(other_id, person_id, "target", "gold", false)
+					_edge_created = true
 					_nudge_away_from(other_id, person_id)
 			elif drop_kind in ["hypo", "clue", "conclusion"]:
 				_edge._add_edge(id, drop, _data.key_to_kind(_pen_color_key), _pen_color_key, _pen_dashed)
+				_edge_created = true
 				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
 				_nudge_away_from(id, drop)
 			# 建边/标记路径同样钉位：X 停在（推离后的）落点，后续 rebuild 不回位，子树随 X 生长
@@ -1395,8 +1398,10 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 	_fold._sync_fold_controls_positions()
 	# 第8节改造（A①+B①）：移动/建关系后整树按星形重排——根锚点保留、子节点回派生位
 	if moved:
-		# 换侧 = 整墙按左右平衡重排，需要执行去重叠；普通拖动仍跳过（否则上游节点被推走=观感"自动排列"）
-		_post_drag = not _side_switched
+		# 换侧 = 整墙按左右平衡重排，需要执行去重叠；普通拖动仍跳过（否则上游节点被推走=观感"自动排列"）。
+		# 2026-09-15：**建立了关系的拖动**属结构性变更，必须执行去重叠——否则被拖节点停在落点、
+		# 若压到第三个节点就永久互相覆盖（用户报 bug：调整文本框关系后出现覆盖）。
+		_post_drag = (not _side_switched) and (not _edge_created)
 		_rebuild_graph()
 		if _side_switched:
 			_persist_view()
@@ -1488,14 +1493,57 @@ func _nudge_away_from(id: String, drop: String) -> void:
 	var dv: Vector2 = ac - bc
 	if dv == Vector2.ZERO: dv = Vector2(0, 1)
 	var min_dist: float = (a.size.x + b.size.x) * 0.5 + 24.0
-	if dv.length() >= min_dist: return
-	dv = dv.normalized()
-	var new_c: Vector2 = bc + dv * min_dist
-	a.position = new_c - a.size * 0.5
-	_node_center[id] = new_c
-	_all_positions[id] = new_c
+	if dv.length() < min_dist:
+		dv = dv.normalized()
+		var new_c: Vector2 = bc + dv * min_dist
+		a.position = new_c - a.size * 0.5
+		_node_center[id] = new_c
+		_all_positions[id] = new_c
+	# 2026-09-15：只推离「目标框」不够——若推开的落点又压住**第三个**节点，
+	# 松手后 X 会被钉在此处，而全局去重叠又不动钉位节点 → 永久互相覆盖（用户报 bug）。
+	# 故这里再确保落点与任何现有节点都不相交（螺旋找空位）。
+	_resolve_overlap_for(id)
 	_layout._persist_node_positions()
 	_redraw_all()
+
+
+## 把节点放到「不与任何其它节点相交（留 24px 间隙）」的位置：原位可用则不动，否则螺旋外扩找空位。
+## 判定用**真实视图矩形**（Control.position/size），与玩家所见一致。
+func _resolve_overlap_for(id: String) -> void:
+	var v: Control = _node_views.get(id)
+	if v == null or not is_instance_valid(v): return
+	var base: Vector2 = v.position + v.size * 0.5
+	if not _node_collides(id, base):
+		_node_center[id] = base
+		_all_positions[id] = base
+		return
+	for ring in range(1, 13):
+		var count: int = maxi(8, ring * 8)
+		var r: float = 60.0 * (1.0 + ring * 0.5)
+		for i in count:
+			var ang: float = float(i) / float(count) * TAU + ring * 0.4
+			var cand: Vector2 = base + Vector2(cos(ang), sin(ang)) * r
+			if not _node_collides(id, cand):
+				v.position = cand - v.size * 0.5
+				_node_center[id] = cand
+				_all_positions[id] = cand
+				return
+	_node_center[id] = base
+	_all_positions[id] = base
+
+
+## 以「真实视图矩形 + 24px 间隙」判断 center 处是否与其它节点相撞（含钉位节点，一律避开）
+func _node_collides(id: String, center: Vector2) -> bool:
+	var v: Control = _node_views.get(id)
+	if v == null or not is_instance_valid(v): return false
+	var mine := Rect2(center - v.size * 0.5, v.size).grow(24.0)
+	for other in _node_views:
+		if str(other) == id: continue
+		var o: Control = _node_views[other]
+		if o == null or not is_instance_valid(o): continue
+		if Rect2(o.position, o.size).intersects(mine):
+			return true
+	return false
 
 
 ## 提交建边（拖到另一节点上 = 加证据连线；落空 = 取消）

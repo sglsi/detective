@@ -112,7 +112,19 @@ func _pinned_subtree_nodes() -> Dictionary:
 	return prot
 
 
-## 全局跨列去重叠（仅自动排列时调用）：AABB 相交检测 + 垂直推开，保持各列 x 结构不变
+## 全局跨列去重叠（仅自动排列时调用）：AABB 相交检测 + 垂直推开，保持各列 x 结构不变。
+##
+## 2026-09-15 修复「调整（新建/删除）文本框关系后互相覆盖」：
+##   旧实现**只推 `id_b`（y 较大者）**，且当 `id_b` 是钉位节点时直接 `continue`。
+##   于是「非钉位节点压在被钉住的节点上」这一类相交**永远修不掉**——
+##   而"钉位节点"恰恰来自玩家刚拖动/刚建过关系的那一个（_manual_nodes），
+##   所以每次调整关系后就会看到文本框互相覆盖（用户截图：两个相邻推断框叠在一起）。
+## 新实现：按「谁刚性」决定推谁——
+##   · 双方刚性   → 跳过（不动玩家落点，避免"自动排列"观感）
+##   · 下方刚性   → 把**上方可动**节点往上推到不相交
+##   · 上方刚性   → 把**下方可动**节点往下推到不相交
+##   · 双方可动   → 推下方（保持原行为，改动最小）
+## 并改为多轮迭代：推开一个节点可能又与邻居相撞，迭代至收敛（上限 4 轮）。
 func _apply_global_overlap_fix() -> void:
 	var ids: Array = owner._node_center.keys()
 	if ids.size() < 2:
@@ -123,25 +135,52 @@ func _apply_global_overlap_fix() -> void:
 	var rects := {}
 	for id in ids:
 		rects[id] = _node_rect(id)
-	for i in ids.size():
-		var id_a: String = ids[i]
-		var ra: Rect2 = rects[id_a]
-		for j in range(i + 1, ids.size()):
-			var id_b: String = ids[j]
-			var rb: Rect2 = rects[id_b]
-			if ra.intersects(rb):
-				# 钉位节点/其后代（玩家拖放落点所在的整棵子树）不被去重叠推走：
-				# 推走=拖动松手后位置被改（回弹/错位），故整棵子树刚性保持。
-				if owner._manual_nodes.has(id_b) or _prot.has(id_b):
+	for _pass in range(4):
+		var moved_any := false
+		for i in ids.size():
+			var id_a: String = ids[i]
+			for j in range(i + 1, ids.size()):
+				var id_b: String = ids[j]
+				var ra: Rect2 = rects[id_a]
+				var rb: Rect2 = rects[id_b]
+				if not ra.intersects(rb):
 					continue
-				var push: float = ra.end.y - rb.position.y + 24.0
-				owner._node_center[id_b] = Vector2(owner._node_center[id_b].x, owner._node_center[id_b].y + push)
-				rects[id_b] = _node_rect(id_b)
-				var vv: Variant = owner._node_views.get(id_b)
-				if vv != null:
-					vv.position = owner._node_center[id_b] - vv.size * 0.5
+				var a_fixed: bool = owner._manual_nodes.has(id_a) or _prot.has(id_a)
+				var b_fixed: bool = owner._manual_nodes.has(id_b) or _prot.has(id_b)
+				if a_fixed and b_fixed:
+					# 双方都是玩家落点（刚性）：不挪动，避免拖动松手后被"自动排列"
+					continue
+				if b_fixed:
+					# 下方刚性 → 上方可动节点上移：使 a 底边 ≤ b 顶边 − 24
+					var push_up: float = ra.end.y - rb.position.y + 24.0
+					owner._node_center[id_a] = Vector2(owner._node_center[id_a].x,
+						owner._node_center[id_a].y - push_up)
+					rects[id_a] = _node_rect(id_a)
+					_sync_node_view(id_a)
+				else:
+					# 上方刚性，或双方皆可动 → 下方节点下移
+					var push: float = ra.end.y - rb.position.y + 24.0
+					owner._node_center[id_b] = Vector2(owner._node_center[id_b].x,
+						owner._node_center[id_b].y + push)
+					rects[id_b] = _node_rect(id_b)
+					_sync_node_view(id_b)
+				moved_any = true
+		if not moved_any:
+			break
+		# 位置已变：按新 y 重排（保证推挤方向性）并重算矩形
+		ids.sort_custom(func(a, b): return owner._node_center[a].y < owner._node_center[b].y)
+		for id in ids:
+			rects[id] = _node_rect(id)
 	for id in ids:
 		owner._node_center[id] = _clamp_to_canvas(owner._node_center[id])
+		_sync_node_view(id)
+
+
+## 中心坐标 → 同步节点视图位置（去重叠后统一刷新，避免出现"数据动了画面没动"）
+func _sync_node_view(id: String) -> void:
+	var vv: Variant = owner._node_views.get(id)
+	if vv != null and is_instance_valid(vv):
+		vv.position = owner._node_center[id] - vv.size * 0.5
 
 
 ## 节点卡片 AABB（中心坐标 → Rect2；尺寸按 kind 估算宽 + 文本估算高）
