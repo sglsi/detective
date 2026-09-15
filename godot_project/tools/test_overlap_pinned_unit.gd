@@ -97,7 +97,8 @@ func _run() -> void:
 	_collect_ids(gv)
 	print("  节点 id = %s" % str(_ids))
 	# 先整体验证一次「无人物自由推导 + 真实视图矩形」下确实无重叠
-	# （对照 test_overlap_after_derive：后者用合成高度模型，与当前"布局消费真实 size"口径不一致 → 假阳性）
+	# （历史教训：曾有测试用「合成高度模型 200/160/120」做重叠断言，与当前"布局消费真实 size"
+	#  口径不一致 → 恒为假阳性，该测试已删除；节点重叠一律按真实视图矩形断言）
 	var all_ids := []
 	for k in gv._node_views.keys():
 		all_ids.append(str(k))

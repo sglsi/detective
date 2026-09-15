@@ -214,8 +214,9 @@ func _node_width_for_kind(kind: String) -> float:
 ## ⚠️ 已知偏差（2026-09-07 · 详见 agent/reasoning_wall_layout_proposal.md §0.6/§8.5）：此表是「布局期防重叠安全高度上限」，
 ##    非真实渲染高度。线索卡 `_make_node` 真实渲染仅 48~130px（line 951/1114 `_base_h=130`），但本表把 clue 兜底到 200，
 ##    导致兄弟线索视觉空隙被放大 3~4 倍（中心距恒 224 = 200/2+200/2+_CONTOUR_SEP）。
-##    治本方向（XMind 式测量前置）：布局前先 `_make_node` 测得真实 size.y 喂入 _pack_contour，删此过度保守兜底（至多 +8px 防字体抖动）；
-##    当前 200 暂保留以维持 test_overlap_after_derive 的 200 高度模型断言，治本后须同步修正该测试。
+##    治本方向（XMind 式测量前置）：布局前先 `_make_node` 测得真实 size.y 喂入 _pack_contour，删此过度保守兜底（至多 +8px 防字体抖动）。
+##    注：`_logic_tree_layout` 已于 2026-09-08 改走「测量前置」消费真实 size，本表只作为
+##    「视图/字体尚未就绪」时的碰撞估算兜底；原用以固定 200 高度模型的那条过期测试已删除（2026-09-15）。
 const _KIND_MIN_H := {
 	"person": 182.0, "conclusion": 172.0, "chain": 132.0,
 	"hypo": 142.0, "clue": 200.0, "event": 182.0, "_": 150.0,

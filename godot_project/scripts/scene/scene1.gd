@@ -832,40 +832,70 @@ func _show_commission_letter_dialogue() -> void:
 	res.easy_start_node="cl0"; res.normal_start_node="cl0"; res.hard_start_node="cl0"
 	_dm.dialogue_resource=res; _dm.start_dialogue()
 
-## 委托信信笺全屏展示：暗底 + 等比居中信笺图，点击任意处关闭并续播后半段对话
+## 委托信信笺全屏展示：暗底 + 等比居中信笺图，点击 / 按键任意处关闭并续播后半段对话
+##
+## 🔴 2026-09-15 修复「推进到信笺后鼠标键盘全无反应、无法继续」：
+##   旧实现把点击处理只挂在 layer 的 gui_input 上，而全屏的 bg(ColorRect) 是 MOUSE_FILTER_STOP——
+##   Godot 的 GUI 拾取只把事件交给「最上层非 IGNORE 的控件」（即 bg），且 **gui_input 不向父级冒泡**，
+##   于是 layer.gui_input 永不触发：点击被静默吃掉、整屏看起来卡死；键盘同样无响应（层不可获焦、无任何键位处理）。
+##   修复：① **全屏拾取层 bg 自身接上 gui_input**（无论拾取命中 bg 还是 layer 都能响应，双接+去重保护）；
+##         ② layer 可获焦并 grab_focus，于是键盘（Esc/空格/回车/任意键）也能继续；
+##         ③ 关闭动作 call_deferred 到帧末，避免在输入回调里销毁+重建对话（历史教训：_input 内重建自身 → Web 栈溢出/灰屏）。
+var _letter_closing := false
+
 func _open_letter_view() -> void:
 	if _letter_view: return
+	_letter_closing = false
 	var layer := Control.new()
 	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.mouse_filter = Control.MOUSE_FILTER_STOP
 	var bg := ColorRect.new()
 	bg.color = Color(0.05, 0.04, 0.02, 0.88)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# 全屏暗底＝最上层的点击承接者：必须 STOP（能接到事件）且**自己接上 gui_input**（父级收不到冒泡）
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	bg.gui_input.connect(_on_letter_view_input)
 	layer.add_child(bg)
 	var tex := TextureRect.new()
 	tex.texture = load("res://assets/ui/letter_gregson.jpg")
 	tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tex.set_anchors_preset(Control.PRESET_FULL_RECT)
-	tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tex.mouse_filter = Control.MOUSE_FILTER_IGNORE   # 纯视觉，不拦截
 	layer.add_child(tex)
 	var hint := Label.new()
-	hint.text = "—— 轻触任意位置继续 ——"
+	hint.text = "—— 点击 / 按任意键继续 ——"
 	hint.add_theme_font_size_override("font_size", 22)
 	hint.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45, 0.85))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	hint.offset_top = -46
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE   # 纯视觉，不拦截
 	layer.add_child(hint)
+	# 双接：拾取命中 bg 或 layer 任一都能响应（_letter_closing 保证只关一次）
 	layer.gui_input.connect(_on_letter_view_input)
+	# 键盘支持：Control 需可获焦才会把按键送进自己的 gui_input
+	layer.focus_mode = Control.FOCUS_ALL
 	add_child(layer)
+	layer.grab_focus()
 	_letter_view = layer
 
 func _on_letter_view_input(event: InputEvent) -> void:
+	var go := false
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_close_letter_view()
+		go = true
+	elif event is InputEventKey and event.pressed and not event.echo:
+		go = true   # Esc / 空格 / 回车 / 任意键均可继续
+	if not go:
+		return
+	if _letter_closing or _letter_view == null:
+		return
+	_letter_closing = true
+	var vp := get_viewport()
+	if vp != null:
+		vp.set_input_as_handled()   # 消费掉本次输入，避免同一次点击再触发下层 UI
+	# 帧末再销毁信笺并重建后段对话：避免在输入回调里重建自身（Web 栈溢出/灰屏的历史教训）
+	call_deferred("_close_letter_view")
 
 func _close_letter_view() -> void:
 	if not _letter_view: return
