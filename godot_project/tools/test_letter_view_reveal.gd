@@ -118,5 +118,25 @@ func _run() -> void:
 	else:
 		print("  [SKIP] (C) 无法建立 cl0 对话前置")
 
+	# ---------- D. 贴图缺失 → 必须走文本兜底（绝不只剩黑幕） ----------
+	print("--- D. 贴图不可用时必须有文本兜底 ---")
+	s._letter_view = null
+	var saved_path: String = s._letter_tex_path
+	s._letter_tex_path = "res://assets/ui/__no_such_letter__.jpg"
+	s._open_letter_view()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_chk(s._letter_view == null, "(D1) 贴图缺失时不再建出空的信笺黑幕（旧逻辑＝一片黑，玩家观感为没展示）")
+	var r3 = s._dm.dialogue_resource if s._dm != null else null
+	var s3: String = str(r3.scene_id) if r3 != null else ""
+	_chk(s3 == "s1_letter_text", "(D2) 改用对话栏呈递信件全文（实=%s）" % s3)
+	var has_body := false
+	if r3 != null:
+		for n in r3.nodes:
+			if str(n.text).find("劳瑞斯顿花园街三号") >= 0:
+				has_body = true
+	_chk(has_body, "(D3) 兜底文案确实包含信件正文（不是空文本）")
+	s._letter_tex_path = saved_path
+
 	print("=== LETTER_REVEAL: %s (fail=%d) ===" % ["PASS" if _fail == 0 else "FAIL", _fail])
 	get_tree().quit(0 if _fail == 0 else 1)

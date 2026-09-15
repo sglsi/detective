@@ -843,9 +843,24 @@ func _show_commission_letter_dialogue() -> void:
 ##         ③ 关闭动作 call_deferred 到帧末，避免在输入回调里销毁+重建对话（历史教训：_input 内重建自身 → Web 栈溢出/灰屏）。
 var _letter_closing := false
 var _letter_opened_frame := -1   # 信笺开启所在的帧号：用于忽略"开启它的那一次输入"（见 _on_letter_view_input）
+# 委托信信笺贴图路径（提为成员：便于测试用非法路径验证"贴图缺失时的文本兜底"）
+var _letter_tex_path := "res://assets/ui/letter_gregson.jpg"
 
 func _open_letter_view() -> void:
 	if _letter_view: return
+	# 🔴 2026-09-15 第三处加固「信笺内容必须能呈现」：
+	#   若贴图为空/未导入（load 返回 null）或尺寸为 0，旧逻辑会照旧建出"全屏暗底 + 空贴图"，
+	#   玩家看到的只是一片黑幕 —— 观感就是"警长的手写信没有在剧情中展示出来"。
+	#   现在改为**文本兜底**：把信件全文放进对话栏继续演，任何情况下内容都不丢。
+	var tex_res: Texture2D = null
+	var res: Variant = load(_letter_tex_path)
+	if res is Texture2D:
+		tex_res = res
+	if tex_res == null or tex_res.get_width() <= 0 or tex_res.get_height() <= 0:
+		push_error("[scene1] 委托信信笺贴图不可用（%s）→ 改用对话栏文本兜底" % _letter_tex_path)
+		_create_notification("信笺图未就绪，改以文字呈递")
+		_show_letter_as_dialogue()
+		return
 	_letter_closing = false
 	_letter_opened_frame = Engine.get_process_frames()
 	var layer := Control.new()
@@ -859,7 +874,7 @@ func _open_letter_view() -> void:
 	bg.gui_input.connect(_on_letter_view_input)
 	layer.add_child(bg)
 	var tex := TextureRect.new()
-	tex.texture = load("res://assets/ui/letter_gregson.jpg")
+	tex.texture = tex_res
 	tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tex.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -914,6 +929,26 @@ func _close_letter_view() -> void:
 	_letter_view.queue_free()
 	_letter_view = null
 	_start_commission_rest()
+
+## 信笺贴图不可用时的**文本兜底**：在对话栏逐段呈递信件全文，然后照常续播后半段。
+## 目的：保证「警长给福尔摩斯的手写信」的内容在任何运行环境下都能在剧情中呈现，
+## 不会因为贴图缺失/未导入而只剩一片黑幕（＝玩家感知为"信没有展示"）。
+func _show_letter_as_dialogue() -> void:
+	if _ui: _ui.set_camera_enabled(false)
+	_phase = Phase.RATING
+	_dm = DialogueManager.new(); add_child(_dm)
+	_dm.dialogue_advanced.connect(_on_line)
+	_dm.dialogue_ended.connect(_start_commission_rest)
+	var nodes: Array[Resource] = []
+	nodes.append(_dn("lt1","旁白","（信使递上一封信——封蜡上是苏格兰场的纹章，字迹工整而急促。）","click",["lt2"],"平静"))
+	nodes.append(_dn("lt2","葛莱森的委托信","亲爱的福尔摩斯先生：\n昨夜，在布瑞克斯顿路的尽头，劳瑞斯顿花园街三号发生了一件凶杀案。今晨两点左右，巡逻警察忽见该处有灯光，因素悉该房无人居住，故而怀疑出了什么问题。","click",["lt3"],"平静"))
+	nodes.append(_dn("lt3","葛莱森的委托信","该巡警发现房门大开，前室空无一物，内有男尸一具。该尸衣着整齐，袋中装有名片，上有「伊泽克·J·德雷伯，美国俄亥俄州克利夫兰」字样。既无被抢劫迹象，亦未发现任何能说明致死原因之证据。","click",["lt4"],"平静"))
+	nodes.append(_dn("lt4","葛莱森的委托信","屋中虽有几处血迹，但死者身上并无伤痕。死者如何在空屋里遇害，我等百思不得其解，深感此案棘手之至。\n希望阁下在十二点之前重临，我将在此恭候。在接信回示前，现场一切均将保持原状。","click",["lt5"],"平静"))
+	nodes.append(_dn("lt5","葛莱森的委托信","如果不能莅临，亦必将详情告之，倘蒙指教，不胜感激之至。\n\n您忠实的\n特白厄斯·葛莱森","click",["end"],"平静"))
+	var res = DialogueResource.new(); res.scene_id = "s1_letter_text"
+	res.nodes = nodes
+	res.easy_start_node = "lt1"; res.normal_start_node = "lt1"; res.hard_start_node = "lt1"
+	_dm.dialogue_resource = res; _dm.start_dialogue()
 
 ## 委托信后半段对话（原 cl2~cl9）：信笺关闭后续播
 func _start_commission_rest() -> void:
