@@ -20,7 +20,9 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json({
       message: '注册成功',
-      user,
+      token: user.token,
+      user: { id: user.id, username: user.username, email: user.email },
+      note: '注册即签发令牌，客户端可立即按登录用户使用云端存档/进度。',
     });
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });

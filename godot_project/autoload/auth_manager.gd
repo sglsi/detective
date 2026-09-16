@@ -161,7 +161,8 @@ func register(username: String, email: String, password: String, phone: String =
 	if APIManager and APIManager.is_online:
 		var result = await APIManager.register_user(email, password, username, phone)
 		if not result.get("error", true):
-			_on_registration_success(result.get("data", {}).get("user", {}))
+			var body: Dictionary = result.get("data", {})
+			_on_registration_success(body.get("user", {}), str(body.get("token", "")))
 		else:
 			_on_auth_failed("register", result.get("message", "注册失败"))
 	else:
@@ -172,11 +173,24 @@ func register(username: String, email: String, password: String, phone: String =
 		else:
 			_on_registration_success({"id": res.get("id"), "username": username, "email": email})
 
-func _on_registration_success(user: Dictionary) -> void:
+## 注册成功处理。token 为服务端签发（注册即登录）；离线注册时为空。
+## ⚠️ 若拿不到令牌却把 is_guest 置 false，客户端就会「自认注册用户、却无任何凭据」：
+##    save_to_slot 会按注册用户去镜像云端存档 → 请求既无 Authorization 也无
+##    X-Guest-ID → 后端 401「未提供认证令牌」。故此处必须显式区分两种情况。
+func _on_registration_success(user: Dictionary, token: String = "") -> void:
 	var prev_state = current_auth_state
 	current_auth_state = AuthState.REGISTERED
 	
 	user_data.merge(user, true)  # 覆盖式合并：重新登录后切换到新账号，避免停留在旧账号 id（串档根因）
+	if token != "":
+		session_token = token
+		if APIManager:
+			APIManager.auth_token = token
+	else:
+		# 离线/无令牌注册：保留本地账号身份（用于本地存档命名空间，防串档），
+		# 但不具备云端能力 —— 云端调用一律由 has_auth_token() 拦下。
+		session_token = ""
+		print("[AuthManager] 注册成功但未获得令牌（离线模式），本次不具备云端同步能力")
 	# 防御：Web 构建中 GameManager 单例若尚未就绪，赋值时抛错会阻断下方信号发射，
 	# 导致面板永久卡在“正在提交…”。先判空再访问。
 	if GameManager:

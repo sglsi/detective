@@ -1,12 +1,17 @@
 extends Control
 
-## 回归测试：Console 红字「401 Unauthorized / PUT /api/progress/ 404」的根因修复
+## 回归测试：控制台红字（401 Unauthorized / PUT /api/progress/ 404）的根因修复
 ##
-## 覆盖两组根因：
+## 覆盖三组根因：
 ##  A/B — 空 case_id 拼进 URL（`/api/progress/`）→ 请求必然失败
-##  C   — 本地残留失效令牌 → 所有鉴权请求 401，且客户端永不自愈
-##        （后端在带 Authorization 头时会跳过游客回退，见 middleware/auth.js）
+##  C   — 本地残留**失效**令牌 → 带 Authorization 请求被拒（42 字节 401），且永不自愈
 ##  D   — 启动时无校验地恢复 session.json 里的令牌（含哨兵值 "local"）
+##  E   — 会话校验必须走"恒 200 的静默探针"（否则每次启动都留红字）
+##  F   — 🔴 **无凭据就发鉴权请求**（33 字节 401「未提供认证令牌」）：
+##        注册接口曾不返回令牌，而客户端注册后即置 `is_guest=false`，
+##        于是按"注册用户"去镜像云端存档 —— 请求里既无 Authorization 也无
+##        X-Guest-ID。修复：① 后端注册即签发令牌；② APIManager 结构性守卫，
+##        无身份时一律不发鉴权请求。
 ##
 ## 本测试**对真实后端**（127.0.0.1:3001）发请求，属端到端验证。
 ## 运行：godot --headless --path godot_project res://scenes/test_api_auth_recovery.tscn
@@ -17,22 +22,8 @@ const SESSION_PATH := "user://session.json"
 var _pass := 0
 var _fail := 0
 var _expired_count := 0
-
-## 基线（未修复）代码里不存在的成员：用 `in` 探测，保证测试在旧代码上也能跑完
-## 而不是抛 "Invalid set index" 中断协程（那会让 headless 进程挂住不退出）。
-func _has_prop(obj: Object, prop: String) -> bool:
-	return prop in obj
-
-
-func _set_pending(v: bool) -> void:
-	if _has_prop(AuthManager, "_session_pending_verify"):
-		AuthManager._session_pending_verify = v
-
-
-func _is_pending() -> bool:
-	if _has_prop(AuthManager, "_session_pending_verify"):
-		return AuthManager._session_pending_verify
-	return false
+var _session_existed := false
+var _session_backup := ""
 
 
 func _chk(cond: bool, label: String) -> void:
@@ -56,6 +47,23 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
+## 基线（未修复）代码里不存在的成员：用 `in` 探测，保证测试在旧代码上也能跑完
+## 而不是抛 "Invalid set index" 中断协程（那会让 headless 进程挂住不退出）。
+func _has_prop(obj: Object, prop: String) -> bool:
+	return prop in obj
+
+
+func _set_pending(v: bool) -> void:
+	if _has_prop(AuthManager, "_session_pending_verify"):
+		AuthManager._session_pending_verify = v
+
+
+func _is_pending() -> bool:
+	if _has_prop(AuthManager, "_session_pending_verify"):
+		return AuthManager._session_pending_verify
+	return false
+
+
 func _write_session(d: Dictionary) -> void:
 	var f = FileAccess.open(SESSION_PATH, FileAccess.WRITE)
 	if f:
@@ -63,8 +71,36 @@ func _write_session(d: Dictionary) -> void:
 		f.close()
 
 
+func _backup_session() -> void:
+	_session_existed = FileAccess.file_exists(SESSION_PATH)
+	if _session_existed:
+		var f = FileAccess.open(SESSION_PATH, FileAccess.READ)
+		if f:
+			_session_backup = f.get_as_text()
+			f.close()
+
+
+func _restore_session_file() -> void:
+	if _session_existed:
+		var f = FileAccess.open(SESSION_PATH, FileAccess.WRITE)
+		if f:
+			f.store_string(_session_backup)
+			f.close()
+		var chk = FileAccess.open(SESSION_PATH, FileAccess.READ)
+		var now_text := chk.get_as_text() if chk else ""
+		if chk:
+			chk.close()
+		_chk(now_text == _session_backup, "已还原原 session.json（未破坏用户登录态）")
+	else:
+		var d = DirAccess.open("user://")
+		if d and d.file_exists("session.json"):
+			d.remove("session.json")
+		_chk(not FileAccess.file_exists(SESSION_PATH), "测试前无 session.json，已清理测试残留")
+
+
 func _run() -> void:
 	await get_tree().process_frame
+	_backup_session()
 	var api = APIManager
 	api.base_url = API_BASE
 	api.url_suffix = ""
@@ -116,14 +152,6 @@ func _run() -> void:
 
 	# ---------- D. session 恢复守卫 ----------
 	print("=== D. 会话恢复守卫 ===")
-	var backup_exists := FileAccess.file_exists(SESSION_PATH)
-	var backup := ""
-	if backup_exists:
-		var bf = FileAccess.open(SESSION_PATH, FileAccess.READ)
-		if bf:
-			backup = bf.get_as_text()
-			bf.close()
-
 	# D1: 哨兵 token "local"（离线登录遗留）绝不能被当作在线令牌恢复
 	_write_session({"email": "zz_sentinel@example.com", "username": "zz", "token": "local"})
 	api.auth_token = ""
@@ -141,26 +169,8 @@ func _run() -> void:
 	_chk(api.auth_token == "header.payload.sig", "D2 正常形态的令牌会被恢复")
 	_chk(_is_pending(), "D3 恢复的令牌被标记为「待服务端校验」")
 
-	# 还原真实 session.json（绝不污染用户既有登录态）
-	if backup_exists:
-		var f2 = FileAccess.open(SESSION_PATH, FileAccess.WRITE)
-		if f2:
-			f2.store_string(backup)
-			f2.close()
-		var chk = FileAccess.open(SESSION_PATH, FileAccess.READ)
-		var now_text := chk.get_as_text() if chk else ""
-		if chk:
-			chk.close()
-		_chk(now_text == backup, "D4 测试已还原原 session.json（未破坏用户登录态）")
-	else:
-		var d = DirAccess.open("user://")
-		if d and d.file_exists("session.json"):
-			d.remove("session.json")
-		_chk(not FileAccess.file_exists(SESSION_PATH), "D4 测试前无 session.json，已清理测试残留")
-
 	# ---------- E. 会话校验用「静默探针」，不产生 401 红字 ----------
-	# 注：用 has_method 探测，保证本测试在"未修复"的旧代码上也能跑完并如实报 FAIL，
-	# 而不是因调用不存在的方法中断协程（那会让 headless 挂到看门狗超时）。
+	# 注：用 has_method 探测，保证本测试在"未修复"的旧代码上也能跑完并如实报 FAIL。
 	print("=== E. 会话校验静默探针 ===")
 	if not api.has_method("get_current_user"):
 		_chk(false, "E1 缺少 get_current_user（基线未修复）")
@@ -186,6 +196,45 @@ func _run() -> void:
 		else:
 			_chk(false, "E4 缺少 _verify_restored_session（基线未修复）")
 
+	# ---------- F. 无凭据不得发鉴权请求（用户报的 33 字节 401） ----------
+	print("=== F. 无凭据守卫（33 字节 401「未提供认证令牌」）===")
+	var sent_before := int(api.get("requests_sent")) if _has_prop(api, "requests_sent") else -1
+	# 模拟「注册后自认已登录，却没有任何令牌」的运行态
+	api.auth_token = ""
+	api.guest_id = ""
+	var r7 = await api.get_save_list()
+	_chk(r7.get("error", true) and not r7.has("code"),
+		"F1 无令牌且无游客 ID 时，读接口直接短路（未到网络层：无 code；旧代码会发出并拿到 401）")
+	var r8 = await api.upload_save({"case_id": "case_blood_letter", "probe": true})
+	_chk(r8.get("error", true) and not r8.has("code"),
+		"F2 无身份时，存档上传同样短路（旧代码会发出 33 字节 401）")
+	if sent_before >= 0:
+		_chk(int(api.requests_sent) == sent_before,
+			"F3 上述两次调用**确实一个请求都没发出**（requests_sent 未增加）")
+	else:
+		_chk(false, "F3 缺少 requests_sent 计数（基线未修复）")
+
+	# F4: 有游客身份后同样的调用应能发出（确认守卫没有误伤）
+	await api.create_guest_session()
+	var sent_guest_before := int(api.requests_sent) if sent_before >= 0 else -1
+	var r9 = await api.get_save_list()
+	_chk(not r9.get("error", true), "F4 取得游客身份后读接口恢复正常（守卫不误伤）")
+	if sent_guest_before >= 0:
+		_chk(int(api.requests_sent) > sent_guest_before, "F5 该请求确实发出了（requests_sent 增加）")
+
+	# F6/F7: 真实注册 → 必须拿到令牌，否则 is_guest=false 就是个谎言
+	# 用户名与邮箱都带时间戳：否则第二次运行会撞 409（用户名已被占用），
+	# 注册失败 → 拿不到令牌 → 假失败。
+	var stamp := int(Time.get_unix_time_from_system())
+	var uname := "zzreg_%d" % stamp
+	var em := "zz_regtest_%d@example.com" % stamp
+	api.auth_token = ""
+	AuthManager.current_auth_state = AuthManager.AuthState.GUEST
+	await AuthManager.register(uname, em, "pass1234")
+	_chk(api.has_auth_token(), "F6 注册成功即持有令牌（后端注册接口已签发；旧代码无令牌 → 云端请求全 401）")
+	_chk(not GameManager.is_guest, "F7 注册后按注册用户处理（于是 F6 的令牌就是必需的前提）")
+
+	_restore_session_file()
 	print("=== API_AUTH_RECOVERY: %s (pass=%d fail=%d) ===" % [
 		"PASS" if _fail == 0 else "FAIL", _pass, _fail])
 	get_tree().quit(0 if _fail == 0 else 1)

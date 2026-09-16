@@ -245,7 +245,12 @@ class SQLiteStorage extends StorageAdapter {
       `INSERT INTO profiles (id, username, email, password_hash, phone, is_guest)
        VALUES (?, ?, ?, ?, ?, 0)`
     ).run(id, uname, email, hash, phone || null);
-    return { id, username: uname, email };
+    // 注册即签发令牌（等价于注册后自动登录）。
+    // 不返回令牌会让客户端陷入「自认已登录、却无凭据」的状态：它会按注册用户
+    // 去同步云端存档/进度，但请求既无 Authorization 也无 X-Guest-ID，
+    // 后端只能回 401「未提供认证令牌」（浏览器控制台一条红字）。
+    const token = signJwt({ sub: id, email });
+    return { id, username: uname, email, token };
   }
 
   async loginUser({ email, password }) {
@@ -465,7 +470,10 @@ class SupabaseStorage extends StorageAdapter {
       username: username || email.split('@')[0],
       email, phone: phone || null, is_guest: false,
     });
-    return { id: authData.user.id, username: username || email.split('@')[0], email };
+    // Supabase 模式下注册后同样签发本地 JWT（与 SQLite 模式行为一致），
+    // 避免客户端「自认已登录却无凭据」→ 云端请求 401。
+    const token = signJwt({ sub: authData.user.id, email });
+    return { id: authData.user.id, username: username || email.split('@')[0], email, token };
   }
 
   async loginUser({ email, password }) {

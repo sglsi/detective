@@ -54,8 +54,10 @@ func _on_connectivity_changed(online: bool) -> void:
 		# 网络恢复 → 刷新离线队列
 		if APIManager.get_pending_count() > 0:
 			APIManager.flush_pending()
-		# 注册用户网络恢复 → 同步存档
-		if not is_guest and SaveManager:
+		# 注册用户（且确有可用令牌）网络恢复 → 同步存档。
+		# 只看 is_guest 不够：注册接口若不返回令牌、或会话被降级，is_guest 仍可能为
+		# false，此时发出的请求没有任何凭据 → 只会拿到 401（控制台红字）。
+		if not is_guest and APIManager.has_auth_token() and SaveManager:
 			_sync_cloud_save()
 	else:
 		SystemEventBus.emit_signal("network_offline")
@@ -193,8 +195,9 @@ func _sync_cloud_data() -> void:
 	APIManager.get_all_progress()
 
 ## 同步云端存档
+## 判据同 _on_connectivity_changed：注册用户**且确有令牌**才走云端
 func _sync_cloud_save() -> void:
-	if not is_guest and SaveManager:
+	if not is_guest and APIManager and APIManager.has_auth_token() and SaveManager:
 		SaveManager.save_game()
 
 # ============ 状态查询 ============

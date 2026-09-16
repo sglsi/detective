@@ -41,6 +41,10 @@ var guest_id: String = ""
 ## 活跃的 HTTP 请求数（用于并发控制）
 var active_requests: int = 0
 
+## 累计真正发出的请求数（被"无身份守卫"短路的不计）。诊断与回归测试用：
+## 断言"不该发请求"时，比 curl 后端口志更直接、也更可靠。
+var requests_sent: int = 0
+
 # ============ 信号 ============
 
 signal connectivity_changed(online: bool)
@@ -146,6 +150,14 @@ func put_request(endpoint: String, body: Dictionary, auth: bool = true) -> Dicti
 ## Web 环境下改用 JavaScriptBridge.fetch（见 _web_fetch），避免 Godot HTTPRequest
 ## 在浏览器中对 POST/带 body 请求回调丢失（表现为注册/登录永久超时、报错）。
 func _perform_request(method: int, endpoint: String, body_dict: Dictionary, auth: bool) -> Dictionary:
+	# 🔴 结构性守卫：需要鉴权的请求必须先有身份（令牌或游客 ID）。
+	# 两者皆空时若照常发出，请求里既无 Authorization 也无 X-Guest-ID，
+	# 后端只会回 401「未提供认证令牌」——功能没有变好，只多一条控制台红字。
+	# 这里直接短路，由调用方决定是入队还是降级。
+	if auth and not _has_identity():
+		_request_guest_identity_once()
+		return {"error": true, "message": "尚无可用身份（无令牌且无游客 ID），已跳过请求"}
+
 	var url = _base() + endpoint + url_suffix
 	var headers = _build_headers(auth)
 	if not body_dict.is_empty():
@@ -153,6 +165,8 @@ func _perform_request(method: int, endpoint: String, body_dict: Dictionary, auth
 	var body_str := ""
 	if not body_dict.is_empty():
 		body_str = JSON.stringify(body_dict)
+
+	requests_sent += 1     # 诊断/测试用：真正发出的请求数（被短路的不计）
 
 	if OS.has_feature("web"):
 		# 同源（本机 localhost 经 serve_web.py 代理）下 HTTPRequest 可靠且无 CORS 问题；
@@ -197,6 +211,24 @@ func _note_auth_failure(res: Dictionary) -> Dictionary:
 ## 是否持有可用于鉴权的令牌（区别于"游客模式"）
 func has_auth_token() -> bool:
 	return auth_token != ""
+
+## 是否已有任一可用身份（令牌 或 游客 ID）。后端 authRequired 二者认其一：
+## 有 Authorization 头走令牌；只有 X-Guest-ID 时按游客放行；两者皆无则 401。
+func _has_identity() -> bool:
+	return auth_token != "" or guest_id != ""
+
+## 无身份时发起一次"补建游客会话"（每代只尝试一次，避免请求风暴/递归）。
+## 游客会话创建走 auth=false，不会再次进入本守卫。
+var _guest_requested := false
+
+func _request_guest_identity_once() -> void:
+	if _guest_requested or not is_online:
+		return
+	_guest_requested = true
+	if AuthManager and AuthManager.has_method("_init_guest_session"):
+		AuthManager._init_guest_session.call_deferred()
+	else:
+		create_guest_session.call_deferred()
 
 ## 等待 HTTP 响应（含超时处理）
 ## 直接 await http.request_completed 信号（Godot 标准写法），避免用「while + 捕获变量
@@ -426,6 +458,7 @@ func create_guest_session() -> Dictionary:
 		var data = response["data"]
 		if data.has("guest_id"):
 			guest_id = data["guest_id"]
+			_guest_requested = false   # 身份已就绪；日后再次丢失可再补建
 			print("[APIManager] 游客会话已创建: ", guest_id)
 	
 	request_completed.emit("guest", not response.get("error", true), response)
@@ -435,6 +468,7 @@ func create_guest_session() -> Dictionary:
 func clear_auth() -> void:
 	auth_token = ""
 	guest_id = ""
+	_guest_requested = false   # 允许重新补建游客身份
 
 # ============ 存档 API ============
 
@@ -526,7 +560,7 @@ func flush_pending() -> void:
 	for req in queue_copy:
 		# 回放前守卫：既无令牌又无游客身份时，任何鉴权接口都必然 401。
 		# 此时把请求留在队列里等身份就绪，避免每次重连都刷一轮 401。
-		if auth_token == "" and guest_id == "":
+		if not _has_identity():
 			pending_requests.append(req)
 			continue
 

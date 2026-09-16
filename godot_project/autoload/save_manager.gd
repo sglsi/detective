@@ -170,8 +170,13 @@ func save_to_slot(slot: int) -> Dictionary:
 	var local_res = _write_slot_file(slot, save_data)
 	var result = local_res
 
-	# 2) 注册用户在线时同步到云端（仅作镜像，失败不影响本地）
-	if not GameManager.is_guest and APIManager and APIManager.is_online:
+	# 2) 注册用户**且确有可用令牌**时同步到云端（仅作镜像，失败不影响本地）
+	#    ⚠️ 判据必须是 has_auth_token() 而不是「非游客」：客户端可能处于
+	#    「自认已登录、却没有任何凭据」的状态（注册接口未返回令牌 / 会话已被降级），
+	#    此时发出的 POST /api/saves 既无 Authorization 也无 X-Guest-ID，
+	#    后端只能回 401「未提供认证令牌」——功能没变好，只多一条控制台红字。
+	if not GameManager.is_guest and APIManager and APIManager.is_online \
+			and APIManager.has_auth_token():
 		var server_res = await _save_to_server()
 		if not server_res.get("error", true):
 			result = server_res
