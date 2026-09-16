@@ -2,8 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
+const jwt = require('jsonwebtoken');
 const { getStorage } = require('../db/storage');
-const { guestMiddleware } = require('../middleware/auth');
+const { guestMiddleware, getSecret } = require('../middleware/auth');
 
 // POST /api/auth/register — 用户注册
 router.post('/register', async (req, res) => {
@@ -66,6 +67,37 @@ router.post('/guest', guestMiddleware, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/me — 校验当前令牌是否仍然有效，并返回其身份
+//
+// 用途：客户端启动时恢复了本地缓存的会话（token）后，先调此接口确认该令牌
+// 是否仍被服务端接受，再决定维持「已登录」还是降级为游客。
+// 若不做这个确认，客户端会带着失效令牌请求所有接口 —— 而带 Authorization 头时
+// 游客回退会被跳过（见 middleware/auth.js），结果就是全站 401 且永不自愈。
+//
+// ⚠️ 刻意**不使用 authRequired**、恒定返回 200：
+// 这是一个"探测"接口，令牌无效本身是可预期的正常结果，不是请求错误。
+// 若返回 401，浏览器控制台会对每次启动都留下一条红色
+// "Failed to load resource: 401"，用户会误以为程序坏了。
+// 因此改为 200 + `valid` 布尔字段，由客户端自行判断。
+router.get('/me', (req, res) => {
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) {
+    return res.json({ valid: false, reason: 'no_token', user_id: '', email: '', is_guest: false });
+  }
+  try {
+    const decoded = jwt.verify(header.slice(7), getSecret());
+    return res.json({
+      valid: true,
+      user_id: decoded.sub || decoded.user_id || '',
+      email: decoded.email || '',
+      is_guest: false,
+    });
+  } catch (err) {
+    // 签名不符 / 已过期 —— 明确告知客户端"这枚令牌不再可用"
+    return res.json({ valid: false, reason: 'invalid_token', user_id: '', email: '', is_guest: false });
   }
 });
 

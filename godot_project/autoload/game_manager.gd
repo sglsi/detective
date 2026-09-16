@@ -71,15 +71,26 @@ func _on_auth_changed(_old: int, new_state: int) -> void:
 
 func _on_game_saved(_save_id: String, _timestamp: int) -> void:
 	# 存档后更新案件进度（注册用户）
-	if not is_guest and APIManager and APIManager.is_online:
-		var progress = {
-			"status": "in_progress",
-			"clues_found": ClueSystem.clue_count if ClueSystem else 0,
-			"observation_stars": StarRatingSystem.observation_score if StarRatingSystem else 0,
-			"reasoning_stars": StarRatingSystem.reasoning_score if StarRatingSystem else 0,
-			"insight_stars": StarRatingSystem.insight_score if StarRatingSystem else 0,
-		}
-		APIManager.update_case_progress(current_case_id, progress)
+	# 仅「确实持有可用令牌的注册用户」才上报：is_guest 只是状态标记，
+	# 会话失效期间它仍为 false，若只判它就会用空令牌发出必然 401 的请求。
+	if is_guest or APIManager == null or not APIManager.is_online or not APIManager.has_auth_token():
+		return
+	var cid := _resolved_case_id()
+	if cid.is_empty():
+		push_warning("[GameManager] 存档后上报进度缺少 case_id，已跳过")
+		return
+	var progress = {
+		"status": "in_progress",
+		"clues_found": ClueSystem.clue_count if ClueSystem else 0,
+		"observation_stars": StarRatingSystem.observation_score if StarRatingSystem else 0,
+		"reasoning_stars": StarRatingSystem.reasoning_score if StarRatingSystem else 0,
+		"insight_stars": StarRatingSystem.insight_score if StarRatingSystem else 0,
+	}
+	APIManager.update_case_progress(cid, progress)
+
+## 取当前案件 ID（去掉首尾空白）；为空说明尚未进入任何案件
+func _resolved_case_id() -> String:
+	return current_case_id.strip_edges()
 
 # ============ 状态管理 ============
 
@@ -109,9 +120,13 @@ func start_case(case_id: String) -> void:
 	if CaseEventBus:
 		CaseEventBus.emit_signal("case_started", case_id)
 	
-	# 初始化案件进度（注册用户云端记录）
-	if not is_guest and APIManager and APIManager.is_online:
-		APIManager.update_case_progress(case_id, {
+	# 初始化案件进度（注册用户云端记录）。同样要求"确有可用令牌"，否则跳过。
+	if not is_guest and APIManager and APIManager.is_online and APIManager.has_auth_token():
+		var cid := case_id.strip_edges()
+		if cid.is_empty():
+			push_warning("[GameManager] start_case 收到空 case_id，已跳过进度上报")
+			return
+		APIManager.update_case_progress(cid, {
 			"status": "in_progress",
 			"started_at": Time.get_datetime_string_from_system(),
 		})

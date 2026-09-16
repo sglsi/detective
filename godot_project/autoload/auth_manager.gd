@@ -15,6 +15,9 @@ var current_auth_state: AuthState = AuthState.GUEST
 var user_data: Dictionary = {}
 var session_token: String = ""
 
+## 启动时从 session.json 恢复的令牌是否尚未经服务端校验（见 _verify_restored_session）
+var _session_pending_verify: bool = false
+
 # 离线本地账号存储（无后端时可用，密码以 SHA256 哈希保存，不存明文）
 const ACCOUNTS_PATH: String = "user://accounts.json"
 # 记住「上次登录的本地账号」的邮箱，便于下次启动自动恢复会话（避免重载后退化为游客而串档）
@@ -28,6 +31,8 @@ signal login_success(user_id: String, username: String)
 signal login_failed(error: String)
 signal registration_failed(error: String)
 signal guest_session_created(guest_id: String)
+## 登录状态因令牌失效被降级为游客（供 UI 提示"请重新登录"）
+signal session_expired(message: String)
 
 # ============ 生命周期 ============
 
@@ -35,6 +40,8 @@ func _ready() -> void:
 	# 连接网络状态变化
 	if APIManager:
 		APIManager.connectivity_changed.connect(_on_connectivity_changed)
+		# 令牌被服务端拒绝（401）时统一降级，避免带着失效令牌请求所有接口
+		APIManager.auth_expired.connect(_on_auth_expired)
 	
 	# 关键修复：自动恢复上次登录的本地账号会话。
 	# 若不恢复，重载/重启后 AuthManager 会退化为游客(guest)，导致存档落入共享
@@ -46,18 +53,77 @@ func _ready() -> void:
 	if OS.has_feature("web") and JavaScriptBridge:
 		JavaScriptBridge.eval("if(navigator.storage && navigator.storage.persist){navigator.storage.persist();}", false)
 	
-	# 尝试自动创建游客会话
+	# 尝试自动创建游客会话（仅游客态）
 	_init_guest_session.call_deferred()
 
 func _init_guest_session() -> void:
 	## 自动初始化游客会话（不阻塞启动流程）
+	if current_auth_state != AuthState.GUEST:
+		return          # 已登录/待校验的会话态下不要去建游客会话
 	if APIManager and APIManager.is_online:
 		var result = await APIManager.create_guest_session()
 		if not result.get("error", true):
 			print("[AuthManager] 自动创建游客会话成功")
 
 func _on_connectivity_changed(online: bool) -> void:
-	if online and current_auth_state == AuthState.GUEST and APIManager.guest_id == "":
+	if not online:
+		return
+	# 启动时从本地缓存的会话恢复的令牌，必须**先向服务端确认仍然有效**，
+	# 才能维持「已登录」。否则一旦该令牌已失效（过期 / 后端换过 JWT_SECRET），
+	# 客户端会带着它请求所有接口 —— 而带 Authorization 头时后端的游客回退会被跳过
+	# （见 middleware/auth.js），结果是全站 401 且客户端永远不会自愈。
+	if _session_pending_verify:
+		_verify_restored_session()
+		return
+	if current_auth_state == AuthState.GUEST and APIManager.guest_id == "":
+		_init_guest_session()
+
+## 校验启动时恢复的令牌（GET /api/auth/me）
+## 该接口刻意做成「恒 200 + valid 字段」而不是 401 —— 令牌无效是可预期的正常结果，
+## 若返回 401，浏览器控制台每次启动都会留一条红字 "Failed to load resource: 401"，
+## 用户会误以为程序坏了。
+## valid=true → 保持登录态；valid=false → 清会话降级游客；网络异常 → 保留待校验。
+func _verify_restored_session() -> void:
+	if not _session_pending_verify:
+		return
+	var res = await APIManager.get_current_user()
+	if res.get("error", true):
+		# 网络层就没成功（离线/超时）：保留待校验状态，下次联网再验。
+		# 绝不能在此清会话 —— 那会误杀一个本来有效的登录。
+		print("[AuthManager] 会话校验暂时无法完成（网络异常），保留待校验状态")
+		return
+	_session_pending_verify = false
+	var identity: Dictionary = res.get("data", {})
+	if bool(identity.get("valid", false)):
+		print("[AuthManager] 在线会话校验通过: ", identity.get("email", user_data.get("email", "")))
+		return
+	print("[AuthManager] 服务端判定本地令牌已失效 → 降级为游客")
+	handle_auth_expired()
+
+## 令牌失效的统一降级：清令牌、清记住的会话、回到游客。
+## 幂等：已是游客且无令牌时直接返回。
+func _on_auth_expired() -> void:
+	handle_auth_expired()
+
+func handle_auth_expired() -> void:
+	if APIManager:
+		APIManager.auth_token = ""
+	session_token = ""
+	_session_pending_verify = false
+	var was_authenticated := current_auth_state != AuthState.GUEST
+	if was_authenticated:
+		current_auth_state = AuthState.GUEST
+		user_data.clear()
+		if GameManager:
+			GameManager.is_guest = true
+		_clear_session()
+		auth_state_changed.emit(AuthState.LOGGED_IN, current_auth_state)
+		print("[AuthManager] 登录状态已失效（令牌被服务端拒绝），已降级为游客")
+		session_expired.emit("登录状态已失效，请重新登录")
+	else:
+		_clear_session()
+	# 降级后按游客身份建立会话，保证后续接口仍可用
+	if APIManager and APIManager.is_online and APIManager.guest_id == "":
 		_init_guest_session()
 
 # ============ 状态查询 ============
@@ -139,7 +205,9 @@ func login(email: String, password: String) -> void:
 		if res.get("error", true):
 			_on_auth_failed("login", res.get("message", "登录失败"))
 		else:
-			_on_login_success({"user": res.get("user", {}), "token": "local"})
+			# ⚠️ 离线登录没有服务端令牌，token 必须留空（旧代码写死 "local"，
+			# 存进 session.json 后下次启动会被当成有效令牌恢复 → 全站 401）
+			_on_login_success({"user": res.get("user", {}), "token": ""})
 
 func _on_login_success(data: Dictionary) -> void:
 	var prev_state = current_auth_state
@@ -233,14 +301,20 @@ func _restore_session() -> void:
 	if email.is_empty() and data.get("token", "") == "":
 		return
 	var tok: String = data.get("token", "")
-	if tok != "":
+	# 哨兵值守卫：离线本地登录曾把字面量 "local" 写进 token 字段，它不可能是服务端签发的
+	# 令牌 —— 带上去只会让所有接口 401（见 APIManager._note_auth_failure 的说明），
+	# 因此只按"离线本地账号"恢复，绝不写入 APIManager.auth_token。
+	if tok != "" and tok != "local":
 		user_data = {"email": email, "username": data.get("username", email)}
 		current_auth_state = AuthState.LOGGED_IN
 		session_token = tok
 		APIManager.auth_token = tok
 		if GameManager:
 			GameManager.is_guest = false
-		print("[AuthManager] 已自动恢复在线会话: ", email)
+		# 先标为「待校验」：联网后由 _verify_restored_session() 向 /api/auth/me 确认
+		# 该令牌仍被接受，再决定是否维持登录态。
+		_session_pending_verify = true
+		print("[AuthManager] 已恢复本地记录的在线会话（待服务端校验）: ", email)
 		return
 	var accounts = _load_accounts()
 	for k in accounts:

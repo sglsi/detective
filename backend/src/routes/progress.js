@@ -48,4 +48,12 @@ router.get('/', authRequired, async (req, res) => {
   }
 });
 
+// PUT /api/progress —— 缺少 caseId 时的明确报错
+//
+// 原行为：落到全局 404 兜底并返回「接口不存在」，与「接口存在、但你漏了 caseId」
+// 混为一谈，排查时容易被误导成路由没挂上。这里改成明确的 400。
+router.put('/', (req, res) => {
+  res.status(400).json({ error: '缺少 caseId，请使用 PUT /api/progress/:caseId' });
+});
+
 module.exports = router;

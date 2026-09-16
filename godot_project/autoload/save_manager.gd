@@ -395,11 +395,18 @@ func get_case_progress(case_id: String) -> Dictionary:
 
 ## 更新案件进度
 func update_case_progress(case_id: String, progress: Dictionary) -> void:
-	if not APIManager or not APIManager.is_online:
-		APIManager._queue_request("update_progress", {"case_id": case_id, "progress": progress})
+	var cid := case_id.strip_edges()
+	if cid.is_empty():
+		# 空 caseId 既没有意义、也拼不出有效 URL（会退化成 /api/progress/）→ 直接丢弃
+		push_warning("[SaveManager] update_case_progress 缺少 case_id，已跳过")
 		return
-	
-	await APIManager.update_case_progress(case_id, progress)
+	if not APIManager:
+		return
+	if not APIManager.is_online:
+		APIManager._queue_request("update_progress", {"case_id": cid, "progress": progress})
+		return
+
+	await APIManager.update_case_progress(cid, progress)
 
 # ============ 辅助方法（预留接口） ============
 

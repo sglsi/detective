@@ -54,4 +54,6 @@ function guestMiddleware(req, res, next) {
   next();
 }
 
-module.exports = { authRequired, guestMiddleware };
+// 导出 getSecret 供 /api/auth/me 的"静默校验"复用同一密钥来源，
+// 避免两处各自读环境变量而漂移。
+module.exports = { authRequired, guestMiddleware, getSecret: _secret };

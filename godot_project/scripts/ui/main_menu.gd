@@ -156,6 +156,9 @@ func _ready() -> void:
 			_show_start_panel())
 		AuthManager.registration_failed.connect(func(err):
 			if _message_lbl: _message_lbl.text = "X " + err)
+		# 令牌失效被降级为游客时明确告知（不静默）：用户需要知道要重新登录
+		AuthManager.session_expired.connect(func(msg):
+			if _message_lbl: _message_lbl.text = "! " + msg)
 
 # -- 按钮创建 --
 

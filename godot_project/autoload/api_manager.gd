@@ -158,7 +158,7 @@ func _perform_request(method: int, endpoint: String, body_dict: Dictionary, auth
 		# 同源（本机 localhost 经 serve_web.py 代理）下 HTTPRequest 可靠且无 CORS 问题；
 		# 跨域（沙箱预览）下 HTTPRequest 受 CORS 限制会失败/回调丢失，_web_request 内部
 		# 会自动降级到 _web_fetch（浏览器原生 fetch + 沙箱查询串路由）。
-		return await _web_request(method, url, headers, body_str)
+		return _note_auth_failure(await _web_request(method, url, headers, body_str))
 
 	var http = HTTPRequest.new()
 	add_child(http)
@@ -167,7 +167,36 @@ func _perform_request(method: int, endpoint: String, body_dict: Dictionary, auth
 	if err != OK:
 		http.queue_free()
 		return {"error": true, "message": "请求发送失败: " + str(err)}
-	return await _wait_for_response(http)
+	return _note_auth_failure(await _wait_for_response(http))
+
+## 令牌失效自愈（所有请求的统一出口）
+##
+## 背景：后端要求「带 Authorization 头」时就**不再走游客回退**（见 middleware/auth.js）——
+## 即 `X-Guest-ID` 的兜底只在没有 Authorization 头时生效。因此一旦本地残留一枚
+## 服务端不认的令牌（过期、后端换过 JWT_SECRET、或离线登录写下的哨兵值），
+## 客户端就会带着它请求所有接口 → 全站 401，且自己不会恢复。
+##
+## 处理：识别到 401 且本地确实持有令牌 → 丢弃它并广播 auth_expired，让 AuthManager
+## 清会话、降级游客、重试。按「令牌值」去重，同一枚坏令牌只广播一次（避免刷屏），
+## 换新令牌后自动重新武装。
+var _reported_bad_token: String = ""
+
+func _note_auth_failure(res: Dictionary) -> Dictionary:
+	if int(res.get("code", 0)) != 401:
+		return res
+	if auth_token == "":
+		return res          # 本就是游客/未登录：401 只是说明该接口需要登录，属正常
+	if _reported_bad_token == auth_token:
+		return res          # 同一枚坏令牌已上报过
+	_reported_bad_token = auth_token
+	auth_token = ""
+	print("[APIManager] 本地令牌已被服务端拒绝（401），已清除并向 AuthManager 广播失效")
+	auth_expired.emit()
+	return res
+
+## 是否持有可用于鉴权的令牌（区别于"游客模式"）
+func has_auth_token() -> bool:
+	return auth_token != ""
 
 ## 等待 HTTP 响应（含超时处理）
 ## 直接 await http.request_completed 信号（Godot 标准写法），避免用「while + 捕获变量
@@ -432,14 +461,25 @@ func upload_save(save_data: Dictionary) -> Dictionary:
 # ============ 案件进度 API ============
 
 ## GET /api/progress/:caseId — 获取案件进度
+## 空 case_id 直接短路：否则会拼出 `/api/progress/`（后端无此路由），
+## 徒增一个困惑的 4xx 且无任何意义。
 func get_case_progress(case_id: String) -> Dictionary:
-	var endpoint = "/api/progress/" + case_id.uri_encode()
+	var cid := case_id.strip_edges()
+	if cid.is_empty():
+		push_warning("[APIManager] get_case_progress 缺少 case_id，已跳过请求")
+		return {"error": true, "message": "缺少 case_id"}
+	var endpoint = "/api/progress/" + cid.uri_encode()
 	var response = await get_request(endpoint)
 	return response
 
 ## PUT /api/progress/:caseId — 更新案件进度
+## 空 case_id 同上：短路，不发请求。
 func update_case_progress(case_id: String, progress_data: Dictionary) -> Dictionary:
-	var endpoint = "/api/progress/" + case_id.uri_encode()
+	var cid := case_id.strip_edges()
+	if cid.is_empty():
+		push_warning("[APIManager] update_case_progress 缺少 case_id，已跳过请求")
+		return {"error": true, "message": "缺少 case_id"}
+	var endpoint = "/api/progress/" + cid.uri_encode()
 	var response = await put_request(endpoint, progress_data)
 	request_completed.emit("update_progress", not response.get("error", true), response)
 	return response
@@ -455,6 +495,11 @@ func get_all_progress() -> Dictionary:
 func health_check() -> Dictionary:
 	var response = await get_request("/api/health", false)
 	return response
+
+## GET /api/auth/me — 校验当前令牌是否仍被服务端接受，并取回身份
+## 200 = 令牌有效；401 = 令牌已失效（由 _note_auth_failure 自动清令牌并广播 auth_expired）
+func get_current_user() -> Dictionary:
+	return await get_request("/api/auth/me")
 
 # ============ 离线队列 ============
 
@@ -479,7 +524,14 @@ func flush_pending() -> void:
 	print("[APIManager] 开始刷新离线队列, 共 ", queue_copy.size(), " 条请求")
 	
 	for req in queue_copy:
+		# 回放前守卫：既无令牌又无游客身份时，任何鉴权接口都必然 401。
+		# 此时把请求留在队列里等身份就绪，避免每次重连都刷一轮 401。
+		if auth_token == "" and guest_id == "":
+			pending_requests.append(req)
+			continue
+
 		var success = false
+		var drop_dirty = false     # true = 脏数据，丢弃且不再重入队
 		match req["type"]:
 			"register":
 				var r = await register_user(
@@ -490,15 +542,23 @@ func flush_pending() -> void:
 				)
 				success = not r.get("error", true)
 			"upload_save":
-				var r = await upload_save(req["data"])
-				success = not r.get("error", true)
+				var rs = await upload_save(req["data"])
+				success = not rs.get("error", true)
 			"update_progress":
-				var r = await update_case_progress(
-					req["data"].get("case_id", ""),
-					req["data"]
-				)
-				success = not r.get("error", true)
-		
+				var cid: String = str(req["data"].get("case_id", ""))
+				if cid.strip_edges().is_empty():
+					# 空 caseId 拼不出有效 URL（后端也会拒），属无法修复的脏数据 → 丢弃，
+					# 否则每次刷新队列都会白跑一趟并留下一条 4xx。
+					print("[APIManager] 离线队列：丢弃缺少 case_id 的进度上报")
+					drop_dirty = true
+				else:
+					# 队列里存的是 {case_id, progress}：body 必须取 progress 子项，
+					# 不能把整包当 progress（旧实现传错结构，服务端存到的字段是错的）。
+					var rp = await update_case_progress(cid, req["data"].get("progress", {}))
+					success = not rp.get("error", true)
+
+		if drop_dirty:
+			continue
 		if success:
 			flushed_count += 1
 		else:
