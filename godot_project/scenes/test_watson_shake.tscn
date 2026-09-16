@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://bwtsonshakeanimgdtest"]
+
+[ext_resource type="Script" path="res://scripts/test_watson_shake.gd" id="1_test_watson_shake"]
+
+[node name="TestWatsonShake" type="Control"]
+layout_mode = 3
+script = ExtResource("1_test_watson_shake")

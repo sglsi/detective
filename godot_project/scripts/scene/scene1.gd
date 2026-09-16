@@ -15,6 +15,7 @@ var _portrait_ctrl: Control = null   # 华生立绘控件（仅在 OBSERVE_WATSO
 var _messenger_portrait_ctrl: Control = null  # 信使立绘控件（仅在 MESSENGER_OBSERVE 阶段显示）
 var _holmes_portrait_ctrl: Control = null  # 福尔摩斯全身立绘控件（仅在开场[MRS_HUDSON/OPENING]阶段显示）
 var _holmes_anim: Node = null              # 福尔摩斯抽烟序列动画控制器（挂到立绘 Control 下）
+var _watson_anim: Node = null              # 华生 shake 入场动画控制器（挂到立绘 Control 下，节奏同福尔摩斯）
 var _watson_v := 0
 var _messenger_v := 0
 # 华生/信使墙各自的三维星（观察/推理/洞察），由墙验证回调透传，供场景一总评直接聚合。
@@ -219,6 +220,8 @@ func _build_ui() -> void:
 		_portrait_ctrl = _ui.add_portrait(tex, "华生", Vector2(203, 83), Vector2(843, 843), false)
 		# 默认隐藏：仅在 OBSERVE_WATSON 阶段显示
 		if _portrait_ctrl: _portrait_ctrl.visible = false
+		# 华生 shake 入场动画（节奏同福尔摩斯抽烟动画，单次播放后落定到线索收集图）
+		_setup_watson_shake_animation()
 	# 信使立绘（默认隐藏，MESSENGER_OBSERVE 阶段显示）
 	var mtex = load("res://assets/characters/messenger/messenger_portrait.png")
 	if mtex:
@@ -265,6 +268,41 @@ func _setup_holmes_smoke_animation() -> void:
 	anim.set("auto_play", false)
 	_holmes_portrait_ctrl.add_child(anim)
 	_holmes_anim = anim
+
+## 挂载华生 shake 动画控制器（场景一开场教程对话阶段专用）
+## 复用福尔摩斯抽烟动画控制器（holmes_smoke_animator.gd）：watson_shake01-03 按对话逐句推进，
+## 节奏与福尔摩斯抽烟动画一致（同款对话驱动）。开场教程对话每推进一句推一帧，
+## 对话结束后由 _on_opening_end 定格到线索收集图（watson_teaching.png）并展示观察热点。
+## （不再一次性快放——按用户要求改为对话驱动，便于看清华生动作变换）
+func _setup_watson_shake_animation() -> void:
+	if _portrait_ctrl == null:
+		return
+	var img := _portrait_ctrl.get_node_or_null("img") as TextureRect
+	if img == null:
+		return
+	var anim := Node.new()
+	anim.name = "WatsonShakeAnimator"
+	var script := load("res://scripts/characters/holmes_smoke_animator.gd") as Script
+	if script == null:
+		return
+	anim.set_script(script)
+	anim.set("target", img)
+	var frames: Array[Texture2D] = []
+	for i in range(1, 4):
+		var t := load("res://assets/characters/watson/watson_shake%02d.png" % i) as Texture2D
+		if t:
+			frames.append(t)
+	if frames.is_empty():
+		anim.queue_free()
+		return
+	anim.set("frames", frames)
+	anim.set("fps", 4.0)          # 同福尔摩斯抽烟动画节奏
+	anim.set("loop", false)        # 单次播放：shake01→02→03 后落定
+	anim.set("auto_play", false)
+	_portrait_ctrl.add_child(anim)
+	if not anim.cycle_finished.is_connected(_on_watson_shake_done):
+		anim.cycle_finished.connect(_on_watson_shake_done)
+	_watson_anim = anim
 
 ## 场景一用 UI 内部对话标签渲染观察层，不需要占位标签
 func _create_dummy_labels() -> void:
@@ -521,6 +559,12 @@ func _show_opening_dialogue() -> void:
 	#    EASY 逐条点出部位+全部高亮 / NORMAL 标准提示 / HARD 无引导、严格证据
 	_phase = Phase.OPENING
 	if _holmes_anim: _holmes_anim.start_dialogue_driven()   # 开场教程对话按对话逐句推进抽烟动画
+	# 开场教程是「观察华生」的引导——本阶段聚焦华生：隐藏福尔摩斯全身立绘、显示华生立绘，
+	# 并启动对话驱动的 shake 动作（与福尔摩斯抽烟同款），让华生在对话中随每句台词逐渐变换动作。
+	if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = false
+	if _portrait_ctrl:
+		_portrait_ctrl.visible = true
+		if _watson_anim: _watson_anim.start_dialogue_driven()
 	var nodes: Array[Resource] = []
 	# —— 简单（EASY）：详细引导，逐条点出部位 ——
 	nodes.append(_dn("s0_e","福尔摩斯","看这位朋友——职业与经历就写在他的袖口、手背和站姿上。手腕的晒痕、左臂的旧伤、脸色的黝黑、面容的憔悴、军人的站姿、身上消毒液的气味，都在说他刚从战场回来。来，我们把这些一条条看清楚。","click",["s1_e"],"从容"))
@@ -547,6 +591,23 @@ func _on_opening_end() -> void:
 	if _holmes_anim: _holmes_anim.stop(true)
 	if _holmes_portrait_ctrl: _holmes_portrait_ctrl.visible = false
 	if _portrait_ctrl: _portrait_ctrl.visible = true
+	# 华生 shake 已在开场教程对话中按每句台词推进至末帧（shake03）；此处停掉动画（停在末帧），
+	# 并将立绘定格到线索收集图（watson_teaching.png），随后展示观察热点。
+	# 若动画未就绪（资源缺失等），直接进观察阶段（原行为兜底）。
+	if _watson_anim:
+		_watson_anim.stop(false)
+	var wt = load("res://assets/characters/watson/watson_teaching.png")
+	if _portrait_ctrl and wt:
+		var wimg = _portrait_ctrl.get_node_or_null("img") as TextureRect
+		if wimg: wimg.texture = wt
+	_enter_watson_observe()
+
+## shake 播放结束 → 落定到线索收集图（watson_teaching.png）并展示观察热点
+func _on_watson_shake_done() -> void:
+	_enter_watson_observe()
+
+## 进入华生观察阶段：展示线索收集图 + 热点，给出提示，并弹出道具工具栏
+func _enter_watson_observe() -> void:
 	_watson_obs.show()
 	_ui.set_dialogue("提示", _observe_hint("华生", true) + "，观察 6 处线索。")
 	_ui.set_dialogue_color(Color(0.5, 0.9, 0.5))
@@ -557,6 +618,9 @@ func _on_line(_id: String) -> void:
 	# 福尔摩斯抽烟序列：每句对话推进一帧（仅开场立绘可见阶段驱动）
 	if _holmes_anim and _holmes_portrait_ctrl and _holmes_portrait_ctrl.visible:
 		_holmes_anim.advance_frame()
+	# 华生 shake 序列：开场教程对话阶段（华生立绘可见时）每句对话推进一帧
+	if _watson_anim and _portrait_ctrl and _portrait_ctrl.visible:
+		_watson_anim.advance_frame()
 	var n = _dm.current_node; if not n: return
 	var sp = n.speaker
 	var col = Color(0.7,0.8,0.9) if sp=="华生" else Color(0.5,0.9,0.5) if sp=="system" else Color(0.85,0.75,0.45)
