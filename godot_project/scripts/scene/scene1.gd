@@ -114,7 +114,12 @@ func _restore_saved_state() -> bool:
 		Phase.WATSON_REASONING:
 			_phase = Phase.WATSON_REASONING; _wall_auto = false
 			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","arm","face_dark","face_haggard","pose","medical"])
-			_show_watson_reasoning_wall()
+			# 验证后读档：重放裁定对话（已显示的结论）后自动推进到信使阶段，而非重开推理墙。
+			# 否则读档会停在「验证前」的墙里，玩家须重新提交验证（用户报的问题1）。
+			if _watson_wall_state.get("verified", false):
+				_show_watson_verdict_dialogue(int(_watson_wall_state.get("verdict", 0)))
+			else:
+				_show_watson_reasoning_wall()
 			return true
 		Phase.MESSENGER_OBSERVE:
 			_phase = Phase.MESSENGER_OBSERVE
@@ -127,7 +132,12 @@ func _restore_saved_state() -> bool:
 		Phase.MESSENGER_REASONING:
 			_phase = Phase.MESSENGER_REASONING; _wall_auto = false
 			_ui.restore_observer(_messenger_obs, saved_ids, ["tattoo","beard","posture","manner","sleeve","limp"])
-			_show_messenger_reasoning_wall()
+			# 验证后读档：重放裁定对话 → 委托信流程（含警长手写信展示），而非重开推理墙。
+			# 否则读档会停在「验证前」的墙里且 verified 被清零 → 退出无法推进、须重新验证（问题1）。
+			if _messenger_wall_state.get("verified", false):
+				_show_messenger_verdict_dialogue(int(_messenger_wall_state.get("verdict", 0)))
+			else:
+				_show_messenger_reasoning_wall()
 			return true
 		Phase.RATING, Phase.COMPLETE:
 			_phase = Phase.RATING
@@ -406,9 +416,16 @@ func _do_think() -> void:
 	elif _phase == Phase.MESSENGER_OBSERVE and _messenger_obs.get_recorded() > 0:
 		_show_messenger_reasoning_wall()
 	elif _phase == Phase.WATSON_REASONING:
-		_show_watson_reasoning_wall()   # 已关墙后可重新打开
+		# 已验证则不再重开墙（委托信流程进行中，重开会打断且丢失 verified）
+		if _watson_wall_state.get("verified", false):
+			_create_notification("华生推理已通过验证")
+		else:
+			_show_watson_reasoning_wall()   # 已关墙后可重新打开
 	elif _phase == Phase.MESSENGER_REASONING:
-		_show_messenger_reasoning_wall()
+		if _messenger_wall_state.get("verified", false):
+			_create_notification("信使推理已通过验证")
+		else:
+			_show_messenger_reasoning_wall()
 	else:
 		_create_notification("请先收集至少 1 条线索再使用推理墙")
 
@@ -648,8 +665,10 @@ func _show_messenger_reasoning_wall() -> void:
 	if _messenger_portrait_ctrl: _messenger_portrait_ctrl.visible = false
 	# 裁定 5：练习墙不计分（信使墙为教学示范，干扰项用于教「信号 vs 噪音」）
 	var hypo := ReasoningChains.build_wall_dict("CH01M")
-	# 信使(教学示范)墙使用独立 state：不携带华生墙内容；每堵墙独立验证，故重置本墙 verified。
-	_messenger_wall_state["verified"] = false
+	# 信使(教学示范)墙使用独立 state：不携带华生墙内容；每堵墙独立验证。
+	# 注意：不再在此无条件清零 verified —— 否则读档恢复出的「已验证」会被抹掉，导致
+	# 「退出推理墙后流程无法推进、必须重新验证」（与华生墙行为不一致，用户报的问题1）。
+	# 仅当 state 中本就无 verified 键（全新进入）时才是未验证，墙内会按此判断。
 	_open_wall("messenger", hypo, func(v: int, stars: Dictionary = {}):
 		_messenger_v = v
 		_messenger_stars = stars
@@ -815,7 +834,10 @@ func _save_and_continue() -> void:
 # ===== 委托信解锁 + 双钩子结尾（依据 02 §9 双钩子系统 + 委托信解锁） =====
 func _show_commission_letter_dialogue() -> void:
 	if _ui: _ui.set_camera_enabled(false)   # 委托信对话：禁用摄像机
-	_phase = Phase.RATING
+	# 关键修复：委托信流程属于「信使验证后」的后续流程，必须保留在 MESSENGER_REASONING 相位内，
+	# 仅靠 _messenger_wall_state.verified 标记「已验证」。若将相位提前设为 RATING，则在该流程中
+	# 存档会落到 RATING，读档直接跳到最终评价页、跳过委托信（警长手写信）展示——用户报的跳流程 bug。
+	_phase = Phase.MESSENGER_REASONING
 	# 委托信解锁为线索（B-01 前置：信使验证通过 ≥ SUPPORTED 后解锁）
 	if ClueSystem:
 		ClueSystem.collect_clue_from_catalog(
@@ -1054,7 +1076,7 @@ func _letter_hint_text() -> String:
 ## 不会因为贴图缺失/未导入而只剩一片黑幕（＝玩家感知为"信没有展示"）。
 func _show_letter_as_dialogue() -> void:
 	if _ui: _ui.set_camera_enabled(false)
-	_phase = Phase.RATING
+	_phase = Phase.MESSENGER_REASONING   # 同 _show_commission_letter_dialogue：委托信流程留在信使推理相位内
 	_dm = DialogueManager.new(); add_child(_dm)
 	_dm.dialogue_advanced.connect(_on_line)
 	_dm.dialogue_ended.connect(_start_commission_rest)
