@@ -565,6 +565,10 @@ func _show_opening_dialogue() -> void:
 	if _portrait_ctrl:
 		_portrait_ctrl.visible = true
 		if _watson_anim: _watson_anim.start_dialogue_driven()
+	# 切换到华生立绘的同时，将背景从「沙发客厅(sofa01)」交叉淡化到「开门(门廊视角,opendoor)」——
+	# 华生登场即进入其专属舞台，与之后华生观察/信使观察/评分等全部阶段共用同一背景。
+	# （此前背景仅在 _on_opening_end 进入观察阶段时才切，导致开场教程里华生已登场、背景却还是沙发客厅）
+	if _ui: _ui.set_scene_background(_opendoor_bg(), "scene1_opendoor")
 	var nodes: Array[Resource] = []
 	# —— 简单（EASY）：详细引导，逐条点出部位 ——
 	nodes.append(_dn("s0_e","福尔摩斯","看这位朋友——职业与经历就写在他的袖口、手背和站姿上。手腕的晒痕、左臂的旧伤、脸色的黝黑、面容的憔悴、军人的站姿、身上消毒液的气味，都在说他刚从战场回来。来，我们把这些一条条看清楚。","click",["s1_e"],"从容"))
@@ -584,8 +588,7 @@ func _show_opening_dialogue() -> void:
 
 func _on_opening_end() -> void:
 	_phase = Phase.OBSERVE_WATSON
-	# 进入华生观察阶段起切换到「从门廊向内看」背景（含之后信使观察等全部阶段）
-	if _ui: _ui.set_scene_background(load("res://assets/backgrounds/screen01-opendoor.jpg"), "scene1_opendoor")
+	# 背景已在 _show_opening_dialogue 华生立绘登场时切到 opendoor（避免重复交叉淡化同一张图），此处不再重复切。
 	if _ui: _ui.set_camera_enabled(true)   # 进入观察：启用摄像机（统览/缩放/拖拽）
 	# 福尔摩斯全身立绘仅属于开场（sofa 场景），华生观察开始时隐藏；动画停止并回到 idle 帧
 	if _holmes_anim: _holmes_anim.stop(true)

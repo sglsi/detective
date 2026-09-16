@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://bwtsonbgswitchtest01"]
+
+[ext_resource type="Script" path="res://scripts/test_scene1_watson_bg_switch.gd" id="1_test_watson_bg_switch"]
+
+[node name="TestScene1WatsonBgSwitch" type="Control"]
+layout_mode = 3
+script = ExtResource("1_test_watson_bg_switch")
