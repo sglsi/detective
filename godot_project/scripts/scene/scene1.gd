@@ -114,6 +114,9 @@ func _restore_saved_state() -> bool:
 		Phase.WATSON_REASONING:
 			_phase = Phase.WATSON_REASONING; _wall_auto = false
 			_ui.restore_observer(_watson_obs, saved_ids, ["wrist","arm","face_dark","face_haggard","pose","medical"])
+			# 读档恢复华生墙验证三维星（随 wall_state_watson 持久化），供后续 _calc_stars 聚合场景总评。
+			_watson_stars = _watson_wall_state.get("stars", {})
+			_watson_v = int(_watson_wall_state.get("verdict", 0))
 			# 验证后读档：重放裁定对话（已显示的结论）后自动推进到信使阶段，而非重开推理墙。
 			# 否则读档会停在「验证前」的墙里，玩家须重新提交验证（用户报的问题1）。
 			if _watson_wall_state.get("verified", false):
@@ -132,6 +135,12 @@ func _restore_saved_state() -> bool:
 		Phase.MESSENGER_REASONING:
 			_phase = Phase.MESSENGER_REASONING; _wall_auto = false
 			_ui.restore_observer(_messenger_obs, saved_ids, ["tattoo","beard","posture","manner","sleeve","limp"])
+			# 读档恢复双墙验证三维星（随 wall_state_watson/messenger 持久化），供 _on_messenger_verdict_end
+			# → _calc_stars 聚合场景总评；否则重放裁定后 _calc_stars 读默认空字典→三星全错。
+			_watson_stars = _watson_wall_state.get("stars", {})
+			_messenger_stars = _messenger_wall_state.get("stars", {})
+			_watson_v = int(_watson_wall_state.get("verdict", 0))
+			_messenger_v = int(_messenger_wall_state.get("verdict", 0))
 			# 验证后读档：重放裁定对话 → 委托信流程（含警长手写信展示），而非重开推理墙。
 			# 否则读档会停在「验证前」的墙里且 verified 被清零 → 退出无法推进、须重新验证（问题1）。
 			if _messenger_wall_state.get("verified", false):
@@ -569,6 +578,11 @@ func _show_watson_reasoning_wall() -> void:
 	_open_wall("watson", hypo, func(v: int, stars: Dictionary = {}):
 		_watson_v = v
 		_watson_stars = stars
+		# 把验证三维星与裁定写入教学墙 state（随 wall_state_watson 在 *每个* 存盘点持久化），
+		# 否则「验证后推进一两步再存档」的 MESSENGER_REASONING 存盘点不写 _watson_stars，
+		# 读档重放裁定→_calc_stars 读默认空字典→三星全错（用户报的评级内容不正确）。
+		_watson_wall_state["verdict"] = v
+		_watson_wall_state["stars"] = stars
 		_show_watson_verdict_dialogue(v)
 	, Callable(self, "_resume_observe"), true, _watson_wall_state)
 
@@ -672,6 +686,9 @@ func _show_messenger_reasoning_wall() -> void:
 	_open_wall("messenger", hypo, func(v: int, stars: Dictionary = {}):
 		_messenger_v = v
 		_messenger_stars = stars
+		# 同华生墙：把验证三维星与裁定写入教学墙 state，确保 MESSENGER_REASONING 存盘点也持久化三星。
+		_messenger_wall_state["verdict"] = v
+		_messenger_wall_state["stars"] = stars
 		_show_messenger_verdict_dialogue(v)
 	, Callable(self, "_resume_observe"), true, _messenger_wall_state)
 
