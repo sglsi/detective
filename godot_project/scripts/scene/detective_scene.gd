@@ -471,11 +471,24 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# _wall_state 同步指向共享引用：scene 侧 _do_save 存档 _wall_state 时即共享的最新图谱。
 	if use_case_wide and ClueSystem != null:
 		_wall_state = ClueSystem.case_wall_state
-		# 跨场景共享图谱内容（关系/节点位置/折叠），但新场景开墙应回到「可编辑」，
-		# 不沿用上一场景提交验证得到的 verified/verdict（否则场景三墙整体 LOCKED、节点全冻结）。
-		# 验证锁只约束「本场景当前阶段答完题」，跨场景进入新推理阶段必须解除。
-		_wall_state["verified"] = false
-		_wall_state["verdict"] = -1
+		# 跨场景共享图谱内容（关系/节点位置/折叠），但**跨场景带入的验证锁必须解除**：
+		# 上一场景提交验证得到的 verified/verdict 若不解除，新场景的墙会整体 LOCKED、节点全冻结
+		# （见 1857cde）。
+		#
+		# 🔴 但解除必须按「验证结果的归属场景」判断，不能每次开墙都清（2026-09-16 用户报告的存档 bug）：
+		#   `_wall_state` 就是 `ClueSystem.case_wall_state`（同一份引用），也正是存档所存的对象。
+		#   原实现每次 _open_wall() 都清 verified/verdict → 同场景内任何一次重开墙
+		#   （读档后阶段入口自动开墙、玩家再点「思考」查看）都会把刚提交的验证抹掉，
+		#   于是「提交验证 → 存档」存下的是**验证前**状态，读档后玩家被迫重新提交验证、重看结论。
+		#   现在记录写入验证结果时的场景 id（`owner_scene`），仅当它 ≠ 当前场景时才清除并改写归属；
+		#   同场景重开一律保留，跨场景带入一律解除——两个需求同时满足。
+		#   （注：旧版本存下的档没有 owner_scene 字段，会被当作"他场景带入"清一次，
+		#    玩家最多重新验证一次；此后新档即带 owner_scene。）
+		var wall_owner := str(_wall_state.get("owner_scene", ""))
+		if wall_owner != scene_id():
+			_wall_state["verified"] = false
+			_wall_state["verdict"] = -1
+			_wall_state["owner_scene"] = scene_id()
 	# 跨场景带入·任务：把「本场景采集页收集到的线索 id」传给墙，左栏只显示这些（上一场景未拖入画布的线索下一场景左栏不再出现）
 	var _scene_clue_ids: Array = ClueSystem.get_collected_ids(clue_source()) if ClueSystem and ClueSystem.has_method("get_collected_ids") else []
 	# 跨场景累积改造：auto_fold 恒 false（去掉开墙自动折叠，玩家自主折叠）；
