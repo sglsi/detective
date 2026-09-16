@@ -196,6 +196,9 @@ func _build_save_data() -> void:
 		"reasoning_score": StarRatingSystem.reasoning_score,
 		"insight_score": StarRatingSystem.insight_score,
 		"star_chains": StarRatingSystem.chains.duplicate(),   # v4.0 逐链三维星级（读档恢复用）
+		# 推理链结论明细（裁定4）：每条链 per_branch 名称/正确率/星级，供场景八结局「推理链结论」放出。
+		# 此前漏存 → 读档后 case_branch_log 为空，结局评价体系缺推理链信息（用户报：读档后评价内容不正确）。
+		"case_branch_log": StarRatingSystem.case_branch_log.duplicate(true),
 		"scene_state": GameManager.scene_state.duplicate(),   # 场景内运行状态（phase, clue_ids）
 		"collected_clues": _get_collected_clues(),             # 通用已收集线索（场景无关单一真相源）
 		"case_wall_state": _get_case_wall_state(),             # 案件级推理墙图谱状态（跨场景共享，场景二~八）
@@ -348,6 +351,11 @@ func _restore_from_dict(data: Dictionary) -> void:
 		StarRatingSystem.chains = data["star_chains"].duplicate()
 	else:
 		StarRatingSystem.chains = {}
+	# 推理链结论明细：与 chains 同源持久化，避免读档后场景八「推理链结论」段为空（用户报：评价内容不正确）
+	if data.has("case_branch_log") and not data["case_branch_log"].is_empty():
+		StarRatingSystem.case_branch_log = data["case_branch_log"].duplicate(true)
+	else:
+		StarRatingSystem.case_branch_log = {}
 	last_save_timestamp = data.get("timestamp", 0)
 	
 	# 恢复其他状态
