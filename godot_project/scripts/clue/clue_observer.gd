@@ -169,6 +169,17 @@ func mark_recorded(clue_id: String) -> void:
 				_required_recorded += 1
 			break
 	hide_button_by_id(clue_id)
+	# 静默删除该线索已绘制的高亮提示圆圈（若有）。mark_recorded 仅用于读档恢复
+	# （restore_observer 调用），不应触发收集光环特效，故直接 queue_free，
+	# 不复用 _remove_clue_circle（其会 spawn collect burst 动画）。
+	# 根因（2026-09-16 思傅报 bug）：此前只隐藏命中按钮、不删已绘圆圈，
+	# 导致读档后已收集线索的提示圆圈残留、且可被点击二次收集。
+	for parent in [_portrait_ctrl, _world_layer]:
+		if parent == null:
+			continue
+		var c = parent.get_node_or_null("hl_" + clue_id)
+		if c != null:
+			c.queue_free()
 	var hs_data: Dictionary = {"id": clue_id, "name": clue_id, "desc": "", "correct": true}
 	for hs in _hotspots:
 		if hs["id"] == clue_id:

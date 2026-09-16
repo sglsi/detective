@@ -393,8 +393,19 @@ func _go_to_next_scene() -> void:
 	_show_scene_rating("场景二 完成 · 侦破过程", "res://scenes/scene3.tscn", Callable(self, "_save_and_transition").bind("scene2", "res://scenes/scene3.tscn"))
 
 # ===== 读档分支（ClueSystem 同步与通知已由基类 _restore_saved_state 完成） =====
+# 关键修复（2026-09-16 思傅报 bug）：读档后线索收集提示圆圈重新出现、且可二次收集。
+# 根因：ClueObserver 每次读档都被重新创建、_recorded_ids 为空；仅 OBSERVE 分支经 restore_observer
+# 恢复，REASONING/TRANSITION/ARRIVAL/DETECTIVE_DIALOGUE 分支完全不恢复；且简单模式
+# _create_observers 会 auto_reveal 直接 show() 画出全部（含已收集）圆圈；mark_recorded 此前只隐藏
+# 按钮、不删已绘圆圈 → 已收集线索圆圈残留，退出推理墙后可见、且可点击二次收集。
+# 修复：进入任意分支前，先统一恢复两套观察器的「已收集」状态并隐藏全部观察器；
+# OBSERVE 未集齐分支再按需 show() 对应观察器（restore_observer 内部会 show）。
 func _apply_restored_phase(p: int, ids: Array, _clues_arr: Array) -> bool:
 	_phase = p
+	# 统一恢复两套观察器「已收集」状态（删掉已收集线索的提示圆圈），并隐藏全部观察器，
+	# 杜绝读档后已收集线索仍显示圆圈且可被点击二次收集。
+	_restore_observers_from_ids(ids)
+	_hide_observers()
 	match p:
 		Phase.ARRIVAL:
 			_enter_arrival(); return true
@@ -427,6 +438,19 @@ func _apply_restored_phase(p: int, ids: Array, _clues_arr: Array) -> bool:
 			_enter_transition()
 			return true
 	return false
+
+## 恢复两套观察器的「已收集」状态（读档用）：对每条已保存线索调用对应观察器的 mark_recorded，
+## 标记已收集、隐藏命中按钮、并静默删除其提示圆圈（mark_recorded 内部处理）。
+func _restore_observers_from_ids(ids: Array) -> void:
+	for obs in [_street_obs, _path_obs]:
+		if obs == null: continue
+		for cid in ids:
+			obs.mark_recorded(cid)
+
+## 隐藏两套观察器（读档默认隐藏；仅 OBSERVE 未集齐分支按需 show）。
+func _hide_observers() -> void:
+	for obs in [_street_obs, _path_obs]:
+		if obs != null and obs.has_method("hide"): obs.hide()
 
 # ===== Q2 推理墙四档回应（覆盖基类 _default_wall_verify）=====
 # 验证后按整体 verdict 播放场景二专属四档回应（对齐 08 稿场景二 Step6 + 阶段末教学），
