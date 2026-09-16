@@ -275,6 +275,25 @@ NO other objects, isolated, game asset
 - ✅ gutenberg.org / gutenberg.net.au / librivox.org / standardebooks.org / fadedpage.com / zenodo.org / api.wellcomecollection.org / iiif.wellcomecollection.org / dlcs.io / jsdelivr / gh.ddlc.top / 对象存储
 - ❌ archive.org 全系（含 ia*.us.archive.org、web.archive.org Wayback）/ hathitrust 全系 / openlibrary / wikimedia 全系（wikipedia/wikisource/commons/api.wikimedia）/ Wellcome 主站（Cloudflare 挑战）/ gallica.bnf.fr（SRU 403）/ books.google.com / r.jina.ai / archive.today 主域（ph 系）/ projekt-gutenberg.org / dweb.link
 
+## 音乐蓝图与生成清单（三份文档协作体系，2026-09-15）
+
+**三份文档定位互不重叠**：
+
+| 文档 | 定位 | 何时用 |
+|---|---|---|
+| `设计文档/游戏音乐设计方案.md`（v1.0） | 系统架构 + 6 态自适应状态机 + Godot 总线/MusicDirector 实现指引 | 程序员接音乐系统时 |
+| `设计文档/游戏音乐素材生成需求清单.md`（v1.2） | **工具级速查表**——逐首 prompt 汇编，每首一段英文 prompt + 调参建议 | 给 AI 工具直接复制粘贴（与下面这份并行参考） |
+| `设计文档/游戏BGM设计清单_音乐总监视角.md`（v1.0） | **全剧音乐蓝图**——声音身份、虚拟乐队、动机网络、情绪河流图、分幕结构、场景接续、M0 里程碑 | 第一次启动音乐生成工作前、审核交付物时、决定"哪首先做"时 |
+
+**关键升级（音乐总监稿 vs v1.2）**：
+- **7 条主导动机**（v1.2 是 5 条）——新增 M_VP 温情动机（scene6 主导）+ M_FP 壁炉母题（scene5/6/8_resolve）。
+- **M0 声音身份基线里程碑**（v1.2 没有）——必须先生成 MENU + SCENE 5 + SCENE 8_resolve 三首作"声音身份基准"，通过后才能批量生成——避免 AI 工具把 9 首写成"拼盘"。
+- **情绪河流图**（v1.2 没有）——紧张度 × 色温二维定位 + 9 首具体落点 + "高点不超过 2 个 / 大调时刻不超过 2 个"节奏纪律。
+- **场景接续规则**（v1.2 没有）——每首标注"← 接续前曲"与"→ 接续后曲"的调性/动机转段逻辑。
+- **动机切片化 stinger/UI**（v1.2 是"音效型"）——每个 stinger 应该是某条主导动机的 1-3 秒切片（CLUE_FOUND = M_SH 上行切片、REVEAL = M_CU+M_SH 交织爆发等）。
+
+**用户场景**："请根据《游戏音乐素材生成需求清单》，结合游戏中各场景的剧情发展和氛围要求，从一个上音乐总监的角度，重新生成一份各场景音乐素材生成需求清单，用于指导各场景中的背景音乐生成需求，背景音乐应符合福尔摩斯这个游戏的氛围"——本次生成的就是上面第三份音乐总监稿。
+
 ## 常见问题和预防
 
 - **信使推理链三层级重构（2026-09-07，用户表格规格）**：`CH01M` 真相链从两层改为三层：结论1（M-01 在海军中当兵←tattoo、M-02 当过兵←beard+posture 双线索 gate、M-04 当过军士←manner）→ 结论2（CL1-01 海军陆战队员←M-01+M-02）→ 结论3（CL1-02 海军军士←M-04+conclusion_CL1-01）→ 终点 **person:NPC_MSG（信使）**（原终点 NPC_SERGEANT 改为自由关联人物）。**M-03 废弃**（posture 并入 M-02 的 gate_clue_ids）；concl→concl 边 kind=support、gate 引用结论用 `conclusion_` 前缀、中间结论不写 target（与华生墙 C-A1→C-A2 同款）；推导文案（表格"推导"列）进 conclusions 的 `adopt_desc`。改真相链后必须跑闭合探针（边端点⊆节点集 + gate_clue_ids⊆线索集 + battlefield hypotheses id 对齐）；旧存档 M-03 relations 由 rebuild 权威列表剔除天然兼容。
