@@ -60,6 +60,16 @@ func _ready() -> void:
 		printerr("RESULT: FAIL 读档开墙未恢复关系(relations=0)")
 		get_tree().quit(1); return
 
+	# Bug 2 验证：读档开墙后，线索仍须带 image（否则卡片图片在存档→读档后丢失）
+	var cl1 = wall.get("_clues")
+	var miss1 := 0
+	for c in cl1:
+		if str(c.get("image", "")).is_empty(): miss1 += 1
+	print("[LOAD_OPEN] clue_count=", cl1.size(), " missing_image=", miss1)
+	if miss1 > 0:
+		printerr("RESULT: FAIL 读档后线索 image 丢失 (missing_image=%d)" % miss1)
+		get_tree().quit(1); return
+
 	# (2) 退出墙（persist 写回 _state_store；观察者未满 → _resume_observe 回观察、墙关闭）
 	s1._wall_instance._on_back_pressed()
 	await get_tree().process_frame
@@ -89,4 +99,18 @@ func _ready() -> void:
 	else:
 		printerr("RESULT: FAIL reopen 后关系丢失（进入初始页）ws=", ws_after_close)
 		_ok = false
+		get_tree().quit(0 if _ok else 1)
+
+	# Bug 2 复验：再开墙后线索 image 仍须保留
+	var cl2 = wall2.get("_clues")
+	var miss2 := 0
+	for c in cl2:
+		if str(c.get("image", "")).is_empty(): miss2 += 1
+	print("[REOPEN] clue_count=", cl2.size(), " missing_image=", miss2)
+	if miss2 > 0:
+		printerr("RESULT: FAIL 再开墙后线索 image 丢失 (missing_image=%d)" % miss2)
+		_ok = false
+		get_tree().quit(1)
+	# 关系保留 + 线索 image 均保留 → 全绿
+	print("RESULT: PASS 读档+再开墙，关系保留且线索 image 不丢失（Bug2 已修复）")
 	get_tree().quit(0 if _ok else 1)

@@ -867,7 +867,7 @@ func _restore_clues_from_ids(saved_ids: Array) -> void:
 		var h = _get_hotspot(cid)
 		if not h.is_empty():
 			_clues.append(h)
-			ClueSystem.collect_clue_from_catalog(cid, h.get("label", ""), h.get("desc", ""), h.get("correct", true), clue_source(), int(h.get("wt", -1)), "", "", h.get("content_tags", []), h.get("attribute_tags", []), h.get("relation_tags", []))
+			ClueSystem.collect_clue_from_catalog(cid, h.get("label", ""), h.get("desc", ""), h.get("correct", true), clue_source(), int(h.get("wt", -1)), h.get("image", ""), h.get("anchor", ""), h.get("content_tags", []), h.get("attribute_tags", []), h.get("relation_tags", []))
 		else:
 			var p = prior.get(cid, {})
 			# 对话/工具授予的非热点线索：从先前已收集副本回收权重（prior 含 "weight"）

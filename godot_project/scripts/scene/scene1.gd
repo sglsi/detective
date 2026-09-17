@@ -84,7 +84,9 @@ func _restore_saved_state() -> bool:
 			var h = _find_hotspot(cid)
 			if not h.is_empty():
 				var src := "watson" if cid in ["wrist","arm","face_dark","face_haggard","pose","medical"] else "messenger"
-				ClueSystem.collect_clue_from_catalog(cid, h.get("name", cid), h.get("desc",""), h.get("correct", true), src)
+				# ⚠️ 必须透传 image/anchor：否则「收集→存档→读档」后推理墙卡片图片丢失
+				# （收集时用的是观察器热点 image/anchor，恢复若只传 name/desc 则 image 为空 → 卡片无图）。
+				ClueSystem.collect_clue_from_catalog(cid, h.get("name", cid), h.get("desc",""), h.get("correct", true), src, -1, h.get("image",""), h.get("anchor",""))
 	_phase = saved_phase
 	# 读到终局阶段时，阻止后续「进入场景二」按钮再次自动存档，避免 identical 重复槽位。
 	_suppress_terminal_save = _is_terminal_phase(saved_phase)
@@ -169,6 +171,12 @@ func _find_hotspot(id: String) -> Dictionary:
 		if h.get("id","") == id: return h
 	return {}
 
+# 覆盖基类 _get_hotspot：场景一教学墙（华生/信使）不通过基类 hotspots()（恒返回 []），
+# 而是由 _all_hotspots() 提供含 image/anchor 的完整热点定义。
+# 否则 _restore_clues_from_ids 恢复时取不到 image/anchor → 推理墙卡片图片丢失（Bug 2）。
+func _get_hotspot(id: String) -> Dictionary:
+	return _find_hotspot(id)
+
 ## 观察器内部的热点信号转发到全局 SceneEventBus.hotspot_clicked，
 ## 让工具栏（放大镜/卷尺/黄页）知道「当前正在看哪条细节」。
 func _on_obs_hotspot_to_tool(clue_id: String) -> void:
@@ -190,9 +198,24 @@ func _phase_name(p: int) -> String:
 		Phase.COMPLETE: return "已完成"
 		_: return "未知阶段"
 
+# 恢复存档用的完整热点表（含 image/anchor，与观察器热点定义一致）。
+# ⚠️ 必须与 _create_observers 内 watson/messenger 观察器的 image/anchor 保持同步：
+# 否则「收集→存档→读档」后推理墙卡片图片丢失（Bug 2 根因）。
 func _all_hotspots() -> Array:
-	var w = [{"id":"wrist","name":"肤色黑白分明","desc":"华生手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来"},{"id":"arm","name":"左臂损伤","desc":"华生左臂动作略显僵硬——战场负伤留下的旧疾"},{"id":"face_dark","name":"脸色黝黑","desc":"华生脸部肤色明显偏深——长期热带日照的痕迹"},{"id":"face_haggard","name":"面容憔悴","desc":"华生面容灰暗、眼窝深陷——久病初愈、长途劳顿的痕迹"},{"id":"pose","name":"军人气质","desc":"华生站姿挺拔、气质干练——典型的军人作风"},{"id":"medical","name":"身上有消毒液气味","desc":"华生身上有淡淡的消毒液气味——长期接触医院与战地救护的印记"}]
-	var m = [{"id":"tattoo","name":"手臂上有锚的文身","desc":"锚文身是海员中的常见标志"},{"id":"beard","name":"军人式络腮胡","desc":"军人中常见"},{"id":"posture","name":"站姿笔挺，有军人气质","desc":"在军事训练中形成的肌肉记忆"},{"id":"manner","name":"态度自高自大，带着发号施令的神气","desc":"发号施令中形成的气质"},{"id":"sleeve","name":"袖口细节","desc":"信使袖口有磨损痕迹"},{"id":"limp","name":"轻微跛行","desc":"信使走路有轻微跛行"}]
+	var w = [
+		{"id":"wrist","name":"肤色黑白分明","desc":"华生手腕处肤色分界明显——长期暴露于热带阳光，刚从热带归来","image":"res://assets/characters/watson/watson_teaching.png","anchor":"wrist"},
+		{"id":"arm","name":"左臂损伤","desc":"华生左臂动作略显僵硬——战场负伤留下的旧疾","image":"res://assets/characters/watson/watson_teaching.png","anchor":"shoulder"},
+		{"id":"face_dark","name":"脸色黝黑","desc":"华生脸部肤色明显偏深——长期热带日照的痕迹","image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
+		{"id":"face_haggard","name":"面容憔悴","desc":"华生面容灰暗、眼窝深陷——久病初愈、长途劳顿的痕迹","image":"res://assets/characters/watson/watson_teaching.png","anchor":"face"},
+		{"id":"pose","name":"军人气质","desc":"华生站姿挺拔、气质干练——典型的军人作风","image":"res://assets/characters/watson/watson_teaching.png","anchor":"pose"},
+		{"id":"medical","name":"身上有消毒液气味","desc":"华生身上有淡淡的消毒液气味——长期接触医院与战地救护的印记","image":"res://assets/characters/watson/watson_teaching.png","anchor":"torso"}]
+	var m = [
+		{"id":"tattoo","name":"手臂上有锚的文身","desc":"锚文身是海员中的常见标志","image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"tattoo"},
+		{"id":"beard","name":"军人式络腮胡","desc":"军人中常见","image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"beard"},
+		{"id":"posture","name":"站姿笔挺，有军人气质","desc":"在军事训练中形成的肌肉记忆","image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"posture"},
+		{"id":"manner","name":"态度自高自大，带着发号施令的神气","desc":"发号施令中形成的气质","image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"manner"},
+		{"id":"sleeve","name":"袖口细节","desc":"信使袖口有磨损痕迹","image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"sleeve"},
+		{"id":"limp","name":"轻微跛行","desc":"信使走路有轻微跛行","image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"limp"}]
 	var r: Array = []
 	r.append_array(w); r.append_array(m)
 	return r
@@ -339,23 +362,23 @@ func _create_observers() -> void:
 	var mhot := DifficultyManager.filter_hotspots_by_difficulty([
 		# 热点位置与新全身立绘 560,343/150,447（等比 0.75）对齐，观察时仍用 spritesheet 细节图
 		{"id":"tattoo","label":"手臂上有锚的文身","x":590,"y":628,"w":68,"h":30,"desc":"锚文身是海员中的常见标志","correct":true,
-		 "crop":{"x":0.16,"y":0.39,"cx":0.46,"cy":0.59},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"tattoo"},
+		 "crop":{"x":0.16,"y":0.39,"cx":0.46,"cy":0.59},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"tattoo"},
 		{"id":"beard","label":"军人式络腮胡","x":598,"y":463,"w":68,"h":34,"desc":"军人中常见","correct":true,
-		 "crop":{"x":0.36884,"y":0.1568,"cx":0.59970,"cy":0.3408},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"beard"},
+		 "crop":{"x":0.36884,"y":0.1568,"cx":0.59970,"cy":0.3408},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"beard"},
 		{"id":"posture","label":"站姿笔挺，有军人气质","x":583,"y":583,"w":75,"h":41,"desc":"在军事训练中形成的肌肉记忆","correct":true,
-		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"posture"},
+		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"posture"},
 		{"id":"manner","label":"态度自高自大，带着发号施令的神气","x":594,"y":418,"w":71,"h":34,"desc":"发号施令中形成的气质","correct":true,
-		 "crop":{"x":0.35698,"y":0.0855,"cx":0.60997,"cy":0.3500},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"manner"},
+		 "crop":{"x":0.35698,"y":0.0855,"cx":0.60997,"cy":0.3500},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"manner"},
 		{"id":"sleeve","label":"袖口磨损","x":631,"y":553,"w":60,"h":30,"desc":"袖口磨损 -> 干扰:衣服旧了","correct":false,
-		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"sleeve"},
+		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"sleeve"},
 		{"id":"limp","label":"走路略跛","x":598,"y":726,"w":68,"h":34,"desc":"右腿略跛 -> 干扰:扭伤","correct":false,
-		 "crop":{"x":0.4905,"y":0.7800,"cx":0.7005,"cy":0.98768},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"limp"},
+		 "crop":{"x":0.4905,"y":0.7800,"cx":0.7005,"cy":0.98768},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"limp"},
 	])
 	# 困难模式 70% 深度干扰项：信使口袋露出半张药房收据（看似线索，实际只是感冒药）— 08 §阶段2 L545
 	if DifficultyManager.current_difficulty == DifficultyManager.Difficulty.HARD and randf() < 0.7:
 		mhot.append({"id":"receipt","label":"半张药房收据","x":622,"y":600,"w":62,"h":32,
 			"desc":"信使口袋露出半张药房收据——看似线索，实际只是感冒药","correct":false,
-			"crop":{"x":0.62,"y":0.62,"cx":0.80,"cy":0.82},"image":"res://assets/characters/messenger/messenger_spritesheet.png","anchor":"receipt"})
+			"crop":{"x":0.62,"y":0.62,"cx":0.80,"cy":0.82},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"receipt"})
 	_messenger_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, mhot, mess_tex, _messenger_portrait_ctrl, "res://assets/characters/messenger/messenger_portrait.png")
 	_messenger_obs.all_recorded.connect(_on_messenger_all_recorded)
 	_messenger_obs.clue_recorded.connect(_on_collect_clue.bind("messenger"))
