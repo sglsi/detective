@@ -35,6 +35,7 @@ const GraphViewDock = preload("res://scripts/clue/graph/graph_view_dock.gd")
 var _dockctl: GraphViewDock   # 左线索栏 dock 逻辑（注意：_dock 已用于线索栏 UI 节点本体）
 # 结论文本宽容匹配（与 HardModeEvaluator 共用同一实现，避免口径漂移）
 const ConclusionMatcher = preload("res://scripts/clue/conclusion_matcher.gd")
+const ClueImageAnchors = preload("res://data/clue_image_anchors.gd")
 
 # === 入参数据（由推理墙传入，本控制器只读 + 通过回调回写）===
 var _clues: Array = []
@@ -156,7 +157,7 @@ const COL_PERSON := Color(0.78, 0.72, 0.55)
 # 五类节点统一为「图片区 + 标题 + 副标题」三段式，尺寸统一，各类型配色不变。
 const _CARD_W := 260.0          # 统一卡片宽
 const _CARD_H := 400.0          # 统一卡片高（竖版，人物≈原170高的2.3倍）
-const _CARD_IMG_H := 270.0      # 图片区最小高（剩余空间 EXPAND_FILL）
+const _CARD_IMG_H := 180.0      # 图片区固定高（约卡片高 45%，对照预览版式 2/5~1/2）
 const _CARD_MARGIN := 12.0      # 卡片内边距
 
 # === 节点配色（按需求：白=线索 / 灰=推断 / 原色=链&结论）===
@@ -1065,7 +1066,9 @@ func _make_avatar_frame(tex: Texture2D, ring_col: Color, overlay_q: bool = false
 	s.border_width_left = 5; s.border_width_right = 5; s.border_width_top = 5; s.border_width_bottom = 5
 	s.set_corner_radius_all(av * 0.5)
 	pc.add_theme_stylebox_override("panel", s)
+	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var inner := Control.new()
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pc.add_child(inner)
 	var tr := TextureRect.new()
 	tr.texture = tex
@@ -1095,6 +1098,7 @@ func _make_img_frame(tr: TextureRect) -> PanelContainer:
 	s.border_width_left = 3; s.border_width_right = 3; s.border_width_top = 3; s.border_width_bottom = 3
 	s.set_corner_radius_all(6)
 	pc.add_theme_stylebox_override("panel", s)
+	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pc.add_child(tr)
 	return pc
 
@@ -1107,6 +1111,7 @@ func _make_placeholder_frame(txt: String, col: Color) -> PanelContainer:
 	s.border_width_left = 3; s.border_width_right = 3; s.border_width_top = 3; s.border_width_bottom = 3
 	s.set_corner_radius_all(6)
 	pc.add_theme_stylebox_override("panel", s)
+	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var lb := Label.new()
 	lb.text = txt
 	lb.add_theme_font_size_override("font_size", 30)
@@ -1139,7 +1144,6 @@ func _build_image_section(nd: Dictionary, kind: String, is_person: bool, is_clue
 		mc.add_theme_constant_override("margin_bottom", 4)
 		sec = mc
 	sec.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sec.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sec.custom_minimum_size = Vector2(0, _CARD_IMG_H)
 	if is_person:
 		var masked: bool = nd.get("masked", false)
@@ -1155,7 +1159,26 @@ func _build_image_section(nd: Dictionary, kind: String, is_person: bool, is_clue
 		var img_path: String = c.get("image", "")
 		var tex: Texture2D = null
 		if img_path != "" and ResourceLoader.exists(img_path):
-			tex = load(img_path)
+			var base: Texture2D = load(img_path)
+			if base != null:
+				# 锚点裁剪：同场景多条线索共用一张场景图，按锚点截出该线索真实区域
+				#（anchor 缺失时以线索 id 兜底查表；查不到 → 回退整图，绝不报错）。
+				var anchor_name: String = str(c.get("anchor", ""))
+				if anchor_name == "":
+					anchor_name = str(c.get("id", ""))
+				var a: Dictionary = ClueImageAnchors.get_anchor(img_path, anchor_name)
+				if a.is_empty():
+					tex = base
+				else:
+					var bsz: Vector2 = base.get_size()
+					var rw: float = clampf(bsz.x * float(a.get("w", 1.0)), 8.0, bsz.x)
+					var rh: float = clampf(bsz.y * float(a.get("h", 1.0)), 8.0, bsz.y)
+					var rcx: float = clampf(bsz.x * float(a.get("cx", 0.5)), rw * 0.5, bsz.x - rw * 0.5)
+					var rcy: float = clampf(bsz.y * float(a.get("cy", 0.5)), rh * 0.5, bsz.y - rh * 0.5)
+					var at := AtlasTexture.new()
+					at.atlas = base
+					at.region = Rect2(rcx - rw * 0.5, rcy - rh * 0.5, rw, rh)
+					tex = at
 		if tex != null:
 			var tr := TextureRect.new()
 			tr.texture = tex
@@ -1307,15 +1330,34 @@ func _make_node(nd: Dictionary) -> Control:
 		(card as GraphCard).setup_dashed(true, dashed_col, dashed_w)
 
 	# ===== 统一三段式版式（2026-09-17）：图片区 + 标题 + 副标题 =====
+	# ⚠️ 装饰层全部 mouse_filter=IGNORE：否则子控件拦截鼠标 → card.gui_input 收不到
+	# → 点击详情（推导/打标签）、拖拽、Shift 建边全部失效（2026-09-17 用户报）。
 	var root := Control.new()
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(root)
 
 	# 随机纸纹底（置于内容之下）
 	var grain := _make_grain_rect(style.bg_color)
 	root.add_child(grain)
 
+	# 顶部图钉圆点（对照预览版式：卡顶中央金色圆钉，骑跨上边缘）
+	var pin := PanelContainer.new()
+	pin.custom_minimum_size = Vector2(22, 22)
+	pin.size = Vector2(22, 22)
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.93, 0.66, 0.24)
+	ps.border_color = Color(0.55, 0.36, 0.10)
+	ps.border_width_left = 2; ps.border_width_right = 2
+	ps.border_width_top = 2; ps.border_width_bottom = 2
+	ps.set_corner_radius_all(11)
+	pin.add_theme_stylebox_override("panel", ps)
+	pin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(pin)
+	pin.position = Vector2(_CARD_W * 0.5 - 11.0, -8.0)
+
 	# 内容层
 	var margin := MarginContainer.new()
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	margin.add_theme_constant_override("margin_left", int(_CARD_MARGIN))
 	margin.add_theme_constant_override("margin_top", int(_CARD_MARGIN))
 	margin.add_theme_constant_override("margin_right", int(_CARD_MARGIN))
@@ -1324,6 +1366,7 @@ func _make_node(nd: Dictionary) -> Control:
 	root.add_child(margin)
 
 	var vb := VBoxContainer.new()
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_theme_constant_override("separation", 8)
 	margin.add_child(vb)
 
