@@ -296,6 +296,8 @@ func _clue_box_height() -> float:
 
 # ===================== 主布局入口 =====================
 func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
+	# 链路亲和邻接缓存：每次布局重建（relations 可能已变）
+	_aff_adj_dirty = true
 	var center := owner._canvas.size * 0.5
 	# 真实浏览器画布足够大；headless/极小画布时用虚拟中心兜底，避免布局把所有节点挤进一小块（生产不受影响）
 	if owner._canvas.size.x < 800.0 or owner._canvas.size.y < 600.0:
@@ -366,14 +368,60 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 
 ## 主布局分流（单一入口，避免多处 if/else 漂移）：
 ##   _use_rank_layout（一次性 BFS 分列，DEPRECATED 保留）> _balanced_layout（左右平衡整洁树，
-##   顶栏「自动排列」进入后定格）> _logic_tree_layout（默认纯右向整洁树）。
+##   顶栏「自动排列」进入后定格）> 自动平衡（2026-09-17：默认右向树打包高度超阈值时，
+##   自动分摊到人物两侧，避免线索越收越多、单条竖列越拉越长浪费画布横向空间）>
+##   _logic_tree_layout（默认纯右向整洁树，小树行为不变）。
 func _run_main_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
 	if owner._use_rank_layout:
 		_auto_rank_layout(nodes, center, saved_pos, out)
-	elif owner._balanced_layout:
+	elif owner._balanced_layout or _should_auto_balance(nodes):
 		_balanced_tree_layout(nodes, center, saved_pos, out)
 	else:
 		_logic_tree_layout(nodes, center, saved_pos, out)
+
+
+## 自动平衡阈值（2026-09-17）：默认纯右向树的整树打包高度超过该值时自动改走左右平衡布局。
+## 统一卡 412 高 + 80 间距 ≈ 492/行：1500 ≈ 3 行，第 4 行起触发左右分摊。
+const _AUTO_BALANCE_H := 1500.0
+
+
+## 判定：默认（非「自动排列定格」）布局下，主根（人物）整树打包高度是否超阈值。
+## 复用 _pack_contour（与正式布局同口径，含亲和排序），估算与实际布局一致；
+## 无节点/主根无子树时恒 false（小树保持纯右向，行为不变）。
+func _should_auto_balance(nodes: Array) -> bool:
+	if nodes.is_empty():
+		return false
+	var parent_of := _build_parent_of()
+	var child_map := {}
+	for ch in parent_of:
+		var p: String = parent_of[ch]
+		if not child_map.has(p):
+			child_map[p] = []
+		if not (ch in child_map[p]):
+			child_map[p].append(ch)
+	var main_root := ""
+	for nd in nodes:
+		if owner._fold._kind_of(str(nd.id)) == "person":
+			main_root = str(nd.id)
+			break
+	if main_root == "":
+		main_root = str(nodes[0].id)
+	if not child_map.has(main_root):
+		return false
+	var est_h := {}
+	var node_by_id := {}
+	var depth_of := {}
+	for nd in nodes:
+		node_by_id[nd.id] = nd
+		est_h[nd.id] = _real_node_height(nd.id, nd)
+		depth_of[nd.id] = 0
+	var sub := _pack_contour(main_root, child_map, depth_of, est_h, node_by_id)
+	var gmin: float = 1e18
+	var gmax: float = -1e18
+	for rd in sub["contour"].keys():
+		gmin = minf(gmin, sub["contour"][rd][0])
+		gmax = maxf(gmax, sub["contour"][rd][1])
+	return (gmax - gmin) > _AUTO_BALANCE_H
 
 
 # ===================== 模式 C：按关系驱动的横向阶梯树（DEPRECATED · 已被 _logic_tree_layout 取代，保留不调用） =====================
@@ -590,6 +638,7 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	var root_contours := {}
 	var root_packed_h := {}
 	var total_h: float = 0.0
+	_aff_adj_dirty = true   # 链路亲和邻接缓存：单次布局内复用，跨次布局重建（relations 可能已变）
 	for r in roots:
 		var sub: Dictionary = _pack_contour(r, child_map, depth_of, est_h, node_by_id)
 		root_contours[r] = sub
@@ -745,6 +794,7 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 
 	# 预打包：主根按「左右两半各自轮廓打包」（两侧都垂直居中于根 = 美学3+4），其余根照旧整棵右向
 	var subtree_sep: float = 40.0
+	_aff_adj_dirty = true   # 链路亲和邻接缓存：单次布局内复用，跨次布局重建（relations 可能已变）
 	var root_contours := {}
 	var root_packed_h := {}
 	var total_h: float = 0.0
@@ -846,24 +896,58 @@ func _assign_balanced_sides(root: String, child_map: Dictionary) -> Dictionary:
 	var wr0: float = 0.0
 	for c in forced_r:
 		wr0 += float(wt.get(c, 1.0))
+	# 链路亲和（2026-09-17「同链相邻」原则）：相关子树被分到人物两侧会形成跨中线深U连线
+	# （用户截图：血字链被拉成深U）。穷举 cost 中加入「跨侧亲和惩罚」，权重远大于重量平衡——
+	# 思傅明确优先级：同链相邻 > 左右重量均衡；零亲和时行为与旧版完全一致。
+	var aff_lf: Array = []
+	var aff_rf: Array = []
+	var aff_free := {}
+	var total_aff: int = 0
+	if free.size() > 0:
+		var fsets := {}
+		for c in kids:
+			fsets[str(c)] = _subtree_ids(str(c), child_map)
+		for i in free.size():
+			var al: int = 0
+			var ar: int = 0
+			for f in forced_l:
+				al += _cross_affinity(fsets[str(f)], fsets[str(free[i])])
+			for f in forced_r:
+				ar += _cross_affinity(fsets[str(f)], fsets[str(free[i])])
+			aff_lf.append(al)
+			aff_rf.append(ar)
+			for j in range(i + 1, free.size()):
+				var aij: int = _cross_affinity(fsets[str(free[i])], fsets[str(free[j])])
+				aff_free["%d_%d" % [i, j]] = aij
+				total_aff += aij
+			total_aff += al + ar
 	var best_mask: int = -1
 	var best_cost: float = 1e18
 	if free.size() <= 14:
-		# 穷举（实际结论数 2~8，C(14,7)=3432 上限可忽略）：取两侧茂盛度差最小的组合
+		# 穷举（实际结论数 2~8，C(14,7)=3432 上限可忽略）：取「跨侧亲和惩罚 + 两侧茂盛度差」最小的组合
 		var total_masks: int = 1 << free.size()
 		for mask in total_masks:
 			var cnt: int = 0
 			var wl: float = wl0
 			var wr: float = wr0
+			var cross: int = 0
 			for i in free.size():
-				if (mask & (1 << i)) != 0:
+				var i_l: bool = (mask & (1 << i)) != 0
+				if i_l:
 					cnt += 1
 					wl += float(wt.get(free[i], 1.0))
 				else:
 					wr += float(wt.get(free[i], 1.0))
+				if total_aff > 0:
+					# free_i 与 forced 组的跨侧边：free 在左则其与 forced_r 的连边跨侧，反之亦然
+					cross += int(aff_rf[i]) if i_l else int(aff_lf[i])
+					for j in range(i + 1, free.size()):
+						var j_l: bool = (mask & (1 << j)) != 0
+						if i_l != j_l:
+							cross += int(aff_free["%d_%d" % [i, j]])
 			if cnt != need_l:
 				continue
-			var cost: float = absf(wl - wr)
+			var cost: float = absf(wl - wr) + float(cross) * 50.0
 			if wl > wr:
 				cost += 0.01          # 并列时较重一组优先放右
 			if (mask & 1) != 0:
@@ -996,8 +1080,55 @@ func _pack_contour(u: String, child_map: Dictionary, depth_of: Dictionary, est_h
 	return {"contour": contour, "rel": rel}
 
 
+## ===================== 链路亲和排序（2026-09-17 · 思傅「同链相邻」原则） =====================
+## 问题：兄弟基础序（kind/id）不管内容关联——新收线索 id 递增总排在末尾，
+## 会把同一条推理链的节点与其他链隔开（用户截图：右前蹄新换蹄铁链被隔离很远、
+## 血字链被拉成跨墙深U连线）。
+## 方案：以「子树之间的真实连边数」为亲和度做贪心重排——有连边 ⇒ 属于同一条链，
+## 排序时让彼此相邻，链上结论-推断-线索不被其他链隔离、连线短且不成深U。
+
+## 布局期邻接缓存：_build_adjacency 结果在单次布局内不变（_compute_layout 置脏）
+var _aff_adj_cache: Dictionary = {}
+var _aff_adj_dirty := true
+
+func _aff_adjacency() -> Dictionary:
+	if _aff_adj_dirty:
+		_aff_adj_cache = owner._fold._build_adjacency()
+		_aff_adj_dirty = false
+	return _aff_adj_cache
+
+
+## 子树节点全集（含自身），id 均转 str
+func _subtree_ids(root: String, child_map: Dictionary) -> Dictionary:
+	var seen := {root: true}
+	var q: Array = [root]
+	while q.size() > 0:
+		var u: String = str(q.pop_back())
+		for c in child_map.get(u, []):
+			var cs := str(c)
+			if seen.has(cs):
+				continue
+			seen[cs] = true
+			q.append(cs)
+	return seen
+
+
+## 两个兄弟子树间的「链路亲和度」＝ 两子树节点之间的连边数（任一方向）。
+## 例：线索 C 同时 support 推断 H1/H2 ⇒ H1、H2 所在子树亲和 ≥1，布局必须相邻。
+func _cross_affinity(sa: Dictionary, sb: Dictionary) -> int:
+	var adj := _aff_adjacency()
+	var n: int = 0
+	for u in sa:
+		for v in adj.get(str(u), []):
+			if sb.has(str(v)):
+				n += 1
+	return n
+
+
 ## 兄弟顺序稳定（XMind 美学5 · 建议书 §0.3）：按 kind_rank（人物>结论>推断>线索）再按 id 排序，
 ## 保证同序输入产生同构布局（多父/共有前提时顺序可复现、可读）。
+## 2026-09-17 追加「同链相邻」亲和重排：在稳定基础序之上，从首枝出发贪心接上与当前末枝
+## 亲和度最高的兄弟子树（亲和并列时保持基础序），零亲和时与原序完全一致（行为不变）。
 func _ordered_children(u: String, child_map: Dictionary) -> Array:
 	var kids: Array = child_map.get(u, []).duplicate()
 	var kind_rank := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3, "_": 3}
@@ -1007,6 +1138,24 @@ func _ordered_children(u: String, child_map: Dictionary) -> Array:
 		if ra != rb:
 			return ra < rb
 		return str(a) < str(b))
+	if kids.size() >= 3:
+		var sets := {}
+		for k in kids:
+			sets[str(k)] = _subtree_ids(str(k), child_map)
+		var placed: Array = [kids[0]]
+		var rest: Array = kids.slice(1)
+		while rest.size() > 0:
+			var last: String = str(placed[placed.size() - 1])
+			var best_i: int = 0
+			var best_a: int = -1
+			for i in rest.size():
+				var a: int = _cross_affinity(sets[last], sets[str(rest[i])])
+				if a > best_a:
+					best_a = a
+					best_i = i
+			placed.append(rest[best_i])
+			rest.remove_at(best_i)
+		kids = placed
 	return kids
 
 
