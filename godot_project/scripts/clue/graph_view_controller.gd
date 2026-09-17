@@ -85,8 +85,8 @@ var _subtree_sides: Dictionary = {}
 var _last_layout_sides: Dictionary = {}
 var _fold_keep_layout: bool = false # 折叠/展开一次性标志：重建时跳过整体重排，仅按 _all_positions 摆放，避免折叠扰动其它/上级文本框
 var _canvas: Control = null         # _world：节点与连线挂此（STOP，承接平移/缩放/空白点击）
-var _hint_layer: Control = null     # 难度提示圈（最底）
-var _edge_layer: Control = null     # 连线绘制层（节点下）
+var _hint_layer: Node2D = null     # 难度提示圈（最底）
+var _edge_layer: Node2D = null     # 连线绘制层（节点下）
 var _toolbar: Control = null
 var _toast: Label = null
 var _detail_card: PanelContainer = null
@@ -291,7 +291,7 @@ var _status_filter: String = "all"   # all/excluded/pending/key
 var _folded_nodes: Dictionary = {}       # node_id -> true：被折叠的"根"节点（XMind 式连线折叠）
 var _all_positions: Dictionary = {}      # node_id -> Vector2：全部节点位置缓存（含隐藏者），持久化用
 var _fold_controls: Dictionary = {}      # node_id -> Control：连线出口处的折叠点击控件（透明，只接 gui_input）
-var _fold_layer: Control = null          # 折叠圆形绘制图层（统一在 draw 回调里画，规避"绘制时机"报错）
+var _fold_layer: Node2D = null          # 折叠圆形绘制图层（统一在 draw 回调里画，规避"绘制时机"报错）
 var _user_excluded := {}             # clue_id -> true（用户标"已排除"）
 var _user_pending := {}              # clue_id -> true（用户标"待查"）
 var _search_match_ids := []          # 当前搜索命中的节点 id 列表
@@ -481,35 +481,31 @@ func _create_ui() -> void:
 	_canvas.gui_input.connect(_on_canvas_gui)
 	_clip.add_child(_canvas)
 
-	_hint_layer = Control.new()
-	_hint_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_hint_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# ⚠️ 三绘制层必须用 Node2D 而非 Control（2026-09-17 修复 Problem3）：
+	# Control 的裁剪包围盒 = 自身 rect（PRESET_FULL_RECT 即视口大小）；自动平衡布局产生宽图后，
+	# 玩家平移/缩放到远端节点时该层矩形整体移出视口 → 整层被剔除 → 连线与折叠图示一起消失。
+	# Node2D 的剔除盒继承自实际绘制几何（覆盖整张关系网），只要可见区域内有绘制内容就不会被剔除。
+	_hint_layer = Node2D.new()
 	_hint_layer.z_index = 0
 	_hint_layer.draw.connect(_on_hint_draw)
 	_canvas.add_child(_hint_layer)
 
-	_edge_layer = Control.new()
-	_edge_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_edge_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_edge_layer = Node2D.new()
 	_edge_layer.z_index = 1
 	_edge_layer.draw.connect(_edge._on_edge_draw)
 	_canvas.add_child(_edge_layer)
 
-	_fold_layer = Control.new()
-	_fold_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_fold_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fold_layer = Node2D.new()
 	_fold_layer.z_index = 3
 	_fold_layer.draw.connect(_fold._on_fold_draw)
 	_canvas.add_child(_fold_layer)
 
-	# 修正（2026-08-31）：此前为「防画布平移缩放使图层矩形离开视口被裁剪」曾把三个绘制图层的
-	# offset 设为 ±200000。但 Control.draw 以自身 rect 左上角为局部绘制原点，offset 会把绘制原点
-	# 平移 -200000，使连线/折叠圆圈/高亮圈渲染到「节点坐标 +(-200000)」处（远偏出画布），而节点本体
-	# 直接以 _node_center 定位仍在原位——表现为「连线与圆圈不显示、高亮圈错位」。
-	# 绘制调用默认不被 rect 裁剪（clip_contents=false），故无需放大 offset；绘制原点回到 _canvas 原点
-	# 即与节点 _node_center 对齐。显式关闭裁剪，确保平移/缩放后内容始终可绘制。
-	for _ly in [_hint_layer, _edge_layer, _fold_layer]:
-		_ly.clip_contents = false
+	# 历史：2026-08-31 曾为「防画布平移缩放使图层矩形离开视口被裁剪」把三个绘制图层 offset 设为 ±200000，
+	# 但 Control.draw 以自身 rect 左上角为局部绘制原点，offset 会把绘制原点平移 -200000 使连线/圆圈
+	# 渲染到「节点坐标 +(-200000)」处（远偏出画布），节点本体仍以 _node_center 定位 → 连线/圆圈不显示、
+	# 高亮圈错位。当时改回「绘制原点回到 _canvas 原点 + 关 clip_contents」缓解，但 Control 裁剪包围盒
+	# 仍=视口大小，宽图平移/缩放远端时整层仍会被剔除（2026-09-17 用户实测连线+折叠图示消失）。
+	# 根治：三绘制层已改为 Node2D（见上方创建处），其剔除盒继承实际绘制几何，彻底规避该问题。
 
 	if _show_toolbar:
 		_toolbar = _create_toolbar()
@@ -760,11 +756,12 @@ func _rebuild_graph() -> void:
 		fc.set_meta("graph_node", true)
 		_fold_controls[nd.id] = fc
 		_canvas.add_child(fc)
-	# 契入模式（_clip 让出顶栏/左栏）首次 build 自动 fit 一次：布局基准是契入前的全屏画布，
-	# 契入 viewport 只显示其一部分，fit 缩放到契入区内看全；后续 rebuild 不再重置玩家缩放。
-	if not _did_initial_fit and (hit_off_left > 0 or hit_off_top > 0):
+	# 首次 build（开墙）把焦点人物定格在画布中心（思傅 2026-09-17 需求）：原 fit_view 把整张 bbox
+	# 居中，宽图 bbox 中心恰是空白区 → 进去后看不到内容、找不到推理链方向。改为人物居中，推理链自
+	# 人物向两侧辐射，玩家以人物为锚点探索。后续 rebuild 不再重置玩家缩放（保留 _did_initial_fit 守卫）。
+	if not _did_initial_fit:
 		_did_initial_fit = true
-		call_deferred("fit_view")
+		call_deferred("_center_on_person", 1.0)
 	_redraw_all()
 
 
@@ -2363,6 +2360,21 @@ func fit_view() -> void:
 	var center_gl := _canvas.get_global_transform().affine_inverse() * (minp + bbox * 0.5)
 	_canvas.position = -center_gl * ns + vp * 0.5
 	_zoom = ns
+
+
+## 进墙默认取景：把焦点人物定格在画布中心（思傅 2026-09-17）。
+## 宽图下 fit_view 按整 bbox 居中会让空白区居中 → 进去看不到内容；人物居中后推理链自其向两侧辐射，
+## 玩家以人物为锚点探索。z 取适中缩放（默认 1.0，封顶 1.6 防止小图过大），保证人物卡完整且邻侧结论可见。
+func _center_on_person(z: float = 1.0) -> void:
+	if _focus_person == "" or not _node_center.has(_focus_person):
+		return
+	var c: Vector2 = _node_center[_focus_person]
+	var vp: Vector2 = _clip.size if (_clip != null and _clip.size.x > 0) else Vector2(1280, 760)
+	z = clamp(z, 0.25, 1.6)
+	_canvas.scale = Vector2(z, z)
+	_zoom = z
+	# 画布中心(_canvas.position 为 _clip 局部坐标)对齐人物：canvas.position + c*z = vp*0.5
+	_canvas.position = vp * 0.5 - c * z
 
 
 # ===================== 顶部栏动作 =====================

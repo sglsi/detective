@@ -180,6 +180,18 @@ func _on_hotspot_seen(clue_id: String) -> void:
 func _on_clue_recorded(_clue_id: String, _clue_data: Dictionary) -> void:
 	_clues.append(_clue_data)
 	if ClueSystem:
+		# 修复（2026-09-17）：实时收集路径此前把 image/anchor 传成 ""，导致场景二/三玩家实时收集的
+		# 线索在 ClueSystem 里丢失图片信息，推理墙该线索卡无图。现优先用 _clue_data 自带值，
+		# 缺失时回退到热点表（_get_hotspot）的权威 image/anchor——与读档恢复路径(870)口径一致。
+		# 场景二线索(如 c201)由此带 image+anchor；场景三热点无 anchor 字段则回退到线索 id，
+		# 锚点表 sc_03_indoor_hd.jpg 已按 c301..c312 建好 → 仍显各自裁剪图。
+		var _img: String = _clue_data.get("image", "")
+		var _anc: String = _clue_data.get("anchor", "")
+		if _img == "" or _anc == "":
+			var _h: Dictionary = _get_hotspot(_clue_id)
+			if not _h.is_empty():
+				if _img == "": _img = _h.get("image", "")
+				if _anc == "": _anc = _h.get("anchor", "")
 		# P3.1：观察热点权重由热点表 "wt" 字段提供（"w" 已被热点矩形宽度占用；scene7/8 无 .tres）
 		ClueSystem.collect_clue_from_catalog(
 			_clue_data.get("id", _clue_id),
@@ -188,7 +200,7 @@ func _on_clue_recorded(_clue_id: String, _clue_data: Dictionary) -> void:
 			_clue_data.get("correct", true),
 			clue_source(),
 			int(_clue_data.get("wt", -1)),
-			"", "",
+			_img, _anc,
 			_clue_data.get("content_tags", []),
 			_clue_data.get("attribute_tags", []),
 			_clue_data.get("relation_tags", [])
