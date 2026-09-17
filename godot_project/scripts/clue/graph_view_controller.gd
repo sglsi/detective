@@ -152,6 +152,13 @@ const COL_RED := Color(0.95, 0.3, 0.3)
 const COL_GREY := Color(0.55, 0.50, 0.42)
 const COL_PERSON := Color(0.78, 0.72, 0.55)
 
+# ===================== 统一卡片版式（2026-09-17） =====================
+# 五类节点统一为「图片区 + 标题 + 副标题」三段式，尺寸统一，各类型配色不变。
+const _CARD_W := 260.0          # 统一卡片宽
+const _CARD_H := 400.0          # 统一卡片高（竖版，人物≈原170高的2.3倍）
+const _CARD_IMG_H := 270.0      # 图片区最小高（剩余空间 EXPAND_FILL）
+const _CARD_MARGIN := 12.0      # 卡片内边距
+
 # === 节点配色（按需求：白=线索 / 灰=推断 / 原色=链&结论）===
 const COL_CLUE_BG := Color(0.72, 0.84, 0.70, 0.98)         # 线索底色（浅绿，对照华生示范）
 const COL_CLUE_BG_DIM := Color(0.68, 0.80, 0.66, 0.96)     # 干扰项线索底色（浅绿偏暗）
@@ -771,13 +778,15 @@ func _node_list() -> Array:
 				continue
 			var is_focus := pid == fp
 			list.append({"id": pid, "kind": "person",
-				"label": _data._person_name(pid), "sub": "焦点" if is_focus else "角色",
-				"color": COL_PERSON, "data": {"id": pid}})
+			"label": _data._person_name(pid), "sub": "焦点" if is_focus else "角色",
+			"color": COL_PERSON, "data": {"id": pid},
+			"masked": not _data._identity_revealed(pid, _clues)})
 	else:
 		# 中心：焦点人物
 		list.append({"id": _focus_person, "kind": "person",
 			"label": _data._person_name(_focus_person), "sub": "焦点", "color": COL_PERSON,
-			"data": {"id": _focus_person}})
+			"data": {"id": _focus_person},
+			"masked": not _data._identity_revealed(_focus_person, _clues)})
 
 	if _mode == ViewMode.MODE_C:
 		# 第一圈：线索
@@ -947,6 +956,223 @@ func _node_list() -> Array:
 ##   - 推断：底=灰；有关联=实线暗边；无关联=虚线暗边；干扰项=实线红边 + 红字
 ##   - 推理链/结论：维持当前（结论按 verdict 红/橙/黄/绿，链=金边）
 ##   - 中心人物：金边 + 暖金底
+# ===================== 统一版式辅助（2026-09-17） =====================
+var _grain_tex: ImageTexture = null
+var _avatar_cache: Dictionary = {}      # Texture2D -> 圆形头像 Texture2D
+var _unknown_avatar_tex: ImageTexture = null
+
+## 随机纸纹贴图（一次性生成、全局缓存）：128×128 透明底 + 随机散布圆点（大小/深浅带随机变化），
+## 非规则平铺，模拟真实卡片颗粒感。各卡用 modulate 染成与底色对比的微弱点/亮点。
+func _grain_texture() -> ImageTexture:
+	if _grain_tex != null:
+		return _grain_tex
+	var S := 128
+	var img := Image.create(S, S, false, Image.FORMAT_RGBA8)
+	img.fill(Color(1, 1, 1, 0))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260917
+	for _i in 240:
+		var x := rng.randi_range(2, S - 3)
+		var y := rng.randi_range(2, S - 3)
+		var r := rng.randf_range(0.7, 2.4)
+		var a := rng.randf_range(0.35, 0.9)
+		var rr := int(ceil(r))
+		for dy in range(-rr, rr + 1):
+			for dx in range(-rr, rr + 1):
+				if dx * dx + dy * dy <= r * r:
+					var px := x + dx; var py := y + dy
+					if px >= 0 and px < S and py >= 0 and py < S:
+						img.set_pixel(px, py, Color(1, 1, 1, a))
+	_grain_tex = ImageTexture.create_from_image(img)
+	return _grain_tex
+
+## 卡片背景纸纹层（置于内容之下）。深色卡→淡亮点，浅色卡→淡暗点。
+func _make_grain_rect(bg: Color) -> TextureRect:
+	var tr := TextureRect.new()
+	tr.texture = _grain_texture()
+	tr.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lum := 0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b
+	tr.modulate = Color(1, 1, 1, 0.20) if lum < 0.4 else Color(0, 0, 0, 0.20)
+	return tr
+
+## 把任意方形头像纹理裁成圆形（居中取最小边 + 圆形 alpha 遮罩，2px 抗锯齿）。
+## 缓存按源纹理；get_image 失败（如压缩纹理）则回退原矩形纹理。
+func _make_circular_avatar(tex: Texture2D) -> Texture2D:
+	if tex == null:
+		return null
+	if _avatar_cache.has(tex):
+		return _avatar_cache[tex]
+	var out_tex: Texture2D = tex
+	var img: Image = tex.get_image()
+	if img != null:
+		var W := img.get_width(); var H := img.get_height()
+		var side := mini(W, H)
+		var sx := int((W - side) * 0.5); var sy := int((H - side) * 0.5)
+		var S := 256
+		# 先裁居中方块再缩放到 S×S（blit_rect 不缩放，大图会只取左上角）
+		var sq: Image = img.get_region(Rect2i(sx, sy, side, side))
+		sq.resize(S, S, Image.INTERPOLATE_LANCZOS)
+		sq.convert(Image.FORMAT_RGBA8)
+		var r := float(S) * 0.5
+		for y in S:
+			for x in S:
+				var dx := float(x) - r + 0.5
+				var dy := float(y) - r + 0.5
+				var d := sqrt(dx * dx + dy * dy)
+				if d > r:
+					sq.set_pixel(x, y, Color(0, 0, 0, 0))
+				elif d > r - 2.0:
+					var a := (r - d) / 2.0
+					var c := sq.get_pixel(x, y)
+					sq.set_pixel(x, y, Color(c.r, c.g, c.b, clampf(c.a * a, 0.0, 1.0)))
+		out_tex = ImageTexture.create_from_image(sq)
+	_avatar_cache[tex] = out_tex
+	return out_tex
+
+## 未知人物剪影圆盘（深底 + 透明外圈），缓存。
+func _make_unknown_avatar() -> ImageTexture:
+	if _unknown_avatar_tex != null:
+		return _unknown_avatar_tex
+	var S := 256
+	var out := Image.create(S, S, false, Image.FORMAT_RGBA8)
+	out.fill(Color(0, 0, 0, 0))
+	var r := float(S) * 0.5 - 4.0
+	for y in S:
+		for x in S:
+			var dx := float(x) - float(S) * 0.5 + 0.5
+			var dy := float(y) - float(S) * 0.5 + 0.5
+			var d := sqrt(dx * dx + dy * dy)
+			if d <= r:
+				var a := 1.0
+				if d > r - 3.0:
+					a = (r - d) / 3.0
+				out.set_pixel(x, y, Color(0.13, 0.11, 0.10, a))
+	_unknown_avatar_tex = ImageTexture.create_from_image(out)
+	return _unknown_avatar_tex
+
+## 圆形头像外框：PanelContainer + 圆形金边（corner_radius=半边长），内含纹理/剪影。
+func _make_avatar_frame(tex: Texture2D, ring_col: Color, overlay_q: bool = false) -> PanelContainer:
+	var pc := PanelContainer.new()
+	var av := 200.0
+	pc.custom_minimum_size = Vector2(av, av)
+	pc.size = Vector2(av, av)
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(0, 0, 0, 0)
+	s.border_color = ring_col
+	s.border_width_left = 5; s.border_width_right = 5; s.border_width_top = 5; s.border_width_bottom = 5
+	s.set_corner_radius_all(av * 0.5)
+	pc.add_theme_stylebox_override("panel", s)
+	var inner := Control.new()
+	pc.add_child(inner)
+	var tr := TextureRect.new()
+	tr.texture = tex
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(tr)
+	if overlay_q:
+		var q := Label.new()
+		q.text = "?"
+		q.add_theme_font_size_override("font_size", 110)
+		q.add_theme_color_override("font_color", Color(0.96, 0.86, 0.5))
+		q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		q.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		q.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		inner.add_child(q)
+	return pc
+
+## 线索图片外框：深棕细边圆角 PanelContainer 包裹 TextureRect（保持比例居中）。
+func _make_img_frame(tr: TextureRect) -> PanelContainer:
+	var pc := PanelContainer.new()
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(0.08, 0.06, 0.04, 1)
+	s.border_color = Color(0.45, 0.32, 0.18)
+	s.border_width_left = 3; s.border_width_right = 3; s.border_width_top = 3; s.border_width_bottom = 3
+	s.set_corner_radius_all(6)
+	pc.add_theme_stylebox_override("panel", s)
+	pc.add_child(tr)
+	return pc
+
+## 推断/结论/推理链等暂无示例图的占位徽章（可后续替换为按内容生成的示例图）。
+func _make_placeholder_frame(txt: String, col: Color) -> PanelContainer:
+	var pc := PanelContainer.new()
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(clampf(col.r, 0, 1), clampf(col.g, 0, 1), clampf(col.b, 0, 1), 0.18)
+	s.border_color = col
+	s.border_width_left = 3; s.border_width_right = 3; s.border_width_top = 3; s.border_width_bottom = 3
+	s.set_corner_radius_all(6)
+	pc.add_theme_stylebox_override("panel", s)
+	var lb := Label.new()
+	lb.text = txt
+	lb.add_theme_font_size_override("font_size", 30)
+	lb.add_theme_color_override("font_color", col)
+	lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lb.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pc.add_child(lb)
+	return pc
+
+## 分隔线（细色条）。
+func _make_sep_line(col: Color) -> ColorRect:
+	var cr := ColorRect.new()
+	cr.color = col
+	cr.custom_minimum_size = Vector2(0, 2)
+	cr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return cr
+
+## 图片区：按类型返回对应内容（人物=圆形头像/剪影居中；线索=图片铺满；其余=占位徽章铺满）。
+func _build_image_section(nd: Dictionary, kind: String, is_person: bool, is_clue: bool,
+		is_concl: bool, is_hypo: bool, is_chain: bool, style: StyleBoxFlat) -> Control:
+	var sec: Control
+	if is_person:
+		sec = CenterContainer.new()   # 方形头像居中
+	else:
+		var mc := MarginContainer.new()   # 图片/占位铺满区块
+		mc.add_theme_constant_override("margin_left", 4)
+		mc.add_theme_constant_override("margin_top", 4)
+		mc.add_theme_constant_override("margin_right", 4)
+		mc.add_theme_constant_override("margin_bottom", 4)
+		sec = mc
+	sec.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sec.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sec.custom_minimum_size = Vector2(0, _CARD_IMG_H)
+	if is_person:
+		var masked: bool = nd.get("masked", false)
+		var tex: Texture2D = null
+		if not masked:
+			tex = PortraitLibrary.get_portrait(nd.get("label", ""))
+		if tex != null:
+			sec.add_child(_make_avatar_frame(_make_circular_avatar(tex), COL_GOLD))
+		else:
+			sec.add_child(_make_avatar_frame(_make_unknown_avatar(), Color(0.82, 0.66, 0.30), true))
+	elif is_clue:
+		var c: Dictionary = nd.get("data", {})
+		var img_path: String = c.get("image", "")
+		var tex: Texture2D = null
+		if img_path != "" and ResourceLoader.exists(img_path):
+			tex = load(img_path)
+		if tex != null:
+			var tr := TextureRect.new()
+			tr.texture = tex
+			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			sec.add_child(_make_img_frame(tr))
+		else:
+			sec.add_child(_make_placeholder_frame("线索", COL_CLUE_BORDER))
+	else:
+		var ph_txt := "推断" if is_hypo else ("结论" if is_concl else ("推理链" if is_chain else "文本"))
+		var ph_col: Color = COL_HYPO_BORDER if is_hypo else (Color(0.58, 0.44, 0.20) if is_concl else COL_GOLD)
+		sec.add_child(_make_placeholder_frame(ph_txt, ph_col))
+	return sec
+
+
 func _make_node(nd: Dictionary) -> Control:
 	var kind: String = nd.kind
 	var is_person: bool = kind == "person"
@@ -1080,59 +1306,54 @@ func _make_node(nd: Dictionary) -> Control:
 	if is_graph_card and dashed:
 		(card as GraphCard).setup_dashed(true, dashed_col, dashed_w)
 
-	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 9)
-	margin.add_theme_constant_override("margin_top", 6)
-	margin.add_theme_constant_override("margin_right", 9)
-	margin.add_theme_constant_override("margin_bottom", 6)
-	card.add_child(margin)
+	# ===== 统一三段式版式（2026-09-17）：图片区 + 标题 + 副标题 =====
+	var root := Control.new()
+	card.add_child(root)
 
-	var vb = VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 2)
+	# 随机纸纹底（置于内容之下）
+	var grain := _make_grain_rect(style.bg_color)
+	root.add_child(grain)
+
+	# 内容层
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", int(_CARD_MARGIN))
+	margin.add_theme_constant_override("margin_top", int(_CARD_MARGIN))
+	margin.add_theme_constant_override("margin_right", int(_CARD_MARGIN))
+	margin.add_theme_constant_override("margin_bottom", int(_CARD_MARGIN))
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.add_child(margin)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
 	margin.add_child(vb)
 
-	var lab = Label.new()
+	# —— 图片区 ——
+	var img_sec := _build_image_section(nd, kind, is_person, is_clue, is_concl, is_hypo, is_chain, style)
+	vb.add_child(img_sec)
+	# 分隔线
+	vb.add_child(_make_sep_line(style.border_color))
+	# —— 标题 ——
+	var lab := Label.new()
 	lab.text = nd.get("label", "")
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART  # #1 宽度封顶时换行，避免长文本截断
-	lab.add_theme_font_size_override("font_size", 28)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.add_theme_font_size_override("font_size", 24)
 	lab.add_theme_color_override("font_color", COL_TEXT_RED if text_red else font_col)
 	lab.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(lab)
-
-	var sub = Label.new()
+	# 分隔线
+	vb.add_child(_make_sep_line(style.border_color))
+	# —— 副标题（状态/角色）——
+	var sub := Label.new()
 	sub.text = nd.get("sub", "")
-	sub.add_theme_font_size_override("font_size", 22)
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sub.add_theme_font_size_override("font_size", 18)
 	sub.add_theme_color_override("font_color", sub_col)
 	sub.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(sub)
-	sub.visible = false   # 需求4：取消节点状态副标题显示（已关联/推断/结论/焦点/角色/推理链/自定义等）
 
-	# #1 真实自适应：宽度按文字自然宽度（上限 420=15 汉字×28 字号），高度按换行后真实行数；超过15字才换行
-	var _cap: float = 840.0 if is_clue else 420.0   # 需求6：线索文本框封顶宽度加倍（420→840）
-	# 自然宽度：autowrap 下 get_minimum_size 只返回换行约束宽（460→230），须临时关 autowrap 量单行真实宽
-	var _prev_wrap: TextServer.AutowrapMode = lab.autowrap_mode
-	lab.autowrap_mode = TextServer.AUTOWRAP_OFF
-	var _nat := lab.get_minimum_size()
-	lab.autowrap_mode = _prev_wrap
-	var _sm := sub.get_minimum_size()
-	var _wrap_w := clampf(maxf(_nat.x, _sm.x), 0.0, _cap)
-	lab.custom_minimum_size = Vector2(_wrap_w, 0)   # 设定换行宽度，高度自适应
-	var _lm := lab.get_minimum_size()
-	var _inner_w: float
-	var _inner_h: float
-	if _lm.y > 1.0:
-		_inner_w = maxf(_wrap_w, _sm.x)
-		_inner_h = _lm.y + _sm.y + 2.0
-	else:
-		# 字体未就绪（极少见，如 headless 首帧）回退字符估算
-		var _nl := float(str(nd.get("label", "")).length())
-		_inner_w = clampf(maxf(_base_w, 30.0 + _nl * 28.0), _base_w, _cap)
-		_inner_h = _base_h
-	var _nw := clampf(_inner_w + 18.0, _base_w, _cap + 18.0)
-	var _nh := _inner_h + 12.0
-	card.custom_minimum_size = Vector2(_nw, _nh)
-	card.size = Vector2(_nw, _nh)
+	# 固定统一尺寸（不再按文字自适应）
+	card.custom_minimum_size = Vector2(_CARD_W, _CARD_H)
+	card.size = Vector2(_CARD_W, _CARD_H)
 
 	var id: String = nd.id
 	var kind2: String = nd.kind

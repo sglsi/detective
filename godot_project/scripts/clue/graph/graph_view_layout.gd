@@ -67,7 +67,7 @@ func _apply_column_overlap_fix() -> void:
 				continue
 			var _ha: float = _view_height(arr[i - 1])
 			var _hb: float = _view_height(arr[i])
-			var _min_cy: float = owner._node_center[arr[i - 1]].y + (_ha + _hb) * 0.5 + 24.0
+			var _min_cy: float = owner._node_center[arr[i - 1]].y + (_ha + _hb) * 0.5 + 80.0
 			if owner._node_center[arr[i]].y < _min_cy:
 				owner._node_center[arr[i]] = Vector2(owner._node_center[arr[i]].x, _min_cy)
 		var _cy_after: float = 0.0
@@ -152,14 +152,14 @@ func _apply_global_overlap_fix() -> void:
 					continue
 				if b_fixed:
 					# 下方刚性 → 上方可动节点上移：使 a 底边 ≤ b 顶边 − 24
-					var push_up: float = ra.end.y - rb.position.y + 24.0
+					var push_up: float = ra.end.y - rb.position.y + 80.0
 					owner._node_center[id_a] = Vector2(owner._node_center[id_a].x,
 						owner._node_center[id_a].y - push_up)
 					rects[id_a] = _node_rect(id_a)
 					_sync_node_view(id_a)
 				else:
 					# 上方刚性，或双方皆可动 → 下方节点下移
-					var push: float = ra.end.y - rb.position.y + 24.0
+					var push: float = ra.end.y - rb.position.y + 80.0
 					owner._node_center[id_b] = Vector2(owner._node_center[id_b].x,
 						owner._node_center[id_b].y + push)
 					rects[id_b] = _node_rect(id_b)
@@ -200,13 +200,8 @@ func _node_rect(id: String) -> Rect2:
 
 ## 按节点 kind 估算渲染宽度（用于自适应半径防重叠；与 _make_node 卡片尺寸×2 同步）
 func _node_width_for_kind(kind: String) -> float:
-	# 2026-08-21：宽度整体减半（配合文本框自适应窄化，环径估算同步收紧）
-	match kind:
-		"clue":       return 320.0   # 需求6：线索文本框宽度加倍（160→320），碰撞估算同步放宽避免重叠
-		"hypo":       return 140.0
-		"conclusion": return 160.0
-		"chain":      return 125.0
-		_: return 150.0
+	# 2026-09-17：统一卡片版式——五类节点统一宽 260（见 graph_view_controller._CARD_W）
+	return 260.0
 
 
 ## 各 kind 卡片真实最小高度（与 _make_node 的 _base_h+12 口径一致）。
@@ -218,12 +213,13 @@ func _node_width_for_kind(kind: String) -> float:
 ##    注：`_logic_tree_layout` 已于 2026-09-08 改走「测量前置」消费真实 size，本表只作为
 ##    「视图/字体尚未就绪」时的碰撞估算兜底；原用以固定 200 高度模型的那条过期测试已删除（2026-09-15）。
 const _KIND_MIN_H := {
-	"person": 182.0, "conclusion": 172.0, "chain": 132.0,
-	"hypo": 142.0, "clue": 200.0, "event": 182.0, "_": 150.0,
+	# 2026-09-17：统一卡片高 400（_CARD_H）+ 布局安全余量 → 412
+	"person": 412.0, "conclusion": 412.0, "chain": 412.0,
+	"hypo": 412.0, "clue": 412.0, "event": 412.0, "_": 412.0,
 }
 ## 兄弟子树轮廓打包间隙（BuchheimWalker 轮廓法）：相邻兄弟子树在共现深度上的最小 y 间隙。
 ## 取 24（≥ _sib_gap 下限 12，留出呼吸空间），兼顾紧凑与可读。
-const _CONTOUR_SEP := 24.0
+const _CONTOUR_SEP := 80.0   # 2026-09-17：节点间垂直间距（用户指定 80px）
 func _kind_min_h(kind: String) -> float:
 	return _KIND_MIN_H.get(kind, 150.0)
 
@@ -274,16 +270,8 @@ func _real_node_height(id: String, nd: Dictionary) -> float:
 	_meas_lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var _wrap_w := clampf(_nat.x, 0.0, _cap)
 	if _wrap_w < 1.0:
-		# 字体未就绪：回退 _base_h 估算（与 _make_node 同款）
-		var _base_h: float = 130.0
-		match kind:
-			"person": _base_h = 170.0
-			"conclusion": _base_h = 160.0
-			"chain": _base_h = 120.0
-			"hypo": _base_h = 130.0
-			"clue": _base_h = 130.0
-			"event": _base_h = 170.0
-		return _base_h + 12.0
+		# 字体未就绪：回退统一卡片高（与 _make_node 同款，_CARD_H=400 + 安全余量）
+		return 412.0
 	_meas_lab.custom_minimum_size = Vector2(_wrap_w, 0)   # 设定换行宽度
 	var _lm := _meas_lab.get_minimum_size()   # 换行后真实高
 	_meas_lab.custom_minimum_size = Vector2.ZERO
@@ -1189,16 +1177,13 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 ## 兄弟子树轮廓间距（测量前置 · 2026-09-08）：线索兄弟按「半个线索文本框真实高度」分隔
 ## （思傅要求：上一线索下沿→下一线索上沿 = 半个框高），其余类型沿用 _CONTOUR_SEP 紧凑间隙。
 func _sibling_sep(c_id: String, node_by_id: Dictionary = {}) -> float:
-	if owner._fold._kind_of(c_id) == "clue":
-		return 0.5 * _real_node_height(c_id, node_by_id.get(c_id, {}))
+	# 2026-09-17：所有类型统一垂直间距（_CONTOUR_SEP = 80px）
 	return _CONTOUR_SEP
 
 
-## 兄弟节点垂直间距：约文本框高度的 1/4（XMind 式紧凑），下限 12。
-## 2026-09-06 曾用 0.5h（思傅"半框高"），实际效果过松；现收紧以提高信息密度，
-## 同时保留后处理去重叠保证零覆盖。
+## 兄弟节点垂直间距：约文本框高度的 1/4（XMind 式紧凑），下限 80（用户指定 80px）。
 func _sib_gap(h: float) -> float:
-	return maxf(h * 0.25, 12.0)
+	return maxf(h * 0.25, 80.0)
 
 
 ## 把一组同侧子节点从 root 沿 dirv 方向逐列向外排布（复用 _assign_subtree 递归子树）

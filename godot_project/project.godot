@@ -18,6 +18,10 @@ config/features=PackedStringArray("4.7")
 config/icon="res://icon.svg"
 config/api_base_url="http://127.0.0.1:3001"
 
+[audio]
+
+bus_layout="res://default_bus_layout.tres"
+
 [autoload]
 
 SettingsManager="*res://autoload/settings_manager.gd"
@@ -52,10 +56,6 @@ KnowledgeBaseSystem="*res://autoload/knowledge_base_system.gd"
 ToolSystem="*res://autoload/tool_system.gd"
 PackManager="*res://autoload/pack_manager.gd"
 SceneLoader="*res://autoload/scene_loader.gd"
-
-[audio]
-
-bus_layout="res://default_bus_layout.tres"
 
 [display]
 
