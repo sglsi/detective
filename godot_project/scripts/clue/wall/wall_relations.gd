@@ -100,34 +100,76 @@ func _gv_remove_relation(from_id: String, to_id: String) -> void:
 
 
 # === 统一顶栏：线型/颜色/视图/焦点 选择器驱动图谱 ===
+## 返回当前选中的连线关系 dict（若有）；否则空 dict。顶栏按钮据此决定「编辑选中线」或「画笔默认」。
+func _selected_edge_rel() -> Dictionary:
+	var gv = owner._graph_view
+	if not gv or not is_instance_valid(gv): return {}
+	if gv._selected_edge < 0 or gv._selected_edge >= gv._edge_list.size(): return {}
+	var e: Dictionary = gv._edge_list[gv._selected_edge]
+	for r in gv._relations:
+		if r.get("from", "") == e.from and r.get("to", "") == e.to and r.get("kind", "") == e.kind:
+			return r
+	return {}
+
+
+func _key_to_kind(k: String) -> String:
+	match k:
+		"green": return "support"
+		"orange": return "contradict"
+		"red": return "oppose"
+		_: return "relate"
+
+
 func _set_pen_dashed(d: bool) -> void:
-	print("[topbar] _set_pen_dashed(%s) gv=%s _pen_color_key=%s" % [
-		d, "YES" if (owner._graph_view and is_instance_valid(owner._graph_view)) else "NULL",
-		owner._graph_view._pen_color_key if (owner._graph_view and is_instance_valid(owner._graph_view)) else "?"
-	])
-	if owner._graph_view and is_instance_valid(owner._graph_view):
-		owner._graph_view.set_pen(owner._graph_view._pen_color_key, d)
-		owner._graph_view._toast_msg("线型：%s" % ("虚线" if d else "实线"))
+	var sel: Dictionary = _selected_edge_rel()
+	if not sel.is_empty():
+		# 有选中连线：直接改这条线的线形（实线/虚线）
+		owner._graph_view._edit_selected_edge_dashed(d)
+	else:
+		# 无选中连线：维持原语义——设置画笔默认线形（决定新画连线的线型）
+		if owner._graph_view and is_instance_valid(owner._graph_view):
+			owner._graph_view.set_pen(owner._graph_view._pen_color_key, d)
+			owner._graph_view._toast_msg("线型：%s" % ("虚线" if d else "实线"))
 	_sync_pen_buttons()
 
 
 func _set_pen_color(key: String) -> void:
 	var names := {"green": "支持", "orange": "矛盾存疑", "red": "反对", "grey": "弱关联"}
-	print("[topbar] _set_pen_color(%s) gv=%s" % [key, "YES" if (owner._graph_view and is_instance_valid(owner._graph_view)) else "NULL"])
-	if owner._graph_view and is_instance_valid(owner._graph_view):
-		owner._graph_view.set_pen(key, owner._graph_view._pen_dashed)
-		owner._graph_view._toast_msg("性质：%s" % names.get(key, key))
+	var sel: Dictionary = _selected_edge_rel()
+	if not sel.is_empty():
+		# 有选中连线：直接改这条线的性质
+		owner._graph_view._edit_selected_edge_kind(_key_to_kind(key))
+	else:
+		if owner._graph_view and is_instance_valid(owner._graph_view):
+			owner._graph_view.set_pen(key, owner._graph_view._pen_dashed)
+			owner._graph_view._toast_msg("性质：%s" % names.get(key, key))
 	_sync_pen_buttons()
 
 
 func _sync_pen_buttons() -> void:
 	if not owner._graph_view or not is_instance_valid(owner._graph_view): return
-	owner._pen_solid_btn.button_pressed = not owner._graph_view._pen_dashed
-	owner._pen_dashed_btn.button_pressed = owner._graph_view._pen_dashed
-	owner._pen_solid_btn.add_theme_color_override("font_color", owner.COL_GOLD if not owner._graph_view._pen_dashed else owner.COL_GOLD_LIGHT)
-	owner._pen_dashed_btn.add_theme_color_override("font_color", owner.COL_GOLD if owner._graph_view._pen_dashed else owner.COL_GOLD_LIGHT)
+	var gv = owner._graph_view
+	var sel: Dictionary = _selected_edge_rel()
+	if not sel.is_empty():
+		# 选中连线模式：高亮显示该连线的当前线形/性质
+		var dashed: bool = bool(sel.get("dashed", false))
+		var key: String = _kind_to_key(sel.get("kind", "relate"))
+		owner._pen_solid_btn.button_pressed = not dashed
+		owner._pen_dashed_btn.button_pressed = dashed
+		owner._pen_solid_btn.add_theme_color_override("font_color", owner.COL_GOLD if not dashed else owner.COL_GOLD_LIGHT)
+		owner._pen_dashed_btn.add_theme_color_override("font_color", owner.COL_GOLD if dashed else owner.COL_GOLD_LIGHT)
+		for k in owner._color_btns.keys():
+			var active2: bool = (k == key)
+			owner._color_btns[k].button_pressed = active2
+			owner._color_btns[k].add_theme_color_override("font_color", owner._gw_color(owner._COLOR_LABELS.get(k, "支持")) if active2 else owner.COL_GREY)
+		return
+	# 画笔默认模式（无选中连线）
+	owner._pen_solid_btn.button_pressed = not gv._pen_dashed
+	owner._pen_dashed_btn.button_pressed = gv._pen_dashed
+	owner._pen_solid_btn.add_theme_color_override("font_color", owner.COL_GOLD if not gv._pen_dashed else owner.COL_GOLD_LIGHT)
+	owner._pen_dashed_btn.add_theme_color_override("font_color", owner.COL_GOLD if gv._pen_dashed else owner.COL_GOLD_LIGHT)
 	for k in owner._color_btns.keys():
-		var active2: bool = (k == owner._graph_view._pen_color_key)
+		var active2: bool = (k == gv._pen_color_key)
 		owner._color_btns[k].button_pressed = active2
 		owner._color_btns[k].add_theme_color_override("font_color", owner._gw_color(owner._COLOR_LABELS.get(k, "支持")) if active2 else owner.COL_GREY)
 
@@ -330,10 +372,10 @@ func _draw_dashed_line(canvas: Control, a: Vector2, b: Vector2, col: Color) -> v
 	for i in steps:
 		var p2 := pos + dir * dash
 		if p2.distance_to(a) > dist: p2 = b
-		canvas.draw_line(pos, p2, col, 2)
+		canvas.draw_line(pos, p2, col, 4)   # 线宽×2
 		pos = p2 + dir * gap
 	if pos.distance_to(b) > 1.0:
-		canvas.draw_line(pos, b, col, 2)
+		canvas.draw_line(pos, b, col, 4)   # 线宽×2
 
 
 func _on_rel_layer_draw() -> void:
@@ -346,8 +388,8 @@ func _on_rel_layer_draw() -> void:
 		if r.get("dashed", false):
 			_draw_dashed_line(owner._rel_layer, a, b, col)
 		else:
-			owner._rel_layer.draw_line(a, b, col, 3)
+			owner._rel_layer.draw_line(a, b, col, 6)   # 线宽×2（思傅 2026-09-18：连线加粗）
 	if owner._dragging_link and owner._link_src != "":
 		var a := _node_center(owner._link_src)
 		if a != Vector2.ZERO:
-			owner._rel_layer.draw_line(a, owner._rel_layer.get_global_transform().affine_inverse() * owner._link_preview, _rel_color(owner._link_kind), 2)
+			owner._rel_layer.draw_line(a, owner._rel_layer.get_global_transform().affine_inverse() * owner._link_preview, _rel_color(owner._link_kind), 4)   # 预览线宽×2

@@ -1000,6 +1000,7 @@ func _on_open_graph_view() -> void:
 		"scene_clue_ids": _scene_clue_ids,
 		"on_tag": Callable(_rel_ctl, "_gv_tag_person"),
 		"on_relations_changed": Callable(self, "_gv_relations_changed"),
+		"on_edge_selected": Callable(self, "_gv_edge_selected"),
 		"on_pen_changed": Callable(_rel_ctl, "_gv_pen_changed"),
 		"on_verify": Callable(_verify_ctl, "_on_verify_pressed"),
 		"on_close": Callable(self, "_on_back_pressed")
@@ -1323,6 +1324,21 @@ func _show_export_save_panel(txt: String) -> void:
 
 func _gv_relations_changed(rels: Array) -> void:
 	_relations = rels
+
+
+## 连线被选中/取消选中：驱动顶栏线型/性质按钮切换为「编辑选中线」并反映其状态；
+## 取消选中时还原为画笔默认显示。同步给出状态提示，让玩家明确当前按钮作用对象（用户需求3）。
+func _gv_edge_selected(ei: int) -> void:
+	_rel_ctl._sync_pen_buttons()
+	if ei >= 0 and _graph_view and is_instance_valid(_graph_view) and ei < _graph_view._edge_list.size():
+		var e: Dictionary = _graph_view._edge_list[ei]
+		var vmap := {"support": "支持", "oppose": "反对", "contradict": "矛盾存疑", "relate": "弱关联", "target": "归属结论"}
+		var verb: String = vmap.get(e.get("kind", ""), e.get("kind", ""))
+		if _status_lbl:
+			_status_lbl.text = "已选中连线：顶部「线型/性质」按钮可修改此连线（%s）" % verb
+	else:
+		if _status_lbl:
+			_status_lbl.text = "连线模式已关：可拖动线索到推断上直接建立关系"
 	_state_ctl._persist_state()
 	_verify_ctl._update_verdict_label()
 	_clue_ctl._refresh_clue_list()

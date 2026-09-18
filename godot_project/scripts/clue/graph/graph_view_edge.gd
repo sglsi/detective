@@ -61,14 +61,14 @@ func _on_edge_draw() -> void:
 			continue
 		if e.kind in ["relate", "imply", "support", "oppose", "contradict", "target"]:
 			# 逻辑图流向连线：父右缘→子左缘的 S 曲线（col 间空带通过，不穿框/不交叉）
-			_draw_flow_edge(e.from, e.to, e.color, 3, e.dashed)
+			_draw_flow_edge(e.from, e.to, e.color, 6, e.dashed)   # 线宽×2（思傅 2026-09-18：连线加粗）
 
 	# 拖拽预览线（弧线）
 	if owner._dragging and owner._drag_id != "":
 		var a3: Vector2 = owner._node_center.get(owner._drag_id, Vector2.ZERO)
 		if a3 != Vector2.ZERO:
 			if owner._drag_mode == "edge":
-				_draw_arc_line(a3, owner._drag_preview_pos(), owner._data._rel_color(owner._drag_kind), 2, 40.0)
+				_draw_arc_line(a3, owner._drag_preview_pos(), owner._data._rel_color(owner._drag_kind), 4, 40.0)   # 预览线宽×2
 			elif owner._drag_mode == "move":
 				# move 模式不画预览线
 				pass
@@ -79,7 +79,7 @@ func _on_edge_draw() -> void:
 		var sa: Vector2 = owner._node_center.get(se.get("from", ""), Vector2.ZERO)
 		var sb: Vector2 = owner._node_center.get(se.get("to", ""), Vector2.ZERO)
 		if sa != Vector2.ZERO and sb != Vector2.ZERO:
-			_draw_flow_edge(se.get("from", ""), se.get("to", ""), owner.COL_GOLD, 7, false)
+			_draw_flow_edge(se.get("from", ""), se.get("to", ""), owner.COL_GOLD, 14, false)   # 选中高亮线宽×2
 
 
 ## 二次贝塞尔弧线采样（中心→中心，控制点偏移中点垂直方向 curvature）
@@ -389,7 +389,7 @@ func _do_edge(from: String, to: String, kind: String, color_key: String, dashed:
 ## 逻辑类边与绘制一样走父右缘→子左缘 S 曲线；列表外 kind 绘制端不显示，同样不命中。
 func _edge_hit_test(lp: Vector2) -> int:
 	var best := -1
-	var best_d := 16.0
+	var best_d := 24.0   # 命中容差随线宽×2 同步放宽，便于点中加粗后的连线
 	for ei in owner._edge_list.size():
 		var e: Dictionary = owner._edge_list[ei]
 		var fid: String = e.get("from", "")
@@ -419,11 +419,15 @@ func _select_edge(ei: int, viewport_pos: Vector2) -> void:
 	owner._selected_edge = ei
 	_show_edge_menu(viewport_pos, owner._edge_list[ei])
 	owner._toast_msg("已选中连线")
+	# 通知顶栏：线型/性质按钮切换为「编辑该选中连线」模式并反映其当前状态
+	if owner._cb_edge_selected.is_valid():
+		owner._cb_edge_selected.call(ei)
 
 
 func _show_edge_menu(viewport_pos: Vector2, e: Dictionary) -> void:
 	_close_edge_menu()
 	var panel := PanelContainer.new()
+	panel.z_index = 200
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 6)
 	var lab := Label.new()
@@ -435,24 +439,75 @@ func _show_edge_menu(viewport_pos: Vector2, e: Dictionary) -> void:
 	var b_del := _mk_menu_btn("✕  删除连线")
 	b_del.pressed.connect(func() -> void: _edge_delete(e))
 	vbox.add_child(b_del)
-	var b_dash := _mk_menu_btn("⊸  线型切换")
-	b_dash.pressed.connect(func() -> void: _edge_toggle_dashed(e))
+	var b_dash := _mk_menu_btn("⊸  线形（鼠标移上展开）")
+	b_dash.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	vbox.add_child(b_dash)
-	var b_kind := _mk_menu_btn("↻  性质切换")
-	b_kind.pressed.connect(func() -> void: _edge_cycle_kind(e))
+	var b_kind := _mk_menu_btn("↻  性质（鼠标移上展开）")
+	b_kind.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	vbox.add_child(b_kind)
 	panel.add_child(vbox)
 	panel.position = viewport_pos + Vector2(8, 8)
 	owner.add_child(panel)
+	owner._edge_menu = panel
+
+	# 悬停展开子菜单：线形（实线/虚线）/ 性质（支持/矛盾存疑/反对/弱关联）；当前状态打 ✓。
+	var cur_dash: bool = bool(e.get("dashed", false))
+	var cur_kind: String = e.get("kind", "relate")
+	_add_hover_menu(panel, b_dash, [
+		{"text": ("✓ " if not cur_dash else "") + "实线", "value": false},
+		{"text": ("✓ " if cur_dash else "") + "虚线", "value": true},
+	], func(v): _set_edge_dashed(e, bool(v)))
+	_add_hover_menu(panel, b_kind, [
+		{"text": ("✓ " if cur_kind == "support" else "") + "支持", "value": "support"},
+		{"text": ("✓ " if cur_kind == "contradict" else "") + "矛盾存疑", "value": "contradict"},
+		{"text": ("✓ " if cur_kind == "oppose" else "") + "反对", "value": "oppose"},
+		{"text": ("✓ " if cur_kind == "relate" else "") + "弱关联", "value": "relate"},
+	], func(v): _set_edge_kind(e, String(v)))
+
 	panel.gui_input.connect(func(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
 			var lp := (owner.get_global_mouse_position() - owner._canvas.position) / owner._canvas.scale
 			if _edge_hit_test(lp) != owner._selected_edge:
-				owner._selected_edge = -1
-				_close_edge_menu()
+				owner._deselect_edge()
 			owner._redraw_all()
 	)
 	owner._edge_menu = panel
+
+
+## 在 owner 上挂载一个悬停子菜单：鼠标移入 trigger 即展开 options 列表，移出后延迟隐藏；
+## 选中某选项执行 on_pick(value)，并收起子菜单。子菜单由 _close_edge_menu 统一释放。
+func _add_hover_menu(panel: Control, trigger: Button, options: Array, on_pick: Callable) -> void:
+	var sub := PanelContainer.new()
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	for opt in options:
+		var ob := _mk_menu_btn(opt.text)
+		ob.custom_minimum_size = Vector2(160, 26)
+		ob.pressed.connect(func() -> void:
+			on_pick.call(opt.value)
+			sub.visible = false
+		)
+		vb.add_child(ob)
+	sub.add_child(vb)
+	sub.visible = false
+	sub.z_index = 300
+	owner.add_child(sub)
+	owner._edge_menu_subs.append(sub)
+	var hovering := false
+	var place := func() -> void:
+		var gr := trigger.get_global_rect()
+		var lp := panel.get_global_transform().affine_inverse() * gr.position
+		sub.position = Vector2(lp.x, lp.y + gr.size.y + 3)
+	trigger.mouse_entered.connect(func() -> void: place.call(); hovering = true; sub.visible = true)
+	trigger.mouse_exited.connect(func() -> void:
+		hovering = false
+		owner.get_tree().create_timer(0.15).timeout.connect(func() -> void:
+			if not hovering: sub.visible = false))
+	sub.mouse_entered.connect(func() -> void: hovering = true)
+	sub.mouse_exited.connect(func() -> void:
+		hovering = false
+		owner.get_tree().create_timer(0.15).timeout.connect(func() -> void:
+			if not hovering: sub.visible = false))
 
 
 func _mk_menu_btn(txt: String) -> Button:
@@ -467,6 +522,10 @@ func _close_edge_menu() -> void:
 	if owner._edge_menu and is_instance_valid(owner._edge_menu):
 		owner._edge_menu.queue_free()
 	owner._edge_menu = null
+	for s in owner._edge_menu_subs:
+		if is_instance_valid(s):
+			s.queue_free()
+	owner._edge_menu_subs = []
 
 
 func _edge_delete(e: Dictionary) -> void:
@@ -474,29 +533,42 @@ func _edge_delete(e: Dictionary) -> void:
 		owner._toast_msg("已封存，仅可浏览")
 		return
 	_remove_edge(e.get("from", ""), e.get("to", ""), e.get("kind", ""))
-	_close_edge_menu()
-	owner._selected_edge = -1
+	owner._deselect_edge()
 	owner._toast_msg("连线已删除")
 
 
-func _edge_toggle_dashed(e: Dictionary) -> void:
+## 读取某条关系当前的 dashed 值（供显示/比较）。
+func _relation_dashed(f: String, t: String, k: String) -> bool:
+	for r in owner._relations:
+		if r.get("from", "") == f and r.get("to", "") == t and r.get("kind", "") == k:
+			return bool(r.get("dashed", false))
+	return false
+
+
+## 显式设置选中连线的线形（实线/虚线）。供弹窗悬停菜单与顶栏线型按钮共同调用。
+func _set_edge_dashed(e: Dictionary, new_dash: bool) -> void:
 	if owner._state != GraphViewController.State.EDITABLE:
 		owner._toast_msg("已封存，仅可浏览")
 		return
 	var from: String = e.get("from", "")
 	var to: String = e.get("to", "")
 	var kind: String = e.get("kind", "")
-	var new_dash: bool = not bool(e.get("dashed", false))
-	owner._undo.create_action("toggle_edge_dashed")
+	var cur_dash: bool = _relation_dashed(from, to, kind)
+	if cur_dash == new_dash:
+		owner._toast_msg("线型已是%s" % ("虚线" if new_dash else "实线"))
+		return
+	owner._undo.create_action("set_edge_dashed")
 	owner._undo.add_do_method(_do_set_dashed.bind(from, to, kind, new_dash))
-	owner._undo.add_undo_method(_do_set_dashed.bind(from, to, kind, not new_dash))
+	owner._undo.add_undo_method(_do_set_dashed.bind(from, to, kind, cur_dash))
 	owner._undo.commit_action()
-	_close_edge_menu()
 	if owner._cb_relations_changed.is_valid():
 		owner._cb_relations_changed.call(owner._relations.duplicate())
 	owner._persist_view()
 	owner._rebuild_graph()
-	owner._toast_msg("线型已切换")
+	# 同步顶栏：线型按钮反映该选中线新状态
+	if owner._cb_edge_selected.is_valid():
+		owner._cb_edge_selected.call(owner._selected_edge)
+	owner._toast_msg("线型：%s" % ("虚线" if new_dash else "实线"))
 
 
 func _do_set_dashed(from: String, to: String, kind: String, dashed: bool) -> void:
@@ -506,27 +578,31 @@ func _do_set_dashed(from: String, to: String, kind: String, dashed: bool) -> voi
 			break
 
 
-func _edge_cycle_kind(e: Dictionary) -> void:
+## 显式设置选中连线的性质（support/oppose/contradict/relate）。供弹窗悬停菜单与顶栏性质按钮共同调用；
+## 不含 target（结论→人物属自动派生，不参与玩家手动选择，用户确认1）。
+func _set_edge_kind(e: Dictionary, new_kind: String) -> void:
 	if owner._state != GraphViewController.State.EDITABLE:
 		owner._toast_msg("已封存，仅可浏览")
 		return
-	var KINDS: Array[String] = ["relate", "support", "oppose", "contradict", "target"]
 	var from: String = e.get("from", "")
 	var to: String = e.get("to", "")
 	var old_kind: String = e.get("kind", "relate")
-	var idx: int = KINDS.find(old_kind)
-	var new_kind: String = KINDS[(idx + 1) % KINDS.size()]
-	var dashed: bool = e.get("dashed", false)
-	owner._undo.create_action("change_edge_kind")
+	var dashed: bool = _relation_dashed(from, to, old_kind)
+	if old_kind == new_kind:
+		owner._toast_msg("性质已是%s" % _rel_verb(new_kind))
+		return
+	owner._undo.create_action("set_edge_kind")
 	owner._undo.add_do_method(_do_change_edge_kind.bind(from, to, old_kind, dashed, new_kind))
 	owner._undo.add_undo_method(_do_change_edge_kind.bind(from, to, new_kind, dashed, old_kind))
 	owner._undo.commit_action()
-	_close_edge_menu()
 	if owner._cb_relations_changed.is_valid():
 		owner._cb_relations_changed.call(owner._relations.duplicate())
 	owner._persist_view()
 	owner._rebuild_graph()
-	owner._toast_msg("连线性质已切换为 %s" % _rel_verb(new_kind))
+	# 同步顶栏：性质按钮反映该选中线新状态
+	if owner._cb_edge_selected.is_valid():
+		owner._cb_edge_selected.call(owner._selected_edge)
+	owner._toast_msg("连线性质：%s" % _rel_verb(new_kind))
 
 
 func _do_change_edge_kind(from: String, to: String, old_kind: String, dashed: bool, new_kind: String) -> void:

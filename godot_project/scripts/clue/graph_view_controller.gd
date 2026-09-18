@@ -253,6 +253,7 @@ var _pen_color_key: String = "green"
 var _pen_dashed: bool = false
 var _cb_pen_changed: Callable = Callable()
 var _cb_relations_changed: Callable = Callable()
+var _cb_edge_selected: Callable = Callable()   # 连线选中/取消选中时通知顶栏同步（顶栏按钮↔选中线联动）
 var _show_toolbar: bool = false
 
 # === 浮层线索栏（左侧，可收缩）===
@@ -282,6 +283,7 @@ var _drag_dashed: bool = false
 # === 连线选中/编辑（点击连线弹出右键菜单）===
 var _selected_edge: int = -1      # _edge_list 中被点击选中的连线下标；-1 表示未选中
 var _edge_menu: Control = null    # 连线右键浮动菜单
+var _edge_menu_subs: Array = []   # 连线菜单的悬停子菜单（关闭时一并释放）
 var _press_pos: Vector2 = Vector2.ZERO   # 画布左键按下时的视口坐标
 var _press_moved: bool = false           # 按下后是否发生拖拽（用于区分点击与拖拽平移）
 
@@ -321,6 +323,7 @@ func build(data: Dictionary) -> void:
 	_cb_verify = data.get("on_verify", Callable())
 	_cb_pen_changed = data.get("on_pen_changed", Callable())
 	_cb_relations_changed = data.get("on_relations_changed", Callable())
+	_cb_edge_selected = data.get("on_edge_selected", Callable())
 	_show_toolbar = data.get("show_toolbar", false)
 	_auto_fold = data.get("auto_fold", false)
 	_case_wide = data.get("case_wide", false)
@@ -2062,6 +2065,26 @@ func set_pen(color_key: String, dashed: bool) -> void:
 	_dockctl._emit_pen_changed()
 
 
+## 取消选中当前连线（统一入口：清下标 + 关弹窗 + 通知顶栏还原画笔模式）。
+func _deselect_edge() -> void:
+	_selected_edge = -1
+	_edge._close_edge_menu()
+	if _cb_edge_selected.is_valid():
+		_cb_edge_selected.call(-1)
+
+
+## 顶栏线型按钮（实/虚）在「有选中连线」时改为直接编辑该线；公开方法供 WallRelations 调用。
+func _edit_selected_edge_dashed(d: bool) -> void:
+	if _selected_edge < 0 or _selected_edge >= _edge_list.size(): return
+	_edge._set_edge_dashed(_edge_list[_selected_edge], d)
+
+
+## 顶栏性质按钮（支持/矛盾/反对/弱关联）在「有选中连线」时改为直接编辑该线；公开方法供 WallRelations 调用。
+func _edit_selected_edge_kind(kind: String) -> void:
+	if _selected_edge < 0 or _selected_edge >= _edge_list.size(): return
+	_edge._set_edge_kind(_edge_list[_selected_edge], kind)
+
+
 func set_mode(m: int) -> void:
 	_switch_mode(m)
 
@@ -2301,8 +2324,7 @@ func _on_canvas_left_click(viewport_pos: Vector2) -> void:
 	if ei >= 0:
 		_edge._select_edge(ei, viewport_pos)
 	else:
-		_selected_edge = -1
-		_edge._close_edge_menu()
+		_deselect_edge()
 	_redraw_all()
 
 func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
