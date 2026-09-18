@@ -713,31 +713,85 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		root_range[r] = [gmin, gmax]
 		total_h += (gmax - gmin) + subtree_sep
 	total_h = maxf(0.0, total_h - subtree_sep)
-	var start_y: float = center.y - total_h * 0.5
-	var cur_y: float = start_y
+
+	# 2026-09-18（思傅需求3「推理链不要只排一条竖列，向左右分散」）：
+	# 森林总高超预算时把根带按高度贪心分组、横向多列铺开——偶数组在根列右侧（依次右移），
+	# 奇数组整列镜像放左侧（依次左移，深度轴向左呈「叶-枝-干-根」），各列内部仍 tidy-Y 垂直居中。
+	# 预算门控：总高 ≤ 预算恒单组，行为与旧版完全一致（全部布局回归夹具不受影响）。
+	# （_canvas 可能未就绪——隔离单元测试直调布局时为 Nil，此时用预算下限）
+	var wrap_h: float = 2200.0
+	if owner._canvas != null and is_instance_valid(owner._canvas):
+		wrap_h = maxf(wrap_h, owner._canvas.size.y * 1.6)
+	var col_gap: float = 160.0   # 列间水平间隙
+	# 每根水平带占宽：最深列偏移 + 深列半宽 + 根列半宽（镜像左带同口径向左延伸）
+	var band_w := {}
 	for r in roots:
-		var ty: Dictionary = root_tidy[r]
-		var rg: Array = root_range[r]
-		var min_c: float = rg[0]
-		var sv: Variant = saved_pos.get(r, null)
-		var rx: float = col_x[0]
-		var ry: float = cur_y - min_c
-		if sv is Vector2:
-			rx = sv.x
-			ry = sv.y
-		# 根置于 ry（带顶锚点）；子节点相对 y 减去根自身 tidy-y（ty[root] 为子群中点），
-		# 使根居中于子群（XMind 局部对称 · 美学3），而非落在带顶。
-		var root_y0: float = ty.get(str(r), 0.0)
-		out[r] = Vector2(rx, ry)
-		for nid in ty.keys():
+		var ty0: Dictionary = root_tidy[r]
+		var wmax: float = 0.0
+		for nid in ty0.keys():
 			if str(nid) == str(r):
 				continue
-			# X 相对根（2026-09-18 修复）：根被钉位（rx=锚点.x）时子列必须相对根偏移，
-			# 否则子树仍落在以画布中心为基准的 col_x 绝对列上——人物移走后推理链滞留原位。
-			# 未钉位时 rx==col_x[0]，与旧绝对列完全等价。
-			var _d := int(depth_of.get(nid, 0))
-			out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
-		cur_y += (rg[1] - rg[0]) + subtree_sep
+			var dw: int = int(depth_of.get(nid, 0))
+			wmax = maxf(wmax, float(col_x.get(dw, col_x[0])) - float(col_x[0]) + max_w.get(dw, 150.0) * 0.5)
+		band_w[r] = wmax + max_w.get(0, 150.0) * 0.5
+	var groups: Array = []
+	if total_h > wrap_h:
+		var acc: float = 0.0
+		var cur_g: Array = []
+		for r in roots:
+			var bh: float = (root_range[r][1] - root_range[r][0]) + subtree_sep
+			if not cur_g.is_empty() and acc + bh > wrap_h:
+				groups.append(cur_g)
+				cur_g = []
+				acc = 0.0
+			cur_g.append(r)
+			acc += bh
+		if not cur_g.is_empty():
+			groups.append(cur_g)
+	else:
+		groups.append(roots.duplicate())
+
+	var right_x: float = col_x[0]
+	var left_x: float = col_x[0] - max_w.get(0, 150.0) - col_gap
+	for gi in groups.size():
+		var g: Array = groups[gi]
+		var is_left: bool = (gi % 2) == 1
+		var gwidth: float = 0.0
+		for r in g:
+			gwidth = maxf(gwidth, band_w[r])
+		var base_x: float = left_x if is_left else right_x
+		# 组内带垂直堆叠并整体居中于画布纵轴（单组时 == 旧版全局居中，行为一致）
+		var gh: float = 0.0
+		for r in g:
+			gh += (root_range[r][1] - root_range[r][0]) + subtree_sep
+		gh = maxf(0.0, gh - subtree_sep)
+		var cur_y: float = center.y - gh * 0.5
+		var dirv: float = -1.0 if is_left else 1.0
+		for r in g:
+			var ty: Dictionary = root_tidy[r]
+			var rg: Array = root_range[r]
+			var sv: Variant = saved_pos.get(r, null)
+			var rx: float = base_x
+			var ry: float = cur_y - rg[0]
+			if sv is Vector2:
+				rx = sv.x
+				ry = sv.y
+			# 根置于 ry（带顶锚点）；子节点相对 y 减去根自身 tidy-y（ty[root] 为子群中点），
+			# 使根居中于子群（XMind 局部对称 · 美学3），而非落在带顶。
+			var root_y0: float = ty.get(str(r), 0.0)
+			out[r] = Vector2(rx, ry)
+			for nid in ty.keys():
+				if str(nid) == str(r):
+					continue
+				# X 相对根（2026-09-18 修复保持）；镜像左列深度轴取负向
+				var _d := int(depth_of.get(nid, 0))
+				var dx: float = (float(col_x.get(_d, col_x[0])) - float(col_x[0])) * dirv
+				out[nid] = Vector2(rx + dx, ry + (ty[nid] - root_y0))
+			cur_y += (rg[1] - rg[0]) + subtree_sep
+		if is_left:
+			left_x -= gwidth + col_gap
+		else:
+			right_x += gwidth + col_gap
 	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
 	for mid2 in owner._manual_nodes:
 		var sv3: Variant = saved_pos.get(mid2, null)
@@ -860,8 +914,15 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 			return ra < rb
 		return str(a) < str(b))
 
-	# 预打包：主根按「左右两半各自轮廓打包」（两侧都垂直居中于根 = 美学3+4），其余根照旧整棵右向
+	# 预打包：主根按「左右两半各自轮廓打包」（两侧都垂直居中于根 = 美学3+4），其余根照旧整棵右向。
+	# 2026-09-18（思傅需求3「推理链不要只排一条竖列」）：某侧整列高度超预算时侧内分包
+	# （_balanced_side_packs），第 j 包放到该侧第 j 个外侧列（X 沿分侧方向依次外移）——
+	# 大墙一侧不再拉成超长竖列。预算内恒单包（off=0），行为与旧版完全一致。
 	var subtree_sep: float = 40.0
+	var wrap_h: float = 2200.0
+	if owner._canvas != null and is_instance_valid(owner._canvas):
+		wrap_h = maxf(wrap_h, owner._canvas.size.y * 1.6)
+	var col_gap: float = 160.0
 	_aff_adj_dirty = true   # 链路亲和邻接缓存：单次布局内复用，跨次布局重建（relations 可能已变）
 	var root_contours := {}
 	var root_packed_h := {}
@@ -872,23 +933,22 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		var gl2: Array = grp.get("L", [])
 		var gr2: Array = grp.get("R", [])
 		if not gl2.is_empty():
-			var cm_l: Dictionary = child_map.duplicate()
-			cm_l[str(r)] = gl2
-			parts["L"] = _pack_contour(str(r), cm_l, depth_of, est_h, node_by_id)
+			parts["L"] = _balanced_side_packs(str(r), gl2, wrap_h, col_gap, child_map, depth_of, est_h, node_by_id, col_off, max_w)
 		if not gr2.is_empty():
-			var cm_r: Dictionary = child_map.duplicate()
-			cm_r[str(r)] = gr2
-			parts["R"] = _pack_contour(str(r), cm_r, depth_of, est_h, node_by_id)
+			parts["R"] = _balanced_side_packs(str(r), gr2, wrap_h, col_gap, child_map, depth_of, est_h, node_by_id, col_off, max_w)
 		if parts.is_empty():
-			parts["R"] = _pack_contour(str(r), child_map, depth_of, est_h, node_by_id)
+			var pk0: Dictionary = _pack_contour(str(r), child_map, depth_of, est_h, node_by_id)
+			pk0["off"] = 0.0
+			parts["R"] = [pk0]
 		root_contours[r] = parts
 		var gmin: float = 1e18
 		var gmax: float = -1e18
 		for sk in parts.keys():
-			var cont: Dictionary = parts[sk]["contour"]
-			for rd in cont.keys():
-				gmin = minf(gmin, cont[rd][0])
-				gmax = maxf(gmax, cont[rd][1])
+			for pk in parts[sk]:
+				var cont: Dictionary = pk["contour"]
+				for rd in cont.keys():
+					gmin = minf(gmin, cont[rd][0])
+					gmax = maxf(gmax, cont[rd][1])
 		var ph: float = gmax - gmin
 		root_packed_h[r] = ph
 		total_h += ph + subtree_sep
@@ -899,9 +959,10 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		var ph2: float = root_packed_h[r]
 		var min_c: float = 0.0
 		for sk in parts2.keys():
-			var cont2: Dictionary = parts2[sk]["contour"]
-			for rd in cont2.keys():
-				min_c = minf(min_c, cont2[rd][0])
+			for pk in parts2[sk]:
+				var cont2: Dictionary = pk["contour"]
+				for rd in cont2.keys():
+					min_c = minf(min_c, cont2[rd][0])
 		var sv: Variant = saved_pos.get(r, null)
 		var rx: float = center.x
 		var ry: float = cur_y - min_c
@@ -911,12 +972,14 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		out[r] = Vector2(rx, ry)
 		for sk in parts2.keys():
 			var dirv: float = -1.0 if str(sk) == "L" else 1.0
-			var rel: Dictionary = parts2[sk]["rel"]
-			for nid in rel.keys():
-				if str(nid) == str(r):
-					continue
-				var d2: int = int(depth_of.get(nid, 0))
-				out[nid] = Vector2(rx + dirv * float(col_off.get(d2, 0.0)), ry + float(rel[nid]))
+			for pk in parts2[sk]:
+				var rel: Dictionary = pk["rel"]
+				var off: float = float(pk.get("off", 0.0))
+				for nid in rel.keys():
+					if str(nid) == str(r):
+						continue
+					var d2: int = int(depth_of.get(nid, 0))
+					out[nid] = Vector2(rx + dirv * (float(col_off.get(d2, 0.0)) + off), ry + float(rel[nid]))
 		cur_y += ph2 + subtree_sep
 
 	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
@@ -927,6 +990,59 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 
 	for idf in out:
 		out[idf] = _clamp_to_canvas(out[idf])
+
+
+## 平衡布局·侧内分包（2026-09-18 思傅需求3）：某侧推理链整列高度超预算时，把该侧直接子
+## （结论链整棵子树）按各自轮廓跨度贪心拆成多个纵向包；调用方把第 j 包放到该侧第 j 个
+## 外侧列（X 沿分侧方向依次外移，镜像侧自然向左）。预算内恒单包（off=0，行为与旧版一致）。
+## 返回 Array of _pack_contour 结果，各带 "off"（相对根列的累计外移量）。
+func _balanced_side_packs(root: String, chains: Array, wrap_h: float, col_gap: float, child_map: Dictionary, depth_of: Dictionary, est_h: Dictionary, node_by_id: Dictionary, col_off: Dictionary, max_w: Dictionary) -> Array:
+	var packs: Array = []
+	if chains.is_empty():
+		return packs
+	# 每链子树轮廓跨度（分包依据）
+	var span_of := {}
+	for c in chains:
+		var pc: Dictionary = _pack_contour(str(c), child_map, depth_of, est_h, node_by_id)
+		var cmin: float = 1e18
+		var cmax: float = -1e18
+		for rd in pc["contour"].keys():
+			cmin = minf(cmin, pc["contour"][rd][0])
+			cmax = maxf(cmax, pc["contour"][rd][1])
+		span_of[str(c)] = cmax - cmin
+	# 高度贪心分包：单包 ≤ wrap_h
+	var groups: Array = []
+	var acc: float = 0.0
+	var cur: Array = []
+	for c in chains:
+		var bh: float = float(span_of.get(str(c), 0.0))
+		if not cur.is_empty() and acc + bh > wrap_h:
+			groups.append(cur)
+			cur = []
+			acc = 0.0
+		cur.append(c)
+		acc += bh
+	if not cur.is_empty():
+		groups.append(cur)
+	# 打包各包并计算外移步长：下一包最内列 X ≥ 本包最外列 X + 间隙
+	var cum: float = 0.0
+	var inner_off: float = float(col_off.get(1, 0.0))
+	var inner_half: float = max_w.get(1, 150.0) * 0.5
+	for gi in groups.size():
+		var cm_s: Dictionary = child_map.duplicate()
+		cm_s[root] = groups[gi]
+		var pk: Dictionary = _pack_contour(root, cm_s, depth_of, est_h, node_by_id)
+		pk["off"] = cum
+		packs.append(pk)
+		# 本包外沿（相对根列的最深 X 偏移）
+		var outer: float = inner_off
+		for nid in pk["rel"].keys():
+			if str(nid) == root:
+				continue
+			var d3: int = int(depth_of.get(nid, 0))
+			outer = maxf(outer, float(col_off.get(d3, 0.0)) + max_w.get(d3, 150.0) * 0.5)
+		cum += (outer - inner_off + inner_half) + col_gap
+	return packs
 
 
 ## 左右平衡划分：把根的直接子（结论）**整棵子树**分成 L/R 两组。

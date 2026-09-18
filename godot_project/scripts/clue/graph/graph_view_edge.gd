@@ -495,9 +495,19 @@ func _add_hover_menu(panel: Control, trigger: Button, options: Array, on_pick: C
 	owner._edge_menu_subs.append(sub)
 	var hovering := false
 	var place := func() -> void:
+		# 2026-09-18 修复（思傅报「下级选项展开在屏幕左上角点不到」）：旧实现把触发按钮全局矩形
+		# 换算到 panel 局部坐标后直接赋给 sub.position，而 sub 的父是 owner（与 panel 同级）——
+		# 坐标系张冠李戴 → 子菜单落在 owner 原点附近（屏幕左上角）。
+		# 新实现：以触发按钮全局矩形为锚（右侧放不下则正下方），钳制在视口内，再经 owner 逆
+		# 变换转 sub 本地坐标，保证子菜单紧临触发项展开。
 		var gr := trigger.get_global_rect()
-		var lp := panel.get_global_transform().affine_inverse() * gr.position
-		sub.position = Vector2(lp.x, lp.y + gr.size.y + 3)
+		var vp := owner.get_viewport_rect()
+		var p := gr.position + Vector2(gr.size.x + 4.0, 0.0)
+		if p.x + 172.0 > vp.end.x:   # 右侧放不下 → 正下方展开（经典下拉）
+			p = gr.position + Vector2(0.0, gr.size.y + 3.0)
+		p.x = clampf(p.x, 8.0, maxf(8.0, vp.end.x - 172.0))
+		p.y = clampf(p.y, 8.0, maxf(8.0, vp.end.y - 150.0))
+		sub.position = owner.get_global_transform().affine_inverse() * p
 	trigger.mouse_entered.connect(func() -> void: place.call(); hovering = true; sub.visible = true)
 	trigger.mouse_exited.connect(func() -> void:
 		hovering = false

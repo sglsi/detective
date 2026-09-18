@@ -2448,36 +2448,6 @@ func _detail_title_text(id: String, kind: String) -> String:
 
 
 ## 详情卡背景/文字配色：背景随节点类型取色（与图谱节点卡一致），文字按背景明暗取对比色
-func _detail_style_for(kind: String, id: String) -> Dictionary:
-	var bg := Color(0.10, 0.08, 0.06, 0.98)
-	var border := COL_GOLD
-	if kind == "clue":
-		bg = COL_CLUE_BG
-		border = COL_CLUE_BORDER
-	elif kind == "hypo":
-		var h: Dictionary = _node_data.get(id, {})
-		if h.get("correct", true):
-			bg = COL_HYPO_BG
-			border = COL_HYPO_BORDER
-		else:
-			bg = COL_HYPO_BG_DIM
-			border = COL_CLUE_BORDER_DISTRACT
-	elif kind == "conclusion":
-		bg = Color(0.84, 0.74, 0.56, 0.98)
-		border = Color(0.58, 0.44, 0.20)
-	elif kind == "person":
-		bg = Color(0.66, 0.20, 0.16, 0.98)
-		border = Color(0.96, 0.44, 0.34)
-	elif kind == "chain":
-		bg = Color(0.16, 0.13, 0.08, 0.98)
-		border = COL_GOLD
-	# 明暗判定：背景偏亮 → 深色字；偏暗 → 米金字
-	var lum: float = bg.r * 0.299 + bg.g * 0.587 + bg.b * 0.114
-	var title_col := Color(0.16, 0.13, 0.10) if lum > 0.5 else COL_GOLD
-	var body_col := Color(0.22, 0.18, 0.14) if lum > 0.5 else COL_GOLD_LIGHT
-	return {"bg": bg, "border": border, "title": title_col, "body": body_col}
-
-
 ## 统一删除：从详情卡删除该卡片（clue=归还线索栏；其余=从图谱移除节点与关系）
 func _delete_card_node(id: String, kind: String, card: Control) -> void:
 	if _state != State.EDITABLE: return
@@ -2513,17 +2483,18 @@ func _show_detail(id: String, kind: String) -> void:
 	if _detail_card and is_instance_valid(_detail_card):
 		_detail_card.queue_free()
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(520, 640)
+	card.custom_minimum_size = Vector2(480, 560)
 	# 需求1：详情弹窗必须盖过左侧「已收集线索」栏（reasoning_wall 顶层 z=20）。
 	# graph_view 整树 z=5，任何子节点都无法超过左栏；故把卡挂到 graph_view 的父
 	# （reasoning_wall 顶层），并设 z=30（低于顶栏 100，顶栏仍可点）。
 	card.z_index = 30
-	var st: Dictionary = _detail_style_for(kind, id)
+	# 2026-09-18（思傅需求1）：详情卡改用与顶栏按钮弹窗（候选采纳/验证窗）一致的统一游戏
+	# 主题样式——暗棕底 + 金边 + 圆角6（即 ui_theme.tres 面板默认态），不再按卡片类型取色。
 	var s := StyleBoxFlat.new()
-	s.bg_color = st["bg"]
-	s.border_color = st["border"]
-	s.border_width_left = 3; s.border_width_right = 3; s.border_width_top = 3; s.border_width_bottom = 3
-	s.set_corner_radius_all(8)
+	s.bg_color = Color(0.102, 0.078, 0.063, 0.98)
+	s.border_color = COL_GOLD
+	s.border_width_left = 2; s.border_width_right = 2; s.border_width_top = 2; s.border_width_bottom = 2
+	s.set_corner_radius_all(6)
 	card.add_theme_stylebox_override("panel", s)
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 14)
@@ -2542,14 +2513,14 @@ func _show_detail(id: String, kind: String) -> void:
 	scroll.add_child(vb)
 
 	var title := Label.new()
-	title.add_theme_font_size_override("font_size", 34)
-	title.add_theme_color_override("font_color", st["title"])
+	title.add_theme_font_size_override("font_size", 20)
+	title.add_theme_color_override("font_color", COL_GOLD)
 	vb.add_child(title)
 	var body := Label.new()
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.custom_minimum_size = Vector2(440, 150)
-	body.add_theme_font_size_override("font_size", 26)
-	body.add_theme_color_override("font_color", st["body"])
+	body.custom_minimum_size = Vector2(420, 120)
+	body.add_theme_font_size_override("font_size", 15)
+	body.add_theme_color_override("font_color", Color(0.91, 0.866, 0.784))
 	vb.add_child(body)
 
 	match kind:
@@ -2570,12 +2541,12 @@ func _show_detail(id: String, kind: String) -> void:
 			if _state == State.EDITABLE:
 				var tag_btn := Button.new()
 				tag_btn.text = "和谁有关 ▾"
-				tag_btn.add_theme_font_size_override("font_size", 26)
+				tag_btn.add_theme_font_size_override("font_size", 15)
 				tag_btn.pressed.connect(func(): _open_tag_menu(id, "clue"))
 				vb.add_child(tag_btn)
 				var status_btn := Button.new()
 				status_btn.text = "标记状态 ▾"
-				status_btn.add_theme_font_size_override("font_size", 26)
+				status_btn.add_theme_font_size_override("font_size", 15)
 				status_btn.pressed.connect(func(): _open_status_menu(id))
 				vb.add_child(status_btn)
 		"hypo":
@@ -2585,12 +2556,12 @@ func _show_detail(id: String, kind: String) -> void:
 			if _state == State.EDITABLE:
 				var chain_btn := Button.new()
 				chain_btn.text = "推导下一层推断 ▾"
-				chain_btn.add_theme_font_size_override("font_size", 26)
+				chain_btn.add_theme_font_size_override("font_size", 15)
 				chain_btn.pressed.connect(func(): _dockctl._open_hypo_derive_popup(id))
 				vb.add_child(chain_btn)
 				var concl_btn := Button.new()
 				concl_btn.text = "推导结论 ▾"
-				concl_btn.add_theme_font_size_override("font_size", 26)
+				concl_btn.add_theme_font_size_override("font_size", 15)
 				concl_btn.pressed.connect(func(): _dockctl._open_conclusion_popup(id))
 				vb.add_child(concl_btn)
 		"person":
@@ -2604,7 +2575,7 @@ func _show_detail(id: String, kind: String) -> void:
 				# EASY/NORMAL 候选窗列出可见预设结论；HARD 候选窗为空、仅留「✍ 自定义结论」由玩家自写。
 				var nxt_btn := Button.new()
 				nxt_btn.text = "推导下一层结论 ▾"
-				nxt_btn.add_theme_font_size_override("font_size", 26)
+				nxt_btn.add_theme_font_size_override("font_size", 15)
 				nxt_btn.pressed.connect(func(): _open_conclusion_choice(id))
 				vb.add_child(nxt_btn)
 		"chain":
@@ -2615,17 +2586,17 @@ func _show_detail(id: String, kind: String) -> void:
 	if _state == State.EDITABLE and kind in ["clue", "hypo", "conclusion", "person", "chain"]:
 		var edit_lbl := Label.new()
 		edit_lbl.text = "编辑内容"
-		edit_lbl.add_theme_font_size_override("font_size", 28)
+		edit_lbl.add_theme_font_size_override("font_size", 16)
 		edit_lbl.add_theme_color_override("font_color", COL_GOLD)
 		vb.add_child(edit_lbl)
 		var edit_box := TextEdit.new()
-		edit_box.custom_minimum_size = Vector2(440, 96)
-		edit_box.add_theme_font_size_override("font_size", 24)
+		edit_box.custom_minimum_size = Vector2(420, 72)
+		edit_box.add_theme_font_size_override("font_size", 15)
 		edit_box.text = str(_edited_texts.get(id, _detail_title_text(id, kind)))
 		vb.add_child(edit_box)
 		var save_btn := Button.new()
 		save_btn.text = "保存修改"
-		save_btn.add_theme_font_size_override("font_size", 26)
+		save_btn.add_theme_font_size_override("font_size", 15)
 		save_btn.pressed.connect(func():
 			var new_text: String = edit_box.text.strip_edges()
 			if new_text.is_empty(): return
@@ -2638,7 +2609,7 @@ func _show_detail(id: String, kind: String) -> void:
 	if _state == State.EDITABLE:
 		var del_btn := Button.new()
 		del_btn.text = "🗑 删除此卡片"
-		del_btn.add_theme_font_size_override("font_size", 26)
+		del_btn.add_theme_font_size_override("font_size", 15)
 		del_btn.add_theme_color_override("font_color", Color(0.95, 0.55, 0.45))
 		del_btn.pressed.connect(func(): _delete_card_node(id, kind, card))
 		vb.add_child(del_btn)
@@ -2653,21 +2624,21 @@ func _show_detail(id: String, kind: String) -> void:
 		vb.add_child(sep)
 		var rel_lbl := Label.new()
 		rel_lbl.text = "删除连线（本节点参与）"
-		rel_lbl.add_theme_font_size_override("font_size", 40)
+		rel_lbl.add_theme_font_size_override("font_size", 16)
 		rel_lbl.add_theme_color_override("font_color", COL_GOLD)
 		vb.add_child(rel_lbl)
 		for r in rels:
 			var other: String = r.get("to", "") if r.get("from", "") == id else r.get("from", "")
 			var del_btn := Button.new()
 			del_btn.text = "✕ 删除：↔ %s（%s）" % [_node_short_label(other), _edge._rel_verb(r.get("kind", "relate"))]
-			del_btn.add_theme_font_size_override("font_size", 40)
+			del_btn.add_theme_font_size_override("font_size", 15)
 			del_btn.pressed.connect(_on_detail_delete.bind(
 				r.get("from", ""), r.get("to", ""), r.get("kind", "relate"), card))
 			vb.add_child(del_btn)
 
 	var close := Button.new()
 	close.text = "关闭"
-	close.add_theme_font_size_override("font_size", 26)
+	close.add_theme_font_size_override("font_size", 15)
 	close.pressed.connect(func(): card.queue_free())
 	vb.add_child(close)
 
