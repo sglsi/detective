@@ -1507,6 +1507,65 @@ func _build_parent_of() -> Dictionary:
 				_best_score = _score
 				_best = _p
 		parent_of[_ch] = _best
+	# === 2026-09-17 深U根治：悬空孤儿根吸收（思傅截图：场景二推理墙深U再现） ===
+	# 机制：DAG 共享节点被唯一父化后，「落选的父」若因此成为孤儿根（无父、非人物/事件），
+	# 会在布局中独占一条根带堆在主树之外，而它与其原支持者之间的连边变成跨树悬空长边
+	# （如 H2-01 被选到三线合一的 CL2-4 下，浅层结论 CL2-1 成空根、边 H2-01→CL2-1 从墙顶
+	# 拉到墙底 = 深U）。兄弟亲和排序/分侧亲和都只在同一棵树内部起作用，管不到跨树边。
+	# 修复：孤儿根 R 的子树若有外部入边（v→u：v 支持 u∈subtree(R)，即 R 链本就是被 v
+	# 推导出来的），把 R 挂到入边最多的 v 之下当孩子——与关系方向一致（被支持者挂在
+	# 支持者下方），跨带长边变父子短边。只处理入边方向；出边方向（u→v）挂接会形成
+	# v→R→u→v 视觉环，保持原状。玩家钉位过的节点不吸收（尊重手动落点）。
+	# 子树/父子判定必须用【最终 parent_of】建树（候选图 child_map 会把共享节点算进
+	# 每个落选父的子树，令外部入边恒为空、吸收永不触发——已踩）。
+	var final_child := {}
+	for _c4 in parent_of:
+		var _p4: String = parent_of[_c4]
+		if not final_child.has(_p4):
+			final_child[_p4] = []
+		if not (_c4 in final_child[_p4]):
+			final_child[_p4].append(_c4)
+	for _r in all_nodes:
+		var rs := str(_r)
+		if parent_of.has(rs):
+			continue
+		var rk: String = owner._fold._kind_of(rs)
+		if rk == "person" or rk == "event":
+			continue
+		if owner._root_anchor_pos.has(rs):
+			continue
+		# 孤儿子树全集（按最终树）
+		var sub := {rs: true}
+		var q3: Array = [rs]
+		while q3.size() > 0:
+			var u3: String = str(q3.pop_back())
+			for c3 in final_child.get(u3, []):
+				if not sub.has(str(c3)):
+					sub[str(c3)] = true
+					q3.append(c3)
+		# 收集外部入边：v(外) → u(子树内)，按 v 聚合计数
+		var in_deg := {}
+		for r3 in owner._relations:
+			var k3: String = str(r3.get("kind", ""))
+			if k3 != "support" and k3 != "target":
+				continue
+			var vf := str(r3.get("from", ""))
+			var vt := str(r3.get("to", ""))
+			if vf == "" or sub.has(vf) or not sub.has(vt):
+				continue
+			in_deg[vf] = int(in_deg.get(vf, 0)) + 1
+		if in_deg.is_empty():
+			continue
+		# 选 v：入边最多 > 深度最浅（树更矮）> id 稳定序
+		var bv := ""
+		var bv_n := -1
+		for v in in_deg:
+			var vn: int = int(in_deg[v])
+			var vd: int = depth_of.get(str(v), 0)
+			if bv == "" or vn > bv_n or (vn == bv_n and (vd < depth_of.get(bv, 1 << 30) or (vd == depth_of.get(bv, 1 << 30) and str(v) < bv))):
+				bv = str(v)
+				bv_n = vn
+		parent_of[rs] = bv
 	return parent_of
 
 
