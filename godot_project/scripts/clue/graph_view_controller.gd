@@ -2447,6 +2447,67 @@ func _detail_title_text(id: String, kind: String) -> String:
 	return _data._verdict_text()
 
 
+## 详情卡背景/文字配色：背景随节点类型取色（与图谱节点卡一致），文字按背景明暗取对比色
+func _detail_style_for(kind: String, id: String) -> Dictionary:
+	var bg := Color(0.10, 0.08, 0.06, 0.98)
+	var border := COL_GOLD
+	if kind == "clue":
+		bg = COL_CLUE_BG
+		border = COL_CLUE_BORDER
+	elif kind == "hypo":
+		var h: Dictionary = _node_data.get(id, {})
+		if h.get("correct", true):
+			bg = COL_HYPO_BG
+			border = COL_HYPO_BORDER
+		else:
+			bg = COL_HYPO_BG_DIM
+			border = COL_CLUE_BORDER_DISTRACT
+	elif kind == "conclusion":
+		bg = Color(0.84, 0.74, 0.56, 0.98)
+		border = Color(0.58, 0.44, 0.20)
+	elif kind == "person":
+		bg = Color(0.66, 0.20, 0.16, 0.98)
+		border = Color(0.96, 0.44, 0.34)
+	elif kind == "chain":
+		bg = Color(0.16, 0.13, 0.08, 0.98)
+		border = COL_GOLD
+	# 明暗判定：背景偏亮 → 深色字；偏暗 → 米金字
+	var lum: float = bg.r * 0.299 + bg.g * 0.587 + bg.b * 0.114
+	var title_col := Color(0.16, 0.13, 0.10) if lum > 0.5 else COL_GOLD
+	var body_col := Color(0.22, 0.18, 0.14) if lum > 0.5 else COL_GOLD_LIGHT
+	return {"bg": bg, "border": border, "title": title_col, "body": body_col}
+
+
+## 统一删除：从详情卡删除该卡片（clue=归还线索栏；其余=从图谱移除节点与关系）
+func _delete_card_node(id: String, kind: String, card: Control) -> void:
+	if _state != State.EDITABLE: return
+	if is_instance_valid(card): card.queue_free()
+	if kind == "clue":
+		_unplace_clue_from_graph(id, null)
+	else:
+		_delete_node(id, kind)
+
+
+## 通用节点删除：从 _graph_nodes/关系/已折叠/位置 中移除并重排（覆盖 note_/hypo/conclusion/chain/person）
+func _delete_node(id: String, kind: String) -> void:
+	if _state != State.EDITABLE: return
+	var target: Array = _graph_nodes.filter(func(n): return n.get("id", "") == id)
+	_graph_nodes = _graph_nodes.filter(func(n): return n.get("id", "") != id)
+	_relations = _relations.filter(func(r): return r.get("from", "") != id and r.get("to", "") != id)
+	var del_pool: Array = _state_store.get("graph_deleted_nodes", [])
+	for t in target:
+		del_pool.append(t)
+	_state_store["graph_deleted_nodes"] = del_pool
+	_folded_nodes.erase(id)
+	_node_center.erase(id)
+	if id == _focus_person:
+		_focus_person = _persons[0].get("id", "") if not _persons.is_empty() else ""
+	_persist_view()
+	_rebuild_graph()
+	if _cb_relations_changed.is_valid():
+		_cb_relations_changed.call(_relations.duplicate())
+
+
 # ===================== 详情卡 =====================
 func _show_detail(id: String, kind: String) -> void:
 	if _detail_card and is_instance_valid(_detail_card):
@@ -2457,10 +2518,11 @@ func _show_detail(id: String, kind: String) -> void:
 	# graph_view 整树 z=5，任何子节点都无法超过左栏；故把卡挂到 graph_view 的父
 	# （reasoning_wall 顶层），并设 z=30（低于顶栏 100，顶栏仍可点）。
 	card.z_index = 30
+	var st: Dictionary = _detail_style_for(kind, id)
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.10, 0.08, 0.06, 0.98)
-	s.border_color = COL_GOLD
-	s.border_width_left = 2; s.border_width_right = 2; s.border_width_top = 2; s.border_width_bottom = 2
+	s.bg_color = st["bg"]
+	s.border_color = st["border"]
+	s.border_width_left = 3; s.border_width_right = 3; s.border_width_top = 3; s.border_width_bottom = 3
 	s.set_corner_radius_all(8)
 	card.add_theme_stylebox_override("panel", s)
 	var margin := MarginContainer.new()
@@ -2481,13 +2543,13 @@ func _show_detail(id: String, kind: String) -> void:
 
 	var title := Label.new()
 	title.add_theme_font_size_override("font_size", 34)
-	title.add_theme_color_override("font_color", COL_GOLD)
+	title.add_theme_color_override("font_color", st["title"])
 	vb.add_child(title)
 	var body := Label.new()
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.custom_minimum_size = Vector2(440, 150)
 	body.add_theme_font_size_override("font_size", 26)
-	body.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	body.add_theme_color_override("font_color", st["body"])
 	vb.add_child(body)
 
 	match kind:
@@ -2516,12 +2578,6 @@ func _show_detail(id: String, kind: String) -> void:
 				status_btn.add_theme_font_size_override("font_size", 26)
 				status_btn.pressed.connect(func(): _open_status_menu(id))
 				vb.add_child(status_btn)
-				if _data._clue_placed(id):
-					var rmv_btn := Button.new()
-					rmv_btn.text = "从图谱移除（归还线索）"
-					rmv_btn.add_theme_font_size_override("font_size", 26)
-					rmv_btn.pressed.connect(_unplace_clue_from_graph.bind(id, card))
-					vb.add_child(rmv_btn)
 		"hypo":
 			var h: Dictionary = _node_data.get(id, {})
 			title.text = "推断：" + h.get("text", id)
@@ -2579,13 +2635,12 @@ func _show_detail(id: String, kind: String) -> void:
 			if is_instance_valid(card): card.queue_free())
 		vb.add_child(save_btn)
 
-	if _state == State.EDITABLE and id.begins_with("note_"):
+	if _state == State.EDITABLE:
 		var del_btn := Button.new()
-		del_btn.text = "🗑 删除此文本框"
+		del_btn.text = "🗑 删除此卡片"
 		del_btn.add_theme_font_size_override("font_size", 26)
-		del_btn.pressed.connect(func():
-			_delete_text_node(id)
-			if is_instance_valid(card): card.queue_free())
+		del_btn.add_theme_color_override("font_color", Color(0.95, 0.55, 0.45))
+		del_btn.pressed.connect(func(): _delete_card_node(id, kind, card))
 		vb.add_child(del_btn)
 
 	# —— 连线管理（问题1：取消右键后，删除连线改由此处）：列出本节点参与的全部关系，逐个可删 ——
@@ -2616,21 +2671,32 @@ func _show_detail(id: String, kind: String) -> void:
 	close.pressed.connect(func(): card.queue_free())
 	vb.add_child(close)
 
-	# 需求：详情窗摆到界面「中部偏左 1/4」处，避开顶部功能栏（z=100，高约110px）。
-	# 用视口可见矩形定位（卡片挂到 host 后以绝对坐标摆放），不足时回退到固定坐标。
+	# 需求4：详情窗紧邻被点击的卡片展开（不再固定到屏幕某角），并钳制在视口内、避开顶部功能栏
+	var card_size: Vector2 = card.custom_minimum_size
 	var view_rect := get_viewport().get_visible_rect()
-	if view_rect.size.x > 100.0 and view_rect.size.y > 100.0:
-		card.position = Vector2(view_rect.position.x + view_rect.size.x * 0.23,
-			view_rect.position.y + view_rect.size.y * 0.5 - card.custom_minimum_size.y * 0.5)
+	var parent_node: Node = get_parent()
+	if parent_node and is_instance_valid(parent_node) and parent_node is Control:
+		parent_node.add_child(card)
 	else:
-		card.position = Vector2(40, 160)
-	# 需求1：挂载到 graph_view 的父（reasoning_wall 顶层），脱离 graph_view z=5 的层级锁，
-	# 否则卡内任何子节点都盖不过左栏（z=20）。父容器让卡与左栏成为兄弟，凭 z=30 盖左栏。
-	var host: Node = get_parent()
-	if host and is_instance_valid(host) and host is Control:
-		host.add_child(card)
-	else:
+		parent_node = self
 		add_child(card)
+	var anchor := Vector2(view_rect.position.x + view_rect.size.x * 0.5,
+		view_rect.position.y + view_rect.size.y * 0.5)
+	if _node_center.has(id) and parent_node is CanvasItem:
+		var node_global: Vector2 = _canvas.get_global_transform() * _node_center[id]
+		anchor = (parent_node as CanvasItem).to_local(node_global)
+	# 优先放卡片右侧，越界则翻到左侧；垂直居中并钳制在视口内（顶部留出 118px 给功能栏）
+	var x: float
+	if anchor.x + _CARD_W * 0.5 + 14.0 + card_size.x <= view_rect.position.x + view_rect.size.x:
+		x = anchor.x + _CARD_W * 0.5 + 14.0
+	else:
+		x = anchor.x - _CARD_W * 0.5 - 14.0 - card_size.x
+	x = clamp(x, view_rect.position.x + 8.0,
+		max(view_rect.position.x + 8.0, view_rect.position.x + view_rect.size.x - card_size.x - 8.0))
+	var y: float = clamp(anchor.y - card_size.y * 0.5,
+		view_rect.position.y + 118.0,
+		max(view_rect.position.y + 118.0, view_rect.position.y + view_rect.size.y - card_size.y - 8.0))
+	card.position = Vector2(x, y)
 	_detail_card = card
 
 

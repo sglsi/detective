@@ -179,6 +179,9 @@ func _gv_pen_changed(color_key: String, dashed: bool) -> void:
 
 
 func _on_top_connect_toggle() -> void:
+	# 顶栏「🔗 连线」按钮已移除：此回调不再有调用方；保留方法体仅作连线模式机制兜底
+	if not owner._connect_btn or not is_instance_valid(owner._connect_btn):
+		return
 	print("[topbar] _on_top_connect_toggle pressed=%s gv=%s" % [
 		owner._connect_btn.button_pressed if owner._connect_btn else "NULL_BTN",
 		"YES" if (owner._graph_view and is_instance_valid(owner._graph_view)) else "NULL"
@@ -223,7 +226,8 @@ func _kind_to_key(kind: String) -> String:
 func _sync_top_bar() -> void:
 	if not owner._graph_view or not is_instance_valid(owner._graph_view): return
 	_sync_pen_buttons()
-	owner._mode_c_btn.button_pressed = (owner._graph_view._mode == 0)
+	if owner._mode_c_btn and is_instance_valid(owner._mode_c_btn):
+		owner._mode_c_btn.button_pressed = (owner._graph_view._mode == 0)
 	owner._top_focus_sel.clear()
 	var persons := owner._state_ctl._derive_persons()
 	for p in persons:

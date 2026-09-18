@@ -89,7 +89,6 @@ var _search_edit: LineEdit = null
 var _filter_sel: OptionButton = null
 var _fold_btn: Button = null
 var _export_btn: Button = null
-var _export_save_btn: Button = null
 var _candidate_btn: Button = null
 var _candidate_panel: PanelContainer = null
 var _notice_lbl: Label = null
@@ -124,7 +123,6 @@ var _recycle_panel: PanelContainer = null     # 回收站恢复面板
 var _pen_solid_btn: Button = null
 var _pen_dashed_btn: Button = null
 var _color_btns: Dictionary = {}
-var _mode_c_btn: Button = null
 var _top_focus_sel: OptionButton = null
 var _top_undo_btn: Button = null
 var _top_redo_btn: Button = null
@@ -148,8 +146,7 @@ var _notebook_vb: VBoxContainer = null
 #         "contradict"(线索↔线索 矛盾) / "relate"(弱关联/假设↔假设 仅连线)
 # 设计依据：docs/02_核心设计/06_推理墙运行机制.md §2.2 双交互模式（自由连线模式）
 var _relations: Array = []
-var _connect_mode: bool = false               # 顶部栏「🔗连线」开关
-var _connect_btn: Button = null
+var _connect_mode: bool = false               # 自由连线模式开关（顶栏按钮已移除，机制保留）
 var _rel_layer: Control = null                # 关系连线绘制层（全屏覆盖，不拦截输入）
 var _hypo_nodes: Dictionary = {}              # 假设节点 id -> Control（用于连线命中与绘制）
 var _dragging_link: bool = false
@@ -357,7 +354,7 @@ func _create_top_bar() -> Control:
 	bar.mouse_filter = Control.MOUSE_FILTER_STOP   # 显式 STOP，截停向下传播
 
 	var bg := ColorRect.new()
-	bg.color = Color(0.08, 0.07, 0.10, 0.95)
+	bg.color = Color(0.10, 0.08, 0.06, 0.97)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar.add_child(bg)
@@ -438,11 +435,6 @@ func _create_top_bar() -> Control:
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row1.add_child(spacer)
 
-	# 视图模式（右上可见）
-	_mode_c_btn = _mk_top_btn("● 人物星型", true)
-	_mode_c_btn.pressed.connect(_on_top_mode.bind(0))
-	row1.add_child(_mode_c_btn)
-
 	# 焦点人物下拉
 	_top_focus_sel = OptionButton.new()
 	_top_focus_sel.add_theme_font_size_override("font_size", 14)
@@ -463,6 +455,7 @@ func _create_top_bar() -> Control:
 	_top_redo_btn.pressed.connect(_on_top_redo)
 	row1.add_child(_top_redo_btn)
 
+	row1.add_child(_mk_sep())
 	# 提交验证（右上关键按钮）
 	_top_verify_btn = _mk_top_btn("提交验证", false)
 	_top_verify_btn.tooltip_text = "提交当前推理，正式判定（可推进剧情）"
@@ -487,6 +480,7 @@ func _create_top_bar() -> Control:
 	recycle_btn.pressed.connect(_on_recycle_pressed)
 	row1.add_child(recycle_btn)
 
+	row1.add_child(_mk_sep())
 	var close_btn := _mk_top_btn("✕", false)
 	close_btn.add_theme_color_override("font_color", Color(0.85, 0.5, 0.5))
 	close_btn.custom_minimum_size = Vector2(44, 44)
@@ -527,12 +521,6 @@ func _create_top_bar() -> Control:
 	row2.add_child(export_btn)
 	_export_btn = export_btn
 
-	var save_btn := _mk_top_btn("存档", true)
-	save_btn.tooltip_text = "导出最新存档 JSON（诊断/复盘用）"
-	save_btn.pressed.connect(_on_export_save_pressed)
-	row2.add_child(save_btn)
-	_export_save_btn = save_btn
-
 	row2.add_child(_mk_sep())
 
 	# 「候选采纳」：把场景预设的候选推断（按难度供给/甄别）采纳进图谱并自动连支撑证据
@@ -566,10 +554,6 @@ func _create_top_bar() -> Control:
 
 	row2.add_child(_mk_sep())
 
-	_connect_btn = _mk_top_btn("🔗 连线", false)
-	_connect_btn.tooltip_text = "开启后：依次点两个节点 = 建立连线；两节点已有连线时再点两次 = 取消该连线"
-	_connect_btn.pressed.connect(_rel_ctl._on_top_connect_toggle)
-	row2.add_child(_connect_btn)
 
 	_rel_ctl._sync_top_bar()
 
@@ -577,9 +561,15 @@ func _create_top_bar() -> Control:
 
 
 func _mk_sep() -> Control:
-	var s := VSeparator.new()
-	s.custom_minimum_size = Vector2(6, 40)
-	return s
+	# 功能分组分隔线：居中细金线，提升顶栏整洁度
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(16, 40)
+	var line := ColorRect.new()
+	line.color = Color(0.788, 0.659, 0.298, 0.45)
+	line.size = Vector2(2, 30)
+	line.position = Vector2(7, 5)
+	c.add_child(line)
+	return c
 
 
 const TOP_BTN_ICONS := {
@@ -589,7 +579,6 @@ const TOP_BTN_ICONS := {
 	"回收站": "res://assets/ui/icons/trash.png",
 	"折叠": "res://assets/ui/icons/fold.png",
 	"导出": "res://assets/ui/icons/download.png",
-	"存档": "res://assets/ui/icons/floppy.png",
 	"候选采纳": "res://assets/ui/icons/lightbulb.png",
 	"求助": "res://assets/ui/icons/help.png",
 }
@@ -600,23 +589,27 @@ func _mk_top_btn(text: String, active: bool) -> Button:
 	b.text = text
 	b.toggle_mode = true
 	b.button_pressed = active
-	b.add_theme_font_size_override("font_size", 20)
+	b.add_theme_font_size_override("font_size", 19)
 	if TOP_BTN_ICONS.has(text):
-		BtnIconCenter.apply_center(b, TOP_BTN_ICONS[text], 20, 4)
-	b.add_theme_color_override("font_color", COL_GOLD if active else COL_GOLD_LIGHT)
-	b.custom_minimum_size = Vector2(64, 42)
+		BtnIconCenter.apply_center(b, TOP_BTN_ICONS[text], 19, 4)
+	# 文字色：选中=亮金，未选=米色（对齐游戏 ui_theme 默认 parchment）
+	b.add_theme_color_override("font_color", COL_GOLD if active else Color(0.91, 0.866, 0.784, 1.0))
+	b.custom_minimum_size = Vector2(70, 42)
+	# 常态：棕底金边，对齐游戏按钮主题（assets/ui/ui_theme.tres）
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.30, 0.24, 0.14, 0.95) if active else Color(0.16, 0.13, 0.08, 0.95)
-	s.border_color = COL_GOLD if active else Color(0.45, 0.38, 0.20)
-	s.border_width_left = 1; s.border_width_right = 1; s.border_width_top = 1; s.border_width_bottom = 1
-	s.set_corner_radius_all(5)
+	s.bg_color = Color(0.45, 0.36, 0.18, 1.0) if active else Color(0.353, 0.243, 0.169, 1.0)
+	s.border_color = Color(1.0, 0.86, 0.50, 1.0) if active else Color(0.788, 0.659, 0.298, 1.0)
+	s.border_width_left = 2; s.border_width_right = 2; s.border_width_top = 2; s.border_width_bottom = 2
+	s.set_corner_radius_all(4)
+	s.content_margin_left = 10; s.content_margin_right = 10; s.content_margin_top = 5; s.content_margin_bottom = 5
 	b.add_theme_stylebox_override("normal", s)
-	# 按下/悬停/聚焦视觉反馈（此前缺失 → 用户点按钮"无反应"）
+	# 悬停/按下/聚焦：提亮底色 + 更亮金边（视觉反馈，亦作选中态指示）
 	var sp := StyleBoxFlat.new()
-	sp.bg_color = Color(0.52, 0.40, 0.20, 1.0)
-	sp.border_color = Color(1.0, 0.86, 0.50)
+	sp.bg_color = Color(0.45, 0.33, 0.22, 1.0)
+	sp.border_color = Color(1.0, 0.88, 0.55, 1.0)
 	sp.border_width_left = 2; sp.border_width_right = 2; sp.border_width_top = 2; sp.border_width_bottom = 2
-	sp.set_corner_radius_all(5)
+	sp.set_corner_radius_all(4)
+	sp.content_margin_left = 10; sp.content_margin_right = 10; sp.content_margin_top = 5; sp.content_margin_bottom = 5
 	b.add_theme_stylebox_override("hover", sp)
 	b.add_theme_stylebox_override("pressed", sp)
 	b.add_theme_stylebox_override("focus", sp)
@@ -638,7 +631,7 @@ func _create_bottom_bar() -> Control:
 	bar.offset_top = -70
 
 	var bg := ColorRect.new()
-	bg.color = Color(0.08, 0.07, 0.10, 0.95)
+	bg.color = Color(0.10, 0.08, 0.06, 0.97)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bar.add_child(bg)
 
@@ -1015,7 +1008,8 @@ func _on_open_graph_view() -> void:
 func _on_top_mode(m: int) -> void:
 	if _graph_view and is_instance_valid(_graph_view):
 		_graph_view.set_mode(m)
-	_mode_c_btn.button_pressed = (m == 0)
+	if _mode_c_btn and is_instance_valid(_mode_c_btn):
+		_mode_c_btn.button_pressed = (m == 0)
 
 
 func _on_top_focus_selected(idx: int) -> void:
