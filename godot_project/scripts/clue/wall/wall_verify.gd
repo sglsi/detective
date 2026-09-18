@@ -28,7 +28,11 @@ func _update_verdict_label() -> void:
 # === 验证 ===
 func _on_verify_pressed() -> void:
 	if owner._verifying: return
-	if owner._verified: return   # 已提交过验证的墙不允许重复提交（顶栏/图谱入口共用）
+	if owner._verified:
+		# 已提交过验证：不可重复提交，但必须有反馈（2026-09-18 起墙不再因历史 verified 封存，
+		# 玩家可正常编辑/整理图面，点「提交验证」需明确告知不可重复提交，而非静默无响应）
+		if owner._status_lbl: owner._status_lbl.text = "本墙已提交过验证，不可重复提交"
+		return   # 已提交过验证的墙不允许重复提交（顶栏/图谱入口共用）
 	# 提交验证前先弹确认框，避免玩家借"先看到评价结果→不点确定→回去改图"作弊
 	_show_verify_confirm()
 

@@ -984,7 +984,14 @@ func _on_open_graph_view() -> void:
 	gv.build({
 		"clues": _clues, "hypo": _hypothesis, "relations": _relations,
 		"persons": persons, "focus_person": focus, "difficulty": _difficulty,
-		"editable": not _verified, "verdict": get_verdict(),
+		# editable 恒 true（思傅 2026-09-18 报：存档1 读档后拖动/建关系失效）：
+		# 旧实现 editable = not _verified——历史提交过验证的档（verified 随 state_store 持久化），
+		# 读档后墙整体 LOCKED，拖动/建边/连线全被「已封存」静默拦截，而折叠/新建/排列不受
+		# _state 门控仍可用 → 与用户症状完全吻合。
+		# 新语义：verified 只用于①禁止重复提交（wall_verify 入口拦截+提示）②判定显示/推进资格，
+		# 不再冻结编辑；「防看评价后改图作弊」由提交当场 wall_verify 直锁 _editable + 结果弹窗遮罩承担，
+		# 墙销毁重开后允许整理图面（重复提交已被拦截，无作弊面）。
+		"editable": true, "verdict": get_verdict(),
 		"state_store": _state_store,
 		"auto_fold": _auto_fold,
 		"case_wide": _case_wide,

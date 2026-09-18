@@ -307,6 +307,26 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 	# 加载已持久化「根锚点」（仅关系树根的位置；子节点全部自动派生）
 	var saved_pos: Dictionary = owner._root_anchor_pos
 
+	# 2026-09-18（思傅报「多个兄弟推理链全挤一侧，不是左右排列」）默认左右平衡自动触发：
+	# 当某人物根有 ≥2 条直接结论分支时，自动开启左右平衡布局（与顶栏「自动排列」同构），
+	# 使兄弟链左右分摊而非全列一侧。仅在用户未显式关闭（_balanced_layout==false）且非 rank 布局时自动开；
+	# 显式关闭仍保持纯右向（test_balanced_layout G 验证：_should_auto_balance 不覆盖关闭开关，
+	# 故触发逻辑放在此调度层而非 _should_auto_balance 内）。
+	if not owner._balanced_layout and not owner._use_rank_layout:
+		var _pf := _build_parent_of()
+		var _cm := {}
+		for _ch in _pf:
+			var _p: String = _pf[_ch]
+			if not _cm.has(_p):
+				_cm[_p] = []
+			if not (_ch in _cm[_p]):
+				_cm[_p].append(_ch)
+		for nd in nodes:
+			var _rid: String = str(nd.id)
+			if owner._fold._kind_of(_rid) == "person" and _cm.get(_rid, []).size() >= 2:
+				owner._balanced_layout = true
+				break
+
 	if owner._mode == GraphViewController.ViewMode.MODE_C:
 		# 拖前各节点实际位置（_rebuild_graph 清空 _node_center 前捕获传入）：钉位重派生以「实际位移」
 		# 平移后代，保证后代严格随动 = 拖前位 + delta，不因初次去重叠修正而漂移（2026-09-05 修复）。
@@ -328,6 +348,36 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 			owner._root_anchor_pos = _backup
 			owner._manual_nodes = _manual_backup
 			out = _layout_out
+			# 锚点跟随重派生（2026-09-18 思傅报「折叠移动人物后展开，推理链滞留旧位 / 新建关系的
+			# 推理链排在人物之前的位置」根因）：纯布局把钉位根放在画布中心默认列，其全部后代
+			# （含折叠隐藏节点、新建立关系的节点）都相对默认位排布；旧逻辑只把根钉回锚点，
+			# 可见后代靠 prev_center 重派生兜底，而隐藏/新节点没有 prev_center → 滞留画布中心默认位，
+			# 观感即「排布以画布为中心，不是以人物为中心」。此处把每个钉位节点的整棵子树按
+			# delta = 锚点 − 纯布局位 平移，使子树严格以锚点（人物新位）为基准生长。
+			var _shift_parent_of := _build_parent_of()
+			var _shift_children := {}
+			for _sch in _shift_parent_of:
+				var _spa := str(_shift_parent_of[_sch])
+				if not _shift_children.has(_spa):
+					_shift_children[_spa] = []
+				_shift_children[_spa].append(str(_sch))
+			for pin_id in saved_pos:
+				var pin_s := str(pin_id)
+				var _psv: Variant = saved_pos.get(pin_id, null)
+				if not (_psv is Vector2) or not out.has(pin_s):
+					continue
+				var delta: Vector2 = _psv - out[pin_s]
+				if delta.length() < 0.5:
+					continue
+				var stack: Array = [pin_s]
+				while stack.size() > 0:
+					var u2: String = stack.pop_back()
+					for c2 in _shift_children.get(u2, []):
+						var cs2 := str(c2)
+						# 后代自身也被钉位的，交给其自身锚点处理（自由放置优先循环会再钉回）
+						if out.has(cs2) and not saved_pos.has(cs2):
+							out[cs2] = out[cs2] + delta
+						stack.append(cs2)
 			# 非拖动子树节点（上游/兄弟分支）保持拖前实际位、不重排——仅被拖子树平移，
 			# 其余节点稳定不动（2026-09-05 修复「拖中下层节点导致上游/兄弟被重排错位移」）。
 			var _prot2: Dictionary = _pinned_subtree_nodes()
@@ -351,6 +401,14 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 			child_map[pa].append(str(ch))
 		for pin_id in saved_pos:
 			var pin_s := str(pin_id)
+			# 关系树根（人物）钉位：其全部后代交由「锚点跟随」（上方块）按 delta 平移派生，
+			# 不在此处刚性钉回 prev_center。原因（2026-09-18 思傅报「折叠移动人物后展开，推理链滞留旧位」）：
+			# 折叠态拖人物时隐藏后代在拖拽过程中无视图、未被 _drag_subtree 平移，其 prev_center 仍是拖前旧位；
+			# 若在此刚性钉回 prev_center，隐藏链便停留在旧坐标、展开后不随人物走。锚点跟随对可见/隐藏后代
+			# 一视同仁（均按 delta = 钉位新位 − 纯布局位 平移），故根钉位走锚点跟随即可让整棵子树随人物。
+			# 非根钉位（玩家拖动中间节点）仍走此处：其可见后代已在拖拽中随根平移、prev_center=拖末位，
+			# 刚性保留即等于跟随；隐藏后代极少见，沿用旧行为。
+			if not parent_of.has(pin_s): continue
 			var stack: Array = [pin_s]
 			while stack.size() > 0:
 				var u: String = stack.pop_back()
@@ -406,6 +464,9 @@ func _should_auto_balance(nodes: Array) -> bool:
 			break
 	if main_root == "":
 		main_root = str(nodes[0].id)
+	# 注：兄弟链自动左右平衡不再在此处（_should_auto_balance 须尊重显式 _balanced_layout=false 的
+	# 关闭开关，由 test_balanced_layout G 验证）。多兄弟自动平衡的触发改在 _compute_layout 调度层
+	# 自动置 _balanced_layout=true（见下方注释），以人物直接子 ≥2 为判定，且不覆盖显式关闭。
 	if not child_map.has(main_root):
 		return false
 	var est_h := {}
@@ -671,7 +732,11 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		for nid in ty.keys():
 			if str(nid) == str(r):
 				continue
-			out[nid] = Vector2(col_x.get(depth_of.get(nid, 0), 0.0), ry + (ty[nid] - root_y0))
+			# X 相对根（2026-09-18 修复）：根被钉位（rx=锚点.x）时子列必须相对根偏移，
+			# 否则子树仍落在以画布中心为基准的 col_x 绝对列上——人物移走后推理链滞留原位。
+			# 未钉位时 rx==col_x[0]，与旧绝对列完全等价。
+			var _d := int(depth_of.get(nid, 0))
+			out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
 		cur_y += (rg[1] - rg[0]) + subtree_sep
 	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
 	for mid2 in owner._manual_nodes:
@@ -761,25 +826,30 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		var cur_half: float = max_w.get(d, 150.0) * 0.5
 		col_off[d] = float(col_off[d - 1]) + prev_half + level_sep + cur_half
 
-	# 主中心根 = 首个人物根（无人物则首个根）：仅它做左右平衡分派，其余根沿用右向堆叠
-	var main_root: String = ""
+	# 左右分派（2026-09-18 扩展：**每个人物根**都做左右平衡分派——思傅报「多个兄弟推理链
+	# 全挤一侧，不是左右排列」；旧实现只平衡首个主根、其余根整棵右向堆叠）。
+	# 玩家手动换侧覆盖（_subtree_sides）优先：即使该人物仅 1 条直接结论分支，也要走 _assign_balanced_sides
+	# 以应用显式 L/R 覆盖（test_balanced_layout E 验证）；非人物根保持整棵右向（n=1 全右手感不变）。
+	var sides: Dictionary = {}
+	var root_groups := {}   # root_id(str) -> {"L": Array, "R": Array}
 	for r in roots:
-		if owner._fold._kind_of(r) == "person":
-			main_root = str(r)
-			break
-	if main_root == "" and roots.size() > 0:
-		main_root = str(roots[0])
-
-	# 左右分派（玩家覆盖优先 + 按茂盛度平衡划分）
-	var sides: Dictionary = _assign_balanced_sides(main_root, child_map)
-	owner._last_layout_sides = sides.duplicate()
-	var left_group := []
-	var right_group := []
-	for c in _ordered_children(main_root, child_map):
-		if str(sides.get(str(c), "R")) == "L":
-			left_group.append(c)
+		var rs := str(r)
+		var kids_all: Array = _ordered_children(rs, child_map)
+		if owner._fold._kind_of(rs) == "person":
+			var s_r: Dictionary = _assign_balanced_sides(rs, child_map)
+			for k in s_r:
+				sides[k] = s_r[k]
+			var gl := []
+			var gr := []
+			for c in kids_all:
+				if str(s_r.get(str(c), "R")) == "L":
+					gl.append(c)
+				else:
+					gr.append(c)
+			root_groups[rs] = {"L": gl, "R": gr}
 		else:
-			right_group.append(c)
+			root_groups[rs] = {"L": [], "R": kids_all}
+	owner._last_layout_sides = sides.duplicate()
 
 	# 根排序（与默认布局同口径）
 	var kind_rank := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3}
@@ -798,14 +868,18 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 	var total_h: float = 0.0
 	for r in roots:
 		var parts := {}
-		if str(r) == main_root:
+		var grp: Dictionary = root_groups.get(str(r), {"L": [], "R": []})
+		var gl2: Array = grp.get("L", [])
+		var gr2: Array = grp.get("R", [])
+		if not gl2.is_empty():
 			var cm_l: Dictionary = child_map.duplicate()
-			var cm_r: Dictionary = child_map.duplicate()
-			cm_l[main_root] = left_group
-			cm_r[main_root] = right_group
+			cm_l[str(r)] = gl2
 			parts["L"] = _pack_contour(str(r), cm_l, depth_of, est_h, node_by_id)
+		if not gr2.is_empty():
+			var cm_r: Dictionary = child_map.duplicate()
+			cm_r[str(r)] = gr2
 			parts["R"] = _pack_contour(str(r), cm_r, depth_of, est_h, node_by_id)
-		else:
+		if parts.is_empty():
 			parts["R"] = _pack_contour(str(r), child_map, depth_of, est_h, node_by_id)
 		root_contours[r] = parts
 		var gmin: float = 1e18
