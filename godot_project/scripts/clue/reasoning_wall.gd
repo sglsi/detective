@@ -147,6 +147,11 @@ var _notebook_vb: VBoxContainer = null
 # 设计依据：docs/02_核心设计/06_推理墙运行机制.md §2.2 双交互模式（自由连线模式）
 var _relations: Array = []
 var _connect_mode: bool = false               # 自由连线模式开关（顶栏按钮已移除，机制保留）
+# 顶栏「连线开/关」「人物星型」按钮已从 UI 移除，但同步守卫仍引用这两个变量。
+# 重新声明为 null，使 wall_relations.gd 的 owner._connect_btn/owner._mode_c_btn 引用合法（解析不再报错），
+# 所有引用处均有 is_instance_valid 守卫 → 变量为 null 时整体 no-op，行为等价于「按钮不存在」。
+var _connect_btn: Button = null
+var _mode_c_btn: Button = null
 var _rel_layer: Control = null                # 关系连线绘制层（全屏覆盖，不拦截输入）
 var _hypo_nodes: Dictionary = {}              # 假设节点 id -> Control（用于连线命中与绘制）
 var _dragging_link: bool = false
