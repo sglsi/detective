@@ -94,9 +94,10 @@ func _check_connectivity(retry: int = 1) -> void:
 		return
 	
 	# 超时探测：5s 内无回调（如后端刚启动）则再探测一次，仍失败才判离线。
-	# 用闭包捕获 http/retry（非 .bind 信号连接，避免 "Cannot convert argument" 转换错误）。
+	# 用 WeakRef 捕获 http（非直接捕获对象），避免 http 被释放后定时器触发时以「已释放捕获对象」调用 lambda 而报错。
 	var t = get_tree().create_timer(5.0)
-	t.timeout.connect(func(): _on_health_timeout(http, retry))
+	var _http_ref = weakref(http)
+	t.timeout.connect(func(): _on_health_timeout(_http_ref.get_ref(), retry))
 
 func _on_health_check(result: int, code: int, headers: PackedStringArray, body: PackedByteArray, http: HTTPRequest) -> void:
 	http.set_meta("checked", true)
@@ -241,21 +242,29 @@ func _wait_for_response(http: HTTPRequest) -> Dictionary:
 	var completed := false
 	var response := {}
 
-	# 超时定时器：与 request_completed 竞速，先到者生效
+	# 超时定时器：与 request_completed 竞速，先到者生效。
+	# 关键：lambda 通过 WeakRef 持有 http，避免 http 被释放后定时器触发时以「已释放捕获对象」调用
+	# lambda 而报错（headless 下会让整个启动中止，所有 SceneTree 测试无法运行）。
 	var timer = get_tree().create_timer(request_timeout)
-	timer.timeout.connect(func():
+	var http_ref = weakref(http)
+	var _on_timeout = func():
 		if completed:
 			return
 		completed = true
 		response = {"error": true, "message": "请求超时"}
-		http.cancel_request()
-	)
+		var h = http_ref.get_ref()
+		if h != null and is_instance_valid(h):
+			h.cancel_request()
+	timer.timeout.connect(_on_timeout)
 
 	var args = await http.request_completed
 	if not completed:
 		completed = true
 		response = _parse_response(args[0], args[1], args[3])
 
+	# 请求已结束（成功/失败/错误）→ 断开超时定时器信号，避免其在 http 释放后触发。
+	if is_instance_valid(timer):
+		timer.timeout.disconnect(_on_timeout)
 	http.queue_free()
 	active_requests -= 1
 	return response

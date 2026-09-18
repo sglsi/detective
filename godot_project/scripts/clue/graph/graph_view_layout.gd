@@ -566,10 +566,13 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	if roots.is_empty() and not nodes.is_empty():
 		roots = [nodes[0].id]
 
-	# 估算高度（测量前置治本 · XMind 式尺寸单一事实来源 · 2026-09-08）：
-	# 布局消费 _make_node 真实 size.y（视图已建则直接读、否则临时 Label 同口径即时测量），
-	# 不再套 _KIND_MIN_H 过度保守兜底（线索 200），消除兄弟线索 3~4 倍多余空隙（proposal §0.6/§8.5）。
-	# 旧 _est_node_h + _kind_min_h 双估算安全网已弃用（函数保留供碰撞去重叠兜底复用）。
+	# 链路亲和重排：每父节点直接子按「同链相邻」原则排序（_ordered_children），
+	# 使 tidy-Y 纵向铺开时同链分支在垂直序中相邻（A2 要求）；与提交版轮廓打包前同序处理一致。
+	for _p in child_map.keys():
+		child_map[_p] = _ordered_children(str(_p), child_map)
+
+	# 估算高度（测量前置治本 · 2026-09-08）：布局消费真实渲染高，不再套 _KIND_MIN_H 过度保守兜底；
+	# X=深度列（右向轴）仍按真实宽自适应列距。
 	var est_h := {}
 	var node_by_id := {}
 	for nd in nodes:
@@ -597,11 +600,9 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	for d in depth_of.values():
 		max_depth = maxi(max_depth, d)
 
-	# 列 x：col_x[d] = col_x[d-1] + 上一列最大节点全宽 + levelSep
-	# （保证父右缘 + 间隙 ≤ 子左缘，列间空带供流向连线通过，不穿框）
+	# X = 深度列（右向轴）：col_x[d] = col_x[d-1] + 上一列最大节点全宽 + levelSep
 	var width_of := {}
 	for nd in nodes:
-		# 测量前置（2026-09-08）：布局消费真实渲染宽，避免估算宽偏小导致列距不足、左右贴在一起。
 		width_of[nd.id] = _view_width(nd.id)
 	var max_w := {}
 	for id in depth_of:
@@ -609,20 +610,23 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		var w: float = width_of.get(id, 150.0)
 		if not max_w.has(d) or w > max_w[d]:
 			max_w[d] = w
-	var level_sep: float = 120.0   # 列间水平间隙（父右缘→子左缘的流向连线空间）；2026-09-08 由 64→120 解决「左右挤在一起」
+	var level_sep: float = 120.0   # 列间水平间隙（父右缘→子左缘的流向连线空间）
 	var col_x := {}
-	# 人物(根)锚定画布水平中心：推理墙以人物为中心节点，主推导树向右展开（右向=父子结构）；
-	# 左侧预留镜像空间（若人物有父级上下文/同级衍生，则走子父结构·美学4 镜像对称）。
-	# 不再整体居中整树（那会把人物推到左三分之一，破坏「以人物为中心节点、右侧父子/左侧子父」的四条美学要求之一）。
 	col_x[0] = center.x
-	# 列距按「父列半宽 + level_sep + 子列半宽」：保证任意父右缘与子左缘之间恒留 level_sep 间隙，
-	# 不受个别节点（如超宽线索）影响，列间空带稳定供流向连线通过（不穿框/不交叉）。
 	for d in range(1, max_depth + 1):
 		var prev_half: float = max_w.get(d - 1, 150.0) * 0.5
 		var cur_half: float = max_w.get(d, 150.0) * 0.5
 		col_x[d] = col_x[d - 1] + prev_half + level_sep + cur_half
 
-	# 根排序：人物优先（各居独立水平带）；其余按 kind 顺序聚类（同 kind 相邻成带，亲近分组）
+	# Y = tidy 纵向 slot（2026-09-18 根治「加链重排深U」）：同 depth 列的兄弟按 tidy slot
+	# 垂直铺开、父居中于子中点；取代原 BuchheimWalker 轮廓打包（按子树高堆叠会把同深度兄弟
+	# 堆成一根长柱，连边被拉成长U）。slot 间距有界 → 任何连边纵向跨度有界 → 深U 物理消失。
+	var max_h: float = 140.0
+	for nd in nodes:
+		max_h = maxf(max_h, est_h[nd.id])
+	var ROW_STEP: float = max_h + _CONTOUR_SEP
+
+	# 根排序：人物优先；其余按 kind 顺序聚类（同 kind 相邻成带，亲近分组）
 	var kind_rank := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3}
 	roots.sort_custom(func(a, b):
 		var ra: int = kind_rank.get(owner._fold._kind_of(a), 3)
@@ -631,50 +635,44 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 			return ra < rb
 		return str(a) < str(b))
 
-	# 各根水平带垂直堆叠（多人物各占一独立水平带）。先用 BuchheimWalker 轮廓打包算每根
-	# 实际高度（轮廓法紧凑打包，大子树不再独占整条垂直带），再森林垂直居中、自上而下铺开。
+	# 各根水平带垂直堆叠（多人物各占一独立水平带）。先算每根 tidy-Y 跨度，再森林垂直居中、自上而下铺开。
 	var subtree_sep: float = 40.0   # 根带间垂直间隙（亲近分组：异人物/异组留少量空）
-	# 预打包：算每根打包高度（轮廓法）
-	var root_contours := {}
-	var root_packed_h := {}
+	var root_tidy := {}
+	var root_range := {}
 	var total_h: float = 0.0
 	_aff_adj_dirty = true   # 链路亲和邻接缓存：单次布局内复用，跨次布局重建（relations 可能已变）
 	for r in roots:
-		var sub: Dictionary = _pack_contour(r, child_map, depth_of, est_h, node_by_id)
-		root_contours[r] = sub
-		# 打包高度 = 全部深度轮廓的「全局最大下沿 − 全局最小上沿」（非各深度跨度的最大值）。
-		# 不同深度的节点处于不同 y，取各深度跨度最大值会严重低估整树垂直高度，
-		# 导致森林根带堆叠过近、跨根节点重叠（G3 回归：C4↔C5）。
+		var ty: Dictionary = _tidy_y(str(r), child_map, ROW_STEP)
+		root_tidy[r] = ty
 		var gmin: float = 1e18
 		var gmax: float = -1e18
-		for rd in sub["contour"].keys():
-			gmin = minf(gmin, sub["contour"][rd][0])
-			gmax = maxf(gmax, sub["contour"][rd][1])
-		var ph: float = gmax - gmin
-		root_packed_h[r] = ph
-		total_h += ph + subtree_sep
+		for nid in ty.keys():
+			gmin = minf(gmin, ty[nid])
+			gmax = maxf(gmax, ty[nid])
+		root_range[r] = [gmin, gmax]
+		total_h += (gmax - gmin) + subtree_sep
 	total_h = maxf(0.0, total_h - subtree_sep)
 	var start_y: float = center.y - total_h * 0.5
 	var cur_y: float = start_y
 	for r in roots:
-		var sub: Dictionary = root_contours[r]
-		var ph: float = root_packed_h[r]
-		# 子树顶对齐到 cur_y：根节点 y = cur_y - 整树最上沿（contour 相对根中心，min 为最上沿）
-		var min_c: float = 0.0
-		for rd in sub["contour"].keys():
-			min_c = minf(min_c, sub["contour"][rd][0])
+		var ty: Dictionary = root_tidy[r]
+		var rg: Array = root_range[r]
+		var min_c: float = rg[0]
 		var sv: Variant = saved_pos.get(r, null)
 		var rx: float = col_x[0]
 		var ry: float = cur_y - min_c
 		if sv is Vector2:
 			rx = sv.x
 			ry = sv.y
+		# 根置于 ry（带顶锚点）；子节点相对 y 减去根自身 tidy-y（ty[root] 为子群中点），
+		# 使根居中于子群（XMind 局部对称 · 美学3），而非落在带顶。
+		var root_y0: float = ty.get(str(r), 0.0)
 		out[r] = Vector2(rx, ry)
-		for nid in sub["rel"].keys():
-			var d: float = sub["rel"][nid]
-			out[nid] = Vector2(col_x.get(depth_of.get(nid, 0), 0.0), ry + d)
-		cur_y += ph + subtree_sep
-
+		for nid in ty.keys():
+			if str(nid) == str(r):
+				continue
+			out[nid] = Vector2(col_x.get(depth_of.get(nid, 0), 0.0), ry + (ty[nid] - root_y0))
+		cur_y += (rg[1] - rg[0]) + subtree_sep
 	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
 	for mid2 in owner._manual_nodes:
 		var sv3: Variant = saved_pos.get(mid2, null)
@@ -1009,9 +1007,9 @@ func _pack_contour(u: String, child_map: Dictionary, depth_of: Dictionary, est_h
 	var kids: Array = _ordered_children(u, child_map)
 	var rel := {}
 	rel[u] = 0.0
+	var h_u: float = est_h.get(u, 140.0)
 	if kids.is_empty():
-		var h: float = est_h.get(u, 140.0)
-		return {"contour": {0: [-h * 0.5, h * 0.5]}, "rel": rel}
+		return {"contour": {0: [-h_u * 0.5, h_u * 0.5]}, "rel": rel}
 	var merged := {}
 	var sub_list := []
 	var ky_list := []
@@ -1078,6 +1076,31 @@ func _pack_contour(u: String, child_map: Dictionary, depth_of: Dictionary, est_h
 			else:
 				contour[abs_rd] = [minf(contour[abs_rd][0], lo), maxf(contour[abs_rd][1], hi)]
 	return {"contour": contour, "rel": rel}
+
+
+
+## tidy-tree 纵向 slot 定位（2026-09-18 配套 _logic_tree_layout 根治深U）：
+## 与 _tidy_x 对称——叶子顺序占位、内部节点取子节点 Y 中点（父居中于子），
+## 但沿 Y 轴铺开（而非 X）。配合 _logic_tree_layout 的 X=深度列（右向轴），
+## 兄弟在同一 depth 列内按有界 slot 垂直铺开，取代原轮廓打包，根除深U。
+func _tidy_y(root: String, child_map: Dictionary, slot: float) -> Dictionary:
+	var res := {}
+	var cursor := [0.0]
+	_tidy_assign_y(str(root), child_map, slot, cursor, res)
+	return res
+
+func _tidy_assign_y(u: String, child_map: Dictionary, slot: float, cursor: Array, res: Dictionary) -> void:
+	var kids: Array = child_map.get(u, [])
+	if kids.is_empty():
+		res[u] = cursor[0]
+		cursor[0] += slot
+		return
+	var ys := []
+	for c in kids:
+		_tidy_assign_y(str(c), child_map, slot, cursor, res)
+		ys.append(res.get(str(c), 0.0))
+	res[u] = (ys[0] + ys[ys.size() - 1]) * 0.5
+
 
 
 ## ===================== 链路亲和排序（2026-09-17 · 思傅「同链相邻」原则） =====================

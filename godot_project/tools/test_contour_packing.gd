@@ -1,11 +1,13 @@
 extends SceneTree
-## G3 回归测试：BuchheimWalker 轮廓打包（取代旧列式 2-pass _resolve_and_recenter）。
-## 复用 test_logic_layout 已验证零重叠/右向/多人物的结构（P1 分支+C4 叶子兄弟+H1→CL1；P2 单叶），
-## 额外断言 G3 核心性质：
-##   ② 父居中于「直接子」首尾 y 中点（XMind 局部对称，G3 核心；非整棵子树质心）
-##   ③ 分支子树 + 叶子兄弟紧凑：叶子兄弟 C4 紧邻分支子树 C1（间距有界≈一卡高+轮廓间隙），
-##      不被 C1 的深层子树拖出大垂直带（轮廓法在布局阶段即保证紧凑，无需事后修正）
-## ① 右向流 / ④ 零重叠 / ⑤ 多人物分离 与 test_logic_layout 同口径，作为回归护栏。
+## 默认逻辑图布局（_logic_tree_layout）回归测试。
+## 2026-09-18 深U 根治后，该布局 Y 分配由「BuchheimWalker 轮廓打包」改为「tidy-tree 纵向 slot」
+## （X=深度列右向轴，Y=叶子顺序占位、父居中于子中点；取代原轮廓打包，根除加链重排深U）。
+## 复用 test_logic_layout 结构（P1 分支+C4 叶子兄弟+H1→CL1；P2 单叶），断言核心不变式：
+##   ① 右向流：每条边父在左（X 深度列）
+##   ② 父居中于「直接子」首尾 y 中点（XMind 局部对称；P1 直接子=C1,C4）
+##   ③ 叶子兄弟 C4 紧凑：紧邻分支子树 C1，间距有界（≈1 个 slot，≤2·ROW_STEP），不被深层子树拖出大垂直带（无深U）
+##   ④ 零重叠 / ⑤ 多人物垂直分离（与 test_logic_layout 同口径）
+## 注：原轮廓打包的「≤280 紧凑」阈值已不适用 tidy-slot 模型（slot=max_h+sep≈220），改用有界 slot 间距守卫。
 
 var _ok := true
 var _log := []
@@ -64,6 +66,12 @@ func _initialize() -> void:
 	var out := {}
 	gv._layout._logic_tree_layout(nodes, center, {}, out)
 
+	# tidy-Y slot 步长（与 _logic_tree_layout 同口径：ROW_STEP = max_h + _CONTOUR_SEP）
+	var _max_h: float = 140.0
+	for id in KIND:
+		_max_h = maxf(_max_h, gv._layout._real_node_height(id, {"id": id, "kind": KIND[id], "label": LABEL[id]}))
+	var _ROW_STEP: float = _max_h + gv._layout._CONTOUR_SEP
+
 	# ① 右向流：每条边 父在左
 	for r in REL:
 		var par: String = r.get("to", "")
@@ -76,9 +84,11 @@ func _initialize() -> void:
 	var _midC1C4: float = (out["C1"].y + out["C4"].y) * 0.5
 	_chk(abs(out["P1"].y - _midC1C4) < 1.0, "P1 居中于直接子首尾[C1,C4]中点 P1.y=%.0f≈%.0f" % [out["P1"].y, _midC1C4])
 
-	# ③ 叶子兄弟 C4 紧凑：紧邻分支子树 C1（间距有界≈一卡高+轮廓间隙），不被深层子树拖出大垂直带
+	# ③ 叶子兄弟 C4 紧凑：紧邻分支子树 C1，间距有界（tidy-Y 中 C4 在 C1 子树之后占一个 slot，
+	#    即 gap≈1~1.5·ROW_STEP）；深U 回归会把 gap 拉到数十个 slot（>2·ROW_STEP），故以此为护栏。
 	_chk(out["C4"].y > out["C1"].y, "C4 在 C1 之下 C4.y=%.0f > %.0f" % [out["C4"].y, out["C1"].y])
-	_chk(out["C4"].y <= out["C1"].y + 280.0, "C4 紧凑(距 C1 顶层≤280) C4.y=%.0f ≤ %.0f" % [out["C4"].y, out["C1"].y + 280.0])
+	_chk(out["C4"].y <= out["C1"].y + 2.0 * _ROW_STEP,
+		"C4 紧凑(距 C1 ≤2·ROW_STEP=%.0f) C4.y=%.0f ≤ %.0f" % [2.0 * _ROW_STEP, out["C4"].y, out["C1"].y + 2.0 * _ROW_STEP])
 
 	# ④ 零重叠（与 test_logic_layout 同口径：真实高度模型 + grow 4）
 	# 2026-09-08 同步为真实高度模型（测量前置治本）：旧 _est_node_h 高估结论卡至 ~124px，

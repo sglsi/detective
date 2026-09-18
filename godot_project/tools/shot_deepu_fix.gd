@@ -18,6 +18,7 @@ func _initialize() -> void:
 	var gv = load("res://scripts/clue/graph_view_controller.gd").new()
 	sv.add_child(gv)
 	await process_frame
+	gv._balanced_layout = true   # 强制用 tidy-tree 平衡布局（根除深U）
 	gv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var data := {
