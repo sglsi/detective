@@ -719,9 +719,9 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	# 奇数组整列镜像放左侧（依次左移，深度轴向左呈「叶-枝-干-根」），各列内部仍 tidy-Y 垂直居中。
 	# 预算门控：总高 ≤ 预算恒单组，行为与旧版完全一致（全部布局回归夹具不受影响）。
 	# （_canvas 可能未就绪——隔离单元测试直调布局时为 Nil，此时用预算下限）
-	var wrap_h: float = 2200.0
+	var wrap_h: float = 1200.0
 	if owner._canvas != null and is_instance_valid(owner._canvas):
-		wrap_h = maxf(wrap_h, owner._canvas.size.y * 1.6)
+		wrap_h = maxf(wrap_h, owner._canvas.size.y * 0.7)
 	var col_gap: float = 160.0   # 列间水平间隙
 	# 每根水平带占宽：最深列偏移 + 深列半宽 + 根列半宽（镜像左带同口径向左延伸）
 	var band_w := {}
@@ -919,9 +919,9 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 	# （_balanced_side_packs），第 j 包放到该侧第 j 个外侧列（X 沿分侧方向依次外移）——
 	# 大墙一侧不再拉成超长竖列。预算内恒单包（off=0），行为与旧版完全一致。
 	var subtree_sep: float = 40.0
-	var wrap_h: float = 2200.0
+	var wrap_h: float = 1200.0
 	if owner._canvas != null and is_instance_valid(owner._canvas):
-		wrap_h = maxf(wrap_h, owner._canvas.size.y * 1.6)
+		wrap_h = maxf(wrap_h, owner._canvas.size.y * 0.7)
 	var col_gap: float = 160.0
 	_aff_adj_dirty = true   # 链路亲和邻接缓存：单次布局内复用，跨次布局重建（relations 可能已变）
 	var root_contours := {}

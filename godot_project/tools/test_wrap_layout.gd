@@ -1,6 +1,6 @@
 extends SceneTree
 ## 森林多列分散布局验证（2026-09-18 思傅需求3「推理链不要只排一条竖列，向左右分散」）：
-##   段A 大森林（多条独立推理链、无人物根，总高超预算 2200）→ 根带按高度贪心分组横向多列：
+##   段A 大森林（多条独立推理链、无人物根，总高超预算 1200）→ 根带按高度贪心分组横向多列：
 ##      A1) X 跨度显著超过单树宽（发生横向分散）
 ##      A2) 存在根列左侧镜像列（min_x 明显小于画布中心）
 ##      A3) 右列 support 边父.x < 子.x；镜像左列父.x > 子.x（镜像流）
@@ -114,8 +114,8 @@ func _initialize() -> void:
 	_chk(n_right >= 1 and n_left >= 1, "A3 左右两侧均有分布（右%d 链 / 左%d 链）" % [n_right, n_left])
 	_overlap_check(gv, out, big["KIND"], big["LABEL"])
 
-	# ---- 段B：小森林（2 条链，总高低于预算）行为不变 ----
-	var small := _build_forest(2)
+	# ---- 段B：小森林（1 条链，总高低于预算 1200）行为不变：单根列、右向流、无左镜像列 ----
+	var small := _build_forest(1)
 	var nodes2 := []
 	for id in small["KIND"]:
 		nodes2.append({"id": id, "kind": small["KIND"][id], "label": small["LABEL"][id]})

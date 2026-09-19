@@ -474,8 +474,13 @@ func _show_edge_menu(viewport_pos: Vector2, e: Dictionary) -> void:
 	owner._edge_menu = panel
 
 
-## 在 owner 上挂载一个悬停子菜单：鼠标移入 trigger 即展开 options 列表，移出后延迟隐藏；
-## 选中某选项执行 on_pick(value)，并收起子菜单。子菜单由 _close_edge_menu 统一释放。
+## 在 owner 上挂载一个悬停子菜单：鼠标移入 trigger 即展开 options 列表；鼠标停留在 trigger /
+## 子菜单 / 任一选项按钮上时为「悬停态」，移出整片区域 0.2s 后才隐藏；选中某选项执行
+## on_pick 并收起。子菜单由 _close_edge_menu 统一释放。
+## 关键修复（思傅报「移到悬停按钮就又自动隐藏、无法选择」）：选项按钮会拦截鼠标，使子菜单容器
+## 收到 mouse_exited 并误判离开 → 旧实现仅 keep 了 trigger/sub 的 mouse_entered，选项按钮的
+## mouse_entered 未纳入保持范围，计时器到点即隐藏。现把**选项按钮也纳入悬停态保持范围**
+## （mouse_entered 即 keep），移出整片区域（含所有按钮）才延时隐藏，可正常选择。
 func _add_hover_menu(panel: Control, trigger: Button, options: Array, on_pick: Callable) -> void:
 	var sub := PanelContainer.new()
 	var vb := VBoxContainer.new()
@@ -495,11 +500,8 @@ func _add_hover_menu(panel: Control, trigger: Button, options: Array, on_pick: C
 	owner._edge_menu_subs.append(sub)
 	var hovering := false
 	var place := func() -> void:
-		# 2026-09-18 修复（思傅报「下级选项展开在屏幕左上角点不到」）：旧实现把触发按钮全局矩形
-		# 换算到 panel 局部坐标后直接赋给 sub.position，而 sub 的父是 owner（与 panel 同级）——
-		# 坐标系张冠李戴 → 子菜单落在 owner 原点附近（屏幕左上角）。
-		# 新实现：以触发按钮全局矩形为锚（右侧放不下则正下方），钳制在视口内，再经 owner 逆
-		# 变换转 sub 本地坐标，保证子菜单紧临触发项展开。
+		# 以触发按钮全局矩形为锚（右侧放不下则正下方），钳制在视口内，再经 owner 逆变换转
+		# sub 本地坐标，保证子菜单紧临触发项展开（不落在屏幕左上角）。
 		var gr := trigger.get_global_rect()
 		var vp := owner.get_viewport_rect()
 		var p := gr.position + Vector2(gr.size.x + 4.0, 0.0)
@@ -508,16 +510,25 @@ func _add_hover_menu(panel: Control, trigger: Button, options: Array, on_pick: C
 		p.x = clampf(p.x, 8.0, maxf(8.0, vp.end.x - 172.0))
 		p.y = clampf(p.y, 8.0, maxf(8.0, vp.end.y - 150.0))
 		sub.position = owner.get_global_transform().affine_inverse() * p
-	trigger.mouse_entered.connect(func() -> void: place.call(); hovering = true; sub.visible = true)
-	trigger.mouse_exited.connect(func() -> void:
+	# 进入区域（trigger / 子菜单 / 任一选项按钮）→ 保持显示并重定位。
+	var keep := func() -> void:
+		hovering = true
+		place.call()
+		sub.visible = true
+	# 离开区域 → 0.2s 后若仍不在区域内才隐藏（留有跨间隙/跨按钮的移动余地）。
+	var schedule_hide := func() -> void:
 		hovering = false
-		owner.get_tree().create_timer(0.15).timeout.connect(func() -> void:
-			if not hovering: sub.visible = false))
-	sub.mouse_entered.connect(func() -> void: hovering = true)
-	sub.mouse_exited.connect(func() -> void:
-		hovering = false
-		owner.get_tree().create_timer(0.15).timeout.connect(func() -> void:
-			if not hovering: sub.visible = false))
+		var t := owner.get_tree().create_timer(0.2)
+		t.timeout.connect(func() -> void:
+			if not hovering:
+				sub.visible = false)
+	trigger.mouse_entered.connect(keep)
+	trigger.mouse_exited.connect(schedule_hide)
+	sub.mouse_entered.connect(keep)
+	sub.mouse_exited.connect(schedule_hide)
+	for ob in vb.get_children():   # 选项按钮拦截鼠标会触发 sub.mouse_exited，须纳入保持范围
+		ob.mouse_entered.connect(keep)
+		ob.mouse_exited.connect(schedule_hide)
 
 
 func _mk_menu_btn(txt: String) -> Button:
