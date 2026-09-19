@@ -895,7 +895,8 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 					var _d := int(depth_of.get(nid, 0))
 					out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
 				cury += (rg[1] - rg[0]) + subtree_sep
-			cur_x += col_widths[ci] + col_gap
+			# 两列无根链之间也遵循「160 + 无根链半宽」规则，与「树最右沿→首列」间隔一致（思傅 2026-09-19）
+			cur_x += col_widths[ci] + col_gap + loose_max_w * 0.5
 	else:
 		# ===== 旧版行为（≤6 叶 / 无无根链）：全部根单主列垂直堆叠、整体垂直居中 =====
 		var start_y: float = center.y - total_h * 0.5
@@ -1230,7 +1231,8 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 						var d2: int = int(depth_of.get(nid, 0))
 						out[nid] = Vector2(rx + dirv * float(col_off.get(d2, 0.0)), ry + float(rel[nid]))
 				cury += ph2 + subtree_sep
-			cur_x += col_widths[ci] + col_gap
+			# 两列无根链之间也遵循「160 + 无根链半宽」规则，与「树最右沿→首列」间隔一致（思傅 2026-09-19）
+			cur_x += col_widths[ci] + col_gap + loose_max_w * 0.5
 	elif do_loose_forest:
 		# 纯无根森林自身多列铺开（无树可搬）：按每列 ≤6 叶目标切 ncols 列、顺序切块、整体水平居中
 		var col_gap: float = 160.0
