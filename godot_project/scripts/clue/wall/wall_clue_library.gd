@@ -7,6 +7,8 @@ class_name WallClueLibrary
 ## 线索详情弹窗（属性/可信度/放入对比台/关联操作）、关联切换、顶部过滤下拉。
 ## 读取/回写 owner（ReasoningWall）状态；常量与枚举归墙经 owner. / ReasoningWall. 引用。
 
+const DETAIL_CARD := preload("res://scripts/ui/detail_card.gd")  # 统一详情卡框架（暗棕底+金边圆角）
+
 var owner: ReasoningWall
 
 # ===================== 基础按钮（左栏过滤器 / 统一动作按钮） =====================
@@ -190,19 +192,12 @@ func _on_search_changed(_txt: String) -> void:
 func _show_clue_detail(clue: Dictionary) -> void:
 	if owner._detail_popup and is_instance_valid(owner._detail_popup):
 		owner._detail_popup.queue_free()
+		owner._detail_popup = null
 
-	owner._detail_popup = AcceptDialog.new()
-	owner._detail_popup.title = "线索详情"
-	owner._detail_popup.min_size = Vector2(440, 320)
-	owner._detail_popup.exclusive = true
-	owner._detail_popup.get_ok_button().add_theme_font_size_override("font_size", 20)
-	# 隐藏默认底部「确定」按钮：改用右上角 ✕ 关闭（思傅 2026-09-19 需求）
-	owner._detail_popup.get_ok_button().visible = false
-	owner._detail_popup.canceled.connect(func():
-		if is_instance_valid(owner._detail_popup): owner._detail_popup.hide())
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
+	# 统一详情卡框架（与图谱节点详情卡视觉一致）：暗棕底+金边圆角、顶栏含 ✕ 与拖拽手柄
+	var d: Dictionary = DETAIL_CARD.build("线索详情", func(): _close_clue_detail(), Vector2(480, 440))
+	var popup: PanelContainer = d.card
+	var vb: VBoxContainer = d.body
 
 	var name_lbl := Label.new()
 	name_lbl.text = clue.get("name", clue.get("label", clue.get("id", "")))
@@ -249,8 +244,7 @@ func _show_clue_detail(clue: Dictionary) -> void:
 	to_desk.add_theme_color_override("font_color", owner.COL_GOLD)
 	to_desk.pressed.connect(func():
 		owner._cmp_ctl._load_comparison(clue["id"])
-		owner._detail_popup.hide()
-	)
+		_close_clue_detail())
 	desk_row.add_child(to_desk)
 	vb.add_child(desk_row)
 
@@ -259,62 +253,34 @@ func _show_clue_detail(clue: Dictionary) -> void:
 	var is_assoc: bool = clue.get("associated", false)
 	assoc_btn.text = "取消关联" if is_assoc else "→ 关联到假设面板"
 	assoc_btn.pressed.connect(func():
-		owner._detail_popup.hide()
+		_close_clue_detail()
 		_toggle_association(clue["id"])
 	)
 	btn_row.add_child(assoc_btn)
 	vb.add_child(btn_row)
 
-	owner._detail_popup.add_child(vb)
+	# 拖拽：顶栏作为手柄（✕ 排除），复用通用 WindowDrag
+	WindowDrag.make_draggable(popup, d.title_bar, [d.close_btn])
 
-	# 右上角关闭按钮：覆盖在内容区右上角（标题栏下方），点击即关闭详情弹窗
-	var close_btn := Button.new()
-	close_btn.name = "DetailClose"
-	close_btn.text = "✕"
-	close_btn.tooltip_text = "关闭"
-	close_btn.custom_minimum_size = Vector2(34, 34)
-	close_btn.add_theme_font_size_override("font_size", 18)
-	close_btn.add_theme_color_override("font_color", Color(0.95, 0.55, 0.45))
-	var csb := StyleBoxFlat.new()
-	csb.bg_color = Color(0.30, 0.16, 0.14, 0.85)
-	csb.border_color = Color(0.85, 0.45, 0.35)
-	csb.set_corner_radius_all(5)
-	close_btn.add_theme_stylebox_override("normal", csb)
-	close_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	close_btn.offset_left = -42
-	close_btn.offset_right = -8
-	close_btn.offset_top = 6
-	close_btn.offset_bottom = 40
-	close_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	close_btn.pressed.connect(func():
-		if is_instance_valid(owner._detail_popup): owner._detail_popup.hide())
-	owner._detail_popup.add_child(close_btn)
-
-	owner.add_child(owner._detail_popup)
-	owner._detail_popup.popup_centered()
-	_make_detail_draggable(owner._detail_popup, close_btn)
+	# 屏幕居中，钳制在视口内、避开顶部功能栏（顶部留出 118px）
+	var card_size: Vector2 = popup.custom_minimum_size
+	var view_rect := owner.get_viewport().get_visible_rect()
+	owner.add_child(popup)
+	var cx := view_rect.position.x + view_rect.size.x * 0.5
+	var cy := view_rect.position.y + view_rect.size.y * 0.5
+	var x: float = clamp(cx - card_size.x * 0.5, view_rect.position.x + 8.0,
+		max(view_rect.position.x + 8.0, view_rect.position.x + view_rect.size.x - card_size.x - 8.0))
+	var y: float = clamp(cy - card_size.y * 0.5, view_rect.position.y + 118.0,
+		max(view_rect.position.y + 118.0, view_rect.position.y + view_rect.size.y - card_size.y - 8.0))
+	popup.position = Vector2(x, y)
+	owner._detail_popup = popup
 
 
-## 给线索详情 AcceptDialog 增加拖拽能力（顶部标题区作为拖拽手柄，✕ 关闭按钮不触发拖拽）。
-## 复用项目通用工具 WindowDrag（scripts/ui/window_drag.gd）；逻辑与 tool_bar._make_popup_draggable 一致。
-func _make_detail_draggable(popup: AcceptDialog, close_btn: Button) -> void:
-	if popup == null: return
-	# 等一帧让弹窗布局完成，才能正确拿到标题 Label 作排除项
-	await owner.get_tree().process_frame
-	# 拖拽手柄：覆盖内容区顶条（标题栏下方），按住即可拖动整个弹窗
-	var drag_h := Control.new()
-	drag_h.name = "PopupDragHandle"
-	drag_h.mouse_filter = Control.MOUSE_FILTER_PASS
-	drag_h.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	drag_h.offset_top = 0
-	drag_h.offset_bottom = 34
-	popup.add_child(drag_h)
-	popup.move_child(drag_h, 0)
-	var exclude: Array = [close_btn]
-	for c in popup.get_children():
-		if c is Label and c != drag_h:
-			exclude.append(c)
-	WindowDrag.make_draggable(popup, drag_h, exclude)
+## 线索详情弹窗关闭（点 ✕ 或拖拽/关联/对比台触发关闭）：释放并清空引用
+func _close_clue_detail() -> void:
+	if owner._detail_popup and is_instance_valid(owner._detail_popup):
+		owner._detail_popup.queue_free()
+	owner._detail_popup = null
 
 
 # === 关联逻辑 ===

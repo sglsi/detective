@@ -159,6 +159,7 @@ const _CARD_W := 260.0          # 统一卡片宽
 const _CARD_H := 400.0          # 统一卡片高（竖版，人物≈原170高的2.3倍）
 const _CARD_IMG_H := 180.0      # 图片区固定高（约卡片高 45%，对照预览版式 2/5~1/2）
 const _CARD_MARGIN := 12.0      # 卡片内边距
+const DETAIL_CARD := preload("res://scripts/ui/detail_card.gd")  # 统一详情卡框架（暗棕底+金边圆角）
 
 # === 节点配色（按需求：白=线索 / 灰=推断 / 原色=链&结论）===
 const COL_CLUE_BG := Color(0.72, 0.84, 0.70, 0.98)         # 线索底色（浅绿，对照华生示范）
@@ -2513,40 +2514,11 @@ func _delete_node(id: String, kind: String) -> void:
 func _show_detail(id: String, kind: String) -> void:
 	if _detail_card and is_instance_valid(_detail_card):
 		_detail_card.queue_free()
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(480, 560)
-	# 需求1：详情弹窗必须盖过左侧「已收集线索」栏（reasoning_wall 顶层 z=20）。
-	# graph_view 整树 z=5，任何子节点都无法超过左栏；故把卡挂到 graph_view 的父
-	# （reasoning_wall 顶层），并设 z=30（低于顶栏 100，顶栏仍可点）。
-	card.z_index = 30
-	# 2026-09-18（思傅需求1）：详情卡改用与顶栏按钮弹窗（候选采纳/验证窗）一致的统一游戏
-	# 主题样式——暗棕底 + 金边 + 圆角6（即 ui_theme.tres 面板默认态），不再按卡片类型取色。
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.102, 0.078, 0.063, 0.98)
-	s.border_color = COL_GOLD
-	s.border_width_left = 2; s.border_width_right = 2; s.border_width_top = 2; s.border_width_bottom = 2
-	s.set_corner_radius_all(6)
-	card.add_theme_stylebox_override("panel", s)
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 14)
-	margin.add_theme_constant_override("margin_top", 10)
-	margin.add_theme_constant_override("margin_right", 14)
-	margin.add_theme_constant_override("margin_bottom", 10)
-	card.add_child(margin)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	# 需求2修复：详情内容可能超出固定高度，用 ScrollContainer 包裹，确保完整可滚动查看
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	margin.add_child(scroll)
-	scroll.add_child(vb)
+	# 统一详情卡框架（暗棕底+金边圆角，顶栏含 ✕ 与拖拽手柄），与线索库详情弹窗视觉一致
+	var d: Dictionary = DETAIL_CARD.build(_detail_title_text(id, kind), func(): _close_detail_card())
+	var card: PanelContainer = d.card
+	var vb: VBoxContainer = d.body
 
-	var title := Label.new()
-	title.add_theme_font_size_override("font_size", 20)
-	title.add_theme_color_override("font_color", COL_GOLD)
-	vb.add_child(title)
 	var body := Label.new()
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.custom_minimum_size = Vector2(420, 120)
@@ -2557,7 +2529,6 @@ func _show_detail(id: String, kind: String) -> void:
 	match kind:
 		"clue":
 			var c: Dictionary = _node_data.get(id, {})
-			title.text = "线索：" + c.get("name", id)
 			var who := "未知"
 			var rns: Array = c.get("related_npcs", [])
 			if not rns.is_empty():
@@ -2582,7 +2553,6 @@ func _show_detail(id: String, kind: String) -> void:
 				vb.add_child(status_btn)
 		"hypo":
 			var h: Dictionary = _node_data.get(id, {})
-			title.text = "推断：" + h.get("text", id)
 			body.text = "这是你正在考虑的其中一种可能性。"
 			if _state == State.EDITABLE:
 				var chain_btn := Button.new()
@@ -2596,10 +2566,8 @@ func _show_detail(id: String, kind: String) -> void:
 				concl_btn.pressed.connect(func(): _dockctl._open_conclusion_popup(id))
 				vb.add_child(concl_btn)
 		"person":
-			title.text = "焦点人物：" + _data._person_name(id)
 			body.text = "星型中心。把线索拖到此处即可标注它和这个人的关系。"
 		"conclusion":
-			title.text = "当前结论：" + _conclusion_text(_conclusion_con_id(id))
 			body.text = "根据你关联的证据与连线实时推算。点「提交验证」可正式结案。"
 			if _state == State.EDITABLE:
 				# 通用推导入口：从结论再推下一层结论（启用 N 段推理链，解场景一阶段2/3不可达）。
@@ -2610,7 +2578,6 @@ func _show_detail(id: String, kind: String) -> void:
 				nxt_btn.pressed.connect(func(): _open_conclusion_choice(id))
 				vb.add_child(nxt_btn)
 		"chain":
-			title.text = "推理链：" + _node_data.get(id, {}).get("label", id)
 			body.text = "点此切换到推理链聚焦视图。"
 
 	# —— 编辑内容（问题2：允许玩家编辑文本框内容）——
@@ -2667,13 +2634,10 @@ func _show_detail(id: String, kind: String) -> void:
 				r.get("from", ""), r.get("to", ""), r.get("kind", "relate"), card))
 			vb.add_child(del_btn)
 
-	var close := Button.new()
-	close.text = "关闭"
-	close.add_theme_font_size_override("font_size", 15)
-	close.pressed.connect(func(): card.queue_free())
-	vb.add_child(close)
+	# 拖拽：顶栏作为手柄（✕ 排除），复用通用 WindowDrag
+	WindowDrag.make_draggable(card, d.title_bar, [d.close_btn])
 
-	# 需求4：详情窗紧邻被点击的卡片展开（不再固定到屏幕某角），并钳制在视口内、避开顶部功能栏
+	# 需求2（2026-09-19）：统一屏幕居中（不再贴节点、也不固定到某特定角），钳制在视口内、避开顶部功能栏
 	var card_size: Vector2 = card.custom_minimum_size
 	var view_rect := get_viewport().get_visible_rect()
 	var parent_node: Node = get_parent()
@@ -2682,24 +2646,15 @@ func _show_detail(id: String, kind: String) -> void:
 	else:
 		parent_node = self
 		add_child(card)
-	var anchor := Vector2(view_rect.position.x + view_rect.size.x * 0.5,
-		view_rect.position.y + view_rect.size.y * 0.5)
-	if _node_center.has(id) and parent_node is CanvasItem:
-		var node_global: Vector2 = _canvas.get_global_transform() * _node_center[id]
-		anchor = (parent_node as CanvasItem).to_local(node_global)
-	# 优先放卡片右侧，越界则翻到左侧；垂直居中并钳制在视口内（顶部留出 118px 给功能栏）
-	var x: float
-	if anchor.x + _CARD_W * 0.5 + 14.0 + card_size.x <= view_rect.position.x + view_rect.size.x:
-		x = anchor.x + _CARD_W * 0.5 + 14.0
-	else:
-		x = anchor.x - _CARD_W * 0.5 - 14.0 - card_size.x
-	x = clamp(x, view_rect.position.x + 8.0,
+	var cx := view_rect.position.x + view_rect.size.x * 0.5
+	var cy := view_rect.position.y + view_rect.size.y * 0.5
+	var x: float = clamp(cx - card_size.x * 0.5, view_rect.position.x + 8.0,
 		max(view_rect.position.x + 8.0, view_rect.position.x + view_rect.size.x - card_size.x - 8.0))
-	var y: float = clamp(anchor.y - card_size.y * 0.5,
-		view_rect.position.y + 118.0,
+	var y: float = clamp(cy - card_size.y * 0.5, view_rect.position.y + 118.0,
 		max(view_rect.position.y + 118.0, view_rect.position.y + view_rect.size.y - card_size.y - 8.0))
 	card.position = Vector2(x, y)
 	_detail_card = card
+
 
 
 ## 详情卡「删除连线」按钮回调（bind 传参，避免循环变量闭包歧义）

@@ -1,5 +1,6 @@
 extends SceneTree
-# 聚焦验证：线索详情弹窗（AcceptDialog）新增 ①右上角 ✕ 关闭按钮 ②顶部拖拽手柄。
+# 聚焦验证：线索详情弹窗（统一 DetailCard PanelContainer）新增
+#   ① 顶栏 ✕ 关闭按钮（CloseBtn）② 顶栏作为拖拽手柄（WindowDrag 已绑定 _wd_drag 元数据）③ 关闭后引用清空。
 # 不调用重量级 wall.setup()，仅手动装配 _show_clue_detail 构建期所需的最小状态。
 
 func _initialize() -> void:
@@ -26,40 +27,45 @@ func _initialize() -> void:
 	var msgs := []
 
 	wall._clue_ctl._show_clue_detail(clue)
-	await create_timer(0.2).timeout   # 等 _make_detail_draggable 的 process_frame
+	await create_timer(0.1).timeout
 
 	var popup = wall.get("_detail_popup")
 	if popup == null:
 		ok = false; msgs.append("D1_FAIL: _detail_popup 未创建")
+	elif not (popup is PanelContainer):
+		ok = false; msgs.append("D1b_FAIL: _detail_popup 应为 PanelContainer（统一详情卡框架），实际 %s" % popup.get_class())
 	else:
-		# 1) 默认底部确定按钮已隐藏（改用 ✕）
-		if popup.get_ok_button().visible:
-			ok = false; msgs.append("D2_FAIL: 默认确定按钮仍可见")
-		# 2) 右上角 ✕ 按钮存在且可隐藏弹窗
-		var close_btn: Control = null
+		# 2) 顶栏（拖拽手柄）存在
+		var title_bar: Control = null
 		for c in popup.get_children():
-			if c is Button and c.name == "DetailClose":
-				close_btn = c
-		if close_btn == null:
-			ok = false; msgs.append("D3_FAIL: 未找到右上角 ✕ 关闭按钮")
+			if c is HBoxContainer and c.name == "TitleBar":
+				title_bar = c
+		if title_bar == null:
+			ok = false; msgs.append("D2_FAIL: 未找到 TitleBar 拖拽手柄")
 		else:
-			if not close_btn.pressed.is_connected(func(): pass):
-				pass
-			# 模拟点击关闭：直接调用 hide（验证可以关闭）
-			popup.hide()
-			await create_timer(0.05).timeout
-			if popup.visible:
-				ok = false; msgs.append("D4_FAIL: 调用 hide() 后弹窗仍可见")
-		# 3) 拖拽手柄存在
-		var has_handle := false
-		for c in popup.get_children():
-			if c is Control and c.name == "PopupDragHandle":
-				has_handle = true
-		if not has_handle:
-			ok = false; msgs.append("D5_FAIL: 未创建拖拽手柄 PopupDragHandle")
+			# 3) ✕ 关闭按钮存在
+			var close_btn: Button = null
+			for c in title_bar.get_children():
+				if c is Button and c.name == "CloseBtn":
+					close_btn = c
+			if close_btn == null:
+				ok = false; msgs.append("D3_FAIL: 未找到顶栏 ✕ 关闭按钮 CloseBtn")
+			# 4) 拖拽已绑定（WindowDrag 在手柄写入 _wd_drag 元数据）
+			if not title_bar.has_meta("_wd_drag"):
+				ok = false; msgs.append("D4_FAIL: TitleBar 未绑定 WindowDrag（缺 _wd_drag 元数据）")
+		# 5) 旧的 AcceptDialog 残留不应存在
+		if popup.has_method("get_ok_button"):
+			ok = false; msgs.append("D5_FAIL: 仍残留 AcceptDialog（不应有 get_ok_button）")
+
+	# 6) 点击 ✕ 关闭后引用清空
+	if ok:
+		wall._clue_ctl._close_clue_detail()
+		await create_timer(0.05).timeout
+		if wall.get("_detail_popup") != null:
+			ok = false; msgs.append("D6_FAIL: 关闭后 _detail_popup 引用未清空")
 
 	if ok:
-		print("DETAIL_RESULT: PASS  (✕关闭按钮 + 隐藏默认确定钮 + 顶部拖拽手柄 + hide()可关闭 均通过)")
+		print("DETAIL_RESULT: PASS  (PanelContainer + TitleBar拖拽手柄 + CloseBtn + 关闭清空引用 均通过)")
 	else:
 		for m in msgs: print(m)
 		print("DETAIL_RESULT: FAIL")
