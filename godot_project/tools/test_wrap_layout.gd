@@ -1,10 +1,13 @@
 extends SceneTree
-## 无根链「叶子计数触发搬迁」布局验证（2026-09-19 思傅定案）：
-##   触发 = 最右主列叶子（整洁树叶子 + 同列无根链叶子）合计 > 6 且存在人物根与无根链
-##   → 全部无根链整体搬到「树右侧新空区域」（单列竖向堆叠，允许超高，不向左/右递归切分）。
+## 无根链「叶子计数触发分散」布局验证（2026-09-19 思傅定案）：
+##   分散对象 = 全部无根链（结论-推断-线索 / 推断-线索，单枝或多枝的「无根森林」同属此类）。
+##   两分支：
+##     · 有树（person/event 根）且主列叶子(树叶+同列无根叶) > 6 → 无根链整体搬到「树右侧新空区域」（单列竖向、允许超高、不递归切分）。
+##     · 纯无根森林（无任何人物/事件根）且叶子 > 6 → 无根链「自身多列铺开」（按每列≤6叶切 n 列、顺序切块、列间留 gap、整体水平居中）。
 ##   整洁树（person/event 根）结构完全不动、永不镜像、始终主列垂直堆叠居中。
-##   不触发（≤6 叶）/ 无人物根（无树可搬）/ 无无根链 → 全部根单主列（旧版行为）。
-##   段A 纯无根森林（8 链·无人物根）：无树可搬 → 单主列、右向流、零重叠（锁定「无树不搬迁」）
+##   不触发（≤6 叶）/ 无无根链 → 全部根单主列（旧版行为）。
+##   段A 纯无根森林（8 分支链·32 叶 >6·无人物根）：自身多列铺开、右向流、零重叠
+##   段A2 小纯无根森林（1 分支链·4 叶 ≤6）：不分散、单主列、零重叠
 ##   段B 小案（人物树 2 叶 + 1 短无根链 = 3 叶 ≤6）：单主列、不搬迁、零重叠
 ##   段C 人物整洁树独立（无无根链）：单主列、根-干-枝-叶层展、全树右向流、零重叠
 ##   段D 混合（人物树 2 叶 + 6 无根链 = 8 叶 >6）：人物树主列不动；无根链整体搬到树右侧单列（无左镜像）、零重叠
@@ -90,7 +93,7 @@ func _initialize() -> void:
 	await process_frame
 	var center := Vector2(960.0, 540.0)
 
-	# ---- 段A：纯无根森林（8 条链·无人物根）：无树可搬 → 单主列、不分散、右向流 ----
+	# ---- 段A：纯无根森林（8 条分支链·32 叶 >6·无人物根）→ 自身多列铺开 ----
 	var big := _build_forest(8)
 	var kindA := {}
 	var labelA := {}
@@ -108,19 +111,50 @@ func _initialize() -> void:
 		nodesA.append({"id": id, "kind": kindA[id], "label": labelA[id]})
 	var outA := {}
 	gv._layout._logic_tree_layout(nodesA, center, {}, outA)
-	var minA := 1e18
-	var maxA := -1e18
+	# A1: 多列 → 结论根 R0..R7 应落在 ≥2 个不同 x 列
+	var root_xs := {}
+	for i in 8:
+		root_xs[outA["R%d" % i].x] = true
+	_chk(root_xs.size() >= 2, "A1 纯无根森林 32 叶 >6 → 自身多列铺开（结论根占 %d 个 x 列 ≥2）" % root_xs.size())
+	# A2/A3: 多列整体相对画布中心水平居中（向两侧铺开）
+	var minAx := 1e18
+	var maxAx := -1e18
 	for id in outA:
-		minA = minf(minA, outA[id].x)
-		maxA = maxf(maxA, outA[id].x)
-	_chk((maxA - minA) < 1500.0, "A1 纯无根森林无树可搬 → 单主列（X 跨度 %.0f < 1500）" % (maxA - minA))
-	_chk(minA > center.x - 300.0, "A2 纯无根森林无左镜像列 min_x=%.0f" % minA)
+		minAx = minf(minAx, outA[id].x)
+		maxAx = maxf(maxAx, outA[id].x)
+	_chk(minAx < center.x - 200.0, "A2 多列向左铺开（最左 x=%.0f < 中心-200）" % minAx)
+	_chk(maxAx > center.x + 200.0, "A3 多列向右铺开（最右 x=%.0f > 中心+200）" % maxAx)
 	var flowA := true
 	for r in relA:
 		if outA[r["to"]].x >= outA[r["from"]].x:
 			flowA = false
-	_chk(flowA, "A3 纯无根森林全部 support 边右向流 父.x < 子.x")
+	_chk(flowA, "A4 纯无根森林全部 support 边右向流 父.x < 子.x")
 	_overlap_check(gv, outA, kindA, labelA)
+
+	# ---- 段A2：小纯无根森林（1 条分支链·4 叶 ≤6·无人物根）→ 不分散、单主列 ----
+	var small := _build_forest(1)
+	var kindA2 := {}
+	var labelA2 := {}
+	var relA2 := []
+	for id in small["KIND"]:
+		kindA2[id] = small["KIND"][id]
+		labelA2[id] = small["LABEL"][id]
+	relA2.append_array(small["REL"])
+	gv._graph_nodes = []
+	for id in kindA2:
+		gv._graph_nodes.append({"id": id, "kind": kindA2[id], "label": labelA2[id], "sub": "", "data": {}})
+	gv._relations = relA2.duplicate()
+	var nodesA2 := []
+	for id in kindA2:
+		nodesA2.append({"id": id, "kind": kindA2[id], "label": labelA2[id]})
+	var outA2 := {}
+	gv._layout._logic_tree_layout(nodesA2, center, {}, outA2)
+	var rootA2_xs := {}
+	for i in 1:
+		rootA2_xs[outA2["R%d" % i].x] = true
+	_chk(rootA2_xs.size() == 1, "A2-1 小纯无根森林 4 叶 ≤6 → 不分散（结论根仅 1 个 x 列）")
+	_chk(absf(outA2["R0"].x - center.x) < 1.0, "A2-2 结论根在主列 x=%.0f" % outA2["R0"].x)
+	_overlap_check(gv, outA2, kindA2, labelA2)
 
 	# ---- 段B：小案（人物树 2 叶 + 1 条短无根链 = 3 叶 ≤6）→ 单主列、不搬迁 ----
 	var kindB := {"BP": "person", "BDR0": "conclusion", "BDH0": "hypo", "BDC0": "clue"}
