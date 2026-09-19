@@ -1586,6 +1586,7 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 	var moved := gp.distance_to(_drag_start) > 8.0
 	var _side_switched := false
 	var _edge_created := false   # 本次拖动是否建立了关系（=结构性变更，须跑去重叠）
+	var _keep_x_pin := true      # 拖拽收尾是否把被拖节点钉在落点（人物关联边的非人物端不钉，见下方修订注释）
 	if moved and _state == State.EDITABLE:
 		var drop: String = _drop_node_except(gp, id)
 		if drop == "":
@@ -1621,8 +1622,35 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 				_edge_created = true
 				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
 				_nudge_away_from(id, drop)
-			# 建边/标记路径同样钉位：X 停在（推离后的）落点，后续 rebuild 不回位，子树随 X 生长
-			if _node_center.has(id):
+			# 建边/标记路径钉位（2026-09-19 思傅报「关联后人物被盖 / 中间链干右叶左」修订）：
+			# 与人物的关联边 = 结构性变更（新边改变关系树拓扑）。被拖结论若钉在落点，会与
+			# 左右平衡布局脱钩——干（结论）留在人物右侧旧落点、其叶枝被镜像派生到另一侧
+			#（症状②「干右叶左」）；且与人物构成双刚性使全局去重叠永久跳过（症状①人物被盖）。
+			# 与换侧（_try_switch_subtree_side）同口径：清被拖结论及其后代、对端旧钉位，
+			# 置 _relayout_on_edge 全量重排——新链按「以人物为中心、左=叶-枝-干-根 /
+			# 右=根-干-枝-叶」整洁归位。被拖节点是人物本身（拖人物到结论上归属）→ 保留钉位
+			#（玩家在移动人物，落点须尊重），仅清对端结论的旧钉位。
+			var _person_assoc: bool = _edge_created and (drop_kind == "person" or id_kind == "person")
+			if _person_assoc:
+				if not (id_kind in ["person", "event"]):
+					_keep_x_pin = false
+					var _rel_ids: Array = [id]
+					for _d in _layout._descendants(id):
+						_rel_ids.append(str(_d))
+					for _rid in _rel_ids:
+						var _rs := str(_rid)
+						_root_anchor_pos.erase(_rs)
+						_manual_nodes.erase(_rs)
+						_node_offsets.erase(_rs)
+				if drop != "" and not (_node_kind.get(drop, "") in ["person", "event"]):
+					_root_anchor_pos.erase(drop)
+					_manual_nodes.erase(drop)
+					_node_offsets.erase(drop)
+				_state_store["graph_root_anchors"] = _root_anchor_pos
+				_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
+				_state_store["graph_node_offsets"] = _node_offsets.duplicate()
+				_layout._relayout_on_edge = true   # 忽略拖前旧位，按新拓扑全量重排
+			elif _node_center.has(id):
 				_root_anchor_pos[id] = _node_center[id]
 				if not (id in _manual_nodes):
 					_manual_nodes.append(id)
@@ -1634,9 +1662,12 @@ func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 			#  · 问题2 拖动结论/推断后，其下属仍相对根(人物)排列而非相对本节点 → 清掉后代手动位后，
 			#    _assign_subtree 以 X(已钉手动位)为锚、下游子树据此生长，下属随本节点走。
 			# 只清 X 的后代，不影响其它分支的手动位；X 自身保持手动位(玩家落点)。
-			_root_anchor_pos[id] = _node_center[id]
-			if not (id in _manual_nodes):
-				_manual_nodes.append(id)
+			# 例外（2026-09-19）：人物关联边的非人物端（被拖结论）不钉位——钉住会与平衡布局
+			# 脱钩（干留落点、叶枝镜像到另一侧），且与人物双刚性令去重叠永久跳过（人物被盖）。
+			if _keep_x_pin:
+				_root_anchor_pos[id] = _node_center[id]
+				if not (id in _manual_nodes):
+					_manual_nodes.append(id)
 			for _d in _layout._descendants(id):
 				if _d in _manual_nodes:
 					_manual_nodes.erase(_d)
