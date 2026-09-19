@@ -196,6 +196,10 @@ func _show_clue_detail(clue: Dictionary) -> void:
 	owner._detail_popup.min_size = Vector2(440, 320)
 	owner._detail_popup.exclusive = true
 	owner._detail_popup.get_ok_button().add_theme_font_size_override("font_size", 20)
+	# 隐藏默认底部「确定」按钮：改用右上角 ✕ 关闭（思傅 2026-09-19 需求）
+	owner._detail_popup.get_ok_button().visible = false
+	owner._detail_popup.canceled.connect(func():
+		if is_instance_valid(owner._detail_popup): owner._detail_popup.hide())
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
@@ -262,8 +266,55 @@ func _show_clue_detail(clue: Dictionary) -> void:
 	vb.add_child(btn_row)
 
 	owner._detail_popup.add_child(vb)
+
+	# 右上角关闭按钮：覆盖在内容区右上角（标题栏下方），点击即关闭详情弹窗
+	var close_btn := Button.new()
+	close_btn.name = "DetailClose"
+	close_btn.text = "✕"
+	close_btn.tooltip_text = "关闭"
+	close_btn.custom_minimum_size = Vector2(34, 34)
+	close_btn.add_theme_font_size_override("font_size", 18)
+	close_btn.add_theme_color_override("font_color", Color(0.95, 0.55, 0.45))
+	var csb := StyleBoxFlat.new()
+	csb.bg_color = Color(0.30, 0.16, 0.14, 0.85)
+	csb.border_color = Color(0.85, 0.45, 0.35)
+	csb.set_corner_radius_all(5)
+	close_btn.add_theme_stylebox_override("normal", csb)
+	close_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	close_btn.offset_left = -42
+	close_btn.offset_right = -8
+	close_btn.offset_top = 6
+	close_btn.offset_bottom = 40
+	close_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	close_btn.pressed.connect(func():
+		if is_instance_valid(owner._detail_popup): owner._detail_popup.hide())
+	owner._detail_popup.add_child(close_btn)
+
 	owner.add_child(owner._detail_popup)
 	owner._detail_popup.popup_centered()
+	_make_detail_draggable(owner._detail_popup, close_btn)
+
+
+## 给线索详情 AcceptDialog 增加拖拽能力（顶部标题区作为拖拽手柄，✕ 关闭按钮不触发拖拽）。
+## 复用项目通用工具 WindowDrag（scripts/ui/window_drag.gd）；逻辑与 tool_bar._make_popup_draggable 一致。
+func _make_detail_draggable(popup: AcceptDialog, close_btn: Button) -> void:
+	if popup == null: return
+	# 等一帧让弹窗布局完成，才能正确拿到标题 Label 作排除项
+	await owner.get_tree().process_frame
+	# 拖拽手柄：覆盖内容区顶条（标题栏下方），按住即可拖动整个弹窗
+	var drag_h := Control.new()
+	drag_h.name = "PopupDragHandle"
+	drag_h.mouse_filter = Control.MOUSE_FILTER_PASS
+	drag_h.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	drag_h.offset_top = 0
+	drag_h.offset_bottom = 34
+	popup.add_child(drag_h)
+	popup.move_child(drag_h, 0)
+	var exclude: Array = [close_btn]
+	for c in popup.get_children():
+		if c is Label and c != drag_h:
+			exclude.append(c)
+	WindowDrag.make_draggable(popup, drag_h, exclude)
 
 
 # === 关联逻辑 ===
