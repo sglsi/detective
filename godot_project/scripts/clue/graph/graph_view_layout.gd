@@ -842,35 +842,60 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 				var _d := int(depth_of.get(nid, 0))
 				out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
 			pcur_y += (rg[1] - rg[0]) + subtree_sep
-		# 无根链新区域：树最右沿 + 间隙 起点的单列竖向堆叠；整体相对画布中心垂直居中（允许超高，不递归切分）
+		# 无根链新区域：树最右沿 + 清晰间隔 起点；按 >6 叶分列（与平衡布局同口径）。
 		var maxd: int = 0
 		for d in col_x.keys():
 			maxd = maxi(maxd, int(d))
 		var main_right: float = float(col_x.get(maxd, col_x[0])) - float(col_x[0]) + max_w.get(maxd, 150.0) * 0.5
-		var band_x: float = col_x[0] + main_right + col_gap
-		var loose_total_h: float = 0.0
+		var loose_max_w: float = 0.0
 		for r in loose_roots:
-			loose_total_h += (root_range[r][1] - root_range[r][0]) + subtree_sep
-		loose_total_h = maxf(0.0, loose_total_h - subtree_sep)
-		var lcur_y: float = center.y - loose_total_h * 0.5
-		for r in loose_roots:
-			var ty: Dictionary = root_tidy[r]
-			var rg: Array = root_range[r]
-			var sv: Variant = saved_pos.get(r, null)
-			var rx: float = band_x
-			var ry: float = lcur_y - rg[0]
-			if sv is Vector2:
-				rx = sv.x
-				ry = sv.y
-			# 根置于 ry（带顶锚点）；子节点相对 y 减去根自身 tidy-y（美学3）
-			var root_y0: float = ty.get(str(r), 0.0)
-			out[r] = Vector2(rx, ry)
-			for nid in ty.keys():
-				if str(nid) == str(r):
-					continue
-				var _d := int(depth_of.get(nid, 0))
-				out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
-			lcur_y += (rg[1] - rg[0]) + subtree_sep
+			for d in col_x.keys():
+				var _dd: int = int(d)
+				loose_max_w = maxf(loose_max_w, float(col_x.get(_dd, col_x[0])) - float(col_x[0]) + max_w.get(_dd, 150.0))
+		var start_x: float = col_x[0] + main_right + col_gap + loose_max_w * 0.5
+		var ncols: int = maxi(1, ceili(float(loose_leaf_count) / 6.0))
+		var per: int = ceili(float(loose_roots.size()) / float(ncols))
+		var lcols: Array = []
+		for i in loose_roots.size():
+			var ci: int = i / per
+			if ci >= lcols.size():
+				lcols.append([])
+			lcols[ci].append(loose_roots[i])
+		var col_widths: Array = []
+		for col in lcols:
+			var w: float = 0.0
+			for r in col:
+				for d in col_x.keys():
+					var _dd: int = int(d)
+					w = maxf(w, float(col_x.get(_dd, col_x[0])) - float(col_x[0]) + max_w.get(_dd, 150.0) * 0.5)
+			col_widths.append(w)
+		var cur_x: float = start_x
+		for ci in lcols.size():
+			var col: Array = lcols[ci]
+			var ch_h: float = 0.0
+			for r in col:
+				ch_h += (root_range[r][1] - root_range[r][0]) + subtree_sep
+			ch_h = maxf(0.0, ch_h - subtree_sep)
+			var cury: float = center.y - ch_h * 0.5
+			for r in col:
+				var ty: Dictionary = root_tidy[r]
+				var rg: Array = root_range[r]
+				var sv: Variant = saved_pos.get(r, null)
+				var rx: float = cur_x
+				var ry: float = cury - rg[0]
+				if sv is Vector2:
+					rx = sv.x
+					ry = sv.y
+				# 根置于 ry（带顶锚点）；子节点相对 y 减去根自身 tidy-y（美学3）
+				var root_y0: float = ty.get(str(r), 0.0)
+				out[r] = Vector2(rx, ry)
+				for nid in ty.keys():
+					if str(nid) == str(r):
+						continue
+					var _d := int(depth_of.get(nid, 0))
+					out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
+				cury += (rg[1] - rg[0]) + subtree_sep
+			cur_x += col_widths[ci] + col_gap
 	else:
 		# ===== 旧版行为（≤6 叶 / 无无根链）：全部根单主列垂直堆叠、整体垂直居中 =====
 		var start_y: float = center.y - total_h * 0.5
@@ -1138,38 +1163,74 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 				tree_right_edge = maxf(tree_right_edge, float(col_off.get(_d, 0.0)) + max_w.get(_d, 150.0) * 0.5)
 
 	if do_relocate:
-		# 无根链整体搬到「树最右沿 + col_gap」起点的单列竖向；整体相对 center.y 垂直居中（允许超高，不递归切分）
+		# 无根链整体搬到「树最右沿 + 清晰间隔」起点的多列区域；列间留 col_gap；整体相对 center.y 垂直居中。
+		# 间隔 = col_gap + 无根链自身半宽 → 保证无根链最左节点与整洁树最右节点留 ≥ 一张卡宽的可见空隙，
+		# 玩家一眼可辨二者非同一整体（原仅留 ~30px 几乎贴合，思傅 2026-09-19 指摘）。
 		var col_gap: float = 160.0
-		var band_x: float = center.x + tree_right_edge + col_gap
-		var loose_total_h: float = 0.0
+		var loose_max_w: float = 0.0
 		for r in loose_roots:
-			loose_total_h += root_packed_h[r] + subtree_sep
-		loose_total_h = maxf(0.0, loose_total_h - subtree_sep)
-		var lcur_y: float = center.y - loose_total_h * 0.5
-		for r in loose_roots:
-			var parts2: Dictionary = root_contours[r]
-			var ph2: float = root_packed_h[r]
-			var min_c: float = 0.0
-			for sk in parts2.keys():
-				var cont2: Dictionary = parts2[sk]["contour"]
-				for rd in cont2.keys():
-					min_c = minf(min_c, cont2[rd][0])
-			var sv: Variant = saved_pos.get(r, null)
-			var rx: float = band_x
-			var ry: float = lcur_y - min_c
-			if sv is Vector2:
-				rx = sv.x
-				ry = sv.y
-			out[r] = Vector2(rx, ry)
-			for sk in parts2.keys():
-				var dirv: float = -1.0 if str(sk) == "L" else 1.0
-				var rel: Dictionary = parts2[sk]["rel"]
-				for nid in rel.keys():
-					if str(nid) == str(r):
-						continue
-					var d2: int = int(depth_of.get(nid, 0))
-					out[nid] = Vector2(rx + dirv * float(col_off.get(d2, 0.0)), ry + float(rel[nid]))
-			lcur_y += ph2 + subtree_sep
+			var _p: Dictionary = root_contours[r]
+			for sk in _p.keys():
+				var _c: Dictionary = _p[sk]["contour"]
+				for rd in _c.keys():
+					var _d: int = int(rd)
+					loose_max_w = maxf(loose_max_w, float(col_off.get(_d, 0.0)) + max_w.get(_d, 150.0))
+		var start_x: float = center.x + tree_right_edge + col_gap + loose_max_w * 0.5
+		# 按每列 ≤6 叶目标切 ncols 列（与纯无根森林同口径），顺序切块、列间留 col_gap
+		var ncols: int = maxi(1, ceili(float(loose_leaf_count) / 6.0))
+		var per: int = ceili(float(loose_roots.size()) / float(ncols))
+		var lcols: Array = []
+		for i in loose_roots.size():
+			var ci: int = i / per
+			if ci >= lcols.size():
+				lcols.append([])
+			lcols[ci].append(loose_roots[i])
+		var col_widths: Array = []
+		for col in lcols:
+			var w: float = 0.0
+			for r in col:
+				var wmax: float = 0.0
+				var _p3: Dictionary = root_contours[r]
+				for sk in _p3.keys():
+					var _c3: Dictionary = _p3[sk]["contour"]
+					for rd in _c3.keys():
+						var _d: int = int(rd)
+						wmax = maxf(wmax, float(col_off.get(_d, 0.0)) + max_w.get(_d, 150.0) * 0.5)
+				w = maxf(w, wmax)
+			col_widths.append(w)
+		var cur_x: float = start_x
+		for ci in lcols.size():
+			var col: Array = lcols[ci]
+			var ch_h: float = 0.0
+			for r in col:
+				ch_h += root_packed_h[r] + subtree_sep
+			ch_h = maxf(0.0, ch_h - subtree_sep)
+			var cury: float = center.y - ch_h * 0.5
+			for r in col:
+				var parts2: Dictionary = root_contours[r]
+				var ph2: float = root_packed_h[r]
+				var min_c: float = 0.0
+				for sk in parts2.keys():
+					var cont2: Dictionary = parts2[sk]["contour"]
+					for rd in cont2.keys():
+						min_c = minf(min_c, cont2[rd][0])
+				var sv: Variant = saved_pos.get(r, null)
+				var rx: float = cur_x
+				var ry: float = cury - min_c
+				if sv is Vector2:
+					rx = sv.x
+					ry = sv.y
+				out[r] = Vector2(rx, ry)
+				for sk in parts2.keys():
+					var dirv: float = -1.0 if str(sk) == "L" else 1.0
+					var rel: Dictionary = parts2[sk]["rel"]
+					for nid in rel.keys():
+						if str(nid) == str(r):
+							continue
+						var d2: int = int(depth_of.get(nid, 0))
+						out[nid] = Vector2(rx + dirv * float(col_off.get(d2, 0.0)), ry + float(rel[nid]))
+				cury += ph2 + subtree_sep
+			cur_x += col_widths[ci] + col_gap
 	elif do_loose_forest:
 		# 纯无根森林自身多列铺开（无树可搬）：按每列 ≤6 叶目标切 ncols 列、顺序切块、整体水平居中
 		var col_gap: float = 160.0

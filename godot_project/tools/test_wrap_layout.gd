@@ -2,7 +2,7 @@ extends SceneTree
 ## 无根链「叶子计数触发分散」布局验证（2026-09-19 思傅定案）：
 ##   分散对象 = 全部无根链（结论-推断-线索 / 推断-线索，单枝或多枝的「无根森林」同属此类）。
 ##   两分支：
-##     · 有树（person/event 根）且主列叶子(树叶+同列无根叶) > 6 → 无根链整体搬到「树右侧新空区域」（单列竖向、允许超高、不递归切分）。
+##     · 有树（person/event 根）且主列叶子(树叶+同列无根叶) > 6 → 无根链整体搬到「树右侧新空区域」（按 >6 叶分列：每 6 叶一列、列间留 gap）、与树留清晰间隔（不递归切分）。
 ##     · 纯无根森林（无任何人物/事件根）且叶子 > 6 → 无根链「自身多列铺开」（按每列≤6叶切 n 列、顺序切块、列间留 gap、整体水平居中）。
 ##   整洁树（person/event 根）结构完全不动、永不镜像、始终主列垂直堆叠居中。
 ##   不触发（≤6 叶）/ 无无根链 → 全部根单主列（旧版行为）。
@@ -10,7 +10,7 @@ extends SceneTree
 ##   段A2 小纯无根森林（1 分支链·4 叶 ≤6）：不分散、单主列、零重叠
 ##   段B 小案（人物树 2 叶 + 1 短无根链 = 3 叶 ≤6）：单主列、不搬迁、零重叠
 ##   段C 人物整洁树独立（无无根链）：单主列、根-干-枝-叶层展、全树右向流、零重叠
-##   段D 混合（人物树 2 叶 + 6 无根链 = 8 叶 >6）：人物树主列不动；无根链整体搬到树右侧单列（无左镜像）、零重叠
+##   段D 混合（人物树 2 叶 + 8 无根链 = 10 叶 >6）：人物树主列不动；无根链搬到树右侧并按 >6 叶分 2 列（无左镜像）、零重叠
 
 var _ok := true
 
@@ -224,7 +224,7 @@ func _initialize() -> void:
 	_chk(c_flow, "C2 人物整洁树全树右向流（根-干-枝-叶层展，不镜像不拆列）")
 	_overlap_check(gv, out3, KINDC, LABELC)
 
-	# ---- 段D：混合（人物树 2 叶 + 6 无根链 = 8 叶 >6）→ 无根链整体搬到树右侧单列 ----
+	# ---- 段D：混合（人物树 2 叶 + 8 无根链 = 10 叶 >6）→ 无根链搬到树右侧并按 >6 叶分列 ----
 	var KINDD := {"DP": "person"}
 	var LABELD := {"DP": "嫌疑人：混合场景人物"}
 	var RELD := []
@@ -242,9 +242,9 @@ func _initialize() -> void:
 		KINDD[dc] = "clue"
 		LABELD[dc] = "人物叶线索%d" % i
 		RELD.append({"from": dc, "to": dh, "kind": "support"})
-	# 6 条无根链（每条 1 叶）→ 合计 2+6=8 > 6 触发搬迁
+	# 8 条无根链（每条 1 叶）→ 合计 2+8=10 > 6 触发搬迁；无根叶 8 > 6 → 分 2 列
 	var loose_ids := []
-	for i in 6:
+	for i in 8:
 		var lc2 := _build_loose_chain("D", i)
 		for id in lc2["KIND"]:
 			KINDD[id] = lc2["KIND"][id]
@@ -263,42 +263,29 @@ func _initialize() -> void:
 	gv._layout._logic_tree_layout(nodes4, center, {}, out4)
 	# D1: 人物根在主列
 	_chk(absf(out4["DP"].x - center.x) < 1.0, "D1 人物根独占主列 x=%.0f" % out4["DP"].x)
-	# D2: 人物树右向流
+	# D2: 人物树右向流（不被搬迁波及）
+	var d_parent := {"DDR0": "DP", "DDR1": "DP", "DDH0": "DDR0", "DDH1": "DDR1", "DDC0": "DDH0", "DDC1": "DDH1"}
 	var d_flow := true
-	for id in ["DDR0", "DDR1", "DDH0", "DDH1", "DDC0", "DDC1"]:
-		if id == "DDR0":
-			if out4["DDR0"].x <= out4["DP"].x:
-				d_flow = false
-		elif id == "DDH0":
-			if out4["DDH0"].x <= out4["DDR0"].x:
-				d_flow = false
-		elif id == "DDC0":
-			if out4["DDC0"].x <= out4["DDH0"].x:
-				d_flow = false
-		elif id == "DDR1":
-			if out4["DDR1"].x <= out4["DP"].x:
-				d_flow = false
-		elif id == "DDH1":
-			if out4["DDH1"].x <= out4["DDR1"].x:
-				d_flow = false
-		elif id == "DDC1":
-			if out4["DDC1"].x <= out4["DDH1"].x:
-				d_flow = false
+	for id in d_parent.keys():
+		if out4[id].x <= out4[d_parent[id]].x:
+			d_flow = false
 	_chk(d_flow, "D2 人物整洁树右向流（不被搬迁波及）")
 	# D3: 树最右沿
 	var tree_ids := ["DP", "DDR0", "DDR1", "DDH0", "DDH1", "DDC0", "DDC1"]
 	var tree_right := _rightmost_of(out4, tree_ids)
-	# D4: 所有无根链根（conclusion）应位于同一右侧带（x 互差小）且整体在树右侧
+	# D4: 无根链按 >6 叶分列 → 结论根应落在 ≥2 个不同 x 列
 	var loose_root_xs := []
 	for id in loose_ids:
 		loose_root_xs.append(out4[id].x)
+	var lcolset := {}
+	for v in loose_root_xs:
+		lcolset[v] = true
+	_chk(lcolset.size() >= 2, "D3 无根链 8 叶 >6 → 分 ≥2 列（结论根占 %d 个 x 列）" % lcolset.size())
+	# D5: 所有无根链整体在树右侧，且与树留清晰间隔（≥120，明显非同一整体）
 	var min_lr := 1e18
-	var max_lr := -1e18
 	for v in loose_root_xs:
 		min_lr = minf(min_lr, v)
-		max_lr = maxf(max_lr, v)
-	_chk((max_lr - min_lr) < 50.0, "D3 所有无根链根位于同一右侧带（x 互差 %.0f < 50）" % (max_lr - min_lr))
-	_chk(min_lr > tree_right + 50.0, "D4 无根链整体搬到树右侧（min_x=%.0f > 树最右沿 %.0f + 50）" % [min_lr, tree_right])
+	_chk(min_lr > tree_right + 120.0, "D4 无根链整体搬到树右侧且留清晰间隔（min_x=%.0f > 树最右沿 %.0f + 120）" % [min_lr, tree_right])
 	_chk(min_lr > center.x, "D5 无根链无左镜像列（全部在中心右侧）")
 	_overlap_check(gv, out4, KINDD, LABELD)
 

@@ -1,7 +1,7 @@
 extends SceneTree
-## 诊断：平衡布局（_balanced_tree_layout）下无根链是否从主列竖列分流到树右侧
-## 场景：人物 P1（2 条结论链：结论→推断→线索）+ 6 条无根链（结论→线索，无父）
-## 预期：主列叶子(2 线索+6 无根叶=8 >6) 触发 do_relocate → 无根链整体搬到树右侧单列（x 明显 > center.x）
+## 诊断：平衡布局（_balanced_tree_layout）下无根链是否从主列竖列分流到树右侧并按 >6 叶分列
+## 场景：人物 P1（2 条结论链：结论→推断→线索）+ 8 条无根链（结论→线索，无父）
+## 预期：主列叶子(2 线索+8 无根叶=10 >6) 触发 do_relocate → 无根链搬到树右侧、按 >6 叶分列、与树留清晰间隔
 
 var _ok := true
 func _chk(cond: bool, msg: String) -> void:
@@ -50,7 +50,7 @@ func _initialize() -> void:
 		var cl := "CL%d" % i
 		KIND[cl] = "clue"; LABEL[cl] = "线索%d" % i
 		REL.append({"from": cl, "to": h, "kind": "support"})
-	for i in 6:
+	for i in 8:
 		var rc := "LC%d" % i
 		KIND[rc] = "conclusion"; LABEL[rc] = "无根结论%d" % i
 		var lc := "LCL%d" % i
@@ -69,24 +69,37 @@ func _initialize() -> void:
 	gv._layout._balanced_tree_layout(nodes, center, {}, out)
 
 	# 1. 人物居中于 center.x
-	_chk(abs(out["P1"].x - center.x) < 60.0, "人物 P1 居中于 center.x (x=%.0f)" % out["P1"].x)
+	_chk(absf(out["P1"].x - center.x) < 60.0, "人物 P1 居中于 center.x (x=%.0f)" % out["P1"].x)
 	# 2. 无根链根搬到树右侧（x 明显 > center.x）
+	var loose_roots := []
+	for i in 8:
+		loose_roots.append("LC%d" % i)
 	var min_loose_x := 1e18
-	for i in 6:
-		min_loose_x = minf(min_loose_x, out["LC%d" % i].x)
+	for id in loose_roots:
+		min_loose_x = minf(min_loose_x, out[id].x)
 	_chk(min_loose_x > center.x + 150.0, "无根链整体搬到树右侧（最左无根根 x=%.0f > center+150，非主列竖列）" % min_loose_x)
+	# 2b. 无根链按 >6 叶分列 → 结论根应占 ≥2 个 x 列
+	var lcols := {}
+	for id in loose_roots:
+		lcols[out[id].x] = true
+	_chk(lcols.size() >= 2, "无根链 8 叶 >6 → 分 ≥2 列（占 %d 个 x 列）" % lcols.size())
+	# 2c. 与整洁树留清晰间隔：树最右沿（人物各节点 x 最大值）到无根链最左 > 120
+	var tree_right := -1e18
+	for id in ["P1", "C0", "C1", "H0", "H1", "CL0", "CL1"]:
+		tree_right = maxf(tree_right, out[id].x)
+	_chk(min_loose_x > tree_right + 120.0, "无根链与整洁树留清晰间隔（min_x=%.0f > 树最右沿 %.0f + 120）" % [min_loose_x, tree_right])
 	# 3. 无根链内部仍右向流（结论.x < 线索.x）
 	var flow := true
-	for i in 6:
+	for i in 8:
 		if out["LCL%d" % i].x <= out["LC%d" % i].x:
 			flow = false
 	_chk(flow, "无根链内部右向流（结论.x < 线索.x）")
 	# 4. 零重叠
 	_overlap_check(gv, out, KIND, LABEL)
-	# 5. 主列（center.x ± 60）上不应再堆叠无根链根（验证确实被分流）
+	# 5. 主列（center.x ± 120）上不应再堆叠无根链根（验证确实被分流）
 	var on_main_col := 0
-	for i in 6:
-		if abs(out["LC%d" % i].x - center.x) < 120.0:
+	for i in 8:
+		if absf(out["LC%d" % i].x - center.x) < 120.0:
 			on_main_col += 1
 	_chk(on_main_col == 0, "无根链根未留在主列竖列（留在主列数=%d，应为 0）" % on_main_col)
 

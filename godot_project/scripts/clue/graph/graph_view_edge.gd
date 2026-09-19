@@ -474,20 +474,18 @@ func _show_edge_menu(viewport_pos: Vector2, e: Dictionary) -> void:
 	owner._edge_menu = panel
 
 
-## 在 owner 上挂载一个悬停子菜单：鼠标移入 trigger 即展开 options 列表；鼠标停留在 trigger /
-## 子菜单 / 任一选项按钮上时为「悬停态」，移出整片区域 0.2s 后才隐藏；选中某选项执行
-## on_pick 并收起。子菜单由 _close_edge_menu 统一释放。
-## 在 owner 上挂载一个悬停子菜单：鼠标移入 trigger 即展开 options 列表；鼠标停留在 trigger /
-## 子菜单 / 任一选项按钮上时为「悬停态」，移出整片区域 0.3s 后才隐藏；选中某选项执行
-## on_pick 并收起。子菜单由 _close_edge_menu 统一释放。
-## 关键修复（思傅 2026-09-19 报「移到悬停按钮就又自动隐藏、无法选择」，本次根治）：
-##   旧实现给 trigger/sub/选项按钮各连一组「mouse_entered→keep / mouse_exited→schedule_hide」，
-##   schedule_hide 立即把 hovering=false 并启动 0.2s 定时器。鼠标从 trigger 慢移到 sub（或经 4px 间隙）
-##   时，trigger.mouse_exited 先触发 schedule_hide（timer 启动），若 0.2s 内 sub.mouse_entered 没赶上
-##   （慢速/有间隙），timer 到期误判「已离开」→ 隐藏，用户来不及选。本质「先退后进」竞态。
-##   现改用**引用计数**（inside：进入任一区域 +1、离开 -1；全离开才延时隐藏，进入任意处即取消待定
-##   timer）。父子控件间移动时 exit/enter 成对出现，inside 净 0 不触发隐藏，彻底消除竞态。
+## 悬停子菜单（思傅 2026-09-19 多次报「移到选项就消失、无法选择」，本次改用轮询根治）：
+##   鼠标移入 trigger 即展开子菜单；子菜单**保持打开**直到鼠标离开 trigger 与 sub 整片区域 0.35s 后才收起；
+##   选中选项执行 on_pick 并收起。子菜单由 _close_edge_menu 统一释放。
+##   根治思路：彻底弃用 mouse_entered/mouse_exited 信号（重定位会诱发「先退后进」竞态 → 误隐藏），
+##   改为每帧轮询全局鼠标是否落在 trigger / sub（含其选项按钮）矩形内；在区域内则保持，离开累计 0.35s 收起。
+##   子菜单位置仅在**首次展开**时计算一次，之后不再重定位，从根上消除「重定位触发 mouse_exited」的死循环。
 func _add_hover_menu(panel: Control, trigger: Button, options: Array, on_pick: Callable) -> void:
+	var _placed := false
+	var _hide_t := 0.0
+	var _poll := Timer.new()
+	_poll.wait_time = 0.05
+	_poll.process_mode = Node.PROCESS_MODE_ALWAYS
 	var sub := PanelContainer.new()
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
@@ -497,17 +495,18 @@ func _add_hover_menu(panel: Control, trigger: Button, options: Array, on_pick: C
 		ob.pressed.connect(func() -> void:
 			on_pick.call(opt.value)
 			sub.visible = false
-		)
+			_poll.stop()
+			_placed = false)
 		vb.add_child(ob)
 	sub.add_child(vb)
 	sub.visible = false
 	sub.z_index = 300
+	sub.add_child(_poll)
 	owner.add_child(sub)
 	owner._edge_menu_subs.append(sub)
 
-	var place := func() -> void:
-		# 以触发按钮全局矩形为锚（右侧放不下则正下方），钳制在视口内，再经 owner 逆变换转
-		# sub 本地坐标，保证子菜单紧临触发项展开（不落在屏幕左上角）。
+	var _place := func() -> void:
+		# 以触发按钮全局矩形为锚（右侧放不下则正下方），钳制在视口内；子菜单紧临触发项展开（不落屏幕左上角）。
 		var gr := trigger.get_global_rect()
 		var vp := owner.get_viewport_rect()
 		var p := gr.position + Vector2(gr.size.x + 4.0, 0.0)
@@ -517,34 +516,29 @@ func _add_hover_menu(panel: Control, trigger: Button, options: Array, on_pick: C
 		p.y = clampf(p.y, 8.0, maxf(8.0, vp.end.y - 150.0))
 		sub.position = owner.get_global_transform().affine_inverse() * p
 
-	# 引用计数悬停态：进入任意区域 +1、离开 -1；全离开才延时隐藏，进入任意处即取消待定 timer。
-	var inside := 0
-	var hide_timer: SceneTreeTimer = null
-	var on_in := func() -> void:
-		inside += 1
-		if hide_timer != null:   # 取消待定的隐藏（消除竞态）
-			hide_timer.queue_free()
-			hide_timer = null
-		place.call()
+	_poll.timeout.connect(func() -> void:
+		if not sub.visible:
+			return
+		# 全局鼠标位置（视口坐标）与 trigger / sub 全局矩形比对；落在任一之上即保持。
+		var gp := owner.get_viewport().get_mouse_position()
+		var over := trigger.get_global_rect().has_point(gp) or sub.get_global_rect().has_point(gp)
+		if over:
+			_hide_t = 0.0
+		else:
+			_hide_t += _poll.wait_time
+			if _hide_t >= 0.35:
+				sub.visible = false
+				_poll.stop()
+				_placed = false)
+
+	trigger.mouse_entered.connect(func() -> void:
+		if not _placed:
+			_place.call()
+			_placed = true
 		sub.visible = true
-	var on_out := func() -> void:
-		inside -= 1
-		if inside <= 0:
-			inside = 0
-			if hide_timer != null:
-				hide_timer.queue_free()
-				hide_timer = null
-			hide_timer = owner.get_tree().create_timer(0.3)
-			hide_timer.timeout.connect(func() -> void:
-				if inside <= 0:
-					sub.visible = false)
-	trigger.mouse_entered.connect(on_in)
-	trigger.mouse_exited.connect(on_out)
-	sub.mouse_entered.connect(on_in)
-	sub.mouse_exited.connect(on_out)
-	for ob in vb.get_children():   # 选项按钮拦截鼠标会触发 sub.mouse_exited，须纳入计数
-		ob.mouse_entered.connect(on_in)
-		ob.mouse_exited.connect(on_out)
+		_hide_t = 0.0
+		if _poll.is_stopped():
+			_poll.start())
 
 
 func _mk_menu_btn(txt: String) -> Button:
