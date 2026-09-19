@@ -1,13 +1,13 @@
 extends SceneTree
-## 多列分散布局验证（2026-09-19 思傅纠正语义：分散**只针对无根零散链路**，整洁树绝不改造）：
-##   段A 大 loose 森林（多条无根独立链：结论-推断-线索，总高超预算 1200）→ 按高度贪心分组横向多列：
-##      A1) X 跨度显著超过单树宽（发生横向分散）
-##      A2) 存在根列左侧镜像列（min_x 明显小于画布中心）
-##      A3) 右列 support 边父.x < 子.x；镜像左列父.x > 子.x（镜像流）；左右均有分布
-##      A4) 零重叠：所有节点 AABB 两两不相交
-##   段B 小 loose 森林（总高低于预算）行为不变：单列竖排、右向流、无左镜像列、零重叠
-##   段C 人物整洁树（person 根大树，总高超预算）**绝不分散**：单主列、全树右向流（根-干-枝-叶层展）
-##   段D 混合场景（人物整洁树 + 大 loose 森林）：人物树独占主列右向不动；loose 链向左右分散
+## 无根链「叶子计数触发搬迁」布局验证（2026-09-19 思傅定案）：
+##   触发 = 最右主列叶子（整洁树叶子 + 同列无根链叶子）合计 > 6 且存在人物根与无根链
+##   → 全部无根链整体搬到「树右侧新空区域」（单列竖向堆叠，允许超高，不向左/右递归切分）。
+##   整洁树（person/event 根）结构完全不动、永不镜像、始终主列垂直堆叠居中。
+##   不触发（≤6 叶）/ 无人物根（无树可搬）/ 无无根链 → 全部根单主列（旧版行为）。
+##   段A 纯无根森林（8 链·无人物根）：无树可搬 → 单主列、右向流、零重叠（锁定「无树不搬迁」）
+##   段B 小案（人物树 2 叶 + 1 短无根链 = 3 叶 ≤6）：单主列、不搬迁、零重叠
+##   段C 人物整洁树独立（无无根链）：单主列、根-干-枝-叶层展、全树右向流、零重叠
+##   段D 混合（人物树 2 叶 + 6 无根链 = 8 叶 >6）：人物树主列不动；无根链整体搬到树右侧单列（无左镜像）、零重叠
 
 var _ok := true
 
@@ -41,6 +41,16 @@ func _build_forest(n_chain: int) -> Dictionary:
 	return {"KIND": KIND, "LABEL": LABEL, "REL": REL}
 
 
+func _build_loose_chain(prefix: String, idx: int) -> Dictionary:
+	# 单条无根链：结论 L{idx} → 线索 LC{idx}（2 节点，1 叶子）；前缀用于避免 id 冲突
+	var r := "%sL%d" % [prefix, idx]
+	var c := "%sLC%d" % [prefix, idx]
+	var KIND := {r: "conclusion", c: "clue"}
+	var LABEL := {r: "无根结论%d：独立推理链" % idx, c: "无根线索%d：支撑线索" % idx}
+	var REL := [{"from": c, "to": r, "kind": "support"}]
+	return {"KIND": KIND, "LABEL": LABEL, "REL": REL}
+
+
 func _overlap_check(gv, out: Dictionary, KIND: Dictionary, LABEL: Dictionary) -> void:
 	var ids := out.keys()
 	var rects := {}
@@ -58,6 +68,14 @@ func _overlap_check(gv, out: Dictionary, KIND: Dictionary, LABEL: Dictionary) ->
 	_chk(not overlap, "零重叠：%d 节点 AABB 两两不相交" % ids.size())
 
 
+func _rightmost_of(out: Dictionary, id_set: Array) -> float:
+	var mx := -1e18
+	for id in id_set:
+		if out.has(id):
+			mx = maxf(mx, out[id].x)
+	return mx
+
+
 func _initialize() -> void:
 	await process_frame
 	var GV = load("res://scripts/clue/graph_view_controller.gd")
@@ -72,89 +90,86 @@ func _initialize() -> void:
 	await process_frame
 	var center := Vector2(960.0, 540.0)
 
-	# ---- 段A：大森林（8 条链 × 7 节点 = 56 节点，总高超预算）----
+	# ---- 段A：纯无根森林（8 条链·无人物根）：无树可搬 → 单主列、不分散、右向流 ----
 	var big := _build_forest(8)
-	var nodes := []
+	var kindA := {}
+	var labelA := {}
+	var relA := []
 	for id in big["KIND"]:
-		nodes.append({"id": id, "kind": big["KIND"][id], "label": big["LABEL"][id]})
+		kindA[id] = big["KIND"][id]
+		labelA[id] = big["LABEL"][id]
+	relA.append_array(big["REL"])
 	gv._graph_nodes = []
-	for id in big["KIND"]:
-		gv._graph_nodes.append({"id": id, "kind": big["KIND"][id], "label": big["LABEL"][id], "sub": "", "data": {}})
-	gv._relations = big["REL"].duplicate()
-	var out := {}
-	gv._layout._logic_tree_layout(nodes, center, {}, out)
+	for id in kindA:
+		gv._graph_nodes.append({"id": id, "kind": kindA[id], "label": labelA[id], "sub": "", "data": {}})
+	gv._relations = relA.duplicate()
+	var nodesA := []
+	for id in kindA:
+		nodesA.append({"id": id, "kind": kindA[id], "label": labelA[id]})
+	var outA := {}
+	gv._layout._logic_tree_layout(nodesA, center, {}, outA)
+	var minA := 1e18
+	var maxA := -1e18
+	for id in outA:
+		minA = minf(minA, outA[id].x)
+		maxA = maxf(maxA, outA[id].x)
+	_chk((maxA - minA) < 1500.0, "A1 纯无根森林无树可搬 → 单主列（X 跨度 %.0f < 1500）" % (maxA - minA))
+	_chk(minA > center.x - 300.0, "A2 纯无根森林无左镜像列 min_x=%.0f" % minA)
+	var flowA := true
+	for r in relA:
+		if outA[r["to"]].x >= outA[r["from"]].x:
+			flowA = false
+	_chk(flowA, "A3 纯无根森林全部 support 边右向流 父.x < 子.x")
+	_overlap_check(gv, outA, kindA, labelA)
 
-	var min_x := 1e18
-	var max_x := -1e18
-	for id in out:
-		min_x = minf(min_x, out[id].x)
-		max_x = maxf(max_x, out[id].x)
-	var extent := max_x - min_x
-	_chk(extent > 1500.0, "A1 X 跨度 %.0f > 1500（横向多列分散生效）" % extent)
-	_chk(min_x < center.x - 200.0, "A2 存在根列左侧镜像列 min_x=%.0f < %.0f" % [min_x, center.x - 200.0])
-	# A3 镜像流：动态判定每链所在侧（按根→直接推断的方向），断言每链方向一致且左右均有分布
-	var n_right := 0
-	var n_left := 0
-	var dir_ok := true
-	for i in 8:
-		var r := "R%d" % i
-		var kids := ["H%d_a" % i, "H%d_b" % i]
-		var all_right := true
-		var all_left := true
-		for k in kids:
-			if out[r].x >= out[k].x:
-				all_right = false
-			if out[r].x <= out[k].x:
-				all_left = false
-		if all_right:
-			n_right += 1
-		elif all_left:
-			n_left += 1
-		else:
-			dir_ok = false
-	_chk(dir_ok, "A3 每条链方向一致（右列父<子 / 镜像左列父>子）")
-	_chk(n_right >= 1 and n_left >= 1, "A3 左右两侧均有分布（右%d 链 / 左%d 链）" % [n_right, n_left])
-	_overlap_check(gv, out, big["KIND"], big["LABEL"])
-
-	# ---- 段B：小森林（1 条链，总高低于预算 1200）行为不变：单根列、右向流、无左镜像列 ----
-	var small := _build_forest(1)
-	var nodes2 := []
-	for id in small["KIND"]:
-		nodes2.append({"id": id, "kind": small["KIND"][id], "label": small["LABEL"][id]})
+	# ---- 段B：小案（人物树 2 叶 + 1 条短无根链 = 3 叶 ≤6）→ 单主列、不搬迁 ----
+	var kindB := {"BP": "person", "BDR0": "conclusion", "BDH0": "hypo", "BDC0": "clue"}
+	var labelB := {"BP": "嫌疑人：小案人物", "BDR0": "干结论", "BDH0": "枝推断", "BDC0": "叶线索"}
+	var relB := [{"from": "BDR0", "to": "BP", "kind": "support"},
+		{"from": "BDH0", "to": "BDR0", "kind": "support"},
+		{"from": "BDC0", "to": "BDH0", "kind": "support"}]
+	var lc := _build_loose_chain("B", 0)
+	for id in lc["KIND"]:
+		kindB[id] = lc["KIND"][id]
+		labelB[id] = lc["LABEL"][id]
+	relB.append_array(lc["REL"])
 	gv._graph_nodes = []
-	for id in small["KIND"]:
-		gv._graph_nodes.append({"id": id, "kind": small["KIND"][id], "label": small["LABEL"][id], "sub": "", "data": {}})
-	gv._relations = small["REL"].duplicate()
-	var out2 := {}
-	gv._layout._logic_tree_layout(nodes2, center, {}, out2)
-	var min_x2 := 1e18
-	for id in out2:
-		min_x2 = minf(min_x2, out2[id].x)
-	_chk(min_x2 > center.x - 300.0, "B 小森林无左镜像列 min_x=%.0f（行为不变）" % min_x2)
-	var flow_ok := true
-	for r in small["REL"]:
-		if out2[r["to"]].x >= out2[r["from"]].x:
-			flow_ok = false
-	_chk(flow_ok, "B 小森林全部 support 边 右向流 父.x < 子.x")
-	_overlap_check(gv, out2, small["KIND"], small["LABEL"])
+	for id in kindB:
+		gv._graph_nodes.append({"id": id, "kind": kindB[id], "label": labelB[id], "sub": "", "data": {}})
+	gv._relations = relB.duplicate()
+	var nodesB := []
+	for id in kindB:
+		nodesB.append({"id": id, "kind": kindB[id], "label": labelB[id]})
+	var outB := {}
+	gv._layout._logic_tree_layout(nodesB, center, {}, outB)
+	_chk(absf(outB["BP"].x - center.x) < 1.0, "B1 小案人物根在主列 x=%.0f ≈ %.0f" % [outB["BP"].x, center.x])
+	# 无根链根 BL0 仍在主列附近（与人物同列、未搬走）：距中心不超过 1 个 level_sep
+	var bl0: String = lc["KIND"].keys()[0]
+	_chk(absf(outB[bl0].x - center.x) < 400.0, "B2 小案无根链未搬迁（仍在主列附近 x=%.0f）" % outB[bl0].x)
+	var flowB := true
+	for r in relB:
+		if outB[r["to"]].x >= outB[r["from"]].x:
+			flowB = false
+	_chk(flowB, "B3 小案全部 support 边右向流")
+	_overlap_check(gv, outB, kindB, labelB)
 
-	# ---- 段C：人物整洁树（person 根大树，总高超预算）绝不分散：根-干-枝-叶层展单主列 ----
+	# ---- 段C：人物整洁树独立（无无根链）绝不分散：根-干-枝-叶层展单主列 ----
 	# P → 4 条干链（R）→ 各 2 推断 → 各 2 线索 = 1+4+8+16 = 29 节点
-	var KINDC := {"P": "person"}
-	var LABELC := {"P": "嫌疑人：神秘租车人"}
+	var KINDC := {"CP": "person"}
+	var LABELC := {"CP": "嫌疑人：神秘租车人"}
 	var RELC := []
 	for i in 4:
-		var rc := "PR%d" % i
+		var rc := "CPR%d" % i
 		KINDC[rc] = "conclusion"
 		LABELC[rc] = "干结论%d：围绕人物的第一层结论" % i
-		RELC.append({"from": rc, "to": "P", "kind": "support"})
+		RELC.append({"from": rc, "to": "CP", "kind": "support"})
 		for hb in ["a", "b"]:
-			var hc := "PH%d_%s" % [i, hb]
+			var hc := "CPH%d_%s" % [i, hb]
 			KINDC[hc] = "hypo"
 			LABELC[hc] = "枝推断%d_%s：第二层推断" % [i, hb]
 			RELC.append({"from": hc, "to": rc, "kind": "support"})
 			for k in [1, 2]:
-				var cc := "PC%d_%s%d" % [i, hb, k]
+				var cc := "CPC%d_%s%d" % [i, hb, k]
 				KINDC[cc] = "clue"
 				LABELC[cc] = "叶线索%d_%s%d：支撑线索描述" % [i, hb, k]
 				RELC.append({"from": cc, "to": hc, "kind": "support"})
@@ -167,9 +182,7 @@ func _initialize() -> void:
 	for id in KINDC:
 		nodes3.append({"id": id, "kind": KINDC[id], "label": LABELC[id]})
 	gv._layout._logic_tree_layout(nodes3, center, {}, out3)
-	# C1: 人物根在主列（col_x[0] = center.x）
-	_chk(absf(out3["P"].x - center.x) < 1.0, "C1 人物根在主列 x=%.0f ≈ %.0f" % [out3["P"].x, center.x])
-	# C2: 全树右向流（所有边父.x < 子.x）——整洁树不被镜像/拆列
+	_chk(absf(out3["CP"].x - center.x) < 1.0, "C1 人物根在主列 x=%.0f ≈ %.0f" % [out3["CP"].x, center.x])
 	var c_flow := true
 	for r in RELC:
 		if out3[r["to"]].x >= out3[r["from"]].x:
@@ -177,26 +190,34 @@ func _initialize() -> void:
 	_chk(c_flow, "C2 人物整洁树全树右向流（根-干-枝-叶层展，不镜像不拆列）")
 	_overlap_check(gv, out3, KINDC, LABELC)
 
-	# ---- 段D：混合场景（人物整洁树 + 大 loose 森林）：人物树主列不动；loose 链左右分散 ----
+	# ---- 段D：混合（人物树 2 叶 + 6 无根链 = 8 叶 >6）→ 无根链整体搬到树右侧单列 ----
 	var KINDD := {"DP": "person"}
 	var LABELD := {"DP": "嫌疑人：混合场景人物"}
 	var RELD := []
-	# 人物干链 1 条
-	KINDD["DR0"] = "conclusion"
-	LABELD["DR0"] = "人物干结论：挂在人物下的结论"
-	RELD.append({"from": "DR0", "to": "DP", "kind": "support"})
-	KINDD["DH0"] = "hypo"
-	LABELD["DH0"] = "人物枝推断"
-	RELD.append({"from": "DH0", "to": "DR0", "kind": "support"})
-	KINDD["DC0"] = "clue"
-	LABELD["DC0"] = "人物叶线索"
-	RELD.append({"from": "DC0", "to": "DH0", "kind": "support"})
-	# 大 loose 森林 8 条（无根链）
-	var loose := _build_forest(8)
-	for id in loose["KIND"]:
-		KINDD[id] = loose["KIND"][id]
-		LABELD[id] = loose["LABEL"][id]
-	RELD.append_array(loose["REL"])
+	# 人物树：DP → 2 干结论 → 各 1 推断 → 各 1 线索（2 叶）
+	for i in 2:
+		var dr := "DDR%d" % i
+		KINDD[dr] = "conclusion"
+		LABELD[dr] = "人物干结论%d" % i
+		RELD.append({"from": dr, "to": "DP", "kind": "support"})
+		var dh := "DDH%d" % i
+		KINDD[dh] = "hypo"
+		LABELD[dh] = "人物枝推断%d" % i
+		RELD.append({"from": dh, "to": dr, "kind": "support"})
+		var dc := "DDC%d" % i
+		KINDD[dc] = "clue"
+		LABELD[dc] = "人物叶线索%d" % i
+		RELD.append({"from": dc, "to": dh, "kind": "support"})
+	# 6 条无根链（每条 1 叶）→ 合计 2+6=8 > 6 触发搬迁
+	var loose_ids := []
+	for i in 6:
+		var lc2 := _build_loose_chain("D", i)
+		for id in lc2["KIND"]:
+			KINDD[id] = lc2["KIND"][id]
+			LABELD[id] = lc2["LABEL"][id]
+			if lc2["KIND"][id] == "conclusion":
+				loose_ids.append(id)
+		RELD.append_array(lc2["REL"])
 	gv._graph_nodes = []
 	for id in KINDD:
 		gv._graph_nodes.append({"id": id, "kind": KINDD[id], "label": LABELD[id], "sub": "", "data": {}})
@@ -206,27 +227,49 @@ func _initialize() -> void:
 	for id in KINDD:
 		nodes4.append({"id": id, "kind": KINDD[id], "label": LABELD[id]})
 	gv._layout._logic_tree_layout(nodes4, center, {}, out4)
-	# D1: 人物树在主列且右向流
+	# D1: 人物根在主列
 	_chk(absf(out4["DP"].x - center.x) < 1.0, "D1 人物根独占主列 x=%.0f" % out4["DP"].x)
+	# D2: 人物树右向流
 	var d_flow := true
-	for r in [{"from": "DR0", "to": "DP"}, {"from": "DH0", "to": "DR0"}, {"from": "DC0", "to": "DH0"}]:
-		if out4[r["to"]].x >= out4[r["from"]].x:
-			d_flow = false
-	_chk(d_flow, "D2 人物整洁树右向流（不被分散波及）")
-	# D3: loose 链左右分散：至少一条 loose 链在人物列左侧、一条在右侧
-	var d_left := false
-	var d_right := false
-	for i in 8:
-		var rr := "R%d" % i
-		if out4[rr].x < center.x - 200.0:
-			d_left = true
-		elif out4[rr].x > center.x + 200.0:
-			d_right = true
-	_chk(d_left and d_right, "D3 loose 链左右两侧均有分布（左列+右列）")
+	for id in ["DDR0", "DDR1", "DDH0", "DDH1", "DDC0", "DDC1"]:
+		if id == "DDR0":
+			if out4["DDR0"].x <= out4["DP"].x:
+				d_flow = false
+		elif id == "DDH0":
+			if out4["DDH0"].x <= out4["DDR0"].x:
+				d_flow = false
+		elif id == "DDC0":
+			if out4["DDC0"].x <= out4["DDH0"].x:
+				d_flow = false
+		elif id == "DDR1":
+			if out4["DDR1"].x <= out4["DP"].x:
+				d_flow = false
+		elif id == "DDH1":
+			if out4["DDH1"].x <= out4["DDR1"].x:
+				d_flow = false
+		elif id == "DDC1":
+			if out4["DDC1"].x <= out4["DDH1"].x:
+				d_flow = false
+	_chk(d_flow, "D2 人物整洁树右向流（不被搬迁波及）")
+	# D3: 树最右沿
+	var tree_ids := ["DP", "DDR0", "DDR1", "DDH0", "DDH1", "DDC0", "DDC1"]
+	var tree_right := _rightmost_of(out4, tree_ids)
+	# D4: 所有无根链根（conclusion）应位于同一右侧带（x 互差小）且整体在树右侧
+	var loose_root_xs := []
+	for id in loose_ids:
+		loose_root_xs.append(out4[id].x)
+	var min_lr := 1e18
+	var max_lr := -1e18
+	for v in loose_root_xs:
+		min_lr = minf(min_lr, v)
+		max_lr = maxf(max_lr, v)
+	_chk((max_lr - min_lr) < 50.0, "D3 所有无根链根位于同一右侧带（x 互差 %.0f < 50）" % (max_lr - min_lr))
+	_chk(min_lr > tree_right + 50.0, "D4 无根链整体搬到树右侧（min_x=%.0f > 树最右沿 %.0f + 50）" % [min_lr, tree_right])
+	_chk(min_lr > center.x, "D5 无根链无左镜像列（全部在中心右侧）")
 	_overlap_check(gv, out4, KINDD, LABELD)
 
 	if _ok:
-		print("WRAP_RESULT: PASS — 多列分散布局全部性质验证通过")
+		print("WRAP_RESULT: PASS — 叶子计数触发搬迁布局全部性质验证通过")
 	else:
 		print("WRAP_RESULT: FAIL")
 	quit()
