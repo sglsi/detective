@@ -744,17 +744,25 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 			person_roots.append(r)
 		else:
 			loose_roots.append(r)
-	# 无根链总高：判断是否需要分散
+	# 无根链总高：判断是否需要分散。
+	# ⚠️ 关键修复（2026-09-19 思傅报「无根链仍排为一竖列」根因）：
+	#   线性无根链（结论→单一推断→单一线索，每个节点仅 1 个子节点）经 tidy-Y 纵向 slot
+	#   计算时，父节点居中于唯一子节点 = 子节点 y，整条链被压成「高度 0」的水平横排；
+	#   旧逻辑用 root_range 高度累加做预算，单条线性链贡献 ≈0，N 条线性链累加仍远低于
+	#   1200 门控 → 永远走单列分支。修正：每条无根链至少按「单张卡片实测高(412)」计入预算
+	#   （横排链视觉上即一卡高），使 3+ 条线性无根链即触发多列分散，符合「不要只在一个竖列」的意图。
 	var loose_total: float = 0.0
 	for r in loose_roots:
-		loose_total += (root_range[r][1] - root_range[r][0]) + subtree_sep
-	# 无根链贪心分组（单组=不分散）
+		var _chain_h: float = maxf(root_range[r][1] - root_range[r][0], 412.0)
+		loose_total += _chain_h + subtree_sep
+	# 无根链贪心分组（单组=不分散）。分组用的每链预算高度须与上方 loose_total 同口径
+	# （含 412 卡片高下限），否则线性链 bh≈40 全部塞进同一组 → size==1 → 仍单列。
 	var loose_groups: Array = []
 	if not loose_roots.is_empty() and loose_total > wrap_h:
 		var acc: float = 0.0
 		var cur_g: Array = []
 		for r in loose_roots:
-			var bh: float = (root_range[r][1] - root_range[r][0]) + subtree_sep
+			var bh: float = maxf(root_range[r][1] - root_range[r][0], 412.0) + subtree_sep
 			if not cur_g.is_empty() and acc + bh > wrap_h:
 				loose_groups.append(cur_g)
 				cur_g = []
