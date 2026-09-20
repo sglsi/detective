@@ -37,6 +37,14 @@ var _cur_entry_id := ""
 ## 同步状态提示（已是最新版 / 正在同步 / 离线内置版）
 var _status: Label
 
+## 主面板与拖动状态：面板改用「按住标题栏拖动」，位置以中心锚点下的 offset 表示。
+## _last_offset 为静态：同一会话内关闭再打开能回到上次拖到的位置。
+var _main_panel: PanelContainer
+var _dragging := false
+var _drag_start_mouse := Vector2.ZERO
+var _drag_start_offset := Vector2.ZERO
+static var _last_offset: Vector2 = Vector2.INF
+
 func _ready() -> void:
 	if KnowledgeBaseSystem != null:
 		_kb = KnowledgeBaseSystem
@@ -121,6 +129,13 @@ func _build_ui() -> void:
 	mstyle.border_width_top = 2; mstyle.border_width_bottom = 2
 	mstyle.set_corner_radius_all(12)
 	main.add_theme_stylebox_override("panel", mstyle)
+	# 恢复上次拖动后的位置（会话内记忆）；未拖动过则保持居中
+	if _last_offset != Vector2.INF:
+		main.offset_left = _last_offset.x
+		main.offset_top = _last_offset.y
+		main.offset_right = _last_offset.x + 1240.0
+		main.offset_bottom = _last_offset.y + 780.0
+	_main_panel = main
 	add_child(main)
 
 	var vroot := VBoxContainer.new()
@@ -130,6 +145,11 @@ func _build_ui() -> void:
 	# 标题栏
 	var title_bar := HBoxContainer.new()
 	title_bar.add_theme_constant_override("separation", 12)
+	# 标题栏兼作拖动把手：按住可移动整个面板（光标变移动样式提示可拖）。
+	# 栏内按钮自身消费鼠标事件，故点按钮不会误触发拖动。
+	title_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	title_bar.mouse_default_cursor_shape = Control.CURSOR_MOVE
+	title_bar.gui_input.connect(_on_title_bar_input)
 	vroot.add_child(title_bar)
 	var title := Label.new()
 	title.text = "📚 推理知识库"
@@ -167,6 +187,9 @@ func _build_ui() -> void:
 	# 主体：左列 + 右列
 	var hbody := HBoxContainer.new()
 	hbody.add_theme_constant_override("separation", 10)
+	# ⚠️ 主体必须吸收面板剩余高度。此前 hbody 未设垂直 expand，VBox 只按最小高度分给它，
+	# 面板下方约 1/4 高度被闲置为空白（左列域树/右侧列表的 EXPAND_FILL 因此收不到空间）。
+	hbody.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vroot.add_child(hbody)
 
 	_left_col = VBoxContainer.new()
@@ -188,12 +211,13 @@ func _build_left() -> void:
 	# 检索
 	var s_lbl := Label.new()
 	s_lbl.text = "🔍 关键词检索（多词空格分隔）"
-	s_lbl.add_theme_font_size_override("font_size", 15)
+	s_lbl.add_theme_font_size_override("font_size", 16)
 	s_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	_left_col.add_child(s_lbl)
 
 	_search_input = LineEdit.new()
 	_search_input.placeholder_text = "如：肤色 马车 毒物"
+	_search_input.add_theme_font_size_override("font_size", 19)
 	_search_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_search_input.text_submitted.connect(func(_t): _on_search())
 	_left_col.add_child(_search_input)
@@ -203,14 +227,17 @@ func _build_left() -> void:
 	_left_col.add_child(s_row)
 	var search_btn := Button.new()
 	search_btn.text = "检索"
+	search_btn.add_theme_font_size_override("font_size", 19)
 	search_btn.pressed.connect(_on_search)
 	s_row.add_child(search_btn)
 	var rand_btn := Button.new()
 	rand_btn.text = "🎲 随机翻阅"
+	rand_btn.add_theme_font_size_override("font_size", 19)
 	rand_btn.pressed.connect(_on_random)
 	s_row.add_child(rand_btn)
 	var fav_btn := Button.new()
 	fav_btn.text = "★ 收藏夹"
+	fav_btn.add_theme_font_size_override("font_size", 19)
 	fav_btn.pressed.connect(_on_favorites)
 	s_row.add_child(fav_btn)
 
@@ -220,7 +247,7 @@ func _build_left() -> void:
 	# 主题域树
 	var d_lbl := Label.new()
 	d_lbl.text = "📖 主题域（点击展开子主题）"
-	d_lbl.add_theme_font_size_override("font_size", 15)
+	d_lbl.add_theme_font_size_override("font_size", 16)
 	d_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	_left_col.add_child(d_lbl)
 
@@ -246,6 +273,7 @@ func _build_left() -> void:
 		dom_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		dom_btn.add_theme_color_override("font_color", COL_GOLD)
 		dom_box.add_child(dom_btn)
+		dom_btn.add_theme_font_size_override("font_size", 19)
 
 		var sub_box := VBoxContainer.new()
 		sub_box.visible = false
@@ -257,6 +285,7 @@ func _build_left() -> void:
 			sub_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			sub_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			sub_btn.add_theme_color_override("font_color", COL_TEXT)
+			sub_btn.add_theme_font_size_override("font_size", 19)
 			sub_btn.pressed.connect(_show_browse_async.bind(dom_id, str(sub)))
 			sub_box.add_child(sub_btn)
 
@@ -267,7 +296,7 @@ func _build_left() -> void:
 
 func _build_right() -> void:
 	_breadcrumb = Label.new()
-	_breadcrumb.add_theme_font_size_override("font_size", 18)
+	_breadcrumb.add_theme_font_size_override("font_size", 19)
 	_breadcrumb.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	_breadcrumb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_right_col.add_child(_breadcrumb)
@@ -328,6 +357,7 @@ func _build_entry_list(list: Array) -> void:
 	if list.is_empty():
 		var empty := Label.new()
 		empty.text = "（暂无条目）"
+		empty.add_theme_font_size_override("font_size", 19)
 		empty.add_theme_color_override("font_color", COL_SUB)
 		_clear_right_append(empty)
 		return
@@ -355,7 +385,7 @@ func _make_entry_card(e: Dictionary) -> PanelContainer:
 
 	var title := Label.new()
 	title.text = "• " + str(e.get("title", ""))
-	title.add_theme_font_size_override("font_size", 17)
+	title.add_theme_font_size_override("font_size", 18)
 	title.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(title)
@@ -365,7 +395,7 @@ func _make_entry_card(e: Dictionary) -> PanelContainer:
 	# "百科里还是老的简洁内容"。改为派生后，列表展示永远与正文一致。
 	var summary := Label.new()
 	summary.text = _kb.excerpt_of(e, 150) if _kb != null else str(e.get("summary", ""))
-	summary.add_theme_font_size_override("font_size", 14)
+	summary.add_theme_font_size_override("font_size", 15)
 	summary.add_theme_color_override("font_color", COL_TEXT)
 	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(summary)
@@ -380,6 +410,7 @@ func _make_entry_card(e: Dictionary) -> PanelContainer:
 	# 玩家根本发现不了详实正文；现明确标为「查看详情」并显示正文字数。
 	var detail_btn := Button.new()
 	detail_btn.text = "查看详情（%d 字）" % str(e.get("body", "")).length()
+	detail_btn.add_theme_font_size_override("font_size", 19)
 	detail_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	detail_btn.pressed.connect(_on_entry_clicked.bind(entry_id))
 	btn_row.add_child(detail_btn)
@@ -387,6 +418,7 @@ func _make_entry_card(e: Dictionary) -> PanelContainer:
 	var fav := Button.new()
 	fav.text = "★ 已收藏" if (_kb != null and _kb.is_favorite(entry_id)) else "☆ 收藏"
 	fav.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	fav.add_theme_font_size_override("font_size", 19)
 	fav.pressed.connect(_on_toggle_fav_in_list.bind(entry_id, fav))
 	btn_row.add_child(fav)
 	return card
@@ -416,14 +448,14 @@ func _show_detail(entry_id: String) -> void:
 
 	var title := Label.new()
 	title.text = str(e.get("title", ""))
-	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_font_size_override("font_size", 25)
 	title.add_theme_color_override("font_color", COL_GOLD)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_clear_right_append(title)
 
 	var tags := Label.new()
 	tags.text = "%s › %s    [%s]" % [_kb.domain_name(e.get("domain", "")), e.get("subdomain", ""), e.get("domain", "")]
-	tags.add_theme_font_size_override("font_size", 14)
+	tags.add_theme_font_size_override("font_size", 15)
 	tags.add_theme_color_override("font_color", COL_SUB)
 	_clear_right_append(tags)
 
@@ -432,13 +464,14 @@ func _show_detail(entry_id: String) -> void:
 	var is_fav: bool = _kb.is_favorite(entry_id)
 	fav.text = "★ 已收藏" if is_fav else "☆ 加入收藏"
 	fav.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	fav.add_theme_font_size_override("font_size", 19)
 	fav.pressed.connect(_on_toggle_fav.bind(entry_id))
 	_clear_right_append(fav)
 
 	# 正文
 	var body := Label.new()
 	body.text = str(e.get("body", ""))
-	body.add_theme_font_size_override("font_size", 16)
+	body.add_theme_font_size_override("font_size", 17)
 	body.add_theme_color_override("font_color", COL_TEXT)
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_clear_right_append(body)
@@ -448,7 +481,7 @@ func _show_detail(entry_id: String) -> void:
 	if not related.is_empty():
 		var rel_lbl := Label.new()
 		rel_lbl.text = "🔗 交叉引用："
-		rel_lbl.add_theme_font_size_override("font_size", 15)
+		rel_lbl.add_theme_font_size_override("font_size", 16)
 		rel_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 		_clear_right_append(rel_lbl)
 		for re in related:
@@ -458,13 +491,14 @@ func _show_detail(entry_id: String) -> void:
 			rbtn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			rbtn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			rbtn.add_theme_color_override("font_color", COL_TEXT)
+			rbtn.add_theme_font_size_override("font_size", 19)
 			rbtn.pressed.connect(_show_detail.bind(r.get("id", "")))
 			_clear_right_append(rbtn)
 
 	# 笔记
 	var note_lbl := Label.new()
 	note_lbl.text = "📝 我的笔记："
-	note_lbl.add_theme_font_size_override("font_size", 15)
+	note_lbl.add_theme_font_size_override("font_size", 16)
 	note_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
 	_clear_right_append(note_lbl)
 
@@ -473,10 +507,12 @@ func _show_detail(entry_id: String) -> void:
 	_clear_right_append(note_row)
 	var note_input := LineEdit.new()
 	note_input.placeholder_text = "写下你的推理笔记…"
+	note_input.add_theme_font_size_override("font_size", 19)
 	note_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	note_row.add_child(note_input)
 	var add_btn := Button.new()
 	add_btn.text = "添加"
+	add_btn.add_theme_font_size_override("font_size", 19)
 	add_btn.pressed.connect(_on_add_note.bind(entry_id, note_input))
 	note_row.add_child(add_btn)
 
@@ -489,13 +525,14 @@ func _show_detail(entry_id: String) -> void:
 			nb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			var nt := Label.new()
 			nt.text = "· " + str(n.get("text", ""))
-			nt.add_theme_font_size_override("font_size", 14)
+			nt.add_theme_font_size_override("font_size", 15)
 			nt.add_theme_color_override("font_color", COL_TEXT)
 			nt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			nt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			nb.add_child(nt)
 			var del := Button.new()
 			del.text = "删除"
+			del.add_theme_font_size_override("font_size", 19)
 			del.pressed.connect(_on_del_note.bind(i))
 			nb.add_child(del)
 			_clear_right_append(nb)
@@ -519,6 +556,7 @@ func _build_entry_list_from_results(res: Array) -> void:
 	if res.is_empty():
 		var empty := Label.new()
 		empty.text = "（无匹配条目，试试更短的关键词）"
+		empty.add_theme_font_size_override("font_size", 19)
 		empty.add_theme_color_override("font_color", COL_SUB)
 		_clear_right_append(empty)
 		return
@@ -600,8 +638,49 @@ func _on_backdrop_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		close_requested.emit()
 
+# ===================== 面板拖动 =====================
+
+## 在标题栏按下左键即进入拖动；后续位移在 _input 的 motion 中处理，
+## 这样鼠标拖出面板范围也能继续拖动（gui_input 只在该控件内才收得到 motion）。
+func _on_title_bar_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
+			_begin_drag()
+
+func _begin_drag() -> void:
+	if _main_panel == null or not is_instance_valid(_main_panel):
+		return
+	_dragging = true
+	_drag_start_mouse = get_viewport().get_mouse_position()
+	_drag_start_offset = Vector2(_main_panel.offset_left, _main_panel.offset_top)
+
+func _update_drag() -> void:
+	if _main_panel == null or not is_instance_valid(_main_panel):
+		_dragging = false
+		return
+	var d: Vector2 = get_viewport().get_mouse_position() - _drag_start_mouse
+	var pos: Vector2 = _drag_start_offset + d
+	var sz: Vector2 = _main_panel.size
+	var vp: Vector2 = get_viewport_rect().size
+	# 钳制：始终保留至少 120px 在视口内，避免面板被拖出屏幕后找不回来
+	pos.x = clampf(pos.x, 120.0 - sz.x - vp.x * 0.5, vp.x * 0.5 - 120.0)
+	pos.y = clampf(pos.y, 120.0 - sz.y - vp.y * 0.5, vp.y * 0.5 - 120.0)
+	_main_panel.offset_left = pos.x
+	_main_panel.offset_top = pos.y
+	_main_panel.offset_right = pos.x + sz.x
+	_main_panel.offset_bottom = pos.y + sz.y
+	_last_offset = pos
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		if k.pressed and not k.echo and k.keycode == KEY_ESCAPE:
 			close_requested.emit()
+	elif _dragging:
+		if event is InputEventMouseMotion:
+			_update_drag()
+		elif event is InputEventMouseButton:
+			var mb := event as InputEventMouseButton
+			if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+				_dragging = false
