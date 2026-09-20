@@ -33,6 +33,12 @@ const GraphViewEdge = preload("res://scripts/clue/graph/graph_view_edge.gd")
 var _edge: GraphViewEdge
 const GraphViewDock = preload("res://scripts/clue/graph/graph_view_dock.gd")
 var _dockctl: GraphViewDock   # 左线索栏 dock 逻辑（注意：_dock 已用于线索栏 UI 节点本体）
+const GraphViewCards = preload("res://scripts/clue/graph/graph_view_cards.gd")
+var _cards: GraphViewCards   # 卡片渲染（统一三段式 / 纸纹 / 头像 / 图片区 / 金钉）
+const GraphViewGuide = preload("res://scripts/clue/graph/graph_view_guide.gd")
+var _guide: GraphViewGuide   # 首入引导 / 多步骤教程弹层
+const GraphViewDetail = preload("res://scripts/clue/graph/graph_view_detail.gd")
+var _detail: GraphViewDetail   # 节点详情卡（标题文案 / 删除 / 删除连线）
 # 结论文本宽容匹配（与 HardModeEvaluator 共用同一实现，避免口径漂移）
 const ConclusionMatcher = preload("res://scripts/clue/conclusion_matcher.gd")
 const ClueImageAnchors = preload("res://data/clue_image_anchors.gd")
@@ -90,13 +96,7 @@ var _edge_layer: Node2D = null     # 连线绘制层（节点下）
 var _toolbar: Control = null
 var _toast: Label = null
 var _detail_card: PanelContainer = null
-var _tutorial: Control = null
-var _tut_steps: Array = []           # 多步骤引导内容（title + 行）
-var _tut_idx: int = 0
-var _tut_title: Label = null
-var _tut_body: VBoxContainer = null
-var _tut_prev: Button = null
-var _tut_next: Button = null
+# 教程状态（_tutorial / _tut_*）已迁至 GraphViewGuide 组件（_guide）自持
 
 # === 派生缓存 ===
 var _node_views: Dictionary = {}    # id -> Control
@@ -236,7 +236,10 @@ const _KEY_TO_KIND := {"green": "support", "orange": "contradict", "red": "oppos
 const _KIND_TO_KEY := {"support": "green", "imply": "green", "contradict": "orange", "oppose": "red", "relate": "grey", "target": "gold"}
 
 
-func _ready() -> void:
+## 组件在 _init 即实例化：build() 可能在节点进树(_ready)之前被调用
+##（reasoning_wall._on_open_graph_view 在 add_child 后立即同步 build，而此时本控制器尚未进树），
+## 若组件仅在 _ready 创建，build() 早期就会因组件 Nil 报错。_init 保证 .new() 起组件即可用。
+func _init() -> void:
 	_data = GraphViewData.new()
 	_data.owner = self
 	_layout = GraphViewLayout.new()
@@ -247,6 +250,12 @@ func _ready() -> void:
 	_edge.owner = self
 	_dockctl = GraphViewDock.new()
 	_dockctl.owner = self
+	_cards = GraphViewCards.new()
+	_cards.owner = self
+	_guide = GraphViewGuide.new()
+	_guide.owner = self
+	_detail = GraphViewDetail.new()
+	_detail.owner = self
 
 
 # === 当前笔（由推理墙顶部栏 / 图谱内弹窗共同驱动）===
@@ -437,7 +446,7 @@ func build(data: Dictionary) -> void:
 	# 欢迎引导仅首次进入时展示（教学墙/普通墙一致）：关闭后写入 graph_tutorial_seen，再次进入不再自动弹。
 	# 工具栏「?」按钮可随时重开。
 	if not _state_store.get("graph_tutorial_seen", false):
-		_show_tutorial()
+		_guide.show_tutorial()
 
 
 ## 身份揭示门控（需求2）：判定某 NPC 是否应以"已知人物"出现在人物中心。
@@ -601,7 +610,7 @@ func _create_toolbar() -> Control:
 
 	# 操作帮助（随时重开教程引导，缓解首次进入推理墙的困惑）
 	var help := _mk_tool_btn("?", "推理墙操作帮助 / 重新查看教程")
-	help.pressed.connect(_show_tutorial)
+	help.pressed.connect(_guide.show_tutorial)
 	row.add_child(help)
 
 	_refresh_toolbar_state()
@@ -717,7 +726,7 @@ func _rebuild_graph() -> void:
 		_node_kind[nd.id] = nd.kind
 		_node_data[nd.id] = nd.data
 	for nd in nodes:
-		var v := _make_node(nd)
+		var v := _cards.make_node(nd)
 		v.set_meta("graph_node", true)
 		_node_views[nd.id] = v
 		_canvas.add_child(v)
@@ -958,454 +967,7 @@ func _node_list() -> Array:
 ##   - 推断：底=灰；有关联=实线暗边；无关联=虚线暗边；干扰项=实线红边 + 红字
 ##   - 推理链/结论：维持当前（结论按 verdict 红/橙/黄/绿，链=金边）
 ##   - 中心人物：金边 + 暖金底
-# ===================== 统一版式辅助（2026-09-17） =====================
-var _grain_tex: ImageTexture = null
-var _avatar_cache: Dictionary = {}      # Texture2D -> 圆形头像 Texture2D
-var _unknown_avatar_tex: ImageTexture = null
-
-## 随机纸纹贴图（一次性生成、全局缓存）：128×128 透明底 + 随机散布圆点（大小/深浅带随机变化），
-## 非规则平铺，模拟真实卡片颗粒感。各卡用 modulate 染成与底色对比的微弱点/亮点。
-func _grain_texture() -> ImageTexture:
-	if _grain_tex != null:
-		return _grain_tex
-	var S := 128
-	var img := Image.create(S, S, false, Image.FORMAT_RGBA8)
-	img.fill(Color(1, 1, 1, 0))
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 20260917
-	for _i in 240:
-		var x := rng.randi_range(2, S - 3)
-		var y := rng.randi_range(2, S - 3)
-		var r := rng.randf_range(0.7, 2.4)
-		var a := rng.randf_range(0.35, 0.9)
-		var rr := int(ceil(r))
-		for dy in range(-rr, rr + 1):
-			for dx in range(-rr, rr + 1):
-				if dx * dx + dy * dy <= r * r:
-					var px := x + dx; var py := y + dy
-					if px >= 0 and px < S and py >= 0 and py < S:
-						img.set_pixel(px, py, Color(1, 1, 1, a))
-	_grain_tex = ImageTexture.create_from_image(img)
-	return _grain_tex
-
-## 卡片背景纸纹层（置于内容之下）。深色卡→淡亮点，浅色卡→淡暗点。
-func _make_grain_rect(bg: Color) -> TextureRect:
-	var tr := TextureRect.new()
-	tr.texture = _grain_texture()
-	tr.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var lum := 0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b
-	tr.modulate = Color(1, 1, 1, 0.20) if lum < 0.4 else Color(0, 0, 0, 0.20)
-	return tr
-
-## 把任意方形头像纹理裁成圆形（居中取最小边 + 圆形 alpha 遮罩，2px 抗锯齿）。
-## 缓存按源纹理；get_image 失败（如压缩纹理）则回退原矩形纹理。
-func _make_circular_avatar(tex: Texture2D) -> Texture2D:
-	if tex == null:
-		return null
-	if _avatar_cache.has(tex):
-		return _avatar_cache[tex]
-	var out_tex: Texture2D = tex
-	var img: Image = tex.get_image()
-	if img != null:
-		var W := img.get_width(); var H := img.get_height()
-		var side := mini(W, H)
-		var sx := int((W - side) * 0.5); var sy := int((H - side) * 0.5)
-		var S := 256
-		# 先裁居中方块再缩放到 S×S（blit_rect 不缩放，大图会只取左上角）
-		var sq: Image = img.get_region(Rect2i(sx, sy, side, side))
-		sq.resize(S, S, Image.INTERPOLATE_LANCZOS)
-		sq.convert(Image.FORMAT_RGBA8)
-		var r := float(S) * 0.5
-		for y in S:
-			for x in S:
-				var dx := float(x) - r + 0.5
-				var dy := float(y) - r + 0.5
-				var d := sqrt(dx * dx + dy * dy)
-				if d > r:
-					sq.set_pixel(x, y, Color(0, 0, 0, 0))
-				elif d > r - 2.0:
-					var a := (r - d) / 2.0
-					var c := sq.get_pixel(x, y)
-					sq.set_pixel(x, y, Color(c.r, c.g, c.b, clampf(c.a * a, 0.0, 1.0)))
-		out_tex = ImageTexture.create_from_image(sq)
-	_avatar_cache[tex] = out_tex
-	return out_tex
-
-## 未知人物剪影圆盘（深底 + 透明外圈），缓存。
-func _make_unknown_avatar() -> ImageTexture:
-	if _unknown_avatar_tex != null:
-		return _unknown_avatar_tex
-	var S := 256
-	var out := Image.create(S, S, false, Image.FORMAT_RGBA8)
-	out.fill(Color(0, 0, 0, 0))
-	var r := float(S) * 0.5 - 4.0
-	for y in S:
-		for x in S:
-			var dx := float(x) - float(S) * 0.5 + 0.5
-			var dy := float(y) - float(S) * 0.5 + 0.5
-			var d := sqrt(dx * dx + dy * dy)
-			if d <= r:
-				var a := 1.0
-				if d > r - 3.0:
-					a = (r - d) / 3.0
-				out.set_pixel(x, y, Color(0.13, 0.11, 0.10, a))
-	_unknown_avatar_tex = ImageTexture.create_from_image(out)
-	return _unknown_avatar_tex
-
-## 圆形头像外框：PanelContainer + 圆形金边（corner_radius=半边长），内含纹理/剪影。
-func _make_avatar_frame(tex: Texture2D, ring_col: Color, overlay_q: bool = false) -> PanelContainer:
-	var pc := PanelContainer.new()
-	var av := 200.0
-	pc.custom_minimum_size = Vector2(av, av)
-	pc.size = Vector2(av, av)
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0, 0, 0, 0)
-	s.border_color = ring_col
-	s.border_width_left = 5; s.border_width_right = 5; s.border_width_top = 5; s.border_width_bottom = 5
-	s.set_corner_radius_all(av * 0.5)
-	pc.add_theme_stylebox_override("panel", s)
-	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var inner := Control.new()
-	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pc.add_child(inner)
-	var tr := TextureRect.new()
-	tr.texture = tex
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	inner.add_child(tr)
-	if overlay_q:
-		var q := Label.new()
-		q.text = "?"
-		q.add_theme_font_size_override("font_size", 110)
-		q.add_theme_color_override("font_color", Color(0.96, 0.86, 0.5))
-		q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		q.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		q.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		inner.add_child(q)
-	return pc
-
-## 线索图片外框：深棕细边圆角 PanelContainer 包裹 TextureRect（保持比例居中）。
-func _make_img_frame(tr: TextureRect) -> PanelContainer:
-	var pc := PanelContainer.new()
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.08, 0.06, 0.04, 1)
-	s.border_color = Color(0.45, 0.32, 0.18)
-	s.border_width_left = 3; s.border_width_right = 3; s.border_width_top = 3; s.border_width_bottom = 3
-	s.set_corner_radius_all(6)
-	pc.add_theme_stylebox_override("panel", s)
-	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pc.add_child(tr)
-	return pc
-
-## 推断/结论/推理链等暂无示例图的占位徽章（可后续替换为按内容生成的示例图）。
-func _make_placeholder_frame(txt: String, col: Color) -> PanelContainer:
-	var pc := PanelContainer.new()
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(clampf(col.r, 0, 1), clampf(col.g, 0, 1), clampf(col.b, 0, 1), 0.18)
-	s.border_color = col
-	s.border_width_left = 3; s.border_width_right = 3; s.border_width_top = 3; s.border_width_bottom = 3
-	s.set_corner_radius_all(6)
-	pc.add_theme_stylebox_override("panel", s)
-	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var lb := Label.new()
-	lb.text = txt
-	lb.add_theme_font_size_override("font_size", 30)
-	lb.add_theme_color_override("font_color", col)
-	lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lb.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	pc.add_child(lb)
-	return pc
-
-## 分隔线（细色条）。
-func _make_sep_line(col: Color) -> ColorRect:
-	var cr := ColorRect.new()
-	cr.color = col
-	cr.custom_minimum_size = Vector2(0, 2)
-	cr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return cr
-
-## 图片区：按类型返回对应内容（人物=圆形头像/剪影居中；线索=图片铺满；其余=占位徽章铺满）。
-func _build_image_section(nd: Dictionary, kind: String, is_person: bool, is_clue: bool,
-		is_concl: bool, is_hypo: bool, is_chain: bool, style: StyleBoxFlat) -> Control:
-	var sec: Control
-	if is_person:
-		sec = CenterContainer.new()   # 方形头像居中
-	else:
-		var mc := MarginContainer.new()   # 图片/占位铺满区块
-		mc.add_theme_constant_override("margin_left", 4)
-		mc.add_theme_constant_override("margin_top", 4)
-		mc.add_theme_constant_override("margin_right", 4)
-		mc.add_theme_constant_override("margin_bottom", 4)
-		sec = mc
-	sec.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sec.custom_minimum_size = Vector2(0, _CARD_IMG_H)
-	if is_person:
-		var masked: bool = nd.get("masked", false)
-		var tex: Texture2D = null
-		if not masked:
-			tex = PortraitLibrary.get_portrait(nd.get("label", ""))
-		if tex != null:
-			sec.add_child(_make_avatar_frame(_make_circular_avatar(tex), COL_GOLD))
-		else:
-			sec.add_child(_make_avatar_frame(_make_unknown_avatar(), Color(0.82, 0.66, 0.30), true))
-	elif is_clue:
-		var c: Dictionary = nd.get("data", {})
-		var img_path: String = c.get("image", "")
-		var tex: Texture2D = null
-		if img_path != "" and ResourceLoader.exists(img_path):
-			var base: Texture2D = load(img_path)
-			if base != null:
-				# 锚点裁剪：同场景多条线索共用一张场景图，按锚点截出该线索真实区域
-				#（anchor 缺失时以线索 id 兜底查表；查不到 → 回退整图，绝不报错）。
-				var anchor_name: String = str(c.get("anchor", ""))
-				if anchor_name == "":
-					anchor_name = str(c.get("id", ""))
-				var a: Dictionary = ClueImageAnchors.get_anchor(img_path, anchor_name)
-				if a.is_empty():
-					tex = base
-				else:
-					var bsz: Vector2 = base.get_size()
-					var rw: float = clampf(bsz.x * float(a.get("w", 1.0)), 8.0, bsz.x)
-					var rh: float = clampf(bsz.y * float(a.get("h", 1.0)), 8.0, bsz.y)
-					var rcx: float = clampf(bsz.x * float(a.get("cx", 0.5)), rw * 0.5, bsz.x - rw * 0.5)
-					var rcy: float = clampf(bsz.y * float(a.get("cy", 0.5)), rh * 0.5, bsz.y - rh * 0.5)
-					var at := AtlasTexture.new()
-					at.atlas = base
-					at.region = Rect2(rcx - rw * 0.5, rcy - rh * 0.5, rw, rh)
-					tex = at
-		if tex != null:
-			var tr := TextureRect.new()
-			tr.texture = tex
-			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			sec.add_child(_make_img_frame(tr))
-		else:
-			sec.add_child(_make_placeholder_frame("线索", COL_CLUE_BORDER))
-	else:
-		var ph_txt := "推断" if is_hypo else ("结论" if is_concl else ("推理链" if is_chain else "文本"))
-		var ph_col: Color = COL_HYPO_BORDER if is_hypo else (Color(0.58, 0.44, 0.20) if is_concl else COL_GOLD)
-		sec.add_child(_make_placeholder_frame(ph_txt, ph_col))
-	return sec
-
-
-func _make_node(nd: Dictionary) -> Control:
-	var kind: String = nd.kind
-	var is_person: bool = kind == "person"
-	var is_concl: bool = kind == "conclusion"
-	var is_chain: bool = kind == "chain"
-	var is_hypo: bool = kind == "hypo"
-	var is_clue: bool = kind == "clue"
-
-	var card: PanelContainer
-	var is_graph_card: bool = true
-	var gc = GraphCard.new()
-	card = gc
-	# 大小按类型给（中文文本可能变宽，故预留；字号已×2，尺寸同步放大）
-	# #1 自适应：卡片尺寸随姓名文字长度增长（约 28px/字，字号28），封顶 480 后自动换行扩高
-	# 位置由调用方按 _node_center - size*0.5 重新居中，边/菜单以中心为锚，连线不受影响
-	var _base_w: float = 180.0; var _base_h: float = 150.0
-	if is_person: _base_w = 180.0; _base_h = 170.0
-	elif is_concl: _base_w = 160.0; _base_h = 160.0
-	elif is_chain: _base_w = 125.0; _base_h = 120.0
-	elif is_hypo: _base_w = 140.0; _base_h = 130.0
-	elif is_clue: _base_w = 320.0; _base_h = 130.0   # 需求6：线索文本框宽度加倍（160→320）
-	else: _base_w = 160.0; _base_h = 130.0
-	# 卡片尺寸在标签建立后按真实文字测量（见文末 _size_card_to_text 调用）
-
-	card.mouse_filter = Control.MOUSE_FILTER_STOP
-
-	var style := StyleBoxFlat.new()
-	var default_border_w: int = 2
-	style.border_width_left = default_border_w; style.border_width_right = default_border_w
-	style.border_width_top = default_border_w; style.border_width_bottom = default_border_w
-	style.set_corner_radius_all(8)
-
-	var text_red := false
-	var dashed: bool = false
-	var dashed_col: Color = COL_CLUE_BORDER
-	var dashed_w: float = 2.0
-	var font_col: Color = COL_TEXT_DARK   # 默认深色字；人物红框改用浅色字
-	var sub_col: Color = COL_GREY
-
-	if is_clue:
-		var c: Dictionary = nd.data
-		var correct: bool = c.get("correct", true)
-		var assoc: bool = c.get("associated", false)
-		# P0-2 用户标记覆盖
-		var cid: String = c.get("id", "")
-		var excluded: bool = _user_excluded.has(cid)
-		var pending: bool = _user_pending.has(cid)
-		if excluded:
-			# 已排除：灰底 + 暗边
-			style.bg_color = Color(0.20, 0.18, 0.16, 0.85)
-			style.border_color = Color(0.40, 0.38, 0.35)
-			style.border_width_left = 1; style.border_width_right = 1
-			style.border_width_top = 1; style.border_width_bottom = 1
-			text_red = false
-		elif not correct:
-			# 干扰项：白底 + 实线红边 + 红字
-			style.bg_color = COL_CLUE_BG_DIM
-			style.border_color = COL_CLUE_BORDER_DISTRACT
-			text_red = true
-		else:
-			style.bg_color = COL_CLUE_BG
-			if assoc:
-				style.border_color = COL_CLUE_BORDER_ASSOC
-			else:
-				# 未关联：虚线暗金边
-				style.border_color = COL_CLUE_BG   # 把 stylebox 边框调成 bg 色，避免与手动虚线重影
-				style.border_width_left = 0; style.border_width_right = 0
-				style.border_width_top = 0; style.border_width_bottom = 0
-				dashed = true
-				dashed_col = COL_CLUE_BORDER
-				dashed_w = 2.0
-		# P0-2 待查标记：黄边覆盖
-		if pending and not excluded:
-			style.border_color = Color(0.95, 0.80, 0.25)
-			style.border_width_left = 3; style.border_width_right = 3
-			style.border_width_top = 3; style.border_width_bottom = 3
-			dashed = false
-		# 共同线索（关联≥2人物）金边覆盖
-		if nd.get("common", false):
-			style.border_color = COL_GOLD
-			style.border_width_left = 3; style.border_width_right = 3
-			style.border_width_top = 3; style.border_width_bottom = 3
-			dashed = false
-		# P0-3 搜索匹配高亮：金色加粗外框
-		if not _search_query.is_empty() and _search_match_ids.has(cid):
-			style.border_color = Color(1.0, 0.90, 0.30)
-			style.border_width_left = 4; style.border_width_right = 4
-			style.border_width_top = 4; style.border_width_bottom = 4
-	elif is_hypo:
-		var h: Dictionary = nd.data
-		var correct: bool = h.get("correct", true)
-		if not correct:
-			style.bg_color = COL_HYPO_BG_DIM
-			style.border_color = COL_CLUE_BORDER_DISTRACT
-			text_red = true
-		else:
-			style.bg_color = COL_HYPO_BG
-			if _edge._node_has_user_relation(nd.id):
-				style.border_color = COL_HYPO_BORDER
-			else:
-				# 未关联推断：虚线暗边
-				style.border_color = COL_HYPO_BG   # 同上，把 stylebox 边框调成 bg 色
-				style.border_width_left = 0; style.border_width_right = 0
-				style.border_width_top = 0; style.border_width_bottom = 0
-				dashed = true
-				dashed_col = COL_HYPO_BORDER
-				dashed_w = 2.0
-	elif is_chain:
-		style.bg_color = Color(0.16, 0.13, 0.08, 0.95)
-		style.border_color = COL_GOLD
-	elif is_concl:
-		style.bg_color = Color(0.84, 0.74, 0.56, 0.96)   # 结论=浅棕（对照华生示范）
-		style.border_color = Color(0.58, 0.44, 0.20)
-		style.border_width_left = 3; style.border_width_right = 3
-		style.border_width_top = 3; style.border_width_bottom = 3
-	elif is_person:
-		style.bg_color = Color(0.66, 0.20, 0.16, 0.97)   # 人物=红框（对照华生示范）
-		style.border_color = Color(0.96, 0.44, 0.34)
-		style.border_width_left = 3; style.border_width_right = 3
-		style.border_width_top = 3; style.border_width_bottom = 3
-		font_col = Color(0.99, 0.95, 0.92)
-		sub_col = Color(0.92, 0.88, 0.85)
-
-	card.add_theme_stylebox_override("panel", style)
-
-	# 折叠根：暗金虚线描边（提示"此节点下有收起内容"，见设计 §2.3）
-	if _folded_nodes.has(nd.id):
-		(card as GraphCard).setup_dashed(true, COL_GOLD, 2)
-
-	# 启用虚线（需要 GraphCard）
-	if is_graph_card and dashed:
-		(card as GraphCard).setup_dashed(true, dashed_col, dashed_w)
-
-	# ===== 统一三段式版式（2026-09-17）：图片区 + 标题 + 副标题 =====
-	# ⚠️ 装饰层全部 mouse_filter=IGNORE：否则子控件拦截鼠标 → card.gui_input 收不到
-	# → 点击详情（推导/打标签）、拖拽、Shift 建边全部失效（2026-09-17 用户报）。
-	var root := Control.new()
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(root)
-
-	# 随机纸纹底（置于内容之下）
-	var grain := _make_grain_rect(style.bg_color)
-	root.add_child(grain)
-
-	# 顶部图钉圆点（对照预览版式：卡顶中央金色圆钉，骑跨上边缘）
-	var pin := PanelContainer.new()
-	pin.custom_minimum_size = Vector2(22, 22)
-	pin.size = Vector2(22, 22)
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color(0.93, 0.66, 0.24)
-	ps.border_color = Color(0.55, 0.36, 0.10)
-	ps.border_width_left = 2; ps.border_width_right = 2
-	ps.border_width_top = 2; ps.border_width_bottom = 2
-	ps.set_corner_radius_all(11)
-	pin.add_theme_stylebox_override("panel", ps)
-	pin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(pin)
-	pin.position = Vector2(_CARD_W * 0.5 - 11.0, -8.0)
-
-	# 内容层
-	var margin := MarginContainer.new()
-	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	margin.add_theme_constant_override("margin_left", int(_CARD_MARGIN))
-	margin.add_theme_constant_override("margin_top", int(_CARD_MARGIN))
-	margin.add_theme_constant_override("margin_right", int(_CARD_MARGIN))
-	margin.add_theme_constant_override("margin_bottom", int(_CARD_MARGIN))
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_child(margin)
-
-	var vb := VBoxContainer.new()
-	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vb.add_theme_constant_override("separation", 8)
-	margin.add_child(vb)
-
-	# —— 图片区 ——
-	var img_sec := _build_image_section(nd, kind, is_person, is_clue, is_concl, is_hypo, is_chain, style)
-	vb.add_child(img_sec)
-	# 分隔线
-	vb.add_child(_make_sep_line(style.border_color))
-	# —— 标题 ——
-	var lab := Label.new()
-	lab.text = nd.get("label", "")
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lab.add_theme_font_size_override("font_size", 24)
-	lab.add_theme_color_override("font_color", COL_TEXT_RED if text_red else font_col)
-	lab.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(lab)
-	# 分隔线
-	vb.add_child(_make_sep_line(style.border_color))
-	# —— 副标题（状态/角色）——
-	var sub := Label.new()
-	sub.text = nd.get("sub", "")
-	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	sub.add_theme_font_size_override("font_size", 18)
-	sub.add_theme_color_override("font_color", sub_col)
-	sub.horizontal_alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(sub)
-
-	# 固定统一尺寸（不再按文字自适应）
-	card.custom_minimum_size = Vector2(_CARD_W, _CARD_H)
-	card.size = Vector2(_CARD_W, _CARD_H)
-
-	var id: String = nd.id
-	var kind2: String = nd.kind
-	card.gui_input.connect(_on_node_gui.bind(id, kind2))
-	card.mouse_entered.connect(_on_node_hover.bind(id, true))
-	card.mouse_exited.connect(_on_node_hover.bind(id, false))
-	card.tooltip_text = _edge._node_tooltip(nd)
-	return card
+# 卡片渲染已拆至 scripts/clue/graph/graph_view_cards.gd（由 _cards 组件负责；节点配色规则见上方「节点视图」注释）
 
 
 ## 节点是否有「玩家手动建立的关系」（仅玩家关系，不含自动推断边）
@@ -1888,7 +1450,7 @@ func _node_at(gp: Vector2) -> String:
 func _on_node_clicked(id: String, kind: String) -> void:
 	if kind == "chain":
 		return
-	_show_detail(id, kind)
+	_detail.show_detail(id, kind)
 
 
 # ---- 打标签（拖线索到人物 / 详情卡按钮）----
@@ -2510,293 +2072,11 @@ func _delete_node(id: String, kind: String) -> void:
 		_cb_relations_changed.call(_relations.duplicate())
 
 
-# ===================== 详情卡 =====================
-func _show_detail(id: String, kind: String) -> void:
-	if _detail_card and is_instance_valid(_detail_card):
-		_detail_card.queue_free()
-	# 统一详情卡框架（暗棕底+金边圆角，顶栏含 ✕ 与拖拽手柄），与线索库详情弹窗视觉一致
-	var d: Dictionary = DETAIL_CARD.build(_detail_title_text(id, kind), func(): _close_detail_card())
-	var card: PanelContainer = d.card
-	var vb: VBoxContainer = d.body
-
-	var body := Label.new()
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.custom_minimum_size = Vector2(420, 120)
-	body.add_theme_font_size_override("font_size", 15)
-	body.add_theme_color_override("font_color", Color(0.91, 0.866, 0.784))
-	vb.add_child(body)
-
-	match kind:
-		"clue":
-			var c: Dictionary = _node_data.get(id, {})
-			var who := "未知"
-			var rns: Array = c.get("related_npcs", [])
-			if not rns.is_empty():
-				who = "、".join(rns.map(func(p): return _data._person_name(p)))
-			var attr := "其他"
-			var at: Array = c.get("attribute_tags", [])
-			if not at.is_empty(): attr = at[0]
-			body.text = "%s\n和谁有关：%s\n证据属性：%s\n状态：%s" % [
-				c.get("desc", ""), who, attr, _data._clue_sub(c)]
-			if _difficulty == Diff.EASY:
-				body.text += "\n（福尔摩斯旁白：这条线索值得和%s对一对。）" % who
-			if _state == State.EDITABLE:
-				var tag_btn := Button.new()
-				tag_btn.text = "和谁有关 ▾"
-				tag_btn.add_theme_font_size_override("font_size", 15)
-				tag_btn.pressed.connect(func(): _open_tag_menu(id, "clue"))
-				vb.add_child(tag_btn)
-				var status_btn := Button.new()
-				status_btn.text = "标记状态 ▾"
-				status_btn.add_theme_font_size_override("font_size", 15)
-				status_btn.pressed.connect(func(): _open_status_menu(id))
-				vb.add_child(status_btn)
-		"hypo":
-			var h: Dictionary = _node_data.get(id, {})
-			body.text = "这是你正在考虑的其中一种可能性。"
-			if _state == State.EDITABLE:
-				var chain_btn := Button.new()
-				chain_btn.text = "推导下一层推断 ▾"
-				chain_btn.add_theme_font_size_override("font_size", 15)
-				chain_btn.pressed.connect(func(): _dockctl._open_hypo_derive_popup(id))
-				vb.add_child(chain_btn)
-				var concl_btn := Button.new()
-				concl_btn.text = "推导结论 ▾"
-				concl_btn.add_theme_font_size_override("font_size", 15)
-				concl_btn.pressed.connect(func(): _dockctl._open_conclusion_popup(id))
-				vb.add_child(concl_btn)
-		"person":
-			body.text = "星型中心。把线索拖到此处即可标注它和这个人的关系。"
-		"conclusion":
-			body.text = "根据你关联的证据与连线实时推算。点「提交验证」可正式结案。"
-			if _state == State.EDITABLE:
-				# 通用推导入口：从结论再推下一层结论（启用 N 段推理链，解场景一阶段2/3不可达）。
-				# EASY/NORMAL 候选窗列出可见预设结论；HARD 候选窗为空、仅留「✍ 自定义结论」由玩家自写。
-				var nxt_btn := Button.new()
-				nxt_btn.text = "推导下一层结论 ▾"
-				nxt_btn.add_theme_font_size_override("font_size", 15)
-				nxt_btn.pressed.connect(func(): _open_conclusion_choice(id))
-				vb.add_child(nxt_btn)
-		"chain":
-			body.text = "点此切换到推理链聚焦视图。"
-
-	# —— 编辑内容（问题2：允许玩家编辑文本框内容）——
-	if _state == State.EDITABLE and kind in ["clue", "hypo", "conclusion", "person", "chain"]:
-		var edit_lbl := Label.new()
-		edit_lbl.text = "编辑内容"
-		edit_lbl.add_theme_font_size_override("font_size", 16)
-		edit_lbl.add_theme_color_override("font_color", COL_GOLD)
-		vb.add_child(edit_lbl)
-		var edit_box := TextEdit.new()
-		edit_box.custom_minimum_size = Vector2(420, 72)
-		edit_box.add_theme_font_size_override("font_size", 15)
-		edit_box.text = str(_edited_texts.get(id, _detail_title_text(id, kind)))
-		vb.add_child(edit_box)
-		var save_btn := Button.new()
-		save_btn.text = "保存修改"
-		save_btn.add_theme_font_size_override("font_size", 15)
-		save_btn.pressed.connect(func():
-			var new_text: String = edit_box.text.strip_edges()
-			if new_text.is_empty(): return
-			_edited_texts[id] = new_text
-			_persist_view()
-			_rebuild_graph()
-			if is_instance_valid(card): card.queue_free())
-		vb.add_child(save_btn)
-
-	if _state == State.EDITABLE:
-		var del_btn := Button.new()
-		del_btn.text = "🗑 删除此卡片"
-		del_btn.add_theme_font_size_override("font_size", 15)
-		del_btn.add_theme_color_override("font_color", Color(0.95, 0.55, 0.45))
-		del_btn.pressed.connect(func(): _delete_card_node(id, kind, card))
-		vb.add_child(del_btn)
-
-	# —— 连线管理（问题1：取消右键后，删除连线改由此处）：列出本节点参与的全部关系，逐个可删 ——
-	var rels := []
-	for r in _relations:
-		if r.get("from", "") == id or r.get("to", "") == id:
-			rels.append(r)
-	if _state == State.EDITABLE and not rels.is_empty():
-		var sep := HSeparator.new()
-		vb.add_child(sep)
-		var rel_lbl := Label.new()
-		rel_lbl.text = "删除连线（本节点参与）"
-		rel_lbl.add_theme_font_size_override("font_size", 16)
-		rel_lbl.add_theme_color_override("font_color", COL_GOLD)
-		vb.add_child(rel_lbl)
-		for r in rels:
-			var other: String = r.get("to", "") if r.get("from", "") == id else r.get("from", "")
-			var del_btn := Button.new()
-			del_btn.text = "✕ 删除：↔ %s（%s）" % [_node_short_label(other), _edge._rel_verb(r.get("kind", "relate"))]
-			del_btn.add_theme_font_size_override("font_size", 15)
-			del_btn.pressed.connect(_on_detail_delete.bind(
-				r.get("from", ""), r.get("to", ""), r.get("kind", "relate"), card))
-			vb.add_child(del_btn)
-
-	# 拖拽：顶栏作为手柄（✕ 排除），复用通用 WindowDrag
-	WindowDrag.make_draggable(card, d.title_bar, [d.close_btn])
-
-	# 需求2（2026-09-19）：统一屏幕居中（不再贴节点、也不固定到某特定角），钳制在视口内、避开顶部功能栏
-	var card_size: Vector2 = card.custom_minimum_size
-	var view_rect := get_viewport().get_visible_rect()
-	var parent_node: Node = get_parent()
-	if parent_node and is_instance_valid(parent_node) and parent_node is Control:
-		parent_node.add_child(card)
-	else:
-		parent_node = self
-		add_child(card)
-	var cx := view_rect.position.x + view_rect.size.x * 0.5
-	var cy := view_rect.position.y + view_rect.size.y * 0.5
-	var x: float = clamp(cx - card_size.x * 0.5, view_rect.position.x + 8.0,
-		max(view_rect.position.x + 8.0, view_rect.position.x + view_rect.size.x - card_size.x - 8.0))
-	var y: float = clamp(cy - card_size.y * 0.5, view_rect.position.y + 118.0,
-		max(view_rect.position.y + 118.0, view_rect.position.y + view_rect.size.y - card_size.y - 8.0))
-	card.position = Vector2(x, y)
-	_detail_card = card
-
-
-
-## 详情卡「删除连线」按钮回调（bind 传参，避免循环变量闭包歧义）
-func _on_detail_delete(from_id: String, to_id: String, rkind: String, card: Control) -> void:
-	_edge._remove_edge(from_id, to_id, rkind)
-	if is_instance_valid(card): card.queue_free()
+# 详情卡（_detail_title_text / _delete_card_node / _delete_node / _show_detail / _on_detail_delete）已拆至 scripts/clue/graph/graph_view_detail.gd（由 _detail 组件负责）；_close_detail_card 与 _detail_card 状态留本控制器（被 _open_conclusion_choice 等外部调用）。
 
 
 # ===================== 首入引导 =====================
-func _show_tutorial() -> void:
-	# 多步骤引导：教学环节首次进入强制展示；非教学仅在从未看过时展示；工具栏「?」可随时重开。
-	if _tutorial and is_instance_valid(_tutorial):
-		return
-	_tut_steps = [
-		{"t": "① 欢迎：推理墙怎么用",
-		 "l": [
-			"· 中心头像 = 当前焦点人物（认知锚点）",
-			"· 距离核心由近及远：结论 → 推理链 → 推断 → 线索",
-			"· 拖动节点 = 自由调整位置（距离自动维持排序）",
-			"· 顶部可切换「人物星型 / 推理链」两种视图",
-			"· 所有操作都可一键撤销，放心试",
-		]},
-		{"t": "② 把线索拖入画布（最关键的一步）",
-		 "l": [
-			"· 屏幕左侧「已收集线索栏」列出了你勘查得到的线索",
-			"· 直接用鼠标把一条线索从左侧栏拖到画布空白处，它就成了一个节点",
-			"· 也可右键画布上的线索节点 → 选「标注给某人」直接挂到焦点人物下",
-			"· 线索不拖进来，后面的连线/推导都无从做起",
-		]},
-		{"t": "③ 建立关系连线",
-		 "l": [
-			"· 按住 Shift + 把一个节点拖到另一个节点上 = 建立证据连线（绿=支持）",
-			"· 把线索/推断拖到人物头像 = 标注它和谁有关（金色归属边）",
-			"· 连边后会自动按树结构重新排布，不用手动摆放",
-			"· 想取消？点连线后按 Delete，或 Ctrl+Z 撤销",
-		]},
-		{"t": "④ 推导推断 / 结论",
-		 "l": [
-			"· 点任意节点打开详情卡",
-			"· 线索详情卡 →「推导推断」生成推断节点并自动连线",
-			"· 推断/结论详情卡 →「推导下一层结论」可继续向下推（多层链）",
-			"· 顶部「＋」按钮也能手动添加文本框/推断",
-		]},
-		{"t": "⑤ 折叠整理 & 提交",
-		 "l": [
-			"· 节点上的「− / +N」圆圈 = 折叠/展开其下整棵子树（叶子可收起自身）",
-			"· 结论推导出的下一层结论，折叠上层结论同样能收起整条链",
-			"· 推理成型后点右上「✓ 提交验证」正式判定并推进剧情",
-			"· 卡住了？点工具栏「?」随时重看本教程",
-		]},
-	]
-	_tut_idx = 0
-	_tutorial = Control.new()
-	_tutorial.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_tutorial.z_index = 30
-	_tutorial.mouse_filter = Control.MOUSE_FILTER_STOP
-	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.62)
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_tutorial.add_child(overlay)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(920, 560)
-	var _vp_size := get_viewport_rect().size if is_inside_tree() else Vector2(1280, 720)
-	panel.position = (_vp_size - Vector2(560, 320)) / 2
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color(0.10, 0.08, 0.06, 0.99)
-	ps.border_color = COL_GOLD
-	ps.border_width_left = 3; ps.border_width_right = 3; ps.border_width_top = 3; ps.border_width_bottom = 3
-	ps.set_corner_radius_all(10)
-	panel.add_theme_stylebox_override("panel", ps)
-	_tutorial.add_child(panel)
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 24)
-	margin.add_theme_constant_override("margin_top", 20)
-	margin.add_theme_constant_override("margin_right", 24)
-	margin.add_theme_constant_override("margin_bottom", 20)
-	panel.add_child(margin)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 14)
-	margin.add_child(vb)
-	_tut_title = Label.new()
-	_tut_title.add_theme_font_size_override("font_size", 38)
-	_tut_title.add_theme_color_override("font_color", COL_GOLD)
-	vb.add_child(_tut_title)
-	_tut_body = VBoxContainer.new()
-	_tut_body.add_theme_constant_override("separation", 10)
-	vb.add_child(_tut_body)
-	var nav := HBoxContainer.new()
-	nav.add_theme_constant_override("separation", 16)
-	_tut_prev = Button.new(); _tut_prev.text = "上一步"
-	_tut_next = Button.new(); _tut_next.text = "下一步"
-	var skip := Button.new(); skip.text = "跳过 / 明白了"
-	for tb: Button in [_tut_prev, _tut_next, skip]:
-		tb.add_theme_font_size_override("font_size", 20)
-	_tut_prev.pressed.connect(_tut_goto.bind(-1))
-	_tut_next.pressed.connect(_tut_goto.bind(1))
-	skip.pressed.connect(_close_tutorial)
-	nav.add_child(_tut_prev); nav.add_child(_tut_next); nav.add_child(skip)
-	vb.add_child(nav)
-	_tut_render()
-	add_child(_tutorial)
-
-
-func _tut_render() -> void:
-	if _tut_title == null or _tut_idx < 0 or _tut_idx >= _tut_steps.size():
-		return
-	var step: Dictionary = _tut_steps[_tut_idx]
-	_tut_title.text = step.get("t", "")
-	# 清空旧行
-	for c in _tut_body.get_children():
-		c.queue_free()
-	for l in step.get("l", []):
-		var lb := Label.new()
-		lb.text = "· " + l if not l.begins_with("·") else l
-		lb.add_theme_font_size_override("font_size", 27)
-		lb.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-		lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_tut_body.add_child(lb)
-	_tut_prev.disabled = (_tut_idx <= 0)
-	_tut_next.text = "下一步" if _tut_idx < _tut_steps.size() - 1 else "完成"
-	_tut_next.disabled = false
-
-
-func _tut_goto(delta: int) -> void:
-	if delta > 0 and _tut_idx >= _tut_steps.size() - 1:
-		# 已在最后一步，点「完成」即关闭（最后一步内容会先渲染，按钮显示「完成」）
-		_close_tutorial()
-		return
-	_tut_idx = clampi(_tut_idx + delta, 0, _tut_steps.size() - 1)
-	_tut_render()
-
-
-func _close_tutorial() -> void:
-	if _tutorial and is_instance_valid(_tutorial):
-		_tutorial.queue_free()
-		_tutorial = null
-	_tut_title = null; _tut_body = null; _tut_prev = null; _tut_next = null
-	_state_store["graph_tutorial_seen"] = true
-	_persist_view()
-
-
-# ===================== 提示 =====================
+# 首入引导（_show_tutorial 等多步骤教程弹层）已拆至 scripts/clue/graph/graph_view_guide.gd（由 _guide 组件负责）
 func _toast_msg(text: String) -> void:
 	if not _toast: return
 	_toast.text = text
