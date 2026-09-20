@@ -33,7 +33,7 @@ func _build(gv: Object) -> void:
 
 func _drag_node(gv: Object, id: String, to: Vector2) -> void:
 	gv._node_center[id] = to
-	gv._commit_move(id, to)
+	gv._drag.commit_move(id, to)
 	await process_frame
 	await process_frame
 

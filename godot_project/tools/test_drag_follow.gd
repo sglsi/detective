@@ -17,7 +17,7 @@ func _drag_node(gv: Variant, id: String, to: Vector2) -> void:
 	# 模拟：拖拽期间节点已跟随光标移动到 to；释放时 _commit_move 以 _node_center[id] 为锚。
 	gv._node_center[id] = to
 	gv._state = gv.State.EDITABLE
-	gv._commit_move(id, to)
+	gv._drag.commit_move(id, to)
 	await process_frame
 
 func _initialize() -> void:

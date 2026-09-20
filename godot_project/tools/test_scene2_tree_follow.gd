@@ -69,7 +69,7 @@ func _initialize() -> void:
 	var target5 := Vector2(820, 760)
 	gv._node_center["KILLER"] = target5
 	gv._state = gv.State.EDITABLE
-	gv._commit_move("KILLER", target5)
+	gv._drag.commit_move("KILLER", target5)
 	await process_frame
 	var after5 := {}
 	for nid in ids5: after5[nid] = gv._node_center.get(nid, Vector2.ZERO)
@@ -89,7 +89,7 @@ func _initialize() -> void:
 	for nid in ids6: before6[nid] = gv._node_center.get(nid, Vector2.ZERO)
 	var target6 := Vector2(300, 300)
 	gv._node_center["conclusion_CL2-6"] = target6
-	gv._commit_move("conclusion_CL2-6", target6)
+	gv._drag.commit_move("conclusion_CL2-6", target6)
 	await process_frame
 	var after6 := {}
 	for nid in ids6: after6[nid] = gv._node_center.get(nid, Vector2.ZERO)

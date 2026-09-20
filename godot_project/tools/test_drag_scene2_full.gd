@@ -48,7 +48,7 @@ func _drag(gv: Variant, id: String, target: Vector2) -> void:
 	# 模拟真实拖拽：子树随根平移（真实 _input 不依赖视图存在与否，headless 下无条件平移）
 	for _sd in gv._drag_subtree:
 		gv._node_center[str(_sd)] = gv._node_center.get(str(_sd), Vector2.ZERO) + delta
-	gv._commit_move(id, target)
+	gv._drag.commit_move(id, target)
 	await process_frame
 
 func _snap(gv: Variant, ids: Array) -> Dictionary:

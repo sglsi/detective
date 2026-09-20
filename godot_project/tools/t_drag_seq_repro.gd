@@ -93,7 +93,7 @@ func _has_edge(f: String, t: String) -> bool:
 
 func _drag_and_check(id: String, to: Vector2, tag: String) -> void:
 	gv._node_center[id] = to
-	gv._commit_move(id, to)
+	gv._drag.commit_move(id, to)
 	await process_frame
 	await process_frame
 	print("[SEQ] [", tag, "] 钉位表: ", gv._root_anchor_pos)

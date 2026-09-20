@@ -145,7 +145,7 @@ func _run() -> void:
 		gv._drag_start = Vector2(-999, -999)   # 保证 moved=true
 		# _commit_move/_drop_node_except 期待**视口全局坐标**；_node_center 是画布局部坐标 → 换算
 		var drop_pt: Vector2 = gv._canvas.get_global_transform() * gv._node_center[h2_id]
-		gv._commit_move(h4_id, drop_pt)
+		gv._drag.commit_move(h4_id, drop_pt)
 		await get_tree().process_frame
 		await get_tree().process_frame
 		print("  relations=%d（应含 H4→H2 一条）" % gv._relations.size())
@@ -156,7 +156,7 @@ func _run() -> void:
 	# ★ 场景B：再拖 H4 落到 H1 上（第二次调整关系）
 	if h4_id != "" and h1_id != "":
 		gv._drag_start = Vector2(-999, -999)
-		gv._commit_move(h4_id, gv._canvas.get_global_transform() * gv._node_center[h1_id])
+		gv._drag.commit_move(h4_id, gv._canvas.get_global_transform() * gv._node_center[h1_id])
 		await get_tree().process_frame
 		await get_tree().process_frame
 		_report("⑤ 再拖 H4 落到 H1 后", gv)

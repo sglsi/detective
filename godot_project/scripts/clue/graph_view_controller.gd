@@ -39,6 +39,10 @@ const GraphViewGuide = preload("res://scripts/clue/graph/graph_view_guide.gd")
 var _guide: GraphViewGuide   # 首入引导 / 多步骤教程弹层
 const GraphViewDetail = preload("res://scripts/clue/graph/graph_view_detail.gd")
 var _detail: GraphViewDetail   # 节点详情卡（标题文案 / 删除 / 删除连线）
+const GraphViewDrag = preload("res://scripts/clue/graph/graph_view_drag.gd")
+var _drag: GraphViewDrag   # 拖拽/重叠子系统（移动提交/落点建边/换侧/命中测试/去重叠）
+const GraphViewDerive = preload("res://scripts/clue/graph/graph_view_derive.gd")
+var _derive: GraphViewDerive   # 正向推导子系统（线索→推断→结论，统一落节点建边）
 # 结论文本宽容匹配（与 HardModeEvaluator 共用同一实现，避免口径漂移）
 const ConclusionMatcher = preload("res://scripts/clue/conclusion_matcher.gd")
 const ClueImageAnchors = preload("res://data/clue_image_anchors.gd")
@@ -256,6 +260,10 @@ func _init() -> void:
 	_guide.owner = self
 	_detail = GraphViewDetail.new()
 	_detail.owner = self
+	_drag = GraphViewDrag.new()
+	_drag.owner = self
+	_derive = GraphViewDerive.new()
+	_derive.owner = self
 
 
 # === 当前笔（由推理墙顶部栏 / 图谱内弹窗共同驱动）===
@@ -1144,307 +1152,6 @@ func _handle_connect_click(id: String, kind: String) -> bool:
 ##   - 单击（位移 <8px）→ 弹详情
 ##   - 拖到另一节点上松开 → 建证据连线（线索↔推断/线索↔线索；线索→人物=打标签），用当前笔色/线型
 ##   - 拖到空地松开 → 移动节点位置（钳制到 kind 距离带）
-func _commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
-	var gp: Vector2 = get_viewport().get_mouse_position() if at == Vector2.INF else at
-	var moved := gp.distance_to(_drag_start) > 8.0
-	var _side_switched := false
-	var _edge_created := false   # 本次拖动是否建立了关系（=结构性变更，须跑去重叠）
-	var _keep_x_pin := true      # 拖拽收尾是否把被拖节点钉在落点（人物关联边的非人物端不钉，见下方修订注释）
-	if moved and _state == State.EDITABLE:
-		var drop: String = _drop_node_except(gp, id)
-		if drop == "":
-			# 容错：未精确落在目标框内时，找 48px 内最近的节点（差几个像素也要能建边）
-			drop = _nearest_node_except(gp, id, 48.0)
-		if drop != "":
-			# 环防护：drop 已在拖动节点的子树里（id 是 drop 的祖先）时，id→drop 会闭合推理环，
-			# 布局 BFS 会因此丢节点（树断、拖动全面异常）——拒绝建边，按「移动到落点」处理。
-			if _layout._descendants(drop).has(id):
-				_toast_msg("不能连接到自己的下级节点，已按移动处理")
-				drop = ""
-		if drop == "":
-			# 需求（思傅 2026-09-09）：把「人物直接子（结论）」整棵子树拖过人物中线 → 换侧重排
-			_side_switched = _try_switch_subtree_side(id, gp)
-		if drop != "":
-			var drop_kind: String = _node_kind.get(drop, "")
-			var id_kind: String = _node_kind.get(id, "")
-			# 结论/推断/推理链 ↔ 人物：无论正向（结论拖到人物）还是反向（人物拖到结论），
-			# 都强制建「归属边」(target 金边)。旧 bug：反向拖时 _add_edge 只交换端点、不修正 kind，
-			# 结论→人物边被记成 support/relate，验证器按 kind=="target" 比对失败 → 误报"未连接到人物"。
-			if drop_kind == "person" or id_kind == "person":
-				var person_id: String = drop if drop_kind == "person" else id
-				var other_id: String = id if drop_kind == "person" else drop
-				var other_kind: String = _node_kind.get(other_id, "")
-				if other_kind == "clue":
-					_tag_person(other_id, person_id)
-				else:
-					_edge._add_edge(other_id, person_id, "target", "gold", false)
-					_edge_created = true
-					_nudge_away_from(other_id, person_id)
-			elif drop_kind in ["hypo", "clue", "conclusion"]:
-				_edge._add_edge(id, drop, _data.key_to_kind(_pen_color_key), _pen_color_key, _pen_dashed)
-				_edge_created = true
-				# 任务4：建立关系后把被拖节点推离目标框，避免落点重叠、并按关系就近排布
-				_nudge_away_from(id, drop)
-			# 建边/标记路径钉位（2026-09-19 思傅报「关联后人物被盖 / 中间链干右叶左」修订）：
-			# 与人物的关联边 = 结构性变更（新边改变关系树拓扑）。被拖结论若钉在落点，会与
-			# 左右平衡布局脱钩——干（结论）留在人物右侧旧落点、其叶枝被镜像派生到另一侧
-			#（症状②「干右叶左」）；且与人物构成双刚性使全局去重叠永久跳过（症状①人物被盖）。
-			# 与换侧（_try_switch_subtree_side）同口径：清被拖结论及其后代、对端旧钉位，
-			# 置 _relayout_on_edge 全量重排——新链按「以人物为中心、左=叶-枝-干-根 /
-			# 右=根-干-枝-叶」整洁归位。被拖节点是人物本身（拖人物到结论上归属）→ 保留钉位
-			#（玩家在移动人物，落点须尊重），仅清对端结论的旧钉位。
-			var _person_assoc: bool = _edge_created and (drop_kind == "person" or id_kind == "person")
-			if _person_assoc:
-				if not (id_kind in ["person", "event"]):
-					_keep_x_pin = false
-					var _rel_ids: Array = [id]
-					for _d in _layout._descendants(id):
-						_rel_ids.append(str(_d))
-					for _rid in _rel_ids:
-						var _rs := str(_rid)
-						_root_anchor_pos.erase(_rs)
-						_manual_nodes.erase(_rs)
-						_node_offsets.erase(_rs)
-				if drop != "" and not (_node_kind.get(drop, "") in ["person", "event"]):
-					_root_anchor_pos.erase(drop)
-					_manual_nodes.erase(drop)
-					_node_offsets.erase(drop)
-				_state_store["graph_root_anchors"] = _root_anchor_pos
-				_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
-				_state_store["graph_node_offsets"] = _node_offsets.duplicate()
-				_layout._relayout_on_edge = true   # 忽略拖前旧位，按新拓扑全量重排
-			elif _node_center.has(id):
-				_root_anchor_pos[id] = _node_center[id]
-				if not (id in _manual_nodes):
-					_manual_nodes.append(id)
-		if moved and not _side_switched:
-			# 规则1/2/3：被拖节点(X)停在玩家手动位(新位置钉入 _root_anchor_pos + 登记 _manual_nodes)，
-			# 而其全部后代的「旧手动位」一律清空——让它们从 X 的新位置自动重新派生(向上不动、随上属走)。
-			# 这同时修复两类观感异常：
-			#  · 问题1 人物拖动后，曾被手动拖过的下属仍钉在旧位 → 清掉后代手动位→随人物新位重排；
-			#  · 问题2 拖动结论/推断后，其下属仍相对根(人物)排列而非相对本节点 → 清掉后代手动位后，
-			#    _assign_subtree 以 X(已钉手动位)为锚、下游子树据此生长，下属随本节点走。
-			# 只清 X 的后代，不影响其它分支的手动位；X 自身保持手动位(玩家落点)。
-			# 例外（2026-09-19）：人物关联边的非人物端（被拖结论）不钉位——钉住会与平衡布局
-			# 脱钩（干留落点、叶枝镜像到另一侧），且与人物双刚性令去重叠永久跳过（人物被盖）。
-			if _keep_x_pin:
-				_root_anchor_pos[id] = _node_center[id]
-				if not (id in _manual_nodes):
-					_manual_nodes.append(id)
-			for _d in _layout._descendants(id):
-				if _d in _manual_nodes:
-					_manual_nodes.erase(_d)
-				if _root_anchor_pos.has(_d):
-					_root_anchor_pos.erase(_d)
-				if _node_offsets.has(_d):
-					_node_offsets.erase(_d)
-			_state_store["graph_root_anchors"] = _root_anchor_pos
-			_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
-			_state_store["graph_node_offsets"] = _node_offsets.duplicate()
-	elif not moved:
-		_on_node_clicked(id, _node_kind.get(id, ""))
-	_layout._persist_node_positions()
-	# 复位拖拽期间的视觉态（缩小/置顶/半透明），避免建关系后残留
-	var nd: Control = _node_views.get(id)
-	if nd and is_instance_valid(nd):
-		nd.scale = Vector2.ONE
-		nd.z_index = 0
-		nd.modulate = Color(1, 1, 1, 1)
-	_dragging = false
-	_drag_id = ""
-	_drag_mode = ""
-	_fold._sync_fold_controls_positions()
-	# 第8节改造（A①+B①）：移动/建关系后整树按星形重排——根锚点保留、子节点回派生位
-	if moved:
-		# 换侧 = 整墙按左右平衡重排，需要执行去重叠；普通拖动仍跳过（否则上游节点被推走=观感"自动排列"）。
-		# 2026-09-15：**建立了关系的拖动**属结构性变更，必须执行去重叠——否则被拖节点停在落点、
-		# 若压到第三个节点就永久互相覆盖（用户报 bug：调整文本框关系后出现覆盖）。
-		_post_drag = (not _side_switched) and (not _edge_created)
-		_rebuild_graph()
-		if _side_switched:
-			_persist_view()
-			fit_view()
-	_redraw_all()
-
-
-## 拖拽换侧（思傅 2026-09-09 需求2）：把「人物的直接子（结论）」整棵子树拖过人物中线 → 改挂另一侧。
-## 判定：① 被拖节点的父必须是人物（换侧最小单位 = 整棵结论子树，拖推断/线索不触发）；
-##       ② 落点相对人物中心越过 ±40px 阈值，且与当前所在侧相反。
-## 触发后：记录 side（落盘持久）→ 进入左右平衡布局并定格 → 清掉本子树与人物根的钉位/偏移，
-##       使人物回中心、本子树按「左=叶-枝-干-根 / 右=根-干-枝-叶」整洁重排。返回是否触发。
-func _try_switch_subtree_side(id: String, gp: Vector2) -> bool:
-	if _canvas == null or not is_instance_valid(_canvas):
-		return false
-	var parent_of: Dictionary = _layout._build_parent_of()
-	var par: String = str(parent_of.get(id, ""))
-	if par == "" or str(_node_kind.get(par, "")) != "person":
-		return false
-	var root_c: Vector2 = _node_center.get(par, Vector2.ZERO)
-	var local: Vector2 = _canvas.get_global_transform().affine_inverse() * gp
-	# 当前侧：玩家已手动指定优先，其次取上次平衡布局的分派结果，默认右（默认布局纯右向）
-	var cur_side: String = str(_subtree_sides.get(id, _last_layout_sides.get(id, "R")))
-	var new_side: String = cur_side
-	if local.x < root_c.x - 40.0:
-		new_side = "L"
-	elif local.x > root_c.x + 40.0:
-		new_side = "R"
-	if new_side == cur_side:
-		return false
-	_subtree_sides[id] = new_side
-	_balanced_layout = true          # 换侧需侧向布局支撑：进入左右平衡布局并定格
-	# 本子树 + 人物根回归自动排布（清钉位/偏移），否则会停在落点、不按整洁顺序展现
-	var _release: Array = [id, par]
-	for _d in _layout._descendants(id):
-		_release.append(str(_d))
-	for _rid in _release:
-		var rs: String = str(_rid)
-		_root_anchor_pos.erase(rs)
-		_manual_nodes.erase(rs)
-		_node_offsets.erase(rs)
-	_state_store["graph_root_anchors"] = _root_anchor_pos
-	_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
-	_state_store["graph_node_offsets"] = _node_offsets.duplicate()
-	_state_store["graph_subtree_sides"] = _subtree_sides.duplicate()
-	_state_store["graph_balanced_layout"] = true
-	_layout._relayout_on_edge = true   # 忽略拖前旧位，按新侧全量重排
-	_toast_msg("已把该分支移到人物%s侧" % ("左" if new_side == "L" else "右"))
-	return true
-
-
-## 查找 gp 处命中的节点，排除 exclude_id（拖动中被拖节点自身可能压住目标）
-func _drop_node_except(gp: Vector2, exclude_id: String) -> String:
-	var local := _canvas.get_global_transform().affine_inverse() * gp
-	for id in _node_views:
-		if id == exclude_id: continue
-		var n: Control = _node_views[id]
-		if not is_instance_valid(n): continue
-		if Rect2(n.position, n.size).has_point(local):
-			return id
-	return ""
-
-
-## 找距离 gp 最近且不超过 max_dist 的节点（排除 exclude_id）
-func _nearest_node_except(gp: Vector2, exclude_id: String, max_dist: float) -> String:
-	var local := _canvas.get_global_transform().affine_inverse() * gp
-	var best := ""
-	var best_d := max_dist
-	for id in _node_views:
-		if id == exclude_id: continue
-		var n: Control = _node_views[id]
-		if not is_instance_valid(n): continue
-		var c := n.position + n.size * 0.5
-		var d := c.distance_to(local)
-		if d < best_d:
-			best_d = d
-			best = id
-	return best
-
-
-## 任务4：建立关系后把被拖节点推离目标框，避免落点重叠（拖到目标上即建边，易压住目标）。
-## 仅当两框中心距 < 两框半宽之和+余量才推；推到目标外侧 min_dist 处，并更新位置缓存与持久化。
-func _nudge_away_from(id: String, drop: String) -> void:
-	var a: Control = _node_views.get(id)
-	var b: Control = _node_views.get(drop)
-	if a == null or b == null or not is_instance_valid(a) or not is_instance_valid(b): return
-	var ac: Vector2 = a.position + a.size * 0.5
-	var bc: Vector2 = b.position + b.size * 0.5
-	var dv: Vector2 = ac - bc
-	if dv == Vector2.ZERO: dv = Vector2(0, 1)
-	var min_dist: float = (a.size.x + b.size.x) * 0.5 + 24.0
-	if dv.length() < min_dist:
-		dv = dv.normalized()
-		var new_c: Vector2 = bc + dv * min_dist
-		a.position = new_c - a.size * 0.5
-		_node_center[id] = new_c
-		_all_positions[id] = new_c
-	# 2026-09-15：只推离「目标框」不够——若推开的落点又压住**第三个**节点，
-	# 松手后 X 会被钉在此处，而全局去重叠又不动钉位节点 → 永久互相覆盖（用户报 bug）。
-	# 故这里再确保落点与任何现有节点都不相交（螺旋找空位）。
-	_resolve_overlap_for(id)
-	_layout._persist_node_positions()
-	_redraw_all()
-
-
-## 把节点放到「不与任何其它节点相交（留 24px 间隙）」的位置：原位可用则不动，否则螺旋外扩找空位。
-## 判定用**真实视图矩形**（Control.position/size），与玩家所见一致。
-func _resolve_overlap_for(id: String) -> void:
-	var v: Control = _node_views.get(id)
-	if v == null or not is_instance_valid(v): return
-	var base: Vector2 = v.position + v.size * 0.5
-	if not _node_collides(id, base):
-		_node_center[id] = base
-		_all_positions[id] = base
-		return
-	for ring in range(1, 13):
-		var count: int = maxi(8, ring * 8)
-		var r: float = 60.0 * (1.0 + ring * 0.5)
-		for i in count:
-			var ang: float = float(i) / float(count) * TAU + ring * 0.4
-			var cand: Vector2 = base + Vector2(cos(ang), sin(ang)) * r
-			if not _node_collides(id, cand):
-				v.position = cand - v.size * 0.5
-				_node_center[id] = cand
-				_all_positions[id] = cand
-				return
-	_node_center[id] = base
-	_all_positions[id] = base
-
-
-## 以「真实视图矩形 + 24px 间隙」判断 center 处是否与其它节点相撞（含钉位节点，一律避开）
-func _node_collides(id: String, center: Vector2) -> bool:
-	var v: Control = _node_views.get(id)
-	if v == null or not is_instance_valid(v): return false
-	var mine := Rect2(center - v.size * 0.5, v.size).grow(24.0)
-	for other in _node_views:
-		if str(other) == id: continue
-		var o: Control = _node_views[other]
-		if o == null or not is_instance_valid(o): continue
-		if Rect2(o.position, o.size).intersects(mine):
-			return true
-	return false
-
-
-## 提交建边（拖到另一节点上 = 加证据连线；落空 = 取消）
-func _commit_drag(id: String) -> void:
-	var gp: Vector2 = get_viewport().get_mouse_position()
-	var drop: String = _node_at(gp)
-	_dragging = false
-	_drag_id = ""
-	_drag_mode = ""
-	_redraw_all()
-	if drop == "" or drop == id:
-		if drop == id:
-			_on_node_clicked(id, _node_kind.get(id, ""))
-		return
-	if _state != State.EDITABLE:
-		_toast_msg("已封存，仅可浏览")
-		return
-	var drop_kind: String = _node_kind.get(drop, "")
-	var id_kind: String = _node_kind.get(id, "")
-	# 结论/推断/推理链 ↔ 人物：正向/反向拖都强制建 target 金边（修反向拖 kind 错配，同 _commit_move）
-	if drop_kind == "person" or id_kind == "person":
-		var person_id: String = drop if drop_kind == "person" else id
-		var other_id: String = id if drop_kind == "person" else drop
-		var other_kind: String = _node_kind.get(other_id, "")
-		if other_kind == "clue":
-			_tag_person(other_id, person_id)
-		else:
-			_edge._add_edge(other_id, person_id, "target", "gold", false)
-	elif drop_kind in ["hypo", "clue", "conclusion"]:
-		_edge._add_edge(id, drop, _drag_kind, _drag_color_key, _drag_dashed)
-	else:
-		_on_node_clicked(id, _node_kind.get(id, ""))
-
-
-func _node_at(gp: Vector2) -> String:
-	# 把全局坐标转画布本地，命中节点包围盒
-	for id in _node_views:
-		var n: Control = _node_views[id]
-		if not is_instance_valid(n): continue
-		var local := _canvas.get_global_transform().affine_inverse() * gp
-		if Rect2(n.position, n.size).has_point(local):
-			return id
-	return ""
 
 
 func _on_node_clicked(id: String, kind: String) -> void:
@@ -1566,7 +1273,7 @@ func place_clue(cid: String, drop_at: Vector2 = Vector2(-1, -1)) -> void:
 	if _data._clue_placed(cid):
 		return
 	if drop_at.x >= 0.0:
-		var hit: String = _drop_node_except(drop_at, cid)
+		var hit: String = _drag.drop_node_except(drop_at, cid)
 		var hk: String = _node_kind.get(hit, "")
 		if hit != "" and hk in ["hypo", "clue", "conclusion"]:
 			_edge._add_edge(cid, hit, "support", "green", false)
@@ -2023,56 +1730,6 @@ func _on_close_pressed() -> void:
 
 
 # 详情标题的主体文本（去前缀），供「编辑内容」输入框作为初始值
-func _detail_title_text(id: String, kind: String) -> String:
-	if _edited_texts.has(id):
-		return str(_edited_texts[id])
-	if kind == "clue":
-		return str(_node_data.get(id, {}).get("name", id))
-	if kind == "hypo":
-		return str(_node_data.get(id, {}).get("text", ""))
-	if kind == "person":
-		return _data._person_name(id)
-	if kind == "chain":
-		return str(_node_data.get(id, {}).get("label", id))
-	if kind == "conclusion":
-		# 结论详情默认文本取结论实际内容（跨场景携带后仍是场景二所选内容），
-		# 不再回退到实时判定文案「说得通」（问题3）。
-		return _conclusion_text(_conclusion_con_id(id))
-	return _data._verdict_text()
-
-
-## 详情卡背景/文字配色：背景随节点类型取色（与图谱节点卡一致），文字按背景明暗取对比色
-## 统一删除：从详情卡删除该卡片（clue=归还线索栏；其余=从图谱移除节点与关系）
-func _delete_card_node(id: String, kind: String, card: Control) -> void:
-	if _state != State.EDITABLE: return
-	if is_instance_valid(card): card.queue_free()
-	if kind == "clue":
-		_unplace_clue_from_graph(id, null)
-	else:
-		_delete_node(id, kind)
-
-
-## 通用节点删除：从 _graph_nodes/关系/已折叠/位置 中移除并重排（覆盖 note_/hypo/conclusion/chain/person）
-func _delete_node(id: String, kind: String) -> void:
-	if _state != State.EDITABLE: return
-	var target: Array = _graph_nodes.filter(func(n): return n.get("id", "") == id)
-	_graph_nodes = _graph_nodes.filter(func(n): return n.get("id", "") != id)
-	_relations = _relations.filter(func(r): return r.get("from", "") != id and r.get("to", "") != id)
-	var del_pool: Array = _state_store.get("graph_deleted_nodes", [])
-	for t in target:
-		del_pool.append(t)
-	_state_store["graph_deleted_nodes"] = del_pool
-	_folded_nodes.erase(id)
-	_node_center.erase(id)
-	if id == _focus_person:
-		_focus_person = _persons[0].get("id", "") if not _persons.is_empty() else ""
-	_persist_view()
-	_rebuild_graph()
-	if _cb_relations_changed.is_valid():
-		_cb_relations_changed.call(_relations.duplicate())
-
-
-# 详情卡（_detail_title_text / _delete_card_node / _delete_node / _show_detail / _on_detail_delete）已拆至 scripts/clue/graph/graph_view_detail.gd（由 _detail 组件负责）；_close_detail_card 与 _detail_card 状态留本控制器（被 _open_conclusion_choice 等外部调用）。
 
 
 # ===================== 首入引导 =====================
@@ -2508,191 +2165,6 @@ func _conclusion_con_id(nid: String) -> String:
 	return ""
 
 
-## 拖线索推导推断：生成推断节点 + 绿 support 边（线索→推断）；已存在节点则仅补边
-func _derive_hypo(cid: String, hid: String) -> void:
-	if _state != State.EDITABLE:
-		_ui_toast("推理墙已封存，仅可浏览")
-		return
-	var hd := _hypo_def(hid)
-	if hd.is_empty():
-		_ui_toast("未找到推断定义：" + hid)
-		return
-	adopt_candidate(hd, false, cid)   # 正向推导：不自动连带该推断的其他 gate 线索（玩家逐个拖线索驱动）；锚定到来源线索 cid 落点防叠加
-	# 玩家从线索推导推断＝明确选择「线索→推断」支撑关系，绘制该 support 绿边（属玩家连线，非系统自动）。
-	# 仅补「本条推导」的边；其余 gate 线索→该推断的边由玩家按需手动建立（_sync_conclusion_gate_edges 已停用）。
-	if not any_edge(cid, hid) and not _relations.any(func(r): return r.get("from", "") == cid and r.get("to", "") == hid):
-		_edge._add_edge(cid, hid, "support", "green", false)
-	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
-	_persist_view()
-	_rebuild_graph()
-	_focus_on(hid)
-	if not _teaching:
-		_sync_conclusion_gate_edges()   # 新推断上墙后，相关结论（gate 含此推断）自动补边，结论链随推导逐步闭合（教学墙由玩家手动建立，不自动补）
-	# 正向推导：选推断后若场景有任意「按难度可见」的预设结论，自动弹结论候选窗（列出全部候选，玩家任选其一）
-	var _cons: Array = _hypo_current.get("conclusions", [])
-	var _has_cand: bool = false
-	for _c in _cons:
-		if _dockctl._conclusion_preset_visible(_c):
-			_has_cand = true
-			break
-	if _has_cand:
-		call_deferred("_open_conclusion_choice", hid)
-
-
-## 困难模式：拖线索 → 玩家手写推断（自由文本），生成「推断」文本框并把线索连到它。
-## 生成的节点 id 形如 note_hypo_N（与顶栏「添文本框」同构，困难模式评价引擎按 kind=hypo + text 计入）。
-## 建边方向 = from=线索(子/前提) → to=推断(父/结论方向)，绿实线 support，与其余推导路径一致。
-## 落尾自动打开「自定义结论」输入窗（可取消），把 线索→推断→结论 三步串成一条顺滑链路。
-func _derive_hypo_custom(cid: String, text: String) -> void:
-	if _state != State.EDITABLE:
-		_ui_toast("推理墙已封存，仅可浏览")
-		return
-	var t2 := text.strip_edges()
-	if t2 == "":
-		_ui_toast("推断内容不能为空")
-		return
-	var seq: int = 0
-	var nid: String = ""
-	while true:
-		nid = "note_hypo_%d" % seq
-		var _dup: bool = _node_center.has(nid) or _graph_nodes.any(func(n): return str(n.get("id", "")) == nid)
-		if not _dup:
-			break
-		seq += 1
-	_graph_nodes.append({"id": nid, "kind": "hypo", "label": t2, "sub": "推断",
-		"data": {"correct": true, "player_made": true}})
-	# 锚定到来源线索落点，螺旋碰撞检测避免与现有节点叠加
-	var base: Vector2 = _node_center.get(cid, _canvas.size * 0.5)
-	var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "hypo", _node_center)
-	_node_center[nid] = pos
-	var nps: Dictionary = _state_store.get("graph_node_positions", {})
-	nps[nid] = pos
-	_state_store["graph_node_positions"] = nps
-	# 线索→推断 绿 support 边（属玩家「拖线索推导」的明确连线）
-	if cid != "" and not any_edge(cid, nid) and not _relations.any(func(r): return r.get("from", "") == cid and r.get("to", "") == nid):
-		_edge._add_edge(cid, nid, "support", "green", false)
-	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
-	_persist_view()
-	_rebuild_graph()
-	_focus_on(nid)
-	# 续接结论：困难模式无预设结论候选，直接开「自定义结论」输入窗（玩家可取消）
-	if _dockctl != null:
-		_dockctl.call_deferred("_open_custom_conclusion_popup", nid)
-
-
-## 拖推断推导推断（方案B：推断可由多个推断/结论组合推得，如 W-C1+W-C2→W-C3）
-## 生成下一层推断节点 + 绿 support 边（源推断→目标推断）；已存在节点则只补边。
-func _derive_hypo_from_hypo(src_hid: String, dst_hid: String) -> void:
-	if _state != State.EDITABLE:
-		_ui_toast("推理墙已封存，仅可浏览")
-		return
-	var hd: Dictionary = _hypo_def(dst_hid)
-	if hd.is_empty():
-		_ui_toast("未找到推断定义：" + dst_hid)
-		return
-	# 校验：源推断必须是目标推断的 gate 之一（避免随意连）
-	var _gates: Array = hd.get("gate_hypo_ids", [])
-	if not (src_hid in _gates):
-		_ui_toast("该推断不能由当前组合推导")
-		return
-	adopt_candidate(hd, false, src_hid)   # 锚定到源推断落点防叠加
-	if not any_edge(src_hid, dst_hid) and not _relations.any(func(r): return r.get("from", "") == src_hid and r.get("to", "") == dst_hid):
-		_edge._add_edge(src_hid, dst_hid, "support", "green", false)
-	if not _teaching:
-		_sync_conclusion_gate_edges()   # 新推断上墙后，相关结论自动补 gate 边（教学墙不自动补）
-	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
-	_persist_view()
-	_rebuild_graph()
-	_focus_on(dst_hid)
-	# 同 _derive_hypo：选推断后若场景有可见预设结论，自动弹结论候选窗
-	var _cons: Array = _hypo_current.get("conclusions", [])
-	var _has_cand: bool = false
-	for _c in _cons:
-		if _dockctl._conclusion_preset_visible(_c):
-			_has_cand = true
-			break
-	if _has_cand:
-		call_deferred("_open_conclusion_choice", dst_hid)
-
-
-## 自定义结论：玩家输入文本生成结论节点（不选预设项）；con_id 用 "custom_N" 标记
-func _derive_conclusion_custom(hid: String, text: String) -> void:
-	var t2 := text.strip_edges()
-	if t2 == "":
-		_ui_toast("结论内容不能为空")
-		return
-	var seq: int = 0
-	var cid: String = ""
-	while true:
-		cid = "custom_%d" % seq
-		if not _derived_conclusions.any(func(d): return str(d.get("id", "")) == cid):
-			break
-		seq += 1
-	_add_derived_conclusion(hid, cid, t2)
-
-
-## 由推断推导结论：生成结论节点 + support 边（推断→结论）；结论节点已存在则只补边（多实例，不覆盖旧结论）
-func _derive_conclusion(hid: String, con_id: String) -> void:
-	if _state != State.EDITABLE:
-		_ui_toast("推理墙已封存，仅可浏览")
-		return
-	_add_derived_conclusion(hid, con_id, "")
-
-
-## 统一入口：把一条结论（预设 con_id 或 自定义 custom_N）加入已推导列表，生成独立结论节点并连 support 边。
-## 同一条结论（相同 con_id）只生成唯一节点；从不同推断推导同一结论时只追加对应 support 边。
-func _add_derived_conclusion(hid: String, con_id: String, custom_text: String = "") -> void:
-	var nid: String = _conclusion_node_id(con_id)
-	var existed: bool = false
-	for _d in _derived_conclusions:
-		if str(_d.get("id", "")) == con_id:
-			existed = true
-			break
-	if not existed:
-		# 预设结论 custom_text 为空时，回填其 battlefield 文本并随 _derived_conclusions 持久化，
-		# 跨场景带入下一场景后仍可取回正确文本（避免落入「说得通」默认文案，问题3）。
-		var _stored_text: String = custom_text
-		if _stored_text == "":
-			var _cd := _conclusion_def(con_id)
-			_stored_text = str(_cd.get("text", ""))
-		_derived_conclusions.append({"id": con_id, "hid": hid, "text": _stored_text})
-		# 放置节点：优先锚定到「结论 gate_hypo_ids 中第一个已上墙的 gate 推断」（使结论落在推理链末端），
-		# 否则回退触发 hid；螺旋碰撞检测避免与现有节点叠加。
-		if not _node_center.has(nid):
-			var base: Vector2 = _node_center.get(hid, _canvas.size * 0.5)
-			var cdef: Dictionary = _conclusion_def(con_id)
-			for g in cdef.get("gate_hypo_ids", []):
-				if _node_center.has(str(g)):
-					base = _node_center[str(g)]
-					break
-			var pos: Vector2 = _layout._find_non_overlapping_position(base, nid, "conclusion", _node_center)
-			_node_center[nid] = pos
-	# 玩家从推断/结论推导下一层结论＝明确选择「源(前提)→新结论(综合)」支撑关系，绘制该 support 绿边（属玩家连线，非系统自动）。
-	# 金字塔原理 / XMind 逻辑图「结构服从关系」：由前提推导出的综合结论必须位于源的上一级（root 向），
-	# 即新结论是源的「父」而非「子」。故边方向 = from=源(hid, 前提/子)、to=新结论(nid, 综合/父)，
-	# 与 _build_parent_of「from=子/to=父」约定一致，也与 _derive_hypo_from_hypo 的 _add_edge(src, dst) 方向统一。
-	# 结论→结论（rd 同为1）时 _add_edge 不交换方向，故此处显式传 (hid, nid) 让新结论成为源的父节点；
-	# 否则新结论会被误判为源的下一级叶（Issue 1 根因）。
-	if hid != "" and not any_edge(hid, nid) and not _relations.any(func(r): return r.get("from", "") == hid and r.get("to", "") == nid):
-		_edge._add_edge(hid, nid, "support", "green", false)
-	_layout_seed = int(Time.get_ticks_msec()) + _graph_nodes.size()
-	_persist_view()
-	_rebuild_graph()
-	# 必须在 _rebuild_graph 之后同步：结论节点此刻才进入 _node_center，
-	# 否则 _sync_conclusion_gate_edges 会因「结论节点尚未生成」跳过（旧设计靠自动铺预设掩盖此顺序 bug）。
-	if not _teaching:
-		_sync_conclusion_gate_edges()
-	_focus_on(nid)
-	var desc: String = ""
-	if con_id.begins_with("custom"):
-		desc = custom_text
-	else:
-		var cd: Dictionary = _conclusion_def(con_id)
-		desc = str(cd.get("adopt_desc", ""))
-	if desc != "":
-		_ui_toast(desc if desc.length() <= 120 else desc.substr(0, 117) + "…")
-
-
 ## 方案B：同步所有「已推导结论」的 gate 推断→结论 support 边。
 ## 结论定义含 gate_hypo_ids（多个推断/结论共推）时，凡已上墙的 gate 节点都补一条 support 边，
 ## 使结论链随推断逐步到位自动闭合；结论尚未推导（节点未生成）或某 gate 尚未上墙时不补，待其到位后再次同步。
@@ -2827,9 +2299,9 @@ func _input(event: InputEvent) -> void:
 				# （内部会再做一次 affine_inverse 变换），此处必须传鼠标全局坐标而非画布本地
 				# 坐标 clamped，否则双重变换导致命中恒空、缩小/置顶从不触发。
 				var _gp: Vector2 = get_viewport().get_mouse_position()
-				var _hit: String = _drop_node_except(_gp, _drag_id) if _state == State.EDITABLE else ""
+				var _hit: String = _drag.drop_node_except(_gp, _drag_id) if _state == State.EDITABLE else ""
 				if _hit == "":
-					_hit = _nearest_node_except(_gp, _drag_id, 48.0) if _state == State.EDITABLE else ""
+					_hit = _drag.nearest_node_except(_gp, _drag_id, 48.0) if _state == State.EDITABLE else ""
 					if _hit != "" and _node_kind.get(_hit, "") in ["hypo", "clue", "conclusion"]:
 						n.modulate = Color(1, 1, 1, 0.55)
 						n.scale = Vector2(0.9, 0.9)
@@ -2850,13 +2322,13 @@ func _input(event: InputEvent) -> void:
 			return
 		elif event is InputEventMouseButton and not event.pressed:
 			if event.button_index == MOUSE_BUTTON_LEFT and _drag_mode == "move":
-				_commit_move(_drag_id)
+				_drag.commit_move(_drag_id)
 				return
 			if event.button_index == MOUSE_BUTTON_LEFT and _drag_mode == "edge":
-				_commit_drag(_drag_id)
+				_drag.commit_drag(_drag_id)
 				return
 			if event.button_index == MOUSE_BUTTON_RIGHT and _drag_mode == "edge":
-				_commit_drag(_drag_id)
+				_drag.commit_drag(_drag_id)
 				return
 	# === dock 拖动（原有） ===
 	if _dock_dragging and event is InputEventMouseMotion:

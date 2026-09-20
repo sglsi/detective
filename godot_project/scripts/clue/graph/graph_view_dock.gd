@@ -409,7 +409,7 @@ func _confirm_derive_custom(cid: String, le: LineEdit) -> void:
 		owner._ui_toast("推断内容不能为空")
 		return
 	_close_link_popup()
-	owner._derive_hypo_custom(cid, text)
+	owner._derive.derive_hypo_custom(cid, text)
 
 
 ## 候选口径：列出本场景全部（按难度可见的）预设推断，供玩家任选其一；
@@ -432,7 +432,7 @@ func _on_free_link_btn(cid: String) -> void:
 
 func _derive_confirm(cid: String, hid: String) -> void:
 	_close_link_popup()
-	owner._derive_hypo(cid, hid)
+	owner._derive.derive_hypo(cid, hid)
 
 
 ## 方案B：由「推断」推导下一层「推断」（如 W-C1+W-C2→W-C3）。
@@ -471,7 +471,7 @@ func _open_hypo_derive_popup(src_hid: String) -> void:
 
 func _derive_hypo_confirm(src_hid: String, dst_hid: String) -> void:
 	_close_link_popup()
-	owner._derive_hypo_from_hypo(src_hid, dst_hid)
+	owner._derive.derive_hypo_from_hypo(src_hid, dst_hid)
 
 
 # ===================== 结论候选窗（由推断推导结论） =====================
@@ -622,12 +622,12 @@ func _open_custom_conclusion_popup(hid: String) -> void:
 func _confirm_custom_conclusion(hid: String, le: LineEdit) -> void:
 	var text: String = le.text
 	_close_link_popup()
-	owner._derive_conclusion_custom(hid, text)
+	owner._derive.derive_conclusion_custom(hid, text)
 
 
 func _conclusion_confirm(hid: String, con_id: String) -> void:
 	_close_link_popup()
-	owner._derive_conclusion(hid, con_id)
+	owner._derive.derive_conclusion(hid, con_id)
 
 
 func _close_link_popup() -> void:

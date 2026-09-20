@@ -47,7 +47,7 @@ func _run() -> void:
 	press.global_position = Vector2(100, 300)
 	Input.parse_input_event(press)
 	await process_frame                      # 视口坐标 -> (100,300)
-	gv._on_dock_card_gui(press, "c1")        # 真实：dock 卡 gui_input 按下（_dock_start 取 (100,300)）
+	gv._dockctl._on_dock_card_gui(press, "c1")        # 真实：dock 卡 gui_input 按下（_dock_start 取 (100,300)）
 	_chk(gv._dock_dragging == true, "按下 dock 卡进入拖拽态")
 
 	var motion := InputEventMouseMotion.new()
@@ -81,7 +81,7 @@ func _run() -> void:
 	press.global_position = Vector2(100, 300)
 	Input.parse_input_event(press)
 	await process_frame
-	gv._on_dock_card_gui(press, "c2")
+	gv._dockctl._on_dock_card_gui(press, "c2")
 	release.position = Vector2(100, 300)
 	release.global_position = Vector2(100, 300)
 	Input.parse_input_event(release)

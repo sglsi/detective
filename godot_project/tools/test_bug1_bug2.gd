@@ -90,7 +90,7 @@ func _initialize() -> void:
 	await process_frame
 	var _cm_g: Vector2 = _gcenter(gv, "conclusion_C-MAIN")
 	gv._drag_start = Vector2(5, 5)
-	gv._commit_move("NPC_WT", _cm_g)
+	gv._drag.commit_move("NPC_WT", _cm_g)
 	await process_frame
 	var _rel_rev := {}
 	for _r in gv._relations:
@@ -109,7 +109,7 @@ func _initialize() -> void:
 	await process_frame
 	var _person_g: Vector2 = _gcenter(gv, "NPC_WT")
 	gv._drag_start = Vector2(5, 5)
-	gv._commit_move("conclusion_C-MAIN", _person_g)
+	gv._drag.commit_move("conclusion_C-MAIN", _person_g)
 	await process_frame
 	var _rel_fwd := {}
 	for _r in gv._relations:
@@ -127,7 +127,7 @@ func _initialize() -> void:
 	gv._rebuild_graph()
 	await process_frame
 	gv._drag_start = Vector2(5, 5)
-	gv._commit_move("NPC_WT", _gcenter(gv, "conclusion_C-MAIN"))
+	gv._drag.commit_move("NPC_WT", _gcenter(gv, "conclusion_C-MAIN"))
 	await process_frame
 	gv._rebuild_graph()
 	await process_frame
