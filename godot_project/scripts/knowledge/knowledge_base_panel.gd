@@ -34,14 +34,52 @@ var _cur_domain := ""
 var _cur_subdomain := ""
 var _cur_entry_id := ""
 
+## 同步状态提示（已是最新版 / 正在同步 / 离线内置版）
+var _status: Label
+
 func _ready() -> void:
 	if KnowledgeBaseSystem != null:
 		_kb = KnowledgeBaseSystem
 	_build_ui()
 	if _kb != null:
-		_show_browse("")
+		_show_browse("")     # ① 先用内置基线即时渲染，打开即见内容
+		_sync_remote()       # ② 再按域后台同步远端知识库
 	else:
 		_breadcrumb.text = "知识库模块未就绪"
+
+## 按域拉取最新知识库（首次拉全部域；之后命中缓存/会话内已同步则零开销）。
+## 远端不可用时静默回落内置基线，玩家体验不受影响。
+func _sync_remote() -> void:
+	if _kb == null:
+		return
+	_set_status("正在同步…")
+	var ok: bool = await _kb.ensure_all_domains()
+	if ok:
+		_set_status("已是最新版（%s）" % _kb.manifest_version())
+	else:
+		_set_status("离线 · 内置版")
+	_refresh_current_view()
+
+func _refresh_current_view() -> void:
+	match _mode:
+		"favorites":
+			_on_favorites()
+		"search":
+			if _search_input != null and _search_input.text.strip_edges() != "":
+				_on_search()
+			else:
+				_show_browse(_cur_domain, _cur_subdomain)
+		"detail":
+			if _cur_entry_id != "":
+				_show_detail(_cur_entry_id)
+			else:
+				_show_browse(_cur_domain, _cur_subdomain)
+		_:
+			_show_browse(_cur_domain, _cur_subdomain)
+
+func _set_status(t: String) -> void:
+	if _status != null and is_instance_valid(_status):
+		_status.text = t
 
 # ===================== UI 构建 =====================
 
@@ -99,6 +137,23 @@ func _build_ui() -> void:
 	title.add_theme_color_override("font_color", COL_GOLD)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_bar.add_child(title)
+
+	# 同步状态（远端知识库是否已更新）
+	_status = Label.new()
+	_status.text = ""
+	_status.add_theme_font_size_override("font_size", 13)
+	_status.add_theme_color_override("font_color", COL_SUB)
+	_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_bar.add_child(_status)
+
+	# 手动刷新（重新拉取远端知识库并清空本地缓存）
+	var refresh_btn := Button.new()
+	refresh_btn.text = "刷新知识库"
+	refresh_btn.custom_minimum_size = Vector2(130, 36)
+	refresh_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	refresh_btn.pressed.connect(_on_refresh_kb)
+	title_bar.add_child(refresh_btn)
+
 	var close_btn := Button.new()
 	close_btn.text = "✕ 关闭 (Esc)"
 	close_btn.custom_minimum_size = Vector2(120, 36)
@@ -202,11 +257,11 @@ func _build_left() -> void:
 			sub_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			sub_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			sub_btn.add_theme_color_override("font_color", COL_TEXT)
-			sub_btn.pressed.connect(_show_browse.bind(dom_id, str(sub)))
+			sub_btn.pressed.connect(_show_browse_async.bind(dom_id, str(sub)))
 			sub_box.add_child(sub_btn)
 
 		dom_btn.pressed.connect(func(d=dom_id, sb=sub_box):
-			_show_browse(d, "")
+			_show_browse_async(d, "")
 			sb.visible = not sb.visible
 		)
 
@@ -230,6 +285,24 @@ func _build_right() -> void:
 	_right_scroll.add_child(_right_content)
 
 # ===================== 浏览 / 列表 =====================
+
+## 玩家点击某域：先按需拉取该域最新内容，再渲染（远端不可用时直接用内置基线）。
+func _show_browse_async(domain_id: String, subdomain: String = "") -> void:
+	if _kb != null and domain_id != "":
+		_set_status("正在载入…")
+		var ok: bool = await _kb.ensure_domain(domain_id)
+		if ok:
+			_set_status("已是最新版（%s）" % _kb.manifest_version())
+		else:
+			_set_status("离线 · 内置版")
+	_show_browse(domain_id, subdomain)
+
+## 手动刷新：丢弃远端状态与本地缓存后重新拉取。
+func _on_refresh_kb() -> void:
+	if _kb == null:
+		return
+	_kb.reset_to_baseline()
+	_sync_remote()
 
 func _show_browse(domain_id: String, subdomain: String = "") -> void:
 	if _kb == null:

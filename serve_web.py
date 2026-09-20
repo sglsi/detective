@@ -11,6 +11,10 @@ slower ArrayBuffer path. The .pck is fetched as application/octet-stream.
 fetch（尤其是带 JSON body 的 POST）会在运行期失败（沙箱/远程预览下 localhost:3001
 不可达，或跨域预检被拦），表现为注册/登录「网络请求失败」。改为同源请求 /api，
 由本服务器在服务端转发到后端，彻底消除跨域与可达性问题。
+
+知识库外部化：/kb/* → godot_project/data/knowledge/kb/（manifest.json + KB-*.json）。
+知识库因此脱离 pck —— 更新知识库只需替换这些文件（并刷新 manifest 的 version），
+玩家下次查阅时按域拉取即可生效，**无需重导出 pck、无需重下 170MB 整包**。
 """
 import argparse
 import http.server
@@ -26,12 +30,44 @@ PORT = 8081
 # 而后端 server.js 只监听 IPv4 0.0.0.0，会导致代理转发失败。
 BACKEND = "http://127.0.0.1:3001"
 
+## 外部化知识库目录（/kb/* 静态路由），由 main() 在 chdir 之前设定。
+KB_DIR = ""
+
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/api/"):
             return self._proxy("GET")
+        if self.path.startswith("/kb/"):
+            return self._serve_kb()
         return super().do_GET()
+
+    def _serve_kb(self):
+        """外部化知识库静态路由：/kb/<file> → KB_DIR/<file>。
+
+        与 pck 解耦：替换目录内文件并刷新 manifest.json 的 version 即可生效。
+        仅允许扁平文件名（manifest.json / KB-X.json），拒绝任何路径穿越。
+        """
+        rel = self.path.split("?", 1)[0][len("/kb/"):]
+        if (not rel) or ("/" in rel) or ("\\" in rel) or (".." in rel):
+            self.send_error(404, "Not Found")
+            return
+        full = os.path.join(KB_DIR, rel)
+        if not KB_DIR or not os.path.isfile(full):
+            self.send_error(404, "Knowledge base file not found")
+            return
+        try:
+            with open(full, "rb") as f:
+                data = f.read()
+        except OSError as e:
+            self.send_error(500, "Read error: %s" % e)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_POST(self):
         if self.path.startswith("/api/"):
@@ -117,10 +153,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 def main():
+    global KB_DIR
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=PORT)
     ap.add_argument("--directory", required=True)
+    ap.add_argument("--kb-dir", default="",
+                    help="外部化知识库目录（/kb/* 静态路由），"
+                         "默认 godot_project/data/knowledge/kb")
     args = ap.parse_args()
+
+    # 必须在 chdir 之前解析为绝对路径（chdir 后相对路径会指向 web_build）。
+    repo_root = os.path.dirname(os.path.abspath(__file__))
+    KB_DIR = args.kb_dir or os.path.join(repo_root, "godot_project", "data", "knowledge", "kb")
 
     os.chdir(args.directory)
 
@@ -145,6 +189,7 @@ def main():
         sys.exit(1)
     with httpd:
         print(f"Serving {args.directory} on http://0.0.0.0:{args.port}  (/api/* → {BACKEND})", flush=True)
+        print(f"Knowledge base: /kb/* → {KB_DIR}", flush=True)
         httpd.serve_forever()
 
 

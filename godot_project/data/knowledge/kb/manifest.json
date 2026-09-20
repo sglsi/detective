@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "version": "20260920122725",
+  "domain_count": 12,
+  "entry_count": 91,
+  "domains": [
+    {
+      "id": "KB-A",
+      "name": "人体观察与社会身份",
+      "file": "KB-A.json",
+      "count": 3,
+      "hash": "2e3fecea3dde"
+    },
+    {
+      "id": "KB-B",
+      "name": "交通工具与工程测量",
+      "file": "KB-B.json",
+      "count": 3,
+      "hash": "0c6a7e01430d"
+    },
+    {
+      "id": "KB-C",
+      "name": "化学与毒物学",
+      "file": "KB-C.json",
+      "count": 4,
+      "hash": "a5ac4e13a042"
+    },
+    {
+      "id": "KB-D",
+      "name": "语言与书写文化",
+      "file": "KB-D.json",
+      "count": 3,
+      "hash": "5242383cec05"
+    },
+    {
+      "id": "KB-E",
+      "name": "侦查方法与证词分析",
+      "file": "KB-E.json",
+      "count": 3,
+      "hash": "b510e7fed7cd"
+    },
+    {
+      "id": "KB-F",
+      "name": "维多利亚时代社会背景",
+      "file": "KB-F.json",
+      "count": 2,
+      "hash": "0cc678589230"
+    },
+    {
+      "id": "KB-G",
+      "name": "伦敦城市交通与城市环境",
+      "file": "KB-G.json",
+      "count": 4,
+      "hash": "b7f3698798f2"
+    },
+    {
+      "id": "KB-H",
+      "name": "侦查学总纲与现场勘查",
+      "file": "KB-H.json",
+      "count": 9,
+      "hash": "016aaf395c6c"
+    },
+    {
+      "id": "KB-I",
+      "name": "身份识别技术",
+      "file": "KB-I.json",
+      "count": 13,
+      "hash": "87c68e4c21a4"
+    },
+    {
+      "id": "KB-J",
+      "name": "犯罪学理论与时代观念",
+      "file": "KB-J.json",
+      "count": 13,
+      "hash": "b1c942fb6ac1"
+    },
+    {
+      "id": "KB-K",
+      "name": "侦探职业与警务实务",
+      "file": "KB-K.json",
+      "count": 13,
+      "hash": "c65912453d9e"
+    },
+    {
+      "id": "KB-L",
+      "name": "法医学与尸体检验",
+      "file": "KB-L.json",
+      "count": 21,
+      "hash": "405fff0b5abe"
+    }
+  ]
+}

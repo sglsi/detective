@@ -8,8 +8,11 @@ extends Node
 ##         随机翻阅、基础笔记(add_note)、条目收藏(favorite)、难度差异化检索。
 ## M2+ 数据结构：交叉引用(related)、标注高亮/自定义分类/条目关联/笔记导出/推理墙联动（数据结构预留）。
 ##
-## 数据来源：优先 res://data/knowledge/knowledge_base.json（22 条结构化，随仓库）；
-##          缺失时回退 FALLBACK_SEED（7 域各 1 条），保证系统始终可用。
+## 数据来源（三层，逐级兜底）：
+##   ① 内置基线 res://data/knowledge/knowledge_base.json（随 pck 打包，离线兜底）
+##   ② 远端按域文件 /kb/KB-*.json + /kb/manifest.json（同源静态，**可随时更新而无需重导出 pck**）
+##   ③ FALLBACK_SEED（7 域各 1 条），保证系统始终可用
+## 远端内容按玩家查阅需求「按域」拉取，并缓存到 user://kb_cache，命中 hash 则直接复用。
 ## 难度：EASY=0 / NORMAL=1 / HARD=2（与 DifficultyManager 枚举一致）。
 ##   HARD：仅精确匹配标题+关键词，不扫正文；EASY/NORMAL：模糊匹配(标题×3>关键词×2>正文×1)。
 
@@ -60,6 +63,8 @@ func _ready() -> void:
 					break
 			if not covered:
 				entries.append(fb.duplicate())
+	# 内置基线已就绪（离线兜底）；远端 manifest 与按域内容按需拉取（见「远程知识库」）。
+	call_deferred("_bootstrap_remote")
 
 func _load_external() -> void:
 	var path := "res://data/knowledge/knowledge_base.json"
@@ -73,6 +78,233 @@ func _load_external() -> void:
 	var parsed = JSON.parse_string(txt)
 	if typeof(parsed) == TYPE_ARRAY:
 		entries = parsed.duplicate()
+
+## ---------- 远程知识库（外部化：按域按需拉取 + user:// 缓存）----------
+## 知识库作为「独立可更新部分」：服务器托管 /kb/manifest.json + /kb/KB-*.json，
+## 客户端在玩家查阅时按域拉取。改知识库只需刷新远端文件 + manifest 版本号，
+## 无需重导出 pck、无需玩家重下整包；拉取失败一律回落内置基线，功能不受影响。
+
+const KB_REMOTE_PATH := "/kb/"
+## 桌面/编辑器环境下的远端基地址（Web 构建自动使用页面同源 origin）。
+## 可用项目设置 knowledge/remote_base 覆盖；置为空字符串即可彻底关闭远端同步。
+const KB_DEFAULT_REMOTE_BASE := "http://127.0.0.1:8081"
+const KB_TIMEOUT := 12.0
+const KB_CACHE_DIR := "user://kb_cache"
+
+signal kb_manifest_updated(version: String, ok: bool)
+signal kb_domain_loaded(domain_id: String, ok: bool)
+
+## 远端 manifest（{version, domains:[{id,name,file,count,hash}]}）；空表示尚未取得
+var manifest: Dictionary = {}
+var _manifest_version: String = ""
+var _fresh_domains: Dictionary = {}   # domain_id -> true（本次会话已并入最新数据）
+var _remote_ready: bool = false       # manifest 已取得
+var _remote_failed: bool = false      # 本会话已判定远端不可用（不再重试）
+
+func _bootstrap_remote() -> void:
+	# 启动仅探测 manifest（1 个小请求）；各域正文留待玩家查阅时按需拉取。
+	await refresh_manifest()
+
+## 拉取/刷新远端 manifest。成功返回 true；远端不可用返回 false（改用内置基线）。
+func refresh_manifest(force: bool = false) -> bool:
+	if _remote_ready and not force:
+		return true
+	if _remote_failed and not force:
+		return false
+	var res: Dictionary = await _kb_http_get("manifest.json")
+	if res.get("ok", false) and typeof(res.get("data", null)) == TYPE_DICTIONARY:
+		var m: Dictionary = res.get("data", {})
+		if m.has("domains"):
+			manifest = m
+			_manifest_version = str(m.get("version", ""))
+			_remote_ready = true
+			_remote_failed = false
+			_write_cache_file("manifest.json", JSON.stringify(m))
+			kb_manifest_updated.emit(_manifest_version, true)
+			return true
+	_remote_failed = true
+	kb_manifest_updated.emit("", false)
+	return false
+
+## 确保某域为最新内容（玩家查阅该域时调用）。可 await；返回是否成功并入远端内容。
+func ensure_domain(domain_id: String) -> bool:
+	if domain_id == "":
+		return false
+	if _fresh_domains.has(domain_id):
+		return true
+	var ok: bool = await refresh_manifest()
+	if not ok:
+		return false
+	var info: Dictionary = _manifest_domain_info(domain_id)
+	if info.is_empty():
+		_fresh_domains[domain_id] = true   # manifest 未收录该域 → 以内置基线为准
+		return false
+	var want_hash: String = str(info.get("hash", ""))
+	# ① 缓存命中（hash 一致）→ 直接复用，零流量
+	var cached: Array = _read_cached_domain(domain_id, want_hash)
+	if not cached.is_empty():
+		_merge_domain(domain_id, cached)
+		_fresh_domains[domain_id] = true
+		kb_domain_loaded.emit(domain_id, true)
+		return true
+	# ② 远端拉取
+	var res: Dictionary = await _kb_http_get(str(info.get("file", domain_id + ".json")))
+	if res.get("ok", false) and typeof(res.get("data", null)) == TYPE_ARRAY:
+		var arr: Array = res.get("data", [])
+		if _merge_domain(domain_id, arr):
+			_write_cache_file(domain_id + ".json",
+				JSON.stringify({"hash": want_hash, "version": _manifest_version, "entries": arr}))
+			_fresh_domains[domain_id] = true
+			kb_domain_loaded.emit(domain_id, true)
+			return true
+	kb_domain_loaded.emit(domain_id, false)
+	return false
+
+## 确保全部域为最新（玩家打开百科总览时调用）。逐域批式拉取。
+func ensure_all_domains() -> bool:
+	var any_ok: bool = false
+	for dom_id in DOMAINS.keys():
+		var ok: bool = await ensure_domain(str(dom_id))
+		any_ok = any_ok or ok
+	return any_ok
+
+## 丢弃远端状态、回到内置基线（供「刷新知识库」入口使用）。
+func reset_to_baseline() -> void:
+	_fresh_domains.clear()
+	manifest = {}
+	_manifest_version = ""
+	_remote_ready = false
+	_remote_failed = false
+	entries = []
+	_load_external()
+	if entries.is_empty():
+		entries = FALLBACK_SEED.duplicate()
+
+func is_remote_active() -> bool:
+	return _remote_ready
+
+func manifest_version() -> String:
+	return _manifest_version
+
+func _manifest_domain_info(domain_id: String) -> Dictionary:
+	var arr: Array = manifest.get("domains", [])
+	for d in arr:
+		if d is Dictionary and str(d.get("id", "")) == domain_id:
+			return d
+	return {}
+
+## 用 arr 替换 entries 中该域的全部条目（保持域序与域内稳定序）。
+func _merge_domain(domain_id: String, arr: Array) -> bool:
+	if arr.is_empty():
+		return false
+	var kept: Array = []
+	for e in entries:
+		if not (e is Dictionary) or str(e.get("domain", "")) != domain_id:
+			kept.append(e)
+	for e in arr:
+		if e is Dictionary and str(e.get("domain", "")) == domain_id:
+			kept.append(e)
+	entries = kept
+	_reorder_entries()
+	return true
+
+## 按 DOMAINS 键序重排 entries（域内保持既有相对顺序），使总览列表顺序稳定。
+func _reorder_entries() -> void:
+	var buckets: Dictionary = {}
+	for e in entries:
+		var d: String = str(e.get("domain", ""))
+		if not buckets.has(d):
+			buckets[d] = []
+		buckets[d].append(e)
+	var out: Array = []
+	for k in DOMAINS.keys():
+		if buckets.has(k):
+			out.append_array(buckets[k])
+			buckets.erase(k)
+	for k in buckets.keys():
+		out.append_array(buckets[k])
+	entries = out
+
+## ---------- 缓存 I/O ----------
+
+func _cache_path(name: String) -> String:
+	return KB_CACHE_DIR + "/" + name
+
+func _write_cache_file(name: String, text: String) -> void:
+	DirAccess.make_dir_recursive_absolute(KB_CACHE_DIR)
+	var f := FileAccess.open(_cache_path(name), FileAccess.WRITE)
+	if f:
+		f.store_string(text)
+		f.close()
+
+func _read_cached_domain(domain_id: String, want_hash: String) -> Array:
+	if want_hash == "":
+		return []
+	var p: String = _cache_path(domain_id + ".json")
+	if not FileAccess.file_exists(p):
+		return []
+	var f := FileAccess.open(p, FileAccess.READ)
+	if not f:
+		return []
+	var txt: String = f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(txt)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return []
+	if str(parsed.get("hash", "")) != want_hash:
+		return []
+	var arr = parsed.get("entries", null)
+	if typeof(arr) != TYPE_ARRAY:
+		return []
+	return arr
+
+## ---------- 网络 ----------
+
+## 取得 /kb/<rel>，返回 {ok, data}。Web 用浏览器 fetch（同源），桌面/编辑器用
+## HTTPRequest（指向本地静态服务）。任何失败都只是回落内置基线。
+func _kb_http_get(rel: String) -> Dictionary:
+	if OS.has_feature("web"):
+		# 动态解析（而非直接引用 autoload 全局名）：避免在 --script / --check-only
+		# 等不加载 autoload 的运行模式下触发「Identifier not found」编译错误。
+		var cfg: Node = get_node_or_null("/root/APIConfig")
+		var origin: String = ""
+		if cfg != null and cfg.has_method("get_base_url"):
+			origin = str(cfg.get_base_url())
+		if origin == "":
+			origin = "."
+		var url: String = origin + KB_REMOTE_PATH + rel
+		var api: Node = get_node_or_null("/root/APIManager")
+		if api != null and api.has_method("_web_request"):
+			var r: Dictionary = await api._web_request(
+				HTTPClient.METHOD_GET, url, PackedStringArray(["Accept: application/json"]), "")
+			if not r.get("error", true):
+				return {"ok": true, "data": r.get("data", null)}
+		return {"ok": false, "data": null}
+	var base: String = str(ProjectSettings.get_setting("knowledge/remote_base", KB_DEFAULT_REMOTE_BASE))
+	if base == "":
+		return {"ok": false, "data": null}
+	var http := HTTPRequest.new()
+	http.timeout = KB_TIMEOUT
+	http.use_threads = true
+	add_child(http)
+	var err: int = http.request(base + KB_REMOTE_PATH + rel,
+		PackedStringArray(["Accept: application/json"]), HTTPClient.METHOD_GET, "")
+	if err != OK:
+		http.queue_free()
+		return {"ok": false, "data": null}
+	var res: Array = await http.request_completed
+	if is_instance_valid(http):
+		http.queue_free()
+	if res.size() < 4:
+		return {"ok": false, "data": null}
+	var code: int = int(res[1])
+	var body: PackedByteArray = res[3]
+	if code != 200:
+		return {"ok": false, "data": null}
+	var parsed = JSON.parse_string(body.get_string_from_utf8())
+	if parsed == null:
+		return {"ok": false, "data": null}
+	return {"ok": true, "data": parsed}
 
 ## ---------- 检索 ----------
 
