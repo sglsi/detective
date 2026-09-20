@@ -170,6 +170,19 @@
 - **Godot Web 构建**：`python3 serve_web.py --directory godot_project/web_build`（端口 8081）
 - **预览**：通过预览服务访问 Web 原型页面
 
+### 知识库外部化（可独立更新，无需重导出 pck）
+
+知识库是纯参考文本，已从 pck 中剥离，可独立更新：
+
+- **权威源**：`godot_project/data/knowledge/kb/{manifest.json,KB-A..L.json}`（按域拆分）
+- **服务**：`serve_web.py` 的 `/kb/*` 静态路由（默认映射上述目录，`--kb-dir` 可覆盖）
+- **客户端**：`autoload/knowledge_base_system.gd` 按域按需拉取 + `user://kb_cache` 缓存，
+  失败一律回落内置基线；面板 `scripts/knowledge/knowledge_base_panel.gd` 展示同步状态
+- **更新流程**：编辑 `kb/KB-*.json` → `python godot_project/tools/kb_tool.py bump` → 同步 `kb/` 目录到部署环境
+- **兜底快照**：`data/knowledge/knowledge_base.json`（打包进 pck）仅作离线兜底，
+  需要刷新时用 `kb_tool.py merge --crlf` 从 `kb/` 回填
+- **校验**：`kb_tool.py check`；回归测试 `res://scenes/test_kb_remote.tscn`
+
 ### 本地开发环境
 
 当前项目运行两个工程：
