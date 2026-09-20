@@ -273,7 +273,7 @@ func _start_step1() -> void:
 		chain.append(["s1f2","福尔摩斯","（与华生对视一眼）……'瘦脸尖'？花园街的画像可是高个红脸宽脸膛。人的记性，会自己补故事——这条先放着，留作交叉验证。","click",[],""])
 	chain.append(["s2","兰斯警士","我赶紧吹警笛，摩契他们俩很快就来了。对了——我出来的时候，门口还靠着个醉汉，就在街灯底下，唱得震天响，站都站不住。我还提着灯过去想把他轰走。","clue",[CLUES["C_SOTCB_401"]],""])
 	chain.append(["s3","福尔摩斯","（点头，看向玩家）他说的这些，你记下了什么？","click",[],""])
-	var nodes: Array = []
+	var nodes: Array[Resource] = []
 	for i in chain.size():
 		var row: Array = chain[i]
 		var nxt: Array = [str(chain[i + 1][0])] if i < chain.size() - 1 else ["s3_e", "s3_n", "s3_h"]
