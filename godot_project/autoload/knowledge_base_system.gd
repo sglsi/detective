@@ -124,7 +124,21 @@ func refresh_manifest(force: bool = false) -> bool:
 			return true
 	_remote_failed = true
 	kb_manifest_updated.emit("", false)
+	# 控制台诊断（便于排查「百科显示的不是最新内容」）：远端不可用时一律回落内置基线快照。
+	print("[KnowledgeBase] 远端知识库不可用：%s%s 拉取失败 → 使用内置基线快照。"
+		% [_remote_base_desc(), KB_REMOTE_PATH]
+		+ "请确认静态服务已提供 /kb/* 路由（旧版 serve_web.py 需重启为新版本）。")
 	return false
+
+## 当前实际使用的远端基地址（仅用于诊断输出）
+func _remote_base_desc() -> String:
+	if OS.has_feature("web"):
+		var cfg: Node = get_node_or_null("/root/APIConfig")
+		if cfg != null and cfg.has_method("get_base_url"):
+			var o: String = str(cfg.get_base_url())
+			return o if o != "" else "(页面同源)"
+		return "(页面同源)"
+	return str(ProjectSettings.get_setting("knowledge/remote_base", KB_DEFAULT_REMOTE_BASE))
 
 ## 确保某域为最新内容（玩家查阅该域时调用）。可 await；返回是否成功并入远端内容。
 func ensure_domain(domain_id: String) -> bool:

@@ -20,8 +20,46 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import datetime
+
+# 仅匹配「单个字符串字面量（可带尾逗号）」的行——用于把扁平字符串数组塌缩回单行
+# （仓库既有的 knowledge_base.json 采用内联风格；不塌缩会产生上千行纯格式 diff）。
+_ELEM_RE = re.compile(r'^\s*"(?:[^"\\]|\\.)*"\s*,?\s*$')
+
+
+def _collapse_flat_arrays(text):
+    """把仅含字符串元素的多行数组塌缩为单行，其余内容原样保留。"""
+    lines = text.split("\n")
+    out = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        s = line.rstrip()
+        if s.endswith("[") and ":" in s:
+            items = []
+            closing = None
+            j = i + 1
+            while j < len(lines):
+                t = lines[j]
+                ts = t.strip()
+                if ts in ("]", "],"):
+                    closing = "," if ts.endswith(",") else ""
+                    break
+                if not _ELEM_RE.match(t):
+                    items = None
+                    break
+                items.append(ts.rstrip(",").strip())
+                j += 1
+            if items is not None and closing is not None:
+                # s 自带缩进，勿再前置 indent（否则双缩进）
+                out.append(s[:-1].rstrip() + " [" + ", ".join(items) + "]" + closing)
+                i = j + 1
+                continue
+        out.append(line)
+        i += 1
+    return "\n".join(out)
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJ_DIR = os.path.dirname(TOOLS_DIR)
@@ -55,8 +93,10 @@ def _read_json(path):
         return json.load(f)
 
 
-def _write_json(path, obj, crlf=False):
+def _write_json(path, obj, crlf=False, collapse=False):
     text = json.dumps(obj, ensure_ascii=False, indent=2)
+    if collapse:
+        text = _collapse_flat_arrays(text)
     if crlf:
         text = text.replace("\r\n", "\n").replace("\n", "\r\n")
     with open(path, "w", encoding="utf-8", newline="") as f:
@@ -146,7 +186,24 @@ def cmd_merge(args):
     out = []
     for d in manifest.get("domains", []):
         out.extend(by_dom.get(d["id"], []))
-    _write_json(MONO, out, crlf=args.crlf)
+
+    # 保持既有文件中的条目顺序（新条目按域序追加）：避免每次 merge 都把跨域交错的
+    # 历史顺序重排成域序，产生数百行无意义 diff。游戏侧会按域自行排序，不依赖文件序。
+    prev_order = {}
+    if os.path.isfile(MONO):
+        try:
+            for i, e in enumerate(_read_json(MONO)):
+                prev_order[e.get("id")] = i
+        except Exception:
+            prev_order = {}
+    if prev_order:
+        for idx, e in enumerate(out):
+            e["__ord"] = prev_order.get(e.get("id"), 10 ** 6 + idx)
+        out.sort(key=lambda e: e["__ord"])
+        for e in out:
+            e.pop("__ord", None)
+
+    _write_json(MONO, out, crlf=args.crlf, collapse=True)
     print("[OK] merge: %d 条 -> knowledge_base.json (version=%s)" % (len(out), manifest.get("version")))
     return 0
 

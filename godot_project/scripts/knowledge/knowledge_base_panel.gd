@@ -57,7 +57,7 @@ func _sync_remote() -> void:
 	if ok:
 		_set_status("已是最新版（%s）" % _kb.manifest_version())
 	else:
-		_set_status("离线 · 内置版")
+		_set_status("离线 · 内置版（点「刷新知识库」重试）")
 	_refresh_current_view()
 
 func _refresh_current_view() -> void:

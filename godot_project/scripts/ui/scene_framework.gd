@@ -1093,14 +1093,10 @@ func _tween_camera(target_pos: Vector2, target_scale: Vector2) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not _camera_enabled or not _world: return
 	if event is InputEventMouseButton:
-		var in_area := _scene_area.get_global_rect().has_point(get_global_mouse_position())
 		match event.button_index:
-			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
-				if not event.pressed: return   # 只响应按下沿；释放沿不缩放（防止放大镜等上层拦截后释放穿透缩背景）
-				if not in_area: return
-				var local := get_global_mouse_position() - _scene_area.global_position
-				var factor := 1.12 if event.button_index == MOUSE_BUTTON_WHEEL_UP else (1.0 / 1.12)
-				_zoom_at(local, factor)
+			# 滚轮缩放已移除（思傅 2026-09-20）：滚动鼠标滚轮不再让背景场景放大/缩小。
+			# 需要缩放时用 TAB 切换总览（toggle_overview），或调用 reset_camera()；
+			# _zoom_at() 保留为编程接口（供后续功能显式调用），不再绑定任何输入。
 			MOUSE_BUTTON_LEFT, MOUSE_BUTTON_MIDDLE, MOUSE_BUTTON_RIGHT:
 				# 左键拖拽：仅在观察阶段（_camera_enabled）生效，对话框/推理墙已禁用，不与点击推进冲突
 				if event.pressed:
