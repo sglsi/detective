@@ -56,7 +56,7 @@ const HOTSPOT_TABLES := {
 	# 场景二：劳瑞斯顿花园街三号（室外）—— 车辙/蹄印/脚印 三类观察点
 	"sc_02_garden": [
 		{"id": "wheel_track", "label": "车轮印", "pos": Vector2(600, 600), "size": Vector2(320, 48),
-		 "desc": "两道平行车轮印，间距约 3.8 英尺、车轮宽 2 英寸、最深 1.2 英寸——出租马车特征", "correct": true},
+		 "desc": "前后两组平行车轮印，轴距约 6 英尺 10 英寸（82 英寸）、车轮宽 2 英寸、最深 1.2 英寸——出租四轮马车（brougham 型）特征", "correct": true},
 		{"id": "hoof_print", "label": "马蹄印", "pos": Vector2(1000, 680), "size": Vector2(220, 48),
 		 "desc": "马蹄印零乱，右前蹄刚换新蹄铁，旧蹄铁磨损严重", "correct": true},
 		{"id": "footprint", "label": "行人脚印", "pos": Vector2(760, 790), "size": Vector2(260, 48),
