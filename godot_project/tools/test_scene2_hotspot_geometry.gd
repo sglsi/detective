@@ -27,7 +27,8 @@ func _initialize() -> void:
 		scene_rect = Rect2(off, scene_area.size)
 
 	var scene2_script = load("res://scripts/scene/scene2.gd")
-	var hotspots: Array = scene2_script.HOTSPOTS
+	# 场景二为双阶段（街道 + 花园通道），合并两阶段热点做几何校验
+	var hotspots: Array = scene2_script.STREET_HOTSPOTS + scene2_script.PATH_HOTSPOTS
 	if hotspots.is_empty():
 		print("SCENE2_GEOM: FAIL (empty hotspots)"); quit()
 
