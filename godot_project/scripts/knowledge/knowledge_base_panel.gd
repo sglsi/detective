@@ -360,20 +360,44 @@ func _make_entry_card(e: Dictionary) -> PanelContainer:
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(title)
 
+	# 正文片段：**由当前 body 实时派生**（而非读 summary 字段）——
+	# 此前列表渲染的是 summary，而 summary 长期未随 body 更新，玩家因此以为
+	# "百科里还是老的简洁内容"。改为派生后，列表展示永远与正文一致。
 	var summary := Label.new()
-	summary.text = str(e.get("summary", ""))
+	summary.text = _kb.excerpt_of(e, 150) if _kb != null else str(e.get("summary", ""))
 	summary.add_theme_font_size_override("font_size", 14)
 	summary.add_theme_color_override("font_color", COL_TEXT)
 	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(summary)
 
 	var entry_id: String = e.get("id", "")
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 8)
+	btn_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_child(btn_row)
+
+	# 详情入口：旧版这个按钮文案是「★ 收藏」却实际打开详情，标签与行为不符，
+	# 玩家根本发现不了详实正文；现明确标为「查看详情」并显示正文字数。
+	var detail_btn := Button.new()
+	detail_btn.text = "查看详情（%d 字）" % str(e.get("body", "")).length()
+	detail_btn.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	detail_btn.pressed.connect(_on_entry_clicked.bind(entry_id))
+	btn_row.add_child(detail_btn)
+
 	var fav := Button.new()
-	fav.text = "★ 收藏" if (_kb != null and _kb.is_favorite(entry_id)) else "☆ 收藏"
+	fav.text = "★ 已收藏" if (_kb != null and _kb.is_favorite(entry_id)) else "☆ 收藏"
 	fav.add_theme_color_override("font_color", COL_GOLD_LIGHT)
-	fav.pressed.connect(_on_entry_clicked.bind(entry_id))
-	vb.add_child(fav)
+	fav.pressed.connect(_on_toggle_fav_in_list.bind(entry_id, fav))
+	btn_row.add_child(fav)
 	return card
+
+## 列表内就地切换收藏（不跳转详情，避免与「查看详情」混用同一按钮）
+func _on_toggle_fav_in_list(entry_id: String, btn: Button) -> void:
+	if _kb == null:
+		return
+	var now: bool = _kb.toggle_favorite(entry_id)
+	if is_instance_valid(btn):
+		btn.text = "★ 已收藏" if now else "☆ 收藏"
 
 # ===================== 详情 =====================
 

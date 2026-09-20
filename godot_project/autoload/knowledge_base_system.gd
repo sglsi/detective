@@ -459,13 +459,32 @@ func restore_favorites(data: Array) -> void:
 ## ---------- 工具 ----------
 
 func _summary(e: Dictionary) -> String:
-	var s: String = e.get("summary", "")
-	if s != "":
-		return s
-	var b: String = e.get("body", "")
-	if b.length() > 50:
-		return b.substr(0, 50) + "…"
-	return b
+	return excerpt_of(e, 112)
+
+## 由正文派生摘要片段 —— 界面列表与检索结果统一走这里。
+## 这样「显示的内容」永远与当前 body 同步，不会因 summary 字段长期未更新而出现
+## 「打开百科还是老的简洁内容」（该问题已实测发生：91 条 body 早已更新为详实长文，
+## 但列表卡片渲染的 summary 仍是旧文案）。
+func excerpt_of(e: Dictionary, max_len: int = 140) -> String:
+	var body: String = str(e.get("body", "")).strip_edges()
+	if body == "":
+		return str(e.get("summary", ""))
+	var parts: PackedStringArray = body.split("\n\n", false)
+	var text: String = str(parts[0]) if parts.size() > 0 else body
+	# 首段若是引导语（以冒号结尾），接上下一段开头，避免摘要空洞
+	if parts.size() > 1 and (text.ends_with("：") or text.ends_with(":")):
+		text = text + str(parts[1])
+	text = text.replace("\n", "").replace("**", "")
+	if text.length() <= max_len:
+		return text
+	var seg: String = text.substr(0, max_len)
+	var i1: int = maxi(seg.rfind("。"), seg.rfind("；"))
+	if i1 >= 40:
+		return seg.substr(0, i1 + 1)
+	var i2: int = seg.rfind("，")
+	if i2 >= 40:
+		return seg.substr(0, i2) + "…"
+	return seg + "…"
 
 func domain_name(domain_id: String) -> String:
 	if DOMAINS.has(domain_id):

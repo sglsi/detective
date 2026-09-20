@@ -44,6 +44,19 @@ func _ready() -> void:
 	_check(ok_l, "ensure_domain(KB-L) 成功")
 	_check(n_l == 21, "KB-L 条目数 == 21（实际 %d）" % n_l)
 
+	# ③a 列表摘要必须由 body 实时派生（防止再次出现「列表显示旧 summary」的回归）
+	var e_i1: Dictionary = kb.get_entry("KB-I-1")
+	var ex_i1: String = kb.excerpt_of(e_i1, 150)
+	var body_i1: String = str(e_i1.get("body", ""))
+	_check(ex_i1.length() > 30 and ex_i1.length() <= 152,
+		"excerpt_of 长度合理（实际 %d）" % ex_i1.length())
+	_check(body_i1.begins_with(ex_i1.substr(0, 12)), "excerpt 取自 body 开头（与正文同源）")
+	var long_bodies: int = 0
+	for it in kb.entries:
+		if str(it.get("body", "")).length() >= 300:
+			long_bodies += 1
+	_check(long_bodies >= 85, "详实长文条目 >= 85（实际 %d）" % long_bodies)
+
 	# ③b 全量同步：总数不变、无重复、幂等
 	await kb.ensure_all_domains()
 	var n_all: int = kb.entries.size()
