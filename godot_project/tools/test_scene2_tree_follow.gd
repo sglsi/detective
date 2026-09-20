@@ -30,11 +30,11 @@ func _initialize() -> void:
 		log.append("0) 马车夫人物节点已生成 ✓")
 
 	# 玩家推导：H2-01(c201) / H2-05(c206) / H2-06(c205) → CL2-1(H2-01) / CL2-6(H2-05)
-	gv._derive_hypo("c201", "H2-01"); await process_frame
-	gv._derive_hypo("c206", "H2-05"); await process_frame
-	gv._derive_hypo("c205", "H2-06"); await process_frame
-	gv._derive_conclusion("H2-01", "CL2-1"); await process_frame
-	gv._derive_conclusion("H2-05", "CL2-6"); await process_frame
+	gv._derive.derive_hypo("c201", "H2-01"); await process_frame
+	gv._derive.derive_hypo("c206", "H2-05"); await process_frame
+	gv._derive.derive_hypo("c205", "H2-06"); await process_frame
+	gv._derive.derive_conclusion("H2-01", "CL2-1"); await process_frame
+	gv._derive.derive_conclusion("H2-05", "CL2-6"); await process_frame
 	gv._rebuild_graph(); await process_frame
 
 	if not (gv._node_kind.has("conclusion_CL2-1") and gv._node_kind.has("conclusion_CL2-6") and gv._node_kind.has("H2-01") and gv._node_kind.has("H2-05") and gv._node_kind.has("H2-06")):

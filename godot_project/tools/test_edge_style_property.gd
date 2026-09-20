@@ -30,7 +30,7 @@ func _initialize() -> void:
 		"difficulty":gv.Diff.NORMAL,"editable":true,"state_store":{},"auto_fold":false})
 	await process_frame
 	# 派生 H1 推断节点（并建立 c1→H1 的 support 用户连线），确保两端都在 _node_center
-	gv._derive_hypo("c1","H1")
+	gv._derive.derive_hypo("c1","H1")
 	await process_frame
 	gv._rebuild_graph()
 	await process_frame
@@ -50,6 +50,10 @@ func _initialize() -> void:
 	# 选中该边
 	gv._selected_edge = idx
 
+	# 切换性质前快照卡片位置（需求1：切换 支持↔反对 不应改变卡片位置）
+	var _p_c1_before: Vector2 = gv._node_center.get("c1", Vector2.ZERO)
+	var _p_H1_before: Vector2 = gv._node_center.get("H1", Vector2.ZERO)
+
 	# 1) 显式设虚线
 	gv._edge._set_edge_dashed(gv._edge_list[idx], true)
 	await process_frame
@@ -61,6 +65,11 @@ func _initialize() -> void:
 	var r0 = gv._relations[0]
 	_chk(r0.get("kind") == "oppose", "设反对后 kind=oppose")
 	_chk(r0.get("color_key") == "red", "反对→color_key=red")
+	# 需求1 回归：切换 支持→反对 后，卡片位置应保持不变（不再被推成竖向堆叠）
+	var _p_c1_after: Vector2 = gv._node_center.get("c1", Vector2.ZERO)
+	var _p_H1_after: Vector2 = gv._node_center.get("H1", Vector2.ZERO)
+	_chk(_p_c1_after.distance_to(_p_c1_before) < 1.0, "切换支持→反对 c1 位置不变 (Δ=%.1f)" % _p_c1_after.distance_to(_p_c1_before))
+	_chk(_p_H1_after.distance_to(_p_H1_before) < 1.0, "切换支持→反对 H1 位置不变 (Δ=%.1f)" % _p_H1_after.distance_to(_p_H1_before))
 
 	# 3) Undo 逐步恢复
 	gv._undo.undo(); gv._rebuild_graph(); await process_frame

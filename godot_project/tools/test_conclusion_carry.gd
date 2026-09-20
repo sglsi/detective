@@ -24,7 +24,7 @@ func _initialize() -> void:
 		"persons": [], "focus_person": "", "difficulty": gv.Diff.HARD, "editable": true,
 		"state_store": shared, "relations": [], "auto_fold": false, "case_wide": true})
 	await process_frame
-	gv._add_derived_conclusion("H2-01", "CL2-1", "")
+	gv._derive.add_derived_conclusion("H2-01", "CL2-1", "")
 	await process_frame
 	var _t2: String = gv._conclusion_text("CL2-1")
 	print("[scene2] CL2-1 文本 = " + _t2)

@@ -36,11 +36,11 @@ func _initialize() -> void:
 	await process_frame
 
 	# 通过推导建立节点（_node_list 只显示已推导的推断/结论）
-	gv._derive_hypo("CL1", "H1"); await process_frame
-	gv._derive_conclusion("H1", "C0"); await process_frame
-	gv._derive_conclusion("conclusion_C0", "C1"); await process_frame
-	gv._derive_conclusion("conclusion_C1", "C2"); await process_frame
-	gv._derive_conclusion("H1", "C3"); await process_frame
+	gv._derive.derive_hypo("CL1", "H1"); await process_frame
+	gv._derive.derive_conclusion("H1", "C0"); await process_frame
+	gv._derive.derive_conclusion("conclusion_C0", "C1"); await process_frame
+	gv._derive.derive_conclusion("conclusion_C1", "C2"); await process_frame
+	gv._derive.derive_conclusion("H1", "C3"); await process_frame
 	gv._rebuild_graph()
 	await process_frame
 

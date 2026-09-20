@@ -20,15 +20,15 @@ func _initialize() -> void:
 		{"id":"B","text":"结论B（从A推导的综合结论）","correct":true,"gate_hypo_ids":["H1"]}]}}
 	gv.build({"clues":clues,"hypo":hypo,"persons":[{"id":"P","name":"人物P"}],
 		"difficulty":gv.Diff.NORMAL,"editable":true,"state_store":{},"auto_fold":false})
-	gv._derive_hypo("c1","H1")
+	gv._derive.derive_hypo("c1","H1")
 	await process_frame
-	gv._derive_conclusion("H1","A")            # 生成 conclusion_A
+	gv._derive.derive_conclusion("H1","A")            # 生成 conclusion_A
 	await process_frame
 	# 模拟玩家把结论 A 拖到人物 P（建 target 金边）→ A 挂 P 下（这也是思傅看到「人物→结论」跟随树的前提）
 	gv._relations.append({"from":"conclusion_A","to":"person_P","kind":"target"})
 	gv._rebuild_graph()
 	await process_frame
-	gv._derive_conclusion("conclusion_A","B")  # 玩家从 A 推导 B：A→B support（B 应为 A 的父）
+	gv._derive.derive_conclusion("conclusion_A","B")  # 玩家从 A 推导 B：A→B support（B 应为 A 的父）
 	await process_frame
 	gv._rebuild_graph()
 	await process_frame

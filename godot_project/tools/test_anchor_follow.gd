@@ -50,8 +50,8 @@ func _initialize() -> void:
 	await process_frame
 	# 三条链：c20x →(support) H2-0x →(support) conclusion_CL2-x →(target) KILLER
 	for triple in [["c201", "H2-01", "CL2-1"], ["c206", "H2-02", "CL2-2"], ["c207", "H2-03", "CL2-3"]]:
-		gv._derive_hypo(triple[0], triple[1])
-		gv._derive_conclusion(triple[1], triple[2])
+		gv._derive.derive_hypo(triple[0], triple[1])
+		gv._derive.derive_conclusion(triple[1], triple[2])
 		gv._edge._add_edge("conclusion_" + triple[2], "KILLER", "target", "gold", false)
 	await process_frame
 	await process_frame

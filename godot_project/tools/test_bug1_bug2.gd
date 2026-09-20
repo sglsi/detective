@@ -51,11 +51,11 @@ func _initialize() -> void:
 			"C-B1": _src = "W-B1"
 			"C-C1": _src = "W-C1"
 			"C-C2": _src = "conclusion_C-C1"
-		gv._derive_conclusion(_src, _cid)
+		gv._derive.derive_conclusion(_src, _cid)
 		await process_frame
 	# C-MAIN 由结论 C-A2/C-B1/C-C2 三线共推（与真相表同源）→ C-MAIN 为三者之父、可折叠其下整棵子树
 	for _src2 in ["conclusion_C-A2", "conclusion_C-B1", "conclusion_C-C2"]:
-		gv._derive_conclusion(_src2, "C-MAIN")
+		gv._derive.derive_conclusion(_src2, "C-MAIN")
 		await process_frame
 	gv._rebuild_graph()
 	await process_frame

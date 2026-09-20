@@ -231,8 +231,8 @@ const VERB_RELATE := "可能有联系"
 # 颜色键 → 颜色（绿=支持 / 橙=矛盾存疑 / 红=反对 / 灰=弱关联 / 金=归属指向）
 const _COLOR_KEYS := {
 	"green": Color(0.4, 0.85, 0.4),
-	"orange": Color(0.95, 0.55, 0.25),
-	"red": Color(0.95, 0.3, 0.3),
+	"orange": Color(1.0, 0.62, 0.02),
+	"red": Color(0.93, 0.20, 0.26),
 	"grey": Color(0.55, 0.50, 0.42),
 	"gold": Color(0.85, 0.70, 0.30),
 }

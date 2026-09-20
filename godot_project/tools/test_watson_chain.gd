@@ -60,12 +60,12 @@ func _initialize() -> void:
 		log.append("a) 线索推导候选列出全部 5 条预设推断（含组合推断 W-C3），玩家任选其一")
 
 	# ---- 正向推导全部 5 条推断 ----
-	gv._derive_hypo("wrist", "W-A1")
-	gv._derive_hypo("face_dark", "W-A1")
-	gv._derive_hypo("pose", "W-B1")
-	gv._derive_hypo("medical", "W-B1")
-	gv._derive_hypo("face_haggard", "W-C1")
-	gv._derive_hypo("arm", "W-C2")
+	gv._derive.derive_hypo("wrist", "W-A1")
+	gv._derive.derive_hypo("face_dark", "W-A1")
+	gv._derive.derive_hypo("pose", "W-B1")
+	gv._derive.derive_hypo("medical", "W-B1")
+	gv._derive.derive_hypo("face_haggard", "W-C1")
+	gv._derive.derive_hypo("arm", "W-C2")
 	await process_frame
 
 	# ---- 断言 b) 推断节点齐全 + 线索→推断边 ----
@@ -88,8 +88,8 @@ func _initialize() -> void:
 		log.append("b) 4 条线索→推断边均建立（含 左臂/脸色黝黑/面容憔悴/身上有消毒液气味）")
 
 	# ---- 方案B：推断→推断（W-C1+W-C2→W-C3）----
-	gv._derive_hypo_from_hypo("W-C1", "W-C3")
-	gv._derive_hypo_from_hypo("W-C2", "W-C3")
+	gv._derive.derive_hypo_from_hypo("W-C1", "W-C3")
+	gv._derive.derive_hypo_from_hypo("W-C2", "W-C3")
 	await process_frame
 
 	# ---- 断言 c) W-C3 由两条推断共推 ----
@@ -103,9 +103,9 @@ func _initialize() -> void:
 		log.append("c) W-C3 由 W-C1+W-C2 共推（方案B 推断组合生效）")
 
 	# ---- 推导 3 条结论 ----
-	gv._derive_conclusion("W-A1", "C-A1")
-	gv._derive_conclusion("W-C3", "C-MAIN")
-	gv._derive_conclusion("W-C3", "C-C1")
+	gv._derive.derive_conclusion("W-A1", "C-A1")
+	gv._derive.derive_conclusion("W-C3", "C-MAIN")
+	gv._derive.derive_conclusion("W-C3", "C-C1")
 	await process_frame
 
 	# ---- 断言 d) 单 gate 结论边 ----

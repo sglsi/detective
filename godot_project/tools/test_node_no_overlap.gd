@@ -66,15 +66,15 @@ func _initialize() -> void:
 	gv.build({"clues":clues,"hypo":hypo,"persons":[],"difficulty":gv.Diff.NORMAL,"editable":true,"state_store":{},"auto_fold":false})
 	await process_frame
 
-	gv._derive_hypo("c201", "H2-01")
-	gv._derive_conclusion("H2-01", "CL2-1")
+	gv._derive.derive_hypo("c201", "H2-01")
+	gv._derive.derive_conclusion("H2-01", "CL2-1")
 	await process_frame
-	gv._derive_conclusion("H2-01", "CL2-1M")
+	gv._derive.derive_conclusion("H2-01", "CL2-1M")
 	await process_frame
-	gv._derive_hypo("c206", "H2-02")
-	gv._derive_conclusion("H2-02", "CL2-2")
+	gv._derive.derive_hypo("c206", "H2-02")
+	gv._derive.derive_conclusion("H2-02", "CL2-2")
 	await process_frame
-	gv._derive_conclusion("H2-02", "CL2-2M")
+	gv._derive.derive_conclusion("H2-02", "CL2-2M")
 	await process_frame
 
 	var ids: Array = gv._node_center.keys()

@@ -169,7 +169,7 @@ const COL_BG := Color(0.06, 0.05, 0.08, 0.97)
 const COL_PANEL := Color(0.10, 0.08, 0.06, 0.92)
 const COL_GREEN := Color(0.4, 0.85, 0.4)
 const COL_YELLOW := Color(0.95, 0.8, 0.2)
-const COL_RED := Color(0.95, 0.3, 0.3)
+const COL_RED := Color(0.93, 0.20, 0.26)
 const COL_GREY := Color(0.6, 0.6, 0.6)
 
 # 关系性质按钮 label 映射（_sync_pen_buttons 激活态字体颜色用）
@@ -624,7 +624,7 @@ func _mk_top_btn(text: String, active: bool) -> Button:
 func _gw_color(label: String) -> Color:
 	match label:
 		"支持": return COL_GREEN
-		"矛盾存疑": return Color(0.95, 0.55, 0.25)
+		"矛盾存疑": return Color(1.0, 0.62, 0.02)
 		"反对": return COL_RED
 		_: return COL_GREY
 

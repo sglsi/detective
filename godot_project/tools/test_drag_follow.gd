@@ -31,9 +31,9 @@ func _initialize() -> void:
 
 	# ===== 场景A：拖动人物根(凶手)，其整棵子树(结论→推断→线索)应随动 =====
 	var gvA = await _build_wall([{"id":"KILLER","name":"凶手"}], hypo1)
-	gvA._derive_hypo("c201", "H2-01"); await process_frame
-	gvA._derive_hypo("c202", "H2-01"); await process_frame
-	gvA._derive_conclusion("H2-01", "CL2-1"); await process_frame
+	gvA._derive.derive_hypo("c201", "H2-01"); await process_frame
+	gvA._derive.derive_hypo("c202", "H2-01"); await process_frame
+	gvA._derive.derive_conclusion("H2-01", "CL2-1"); await process_frame
 	gvA._rebuild_graph(); await process_frame
 
 	var before := {}
@@ -58,9 +58,9 @@ func _initialize() -> void:
 
 	# ===== 场景B：拖动中间节点(结论)，其下游(推断→线索)随动，上游(人物根)不动 =====
 	var gvB = await _build_wall([{"id":"KILLER","name":"凶手"}], hypo1)
-	gvB._derive_hypo("c201", "H2-01"); await process_frame
-	gvB._derive_hypo("c202", "H2-01"); await process_frame
-	gvB._derive_conclusion("H2-01", "CL2-1"); await process_frame
+	gvB._derive.derive_hypo("c201", "H2-01"); await process_frame
+	gvB._derive.derive_hypo("c202", "H2-01"); await process_frame
+	gvB._derive.derive_conclusion("H2-01", "CL2-1"); await process_frame
 	gvB._rebuild_graph(); await process_frame
 	var b_before := {}
 	for nid in ["KILLER","conclusion_CL2-1","H2-01","c201","c202"]:
@@ -87,9 +87,9 @@ func _initialize() -> void:
 
 	# ===== 场景C：拖动推断(树枝)落在另一节点附近——建边路径同样钉位：不回弹、子树随动 =====
 	var gvC = await _build_wall([{"id":"KILLER","name":"凶手"}], hypo1)
-	gvC._derive_hypo("c201", "H2-01"); await process_frame
-	gvC._derive_hypo("c202", "H2-01"); await process_frame
-	gvC._derive_conclusion("H2-01", "CL2-1"); await process_frame
+	gvC._derive.derive_hypo("c201", "H2-01"); await process_frame
+	gvC._derive.derive_hypo("c202", "H2-01"); await process_frame
+	gvC._derive.derive_conclusion("H2-01", "CL2-1"); await process_frame
 	gvC._rebuild_graph(); await process_frame
 	var c_before := {}
 	for nid in ["KILLER","conclusion_CL2-1","H2-01","c201","c202"]:

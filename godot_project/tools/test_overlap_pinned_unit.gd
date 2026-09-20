@@ -89,10 +89,10 @@ func _run() -> void:
 	var gv := _mk()
 	await get_tree().process_frame
 	# 派生 4 条推断，产生真实节点
-	gv._derive_hypo("c1", "A"); await get_tree().process_frame
-	gv._derive_hypo("c2", "B"); await get_tree().process_frame
-	gv._derive_hypo("c3", "C"); await get_tree().process_frame
-	gv._derive_hypo("c4", "D"); await get_tree().process_frame
+	gv._derive.derive_hypo("c1", "A"); await get_tree().process_frame
+	gv._derive.derive_hypo("c2", "B"); await get_tree().process_frame
+	gv._derive.derive_hypo("c3", "C"); await get_tree().process_frame
+	gv._derive.derive_hypo("c4", "D"); await get_tree().process_frame
 	gv._rebuild_graph(); await get_tree().process_frame
 	_collect_ids(gv)
 	print("  节点 id = %s" % str(_ids))

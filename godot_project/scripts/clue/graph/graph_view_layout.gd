@@ -2394,12 +2394,12 @@ func _intersects_any(rect: Rect2, existing: Dictionary, skip_id: String, clearan
 # 拖动自由摆放：放开范围限制（任务6）——允许节点中心拖到可视区之外较大范围，
 # 配合画布平移（任务8）寻找；仅做极大值兜底避免坐标失控。
 func _clamp_free(p: Vector2) -> Vector2:
+	# 画布自由扩展（思傅 2026-09-20 需求2）：取消拖动范围限制，节点可拖到任意方向，
+	# 画布随内容自由铺开；仅做 NaN/溢出兜底，避免坐标失控。
 	if not is_finite(p.x) or not is_finite(p.y):
 		return Vector2.ZERO
-	var cv: Vector2 = owner._canvas.size
-	var slack: float = max(cv.x, cv.y, 3000.0)
-	return Vector2(clampf(p.x, -slack, cv.x + slack),
-		clampf(p.y, -slack, cv.y + slack))
+	var LIM := 100000.0
+	return Vector2(clampf(p.x, -LIM, LIM), clampf(p.y, -LIM, LIM))
 
 
 func _clamp_to_band(pos: Vector2, center: Vector2, kind: String) -> Vector2:

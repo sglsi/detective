@@ -23,11 +23,11 @@ func _build_fresh() -> Variant:
 		var hid: String = h.get("id", ""); var gates: Array = h.get("gate_clue_ids", [])
 		if hid == "" or gates.is_empty(): continue
 		for c in gates:
-			gv._derive_hypo(str(c), hid); await process_frame
+			gv._derive.derive_hypo(str(c), hid); await process_frame
 	for c in bf.get("conclusions", []):
 		var cid: String = c.get("id", ""); var gh: Array = c.get("gate_hypo_ids", [])
 		if cid == "" or gh.is_empty(): continue
-		gv._derive_conclusion(str(gh[0]), cid); await process_frame
+		gv._derive.derive_conclusion(str(gh[0]), cid); await process_frame
 	# 模拟玩家把每个已推导结论拖到「凶手」人物上建立归属金边（玩家连线，构成完整布局树）
 	for c in bf.get("conclusions", []):
 		var cid: String = c.get("id", "")

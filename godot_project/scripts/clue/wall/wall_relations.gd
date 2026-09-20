@@ -360,8 +360,8 @@ func _rel_color(kind: String) -> Color:
 	var key := _kind_to_key(kind)
 	match key:
 		"green": return Color(0.4, 0.85, 0.4)
-		"orange": return Color(0.95, 0.55, 0.25)
-		"red": return Color(0.95, 0.3, 0.3)
+		"orange": return Color(1.0, 0.62, 0.02)
+		"red": return Color(0.93, 0.20, 0.26)
 		_: return Color(0.55, 0.50, 0.42)
 
 

@@ -43,13 +43,13 @@ func _initialize() -> void:
 	log.append("build 完成 relations=%d edge_list=%d" % [gv._relations.size(), gv._edge_list.size()])
 
 	# ---- 链1：拖 c201 → 选 H2-01 → 选 CL2-1 ----
-	gv._derive_hypo("c201", "H2-01")
-	gv._derive_conclusion("H2-01", "CL2-1")
+	gv._derive.derive_hypo("c201", "H2-01")
+	gv._derive.derive_conclusion("H2-01", "CL2-1")
 	await process_frame
 
 	# ---- 链2：拖 c206 → 选 H2-02 → 选 CL2-2 ----
-	gv._derive_hypo("c206", "H2-02")
-	gv._derive_conclusion("H2-02", "CL2-2")
+	gv._derive.derive_hypo("c206", "H2-02")
+	gv._derive.derive_conclusion("H2-02", "CL2-2")
 	await process_frame
 
 	# 断言 a) 多结论实例

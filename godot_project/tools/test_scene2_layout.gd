@@ -93,11 +93,11 @@ func _initialize() -> void:
 
 	# ========== 3) 场景二整树归属（自动推导流） ==========
 	var gv3 = await _build_wall([{"id":"KILLER","name":"凶手"}], hypo1)
-	gv3._derive_hypo("c201", "H2-01")
+	gv3._derive.derive_hypo("c201", "H2-01")
 	await process_frame
-	gv3._derive_hypo("c202", "H2-01")
+	gv3._derive.derive_hypo("c202", "H2-01")
 	await process_frame
-	gv3._derive_conclusion("H2-01", "CL2-1")
+	gv3._derive.derive_conclusion("H2-01", "CL2-1")
 	await process_frame
 	gv3._rebuild_graph()
 	await process_frame

@@ -98,10 +98,10 @@ func _run() -> void:
 	await get_tree().process_frame
 
 	# 派生 3 条推断链（H4 暂不派生，留作「钉位后新增节点」用）
-	gv._derive_hypo("c1", "H1"); await get_tree().process_frame
-	gv._derive_hypo("c2", "H2"); await get_tree().process_frame
-	gv._derive_hypo("c3", "H3"); await get_tree().process_frame
-	gv._derive_conclusion("H1", "CL1"); await get_tree().process_frame
+	gv._derive.derive_hypo("c1", "H1"); await get_tree().process_frame
+	gv._derive.derive_hypo("c2", "H2"); await get_tree().process_frame
+	gv._derive.derive_hypo("c3", "H3"); await get_tree().process_frame
+	gv._derive.derive_conclusion("H1", "CL1"); await get_tree().process_frame
 	gv._rebuild_graph(); await get_tree().process_frame
 	_report("① 建图+派生后", gv)
 
@@ -124,7 +124,7 @@ func _run() -> void:
 		print("      %-16s kind=%-10s center=%s" % [str(k), str(gv._node_kind.get(k, "?")), str(gv._node_center[k])])
 
 	# ★ 场景0：钉位后新增节点（派生新推断）
-	gv._derive_hypo("c4", "H4"); await get_tree().process_frame
+	gv._derive.derive_hypo("c4", "H4"); await get_tree().process_frame
 	_report("③ 钉位后派生新推断 H4", gv)
 	var ov0 := _overlaps(gv)
 	_chk(ov0.is_empty(), "钉位后新增节点不应与原节点重叠")

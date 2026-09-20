@@ -51,7 +51,7 @@ func _initialize() -> void:
 	gv._node_center["W-B1"] = Vector2(500, 400)
 	gv._node_kind["W-B1"] = "hypo"
 	gv._node_data["W-B1"] = {"id": "W-B1", "text": "军医"}
-	gv._add_derived_conclusion("W-B1", "C-MAIN")
+	gv._derive.add_derived_conclusion("W-B1", "C-MAIN")
 	await process_frame
 
 	var has := func(f: String, t: String) -> bool:
@@ -84,7 +84,7 @@ func _initialize() -> void:
 	# 模拟玩家已把三个 gate 推断 W-A1/W-B1/W-C3 推导上墙（写入 _graph_nodes，使其进入 _node_list/_node_center）：
 	for _g in ["W-A1", "W-B1", "W-C3"]:
 		gv2._graph_nodes.append({"id": _g, "kind": "hypo", "label": _g, "sub": "推断", "data": {}})
-	gv2._add_derived_conclusion("W-B1", "C-MAIN")
+	gv2._derive.add_derived_conclusion("W-B1", "C-MAIN")
 	await process_frame
 	var has2 := func(f: String, t: String) -> bool:
 		for r in gv2._relations:

@@ -20,9 +20,9 @@ func _initialize() -> void:
 		{"id":"C-A1","text":"华生曾在热带长期生活","correct":true,"gate_hypo_ids":["W-A1"],"target":"person:NPC_WT"}]}}
 	gv.build({"clues":clues,"hypo":hypo,"persons":[{"id":"NPC_WT","name":"华生"}],
 		"focus_person":"NPC_WT","difficulty":gv.Diff.NORMAL,"editable":true,"state_store":{},"auto_fold":false})
-	gv._derive_hypo("wrist","W-A1"); gv._derive_hypo("pose","W-B1")
+	gv._derive.derive_hypo("wrist","W-A1"); gv._derive.derive_hypo("pose","W-B1")
 	await process_frame
-	gv._derive_conclusion("W-A1","C-A1")
+	gv._derive.derive_conclusion("W-A1","C-A1")
 	await process_frame
 	gv._rebuild_graph()
 	await process_frame

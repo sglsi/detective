@@ -45,11 +45,11 @@ func _initialize() -> void:
 	await process_frame
 
 	# --- 派生两个推断 + 结论（结论节点 id = conclusion_CL2-X）---
-	gv._derive_hypo("c201", "H2-01")
+	gv._derive.derive_hypo("c201", "H2-01")
 	await process_frame
-	gv._derive_hypo("c203", "H2-02")
+	gv._derive.derive_hypo("c203", "H2-02")
 	await process_frame
-	gv._derive_conclusion("H2-01", "CL2-X")
+	gv._derive.derive_conclusion("H2-01", "CL2-X")
 	await process_frame
 	var cid := "conclusion_CL2-X"
 	print("[SEQ] derive 完成, 结论节点在表: ", gv._node_center.has(cid))

@@ -58,9 +58,9 @@ func _initialize() -> void:
 	_build(gv)
 	await process_frame
 	# 玩家操作（场景二自由建边，方向混合）：
-	gv._derive_hypo("c203", "H2-01")
-	gv._derive_hypo("c203", "H2-02")
-	gv._derive_conclusion("H2-02", "CL2-X")
+	gv._derive.derive_hypo("c203", "H2-01")
+	gv._derive.derive_hypo("c203", "H2-02")
+	gv._derive.derive_conclusion("H2-02", "CL2-X")
 	await process_frame
 	# 1) 反向：把推断 H2-01 拖到线索 c201 上（from=推断 to=线索）
 	gv._edge._add_edge("H2-01", "c201", "support", "green", false)

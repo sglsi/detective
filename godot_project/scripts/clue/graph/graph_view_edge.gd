@@ -629,7 +629,10 @@ func _set_edge_kind(e: Dictionary, new_kind: String) -> void:
 	if owner._cb_relations_changed.is_valid():
 		owner._cb_relations_changed.call(owner._relations.duplicate())
 	owner._persist_view()
-	owner._rebuild_graph()
+	# 仅刷新连线列表（更新 color/color_key）并重绘，【不】触发重排（思傅 2026-09-20 需求1）：
+	# 切换 支持↔弱关联/反对 时保持卡片当前横向位置，不再被推成竖向堆叠。
+	owner._data._derive_edges()
+	owner._redraw_all()
 	# 同步顶栏：性质按钮反映该选中线新状态
 	if owner._cb_edge_selected.is_valid():
 		owner._cb_edge_selected.call(owner._selected_edge)

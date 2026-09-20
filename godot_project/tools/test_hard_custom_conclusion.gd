@@ -59,17 +59,17 @@ func _run() -> void:
 	var GV = load("res://scripts/clue/graph_view_controller.gd")
 	# ===== A) 结论→结论 推导边（HARD 也走此路径）=====
 	var gv = await _build_fresh(GV.Diff.HARD)
-	gv._derive_hypo("wrist", "W-A1"); await process_frame
-	gv._derive_conclusion("W-A1", "C-A1"); await process_frame
+	gv._derive.derive_hypo("wrist", "W-A1"); await process_frame
+	gv._derive.derive_conclusion("W-A1", "C-A1"); await process_frame
 	_chk(gv._node_center.has("conclusion_C-A1"), "A1) HARD 推导出结论 C-A1 节点存在")
 	# 模拟点结论卡「推导下一层结论 ▾」→ 走 _open_conclusion_choice → _derive_conclusion(conclusion_C-A1, C-A2)
-	gv._derive_conclusion("conclusion_C-A1", "C-A2"); await process_frame
+	gv._derive.derive_conclusion("conclusion_C-A1", "C-A2"); await process_frame
 	_chk(gv._node_center.has("conclusion_C-A2"), "A2) 从 C-A1 推导出下一层结论 C-A2 节点存在")
 	_chk(_any_edge(gv, "conclusion_C-A2", "conclusion_C-A1", "support"),
 		"A3) conclusion_C-A2 → conclusion_C-A1 玩家 support 边已建（from=新结论/子，to=源结论/父，多段推理链打通，折叠源结论可收起下游）")
 
 	# ===== B) HARD 自由文本结论匹配 + 别名 =====
-	gv._derive_conclusion_custom("W-A1", "在热带生活过"); await process_frame
+	gv._derive.derive_conclusion_custom("W-A1", "在热带生活过"); await process_frame
 	_chk(gv._match_conclusion("在热带生活过", "affirm") == "C-A1",
 		"B1) 自由文本「在热带生活过」匹配到真相 C-A1（方向 affirm 一致）")
 	_chk(gv._match_conclusion("华生没去过热带", "negate") != "C-A1",

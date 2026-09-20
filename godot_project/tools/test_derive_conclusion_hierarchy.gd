@@ -22,11 +22,11 @@ func _initialize() -> void:
 		{"id":"CB","text":"结论B：凶手有预谋且熟悉地形","correct":true,"gate_hypo_ids":["CA"]}]}}
 	gv.build({"clues":clues,"hypo":hypo,"persons":[{"id":"KILLER","name":"凶手"}],
 		"difficulty":gv.Diff.NORMAL,"editable":true,"state_store":{},"auto_fold":false})
-	gv._derive_hypo("c1","H1")
+	gv._derive.derive_hypo("c1","H1")
 	await process_frame
-	gv._derive_conclusion("H1","CA")            # 推断→结论
+	gv._derive.derive_conclusion("H1","CA")            # 推断→结论
 	await process_frame
-	gv._derive_conclusion("conclusion_CA","CB") # 结论→结论：CA 是源(hid)，CB 是新结论
+	gv._derive.derive_conclusion("conclusion_CA","CB") # 结论→结论：CA 是源(hid)，CB 是新结论
 	await process_frame
 	gv._rebuild_graph()
 	await process_frame
@@ -60,16 +60,16 @@ func _initialize() -> void:
 	else:
 		print("  - H2) 结论→结论边 from=源 to=新 ✓")
 	# 推断→推断方向：_derive_hypo_from_hypo(src, dst) 应建 from=src to=dst
-	gv._derive_hypo_from_hypo("H1","H1")  # 无意义自环会被校验拦截，仅验证不崩；换用真实组合
+	gv._derive.derive_hypo_from_hypo("H1","H1")  # 无意义自环会被校验拦截，仅验证不崩；换用真实组合
 	# 构造两个推断：H1 已存在；再造 H2 由 H1 组合（需 gate_hypo_ids）
 	var hypo2 := {"battlefield":{"hypotheses":[
 		{"id":"H1","text":"推断1","correct":true,"gate_clue_ids":["c1"]},
 		{"id":"H2","text":"推断2=推断1组合","correct":true,"gate_hypo_ids":["H1"]}]}}
 	gv.build({"clues":clues,"hypo":hypo2,"persons":[{"id":"KILLER","name":"凶手"}],
 		"difficulty":gv.Diff.NORMAL,"editable":true,"state_store":{},"auto_fold":false})
-	gv._derive_hypo("c1","H1")
+	gv._derive.derive_hypo("c1","H1")
 	await process_frame
-	gv._derive_hypo_from_hypo("H1","H2")
+	gv._derive.derive_hypo_from_hypo("H1","H2")
 	await process_frame
 	var _h2h := false
 	for _r in gv._relations:
@@ -93,11 +93,11 @@ func _initialize() -> void:
 		{"id":"C-MAIN","text":"华生刚从阿富汗归来","correct":true,"gate_hypo_ids":["W-C3"],"target":"person:NPC_WT"}]}}
 	gv.build({"clues":clues3,"hypo":hypo3,"persons":[{"id":"NPC_WT","name":"华生"}],
 		"focus_person":"NPC_WT","difficulty":gv.Diff.NORMAL,"editable":true,"state_store":{},"auto_fold":false})
-	gv._derive_hypo("arm","W-C1"); gv._derive_hypo("face_haggard","W-C2")
+	gv._derive.derive_hypo("arm","W-C1"); gv._derive.derive_hypo("face_haggard","W-C2")
 	await process_frame
-	gv._derive_hypo_from_hypo("W-C1","W-C3"); gv._derive_hypo_from_hypo("W-C2","W-C3")
+	gv._derive.derive_hypo_from_hypo("W-C1","W-C3"); gv._derive.derive_hypo_from_hypo("W-C2","W-C3")
 	await process_frame
-	gv._derive_conclusion("W-C3","C-MAIN")
+	gv._derive.derive_conclusion("W-C3","C-MAIN")
 	await process_frame
 	gv._rebuild_graph()
 	await process_frame
