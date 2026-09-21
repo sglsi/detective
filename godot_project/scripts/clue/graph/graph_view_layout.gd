@@ -606,6 +606,126 @@ func _relation_tree_layout_DEPRECATED(nodes: Array, center: Vector2, saved_pos: 
 ##   · 多人物 = 多棵独立水平带树，垂直堆叠、带间留 subtreeSeparation（亲近分组：异人物/异组留空）。
 ## 连线由 graph_view_edge 的流向 S 曲线（父右缘→子左缘）绘制，列间空带保证不穿框、不交叉。
 ## 复用 _build_parent_of（from=子,to=父）构建关系树；布局完全由关系图算出，无几何硬编码、无上下/环维度。
+## ===================== 弱连通分量（视觉上相连的树不被别的树分隔） =====================
+## 2026-09-21 思傅截图：同一棵无根树的两个树枝被另一棵无根树分隔开、单看连线难辨关系。
+## 根因：布局树只认 support/target 边；玩家用「弱关联 relate / 反对 oppose / 矛盾 contradict」
+##   把几条链连成**视觉上的一棵树**时，它们在布局里仍是**多个独立根**，而旧实现
+##   ① 根排序按 kind→id 字典序 ② 分列按「根数」平均切块 —— 于是这棵树的枝被切到不同列、
+##   并被别的树插在中间。
+## 修复：按「全部关系（忽略方向与 kind）」求弱连通分量；同分量的根在排序与分列时始终相邻、
+##   绝不被拆到不同列。无关联边时每个根各自成分量 → 行为与旧版一致（小案不打散）。
+func _relation_components() -> Dictionary:
+	var adj := {}
+	for r in owner._relations:
+		var f := str(r.get("from", ""))
+		var t := str(r.get("to", ""))
+		if f == "" or t == "" or f == t:
+			continue
+		if not adj.has(f):
+			adj[f] = []
+		if not adj.has(t):
+			adj[t] = []
+		if not (t in adj[f]):
+			adj[f].append(t)
+		if not (f in adj[t]):
+			adj[t].append(f)
+	var comp := {}
+	var cid: int = 0
+	for n in adj.keys():
+		if comp.has(n):
+			continue
+		var stack: Array = [n]
+		comp[n] = cid
+		while stack.size() > 0:
+			var u: String = str(stack.pop_back())
+			for v in adj.get(u, []):
+				if not comp.has(v):
+					comp[v] = cid
+					stack.append(v)
+		cid += 1
+	return comp
+
+
+## 把 roots 重排为「同一弱连通分量相邻」的顺序；分量之间按代表根（kind_rank 最小、其次 id）
+## 稳定排序，分量内部按 kind 聚类 + id。
+func _group_roots_by_component(roots: Array) -> Array:
+	var comp := _relation_components()
+	var groups := {}
+	var order: Array = []
+	for r in roots:
+		var c: int = int(comp.get(str(r), -1))
+		if not groups.has(c):
+			groups[c] = []
+			order.append(c)
+		groups[c].append(r)
+	var rank_of := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3}
+	var rep_key := {}
+	for c in order:
+		var best_rank: int = 9
+		var best_id: String = "\uffff"
+		for r in groups[c]:
+			var kr: int = int(rank_of.get(owner._fold._kind_of(str(r)), 3))
+			var rs := str(r)
+			if kr < best_rank or (kr == best_rank and rs < best_id):
+				best_rank = kr
+				best_id = rs
+		rep_key[c] = [best_rank, best_id]
+		groups[c].sort_custom(func(a, b):
+			var ra: int = int(rank_of.get(owner._fold._kind_of(str(a)), 3))
+			var rb: int = int(rank_of.get(owner._fold._kind_of(str(b)), 3))
+			if ra != rb:
+				return ra < rb
+			return str(a) < str(b))
+	order.sort_custom(func(a, b):
+		var ka: Array = rep_key[a]
+		var kb: Array = rep_key[b]
+		if ka[0] != kb[0]:
+			return ka[0] < kb[0]
+		return ka[1] < kb[1])
+	var out: Array = []
+	for c in order:
+		out.append_array(groups[c])
+	return out
+
+
+## 以「弱连通分量」为最小单位把无根链切进 ≤ ncols 列：同分量的根永远落在同一列。
+## 每列目标叶数 = max(单列上限, 总叶/期望列数)；单个分量超限时独占一列（不拆开）。
+func _split_roots_into_columns(loose: Array, total_leaf: int, leaf_of_root: Dictionary, max_leaf: int, ncols: int) -> Array:
+	var comp := _relation_components()
+	var blocks: Array = []
+	for r in loose:
+		var c: int = int(comp.get(str(r), -1))
+		var found: int = -1
+		for bi in blocks.size():
+			if int(blocks[bi]["cid"]) == c:
+				found = bi
+				break
+		if found < 0:
+			blocks.append({"cid": c, "roots": [], "leaf": 0})
+			found = blocks.size() - 1
+		blocks[found]["roots"].append(r)
+		blocks[found]["leaf"] = int(blocks[found]["leaf"]) + int(leaf_of_root.get(str(r), 0))
+	var target: int = maxi(1, ncols)
+	var per_col_leaf: int = maxi(max_leaf, ceili(float(total_leaf) / float(target)))
+	var cols: Array = []
+	var cur: Array = []
+	var cur_leaf: int = 0
+	for b in blocks:
+		var bleaf: int = int(b["leaf"])
+		if cur.size() > 0 and cur_leaf + bleaf > per_col_leaf and cols.size() + 1 < target:
+			cols.append(cur)
+			cur = []
+			cur_leaf = 0
+		cur.append_array(b["roots"])
+		cur_leaf += bleaf
+	if cur.size() > 0:
+		cols.append(cur)
+	if cols.is_empty():
+		cols.append([])
+	return cols
+
+
+
 func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
 	var parent_of := _build_parent_of()
 	var child_map := {}
@@ -687,14 +807,9 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		max_h = maxf(max_h, est_h[nd.id])
 	var ROW_STEP: float = max_h + _CONTOUR_SEP
 
-	# 根排序：人物优先；其余按 kind 顺序聚类（同 kind 相邻成带，亲近分组）
-	var kind_rank := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3}
-	roots.sort_custom(func(a, b):
-		var ra: int = kind_rank.get(owner._fold._kind_of(a), 3)
-		var rb: int = kind_rank.get(owner._fold._kind_of(b), 3)
-		if ra != rb:
-			return ra < rb
-		return str(a) < str(b))
+	# 根排序：**先按弱连通分量聚拢**（视觉上相连的树始终相邻、不被别的树分隔，思傅 2026-09-21），
+	# 再在分量内按 kind 聚类（同 kind 相邻成带）+ id 稳定序。
+	roots = _group_roots_by_component(roots)
 
 	# 各根水平带垂直堆叠（多人物各占一独立水平带）。先算每根 tidy-Y 跨度，再森林垂直居中、自上而下铺开。
 	var subtree_sep: float = 40.0   # 根带间垂直间隙（亲近分组：异人物/异组留少量空）
@@ -766,13 +881,8 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		# 1. 按「每列 ≤6 叶」目标切成 ncols 列，顺序切块（同 kind 链路成块相邻，避免打散）
 		var ncols: int = ceili(float(loose_leaf_count) / 6.0)
 		ncols = maxi(2, ncols)
-		var per: int = ceili(float(loose_roots.size()) / float(ncols))
-		var lcols: Array = []
-		for i in loose_roots.size():
-			var ci: int = i / per
-			if ci >= lcols.size():
-				lcols.append([])
-			lcols[ci].append(loose_roots[i])
+		# 按「弱连通分量」为最小单位切列：同一棵视觉树（同分量的多个根）绝不被拆到两列
+		var lcols: Array = _split_roots_into_columns(loose_roots, loose_leaf_count, leaf_count_of_root, 6, ncols)
 		# 2. 每列横向占宽（含该列所有链最深偏移 + 半宽 + 根半宽）
 		var col_widths: Array = []
 		for col in lcols:
@@ -854,13 +964,8 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 				loose_max_w = maxf(loose_max_w, float(col_x.get(_dd, col_x[0])) - float(col_x[0]) + max_w.get(_dd, 150.0))
 		var start_x: float = col_x[0] + main_right + col_gap + loose_max_w * 0.5
 		var ncols: int = maxi(1, ceili(float(loose_leaf_count) / 6.0))
-		var per: int = ceili(float(loose_roots.size()) / float(ncols))
-		var lcols: Array = []
-		for i in loose_roots.size():
-			var ci: int = i / per
-			if ci >= lcols.size():
-				lcols.append([])
-			lcols[ci].append(loose_roots[i])
+		# 按「弱连通分量」为最小单位切列：同一棵视觉树（同分量的多个根）绝不被拆到两列
+		var lcols: Array = _split_roots_into_columns(loose_roots, loose_leaf_count, leaf_count_of_root, 6, ncols)
 		var col_widths: Array = []
 		for col in lcols:
 			var w: float = 0.0
@@ -1037,14 +1142,21 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 			root_groups[rs] = {"L": [], "R": kids_all}
 	owner._last_layout_sides = sides.duplicate()
 
-	# 根排序（与默认布局同口径）
-	var kind_rank := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3}
-	roots.sort_custom(func(a, b):
-		var ra: int = kind_rank.get(owner._fold._kind_of(a), 3)
-		var rb: int = kind_rank.get(owner._fold._kind_of(b), 3)
-		if ra != rb:
-			return ra < rb
-		return str(a) < str(b))
+	# 每根叶数统计（供无根链分列按叶数装箱）：口径与默认布局一致——child_map 中无条目即为叶节点。
+	var leaf_count_of_root := {}
+	for nd in nodes:
+		var _lc_id: String = str(nd.id)
+		if child_map.has(_lc_id):
+			continue
+		var _lc_rt: String = _lc_id
+		var _lc_guard: int = 0
+		while parent_of.has(_lc_rt) and _lc_guard < 100000:
+			_lc_rt = str(parent_of[_lc_rt])
+			_lc_guard += 1
+		leaf_count_of_root[_lc_rt] = int(leaf_count_of_root.get(_lc_rt, 0)) + 1
+
+	# 根排序（与默认布局同口径）：先按弱连通分量聚拢（视觉相连的树相邻），再分量内 kind + id。
+	roots = _group_roots_by_component(roots)
 
 	# 预打包：主根按「左右两半各自轮廓打包」（两侧都垂直居中于根 = 美学3+4），其余根照旧整棵右向
 	var subtree_sep: float = 40.0
@@ -1179,13 +1291,8 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		var start_x: float = center.x + tree_right_edge + col_gap + loose_max_w * 0.5
 		# 按每列 ≤6 叶目标切 ncols 列（与纯无根森林同口径），顺序切块、列间留 col_gap
 		var ncols: int = maxi(1, ceili(float(loose_leaf_count) / 6.0))
-		var per: int = ceili(float(loose_roots.size()) / float(ncols))
-		var lcols: Array = []
-		for i in loose_roots.size():
-			var ci: int = i / per
-			if ci >= lcols.size():
-				lcols.append([])
-			lcols[ci].append(loose_roots[i])
+		# 按「弱连通分量」为最小单位切列：同一棵视觉树（同分量的多个根）绝不被拆到两列
+		var lcols: Array = _split_roots_into_columns(loose_roots, loose_leaf_count, leaf_count_of_root, 6, ncols)
 		var col_widths: Array = []
 		for col in lcols:
 			var w: float = 0.0
@@ -1237,13 +1344,8 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		# 纯无根森林自身多列铺开（无树可搬）：按每列 ≤6 叶目标切 ncols 列、顺序切块、整体水平居中
 		var col_gap: float = 160.0
 		var ncols: int = maxi(2, ceili(float(loose_leaf_count) / 6.0))
-		var per: int = ceili(float(loose_roots.size()) / float(ncols))
-		var lcols: Array = []
-		for i in loose_roots.size():
-			var ci: int = i / per
-			if ci >= lcols.size():
-				lcols.append([])
-			lcols[ci].append(loose_roots[i])
+		# 按「弱连通分量」为最小单位切列：同一棵视觉树（同分量的多个根）绝不被拆到两列
+		var lcols: Array = _split_roots_into_columns(loose_roots, loose_leaf_count, leaf_count_of_root, 6, ncols)
 		var col_widths: Array = []
 		for col in lcols:
 			var w: float = 0.0

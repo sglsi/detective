@@ -289,6 +289,52 @@ func _initialize() -> void:
 	_chk(min_lr > center.x, "D5 无根链无左镜像列（全部在中心右侧）")
 	_overlap_check(gv, out4, KINDD, LABELD)
 
+	# ---- 段E：视觉相连的无根链（同一连通分量的多个根）不得被别的树分隔 ----
+	# 拓扑：分量1 = {E1→EH1→(EC1..EC3)} 与 {E3→EH3→(EC4..EC6)}，两者以 relate（弱关联）边相连——
+	#   布局树只认 support/target，故 E1/E3 是两个独立根，但玩家视觉上是一棵树；
+	#   分量2 = {E2→EH2→(EC7..EC9)} 另一棵无关的树。
+	# 叶数 9 > 6 → 触发「无根森林多列铺开」；若按根顺序切块，E1 与 E3 会被 E2 隔开并分到两列
+	# （思傅 2026-09-21 截图现象：同一棵无根树的两个树枝被另一棵无根树分隔）。
+	var kindE := {}
+	var labelE := {}
+	var relE := []
+	for spec in [["E1", "EH1", ["EC1", "EC2", "EC3"]], ["E2", "EH2", ["EC7", "EC8", "EC9"]], ["E3", "EH3", ["EC4", "EC5", "EC6"]]]:
+		var re: String = spec[0]
+		var he: String = spec[1]
+		kindE[re] = "conclusion"
+		labelE[re] = "结论%s：该链的顶层结论" % re
+		kindE[he] = "hypo"
+		labelE[he] = "推断%s：支撑结论的推断" % he
+		relE.append({"from": he, "to": re, "kind": "support"})
+		for ce in spec[2]:
+			kindE[ce] = "clue"
+			labelE[ce] = "线索%s：该推断的支撑线索" % ce
+			relE.append({"from": ce, "to": he, "kind": "support"})
+	relE.append({"from": "EH1", "to": "EH3", "kind": "relate"})
+	gv._graph_nodes = []
+	for ide in kindE:
+		gv._graph_nodes.append({"id": ide, "kind": kindE[ide], "label": labelE[ide], "sub": "", "data": {}})
+	gv._relations = relE.duplicate()
+	var nodes5 := []
+	for ide in kindE:
+		nodes5.append({"id": ide, "kind": kindE[ide], "label": labelE[ide]})
+	var out5 := {}
+	gv._layout._logic_tree_layout(nodes5, center, {}, out5)
+	var e1x: float = out5["E1"].x
+	var e3x: float = out5["E3"].x
+	_chk(absf(e1x - e3x) < 1.0,
+		"E1 同一连通分量的两个根同列（E1.x=%.0f, E3.x=%.0f）" % [e1x, e3x])
+	var e1y: float = out5["E1"].y
+	var e2y: float = out5["E2"].y
+	var e3y: float = out5["E3"].y
+	var e2x: float = out5["E2"].x
+	# 仅在「另一棵树与同分量根落在同一列」时才构成视觉分隔；不同列各自垂直居中不算
+	var same_col := absf(e2x - e1x) < 1.0
+	var between := same_col and (e2y - e1y) * (e2y - e3y) < 0.0
+	_chk(not between,
+		"E2 另一棵树不在同列插进同分量的两根之间（E1.x=%.0f / E2.x=%.0f / E3.x=%.0f；y=%.0f/%.0f/%.0f）" % [e1x, e2x, e3x, e1y, e2y, e3y])
+	_overlap_check(gv, out5, kindE, labelE)
+
 	if _ok:
 		print("WRAP_RESULT: PASS — 叶子计数触发搬迁布局全部性质验证通过")
 	else:
