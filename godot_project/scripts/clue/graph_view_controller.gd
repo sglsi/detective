@@ -767,6 +767,18 @@ func _rebuild_graph() -> void:
 		if _use_rank_layout:
 			_layout._apply_column_overlap_fix()
 		_layout._apply_global_overlap_fix()
+		# 残留重叠兜底（整洁树优先 · 2026-09-21 思傅截图3）：钉位/存盘位把卡片放成上下叠压，
+		# 且无法用整分量平移解决（同分量相交）时，按「撤销冲突钉位 → 同一律放宽行距 → 整块推开」
+		# 有界重排（≤3 轮），硬保证零重叠且不破坏整洁树五律。仅真的残留重叠才触发。
+		if _layout._has_overlap():
+			pos = _layout._resolve_residual_overlaps(nodes, _pre_center)
+			_node_center = pos
+			for nd3 in nodes:
+				var v3: Control = _node_views[nd3.id]
+				v3.position = pos.get(nd3.id, Vector2.ZERO) - v3.size * 0.5
+			if _mode == ViewMode.MODE_C:
+				for id3 in pos:
+					_all_positions[id3] = pos[id3]
 	_post_drag = false
 	# 创建连线出口折叠控件（XMind 式 −/+N）。
 	# 设计：非折叠叶子无下级，不常驻圆圈；但已折叠的叶子/根仍需保留控件，否则玩家无法展开。

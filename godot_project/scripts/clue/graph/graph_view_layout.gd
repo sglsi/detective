@@ -18,6 +18,11 @@ var _relayout_on_edge := false
 ## 布局期（视图尚未建）用它与 _make_node 同口径的字体度量即时测算节点真实高度。
 var _meas_lab: Label = null
 
+## 行距放宽系数（残留重叠兜底专用 · 2026-09-21）：整洁树网格被「钉位/存盘位」或比
+## 预估更高的卡片撑破、去重叠又无法整分量平移解决（同分量相交）时，
+## 整体放宽行距（ROW_STEP × scale）再排一次——同律加宽，美学1~5 全部保持。
+var _row_step_scale: float = 1.0
+
 # ===================== 节点尺寸估算 =====================
 ## 节点卡片真实高度：视图已测量用视图，否则回退字符估算
 func _view_height(id: String) -> float:
@@ -213,6 +218,147 @@ func _apply_global_overlap_fix() -> void:
 	for id in ids:
 		owner._node_center[id] = _clamp_to_canvas(owner._node_center[id])
 		_sync_node_view(id)
+
+
+## ===================== 残留重叠兜底（整洁树优先 · 2026-09-21） =====================
+## 背景：思傅截图3——链路卡片上下叠压（同列相邻卡间距 245px 而非 480px）。
+##   端到端复现证明「干净拓扑 + 干净状态」布局零重叠，故残留重叠必来自卡片位置状态
+##   （玩家钉位/存盘位把卡片放到了非网格位置），且整分量平移无法解决（同分量相交 → 跳过）。
+## 取舍（思傅定案「整洁树美学为纲，其余皆为补充」）：钉位是补充，冲突时让位——
+##   ① 先撤掉相交双方里「非人物/事件」的钉位 → 重排（回到整洁树位）；
+##   ② 仍相交 → 行距放宽（同律加宽，美学1~5 不变）→ 重排；
+##   ③ 仍相交 → 兜底把相交双方中「节点更少的分量」整块刚性平移分开（最终硬保证零重叠）。
+## 全程有界（≤3 轮），且仅在真的残留重叠时才触发，正常路径行为不变。
+func _has_overlap() -> bool:
+	var ids: Array = owner._node_center.keys()
+	ids.sort()
+	var rects := {}
+	for id in ids:
+		rects[id] = _node_rect(id)
+	for i in ids.size():
+		for j in range(i + 1, ids.size()):
+			if rects[ids[i]].intersects(rects[ids[j]]):
+				return true
+	return false
+
+
+## 相交双方的 id 集合（用于撤钉位）
+func _overlapping_ids() -> Dictionary:
+	var ids: Array = owner._node_center.keys()
+	ids.sort()
+	var rects := {}
+	for id in ids:
+		rects[id] = _node_rect(id)
+	var hit := {}
+	for i in ids.size():
+		for j in range(i + 1, ids.size()):
+			if rects[ids[i]].intersects(rects[ids[j]]):
+				hit[str(ids[i])] = true
+				hit[str(ids[j])] = true
+	return hit
+
+
+## 撤掉相交参与方中的「非人物/事件」钉位（整洁树为纲：钉位是补充，与树美学冲突时让位）。
+## 返回是否真的撤掉了什么。
+func _unpin_overlapping_pins() -> bool:
+	var hit: Dictionary = _overlapping_ids()
+	var changed := false
+	for nid in hit:
+		var k: String = owner._fold._kind_of(str(nid))
+		if k == "person" or k == "event":
+			continue
+		if owner._root_anchor_pos.has(nid):
+			owner._root_anchor_pos.erase(nid)
+			changed = true
+		if owner._manual_nodes.has(nid):
+			owner._manual_nodes.erase(nid)
+			changed = true
+	if changed:
+		owner._state_store["graph_root_anchors"] = owner._root_anchor_pos.duplicate()
+		owner._state_store["graph_manual_nodes"] = owner._manual_nodes.duplicate()
+	return changed
+
+
+## 残留重叠兜底：按「整洁树优先」有界重排，返回最终坐标。仅在有残留重叠时被调用。
+func _resolve_residual_overlaps(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
+	var out := owner._node_center.duplicate()
+	for attempt in range(3):
+		if attempt == 0:
+			_unpin_overlapping_pins()          # ① 冲突钉位让位
+		elif attempt == 1:
+			_row_step_scale = 1.5              # ② 行距同律放宽
+		else:
+			_row_step_scale = 2.0              # ③ 再放宽一档
+		out = _compute_layout(nodes, pre_center)
+		owner._node_center = out.duplicate()
+		_apply_global_overlap_fix()            # 整分量刚性平移（不同分量）
+		out = owner._node_center.duplicate()
+		if not _has_overlap():
+			break
+	_row_step_scale = 1.0
+	# ③ 终极兜底：仍相交（双方皆刚性/同分量）→ 硬性把「节点更少的分量」整块推开
+	if _has_overlap():
+		_force_separate_overlaps()
+		out = owner._node_center.duplicate()
+	_sync_all_views()
+	return out
+
+
+## 终极兜底：无视钉位刚性，把「相交双方中节点数更少的分量」整块垂直平移分开（硬保证零重叠）。
+func _force_separate_overlaps() -> void:
+	for _guard in range(6):
+		var hit: Dictionary = _overlapping_ids()
+		if hit.is_empty():
+			return
+		var comp: Dictionary = _relation_components()
+		var members := {}
+		for id in hit:
+			var key: String = ("c" + str(int(comp[id]))) if comp.has(id) else ("s" + str(id))
+			if not members.has(key):
+				members[key] = []
+			members[key].append(str(id))
+		# 取「节点数最少」的分量整块下移（该分量若含钉位则一并让位——零重叠优先）
+		var best_key := ""
+		var best_n := 1 << 30
+		for key in members:
+			var n: int = (members[key] as Array).size()
+			if n < best_n:
+				best_n = n
+				best_key = key
+		if best_key == "":
+			return
+		var ids: Array = owner._node_center.keys()
+		ids.sort_custom(func(a, b): return owner._node_center[a].y < owner._node_center[b].y)
+		var rects := {}
+		for id in ids:
+			rects[id] = _node_rect(id)
+		# 找该分量的最小 y，下移到与上方任意相交卡的底边 + 80 之下
+		var top: float = 1e18
+		for pid in members[best_key]:
+			top = minf(top, rects[pid].position.y)
+		var need: float = 0.0
+		for pid in members[best_key]:
+			for qid in ids:
+				if (qid in members[best_key]):
+					continue
+				if rects[pid].intersects(rects[qid]):
+					need = maxf(need, rects[qid].end.y + 80.0 - rects[pid].position.y)
+		if need <= 0.0:
+			return
+		for pid in members[best_key]:
+			owner._node_center[pid] = Vector2(owner._node_center[pid].x, owner._node_center[pid].y + need)
+			if owner._root_anchor_pos.has(pid):
+				owner._root_anchor_pos.erase(pid)
+			if owner._manual_nodes.has(pid):
+				owner._manual_nodes.erase(pid)
+		owner._state_store["graph_root_anchors"] = owner._root_anchor_pos.duplicate()
+		owner._state_store["graph_manual_nodes"] = owner._manual_nodes.duplicate()
+
+
+## 把当前 _node_center 同步到所有卡片视图（兜底重排后统一刷新）
+func _sync_all_views() -> void:
+	for id in owner._node_center:
+		_sync_node_view(str(id))
 
 
 ## 中心坐标 → 同步节点视图位置（去重叠后统一刷新，避免出现"数据动了画面没动"）
@@ -966,7 +1112,7 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	var max_h: float = 140.0
 	for nd in nodes:
 		max_h = maxf(max_h, est_h[nd.id])
-	var ROW_STEP: float = max_h + _CONTOUR_SEP
+	var ROW_STEP: float = (max_h + _CONTOUR_SEP) * _row_step_scale
 
 
 	# 各根水平带垂直堆叠（多人物各占一独立水平带）。先算每根 tidy-Y 跨度，再森林垂直居中、自上而下铺开。
@@ -1966,7 +2112,8 @@ func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, ou
 ## （思傅要求：上一线索下沿→下一线索上沿 = 半个框高），其余类型沿用 _CONTOUR_SEP 紧凑间隙。
 func _sibling_sep(c_id: String, node_by_id: Dictionary = {}) -> float:
 	# 2026-09-17：所有类型统一垂直间距（_CONTOUR_SEP = 80px）
-	return _CONTOUR_SEP
+	# 2026-09-21：乘行距放宽系数（残留重叠兜底），默认 1.0 时与旧行为完全一致。
+	return _CONTOUR_SEP * _row_step_scale
 
 
 ## 兄弟节点垂直间距：约文本框高度的 1/4（XMind 式紧凑），下限 80（用户指定 80px）。
