@@ -1,12 +1,12 @@
 extends SceneTree
-## 无根链「叶子计数触发分散」布局验证（2026-09-19 思傅定案）：
-##   分散对象 = 全部无根链（结论-推断-线索 / 推断-线索，单枝或多枝的「无根森林」同属此类）。
-##   两分支：
-##     · 有树（person/event 根）且主列叶子(树叶+同列无根叶) > 6 → 无根链整体搬到「树右侧新空区域」（按 >6 叶分列：每 6 叶一列、列间留 gap）、与树留清晰间隔（不递归切分）。
-##     · 纯无根森林（无任何人物/事件根）且叶子 > 6 → 无根链「自身多列铺开」（按每列≤6叶切 n 列、顺序切块、列间留 gap、整体水平居中）。
+## 无根链布局验证（2026-09-19 思傅定案；2026-09-21 修订：纯无根森林**永不拆列**）：
+##   有树（person/event 根）且主列叶子(树叶+同列无根叶) > 6 → 无根链整体搬到「树右侧新空区域」
+##   （按 >6 叶分列：每 6 叶一列、列间留 gap）、与树留清晰间隔（不递归切分）。
+##   纯无根森林（无任何人物/事件根）**任意叶数一律单主列垂直堆叠**——2026-09-21 思傅 图1/图3 根治：
+##   旧「>6 叶自身多列铺开」把树切进不同 x 列、各列独立垂直居中 → 整树横向甩飞（图3）、树带交错起伏
+##   （图1）；图2 证明单主列带状堆叠才是正确形态。
 ##   整洁树（person/event 根）结构完全不动、永不镜像、始终主列垂直堆叠居中。
-##   不触发（≤6 叶）/ 无无根链 → 全部根单主列（旧版行为）。
-##   段A 纯无根森林（8 分支链·32 叶 >6·无人物根）：自身多列铺开、右向流、零重叠
+##   段A 纯无根森林（8 分支链·32 叶 >6·无人物根）：**永不拆列**、单主列垂直堆叠、右向流、零重叠（2026-09-21 修订）
 ##   段A2 小纯无根森林（1 分支链·4 叶 ≤6）：不分散、单主列、零重叠
 ##   段B 小案（人物树 2 叶 + 1 短无根链 = 3 叶 ≤6）：单主列、不搬迁、零重叠
 ##   段C 人物整洁树独立（无无根链）：单主列、根-干-枝-叶层展、全树右向流、零重叠
@@ -111,19 +111,12 @@ func _initialize() -> void:
 		nodesA.append({"id": id, "kind": kindA[id], "label": labelA[id]})
 	var outA := {}
 	gv._layout._logic_tree_layout(nodesA, center, {}, outA)
-	# A1: 多列 → 结论根 R0..R7 应落在 ≥2 个不同 x 列
+	# A1: 2026-09-21 修订：纯无根森林永不拆列 → 8 个结论根全部落单主列（x=center）
 	var root_xs := {}
 	for i in 8:
 		root_xs[outA["R%d" % i].x] = true
-	_chk(root_xs.size() >= 2, "A1 纯无根森林 32 叶 >6 → 自身多列铺开（结论根占 %d 个 x 列 ≥2）" % root_xs.size())
-	# A2/A3: 多列整体相对画布中心水平居中（向两侧铺开）
-	var minAx := 1e18
-	var maxAx := -1e18
-	for id in outA:
-		minAx = minf(minAx, outA[id].x)
-		maxAx = maxf(maxAx, outA[id].x)
-	_chk(minAx < center.x - 200.0, "A2 多列向左铺开（最左 x=%.0f < 中心-200）" % minAx)
-	_chk(maxAx > center.x + 200.0, "A3 多列向右铺开（最右 x=%.0f > 中心+200）" % maxAx)
+	_chk(root_xs.size() == 1 and absf(outA["R0"].x - center.x) < 1.0,
+		"A1 纯无根森林 32 叶 → 永不拆列，8 结论根全部单主列 x=%.0f（占 %d 列）" % [outA["R0"].x, root_xs.size()])
 	var flowA := true
 	for r in relA:
 		if outA[r["to"]].x >= outA[r["from"]].x:
@@ -293,8 +286,8 @@ func _initialize() -> void:
 	# 拓扑：分量1 = {E1→EH1→(EC1..EC3)} 与 {E3→EH3→(EC4..EC6)}，两者以 relate（弱关联）边相连——
 	#   布局树只认 support/target，故 E1/E3 是两个独立根，但玩家视觉上是一棵树；
 	#   分量2 = {E2→EH2→(EC7..EC9)} 另一棵无关的树。
-	# 叶数 9 > 6 → 触发「无根森林多列铺开」；若按根顺序切块，E1 与 E3 会被 E2 隔开并分到两列
-	# （思傅 2026-09-21 截图现象：同一棵无根树的两个树枝被另一棵无根树分隔）。
+	# 叶数 9（2026-09-21 修订前 >6 会触发「无根森林多列铺开」；修订后永不拆列，本段仍验证
+	# 同分量根同列不被分隔）。
 	var kindE := {}
 	var labelE := {}
 	var relE := []
@@ -417,6 +410,95 @@ func _initialize() -> void:
 	for kk in xs_by_kind:
 		_chk(xs_by_kind[kk].size() == 1, "H2 %s 全部节点同 x 列（占 %d 列）" % [kk, xs_by_kind[kk].size()])
 	_overlap_check(gv, outH, kindH, labelH)
+
+	# ---- 段I：思傅 2026-09-21 图1/图2/图3 复现——纯 support 无根森林任意叶数都单主列（结构服从关系）----
+	# 全实线 support（游戏方向 from=子/to=父）。拓扑：
+	#   T1: C10→C11(串行)→H10→{CL10a,CL10b}
+	#   T2: C20→{H20a,H20b}→{CL20a,CL20b}（extra 时再加无子推断 H20c）
+	#   T3: C30→C31(串行)→{H30a,H30b}→{CL30a,CL30b}
+	# R = 6 叶（=图2 正确形态）；S = 7 叶（旧代码 >6 触发拆列 → 结论根被甩到另一列（图3）+ 树带交错（图1））。
+	for case_i in 2:
+		var extra: bool = case_i == 1
+		var tagI: String = "I%s" % ("S7" if extra else "R6")
+		var kindI := {}
+		var labelI := {}
+		var relI := []
+		kindI["C10"] = "conclusion"; kindI["C11"] = "conclusion"; kindI["H10"] = "hypo"
+		kindI["CL10a"] = "clue"; kindI["CL10b"] = "clue"
+		labelI["C10"] = "结论10"; labelI["C11"] = "结论10b"; labelI["H10"] = "推断10"
+		labelI["CL10a"] = "线索10a"; labelI["CL10b"] = "线索10b"
+		relI.append({"from": "C11", "to": "C10", "kind": "support"})
+		relI.append({"from": "H10", "to": "C11", "kind": "support"})
+		relI.append({"from": "CL10a", "to": "H10", "kind": "support"})
+		relI.append({"from": "CL10b", "to": "H10", "kind": "support"})
+		kindI["C20"] = "conclusion"; kindI["H20a"] = "hypo"; kindI["H20b"] = "hypo"
+		kindI["CL20a"] = "clue"; kindI["CL20b"] = "clue"
+		labelI["C20"] = "结论20"; labelI["H20a"] = "推断20a"; labelI["H20b"] = "推断20b"
+		labelI["CL20a"] = "线索20a"; labelI["CL20b"] = "线索20b"
+		relI.append({"from": "H20a", "to": "C20", "kind": "support"})
+		relI.append({"from": "H20b", "to": "C20", "kind": "support"})
+		relI.append({"from": "CL20a", "to": "H20a", "kind": "support"})
+		relI.append({"from": "CL20b", "to": "H20b", "kind": "support"})
+		if extra:
+			kindI["H20c"] = "hypo"
+			labelI["H20c"] = "推断20c（无子线索，本身即叶子）"
+			relI.append({"from": "H20c", "to": "C20", "kind": "support"})
+		kindI["C30"] = "conclusion"; kindI["C31"] = "conclusion"
+		kindI["H30a"] = "hypo"; kindI["H30b"] = "hypo"
+		kindI["CL30a"] = "clue"; kindI["CL30b"] = "clue"
+		labelI["C30"] = "结论30"; labelI["C31"] = "结论30b"
+		labelI["H30a"] = "推断30a"; labelI["H30b"] = "推断30b"
+		labelI["CL30a"] = "线索30a"; labelI["CL30b"] = "线索30b"
+		relI.append({"from": "C31", "to": "C30", "kind": "support"})
+		relI.append({"from": "H30a", "to": "C31", "kind": "support"})
+		relI.append({"from": "H30b", "to": "C31", "kind": "support"})
+		relI.append({"from": "CL30a", "to": "H30a", "kind": "support"})
+		relI.append({"from": "CL30b", "to": "H30b", "kind": "support"})
+		gv._graph_nodes = []
+		var nodesI := []
+		for idi in kindI:
+			gv._graph_nodes.append({"id": idi, "kind": kindI[idi], "label": labelI[idi], "sub": "", "data": {}})
+			nodesI.append({"id": idi, "kind": kindI[idi], "label": labelI[idi]})
+		gv._relations = relI.duplicate()
+		var outI := {}
+		gv._layout._logic_tree_layout(nodesI, center, {}, outI)
+		# I-1 结论根全部单主列
+		var root_xsI := {}
+		for rid in ["C10", "C20", "C30"]:
+			root_xsI[outI[rid].x] = true
+		_chk(root_xsI.size() == 1 and absf(outI["C10"].x - center.x) < 1.0,
+			"%s-1 三结论根全部单主列 x=%.0f（占 %d 列）" % [tagI, outI["C10"].x, root_xsI.size()])
+		# I-2 T1 串行链水平平整（C10/C11/H10 同 y）
+		var d1: float = maxf(absf(outI["C10"].y - outI["C11"].y), absf(outI["C11"].y - outI["H10"].y))
+		_chk(d1 < 1.0, "%s-2 T1 串行链三节点同 y（dev=%.0fpx）" % [tagI, d1])
+		# I-3 三棵树的 y 区间互不交错（带状堆叠）
+		var treesI := {
+			"T1": ["C10", "C11", "H10", "CL10a", "CL10b"],
+			"T2": ["C20", "H20a", "H20b", "CL20a", "CL20b"],
+			"T3": ["C30", "C31", "H30a", "H30b", "CL30a", "CL30b"],
+		}
+		if extra:
+			treesI["T2"].append("H20c")
+		var rangesI := []
+		var inter := false
+		for t in treesI:
+			var gmin := 1e18
+			var gmax := -1e18
+			for nid in treesI[t]:
+				gmin = minf(gmin, outI[nid].y)
+				gmax = maxf(gmax, outI[nid].y)
+			rangesI.append([gmin, gmax])
+		for i in range(1, rangesI.size()):
+			if rangesI[i - 1][1] >= rangesI[i][0] - 0.5:
+				inter = true
+		_chk(not inter, "%s-3 三树带互不交错（y 区间 %s）" % [tagI, str(rangesI)])
+		# I-4 全部 support 边右向流
+		var flowI := true
+		for r in relI:
+			if outI[r["to"]].x >= outI[r["from"]].x:
+				flowI = false
+		_chk(flowI, "%s-4 全部 support 边右向流" % tagI)
+		_overlap_check(gv, outI, kindI, labelI)
 
 	if _ok:
 		print("WRAP_RESULT: PASS — 叶子计数触发搬迁布局全部性质验证通过")
