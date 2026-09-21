@@ -378,13 +378,22 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 						if out.has(cs2) and not saved_pos.has(cs2):
 							out[cs2] = out[cs2] + delta
 						stack.append(cs2)
-			# 非拖动子树节点（上游/兄弟分支）保持拖前实际位、不重排——仅被拖子树平移，
-			# 其余节点稳定不动（2026-09-05 修复「拖中下层节点导致上游/兄弟被重排错位移」）。
-			var _prot2: Dictionary = _pinned_subtree_nodes()
-			for nd in nodes:
-				var nid := str(nd.id)
-				if _prot2.has(nid): continue
-				if prev_center.has(nid): out[nid] = prev_center[nid]
+		# 2026-09-21（思傅定案「整洁树美学为纲，不能因小失大」）：
+		# 旧逻辑（out[nid]=prev_center[nid]，2026-09-05）把「所有未钉节点」冻结在拖前/读档历史位，
+		# 导致关系树变了布局不变、坐标不再由关系图推算——即「布局服从于各卡片的位置关系，不是
+		# 服从于树的美学关系」（图1 带间组配错乱 / 图2 散乱皆源于此）。
+		# 修正（取舍）：**关系树内的未钉节点一律重排到纯整洁树位**（美学1~5 完全由关系决定，为纲）；
+		# **仅「孤立（无任何关系边）节点」保持拖前实际位**——它们无树美学可服从，稳定不动才是合理
+		# 补充，强行重排只会因去重叠而乱漂（test_isolated_clue 禁令：孤立线索不应随人物漂走）。
+		# 玩家显式钉位的子树仍走下方「锚点跟随」+「钉位重派生」刚性平移，属美学之上的玩家补充。
+		var _prot2: Dictionary = _pinned_subtree_nodes()
+		var _rel_nodes: Dictionary = _relation_components()   # 含任意关系边的节点 → 属某棵关系树
+		for nd in nodes:
+			var nid := str(nd.id)
+			if _prot2.has(nid):
+				continue
+			if not _rel_nodes.has(nid) and prev_center.has(nid):
+				out[nid] = prev_center[nid]   # 孤立节点：稳定不动
 		# 自由放置优先：被钉节点（拖动落点）保持自身位置
 		for _id2 in out:
 			var _sp2: Variant = saved_pos.get(_id2, null)
@@ -409,6 +418,9 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 			# 非根钉位（玩家拖动中间节点）仍走此处：其可见后代已在拖拽中随根平移、prev_center=拖末位，
 			# 刚性保留即等于跟随；隐藏后代极少见，沿用旧行为。
 			if not parent_of.has(pin_s): continue
+			# 钉位根的子树（玩家显式拖动/钉位的整棵子树）：刚性保留拖拽末位（prev_center=拖末位，
+			# 已在拖拽过程中随根平移），松手后严格随根走、不回弹也不被纯布局打回——这是「玩家手动摆放」
+			# 这一合法补充（区别于下方非钉位节点的纯整洁树位）。后代若自身也被钉则交给其自身钉位处理。
 			var stack: Array = [pin_s]
 			while stack.size() > 0:
 				var u: String = stack.pop_back()
@@ -416,7 +428,7 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 					var cs := str(c)
 					if saved_pos.has(cs): continue   # 后代若本身也被钉，交给其自身钉位处理
 					if prev_center.has(cs):
-						out[cs] = prev_center[cs]     # 保持拖拽末位（含拖拽平移）：刚性跟随根
+						out[cs] = prev_center[cs]     # 保持拖拽末位（含拖拽平移）
 					stack.append(cs)
 	if owner._mode != GraphViewController.ViewMode.MODE_C:
 		# 兜底（实际恒定 MODE_C）：非 C 模式直接逻辑图布局，保证编译期全路径返回
