@@ -298,6 +298,24 @@ func _clue_box_height() -> float:
 func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 	# 链路亲和邻接缓存：每次布局重建（relations 可能已变）
 	_aff_adj_dirty = true
+	# 2026-09-21（思傅「整洁树美学为纲」）：钉位只对「真根」生效。孤儿吸收（_build_parent_of
+	# 已删除钉位豁免）会把多父竞争落选、被支持者拉回树内的前根重新挂到树下——此类节点
+	# 不再是根，其历史钉位（每次拖动都会写入并持久化）若保留，锚点位移会把节点从整洁
+	# 树位上硬拽走（布局服从卡片位置）。凡已获得父节点的非人物/事件钉位，一律清除。
+	var _pin_pf := _build_parent_of()
+	var _purged := false
+	for _pk in owner._root_anchor_pos.keys():
+		var _ps := str(_pk)
+		var _pkd: String = owner._fold._kind_of(_ps)
+		if _pkd == "person" or _pkd == "event":
+			continue
+		if _pin_pf.has(_ps):
+			owner._root_anchor_pos.erase(_ps)
+			owner._manual_nodes.erase(_ps)
+			_purged = true
+	if _purged:
+		owner._state_store["graph_root_anchors"] = owner._root_anchor_pos.duplicate()
+		owner._state_store["graph_manual_nodes"] = owner._manual_nodes.duplicate()
 	var center := owner._canvas.size * 0.5
 	# 真实浏览器画布足够大；headless/极小画布时用虚拟中心兜底，避免布局把所有节点挤进一小块（生产不受影响）
 	if owner._canvas.size.x < 800.0 or owner._canvas.size.y < 600.0:
@@ -2097,7 +2115,11 @@ func _build_parent_of() -> Dictionary:
 	# 修复：孤儿根 R 的子树若有外部入边（v→u：v 支持 u∈subtree(R)，即 R 链本就是被 v
 	# 推导出来的），把 R 挂到入边最多的 v 之下当孩子——与关系方向一致（被支持者挂在
 	# 支持者下方），跨带长边变父子短边。只处理入边方向；出边方向（u→v）挂接会形成
-	# v→R→u→v 视觉环，保持原状。玩家钉位过的节点不吸收（尊重手动落点）。
+	# v→R→u→v 视觉环，保持原状。
+	# 2026-09-21（思傅「整洁树美学为纲」）：**删除钉位豁免**。钉位根若豁免吸收，会留下
+	# 「纯布局按吸收后结构排、最终树按未吸收解释」的两棵树不一致——H2 居中失准、被钉结
+	# 论悬挂跨树长边（复现 test_screenshot_aesthetic_repro 钉位场景 FAIL）。吸收后该节点
+	# 不再是根，其历史钉位由 _compute_layout 顶部的「非根钉位清除」统一回收。
 	# 子树/父子判定必须用【最终 parent_of】建树（候选图 child_map 会把共享节点算进
 	# 每个落选父的子树，令外部入边恒为空、吸收永不触发——已踩）。
 	var final_child := {}
@@ -2113,8 +2135,6 @@ func _build_parent_of() -> Dictionary:
 			continue
 		var rk: String = owner._fold._kind_of(rs)
 		if rk == "person" or rk == "event":
-			continue
-		if owner._root_anchor_pos.has(rs):
 			continue
 		# 孤儿子树全集（按最终树）
 		var sub := {rs: true}
