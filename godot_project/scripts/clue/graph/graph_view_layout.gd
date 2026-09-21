@@ -1187,14 +1187,17 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 			ph_total += (root_range[r][1] - root_range[r][0]) + subtree_sep
 		ph_total = maxf(0.0, ph_total - subtree_sep)
 		# 2026-09-21 修复：人物带同样按「实际绘制底」推进，避免相邻人物树 root_y0 不同导致带交错（同 else 路径）。
-		var pband: float = (center.y - ph_total * 0.5) - subtree_sep
+		# 2026-09-21 行网格：人物带起点吸附整行网格；每带绘制顶再 ceil 吸附同一网格（防 subtree_sep 累积漂移）。
+		var pgrid: float = _snap_row(center.y - ph_total * 0.5, center.y, ROW_STEP)
+		var pband: float = pgrid - subtree_sep
 		for r in person_roots:
 			var ty: Dictionary = root_tidy[r]
 			var rg: Array = root_range[r]
 			var sv: Variant = saved_pos.get(r, null)
 			var rx: float = col_x[0]
 			var root_y0: float = ty.get(str(r), 0.0)
-			var pcur_y: float = pband + subtree_sep + root_y0
+			var pband_top: float = _snap_row_ceil(pband + subtree_sep, pgrid, ROW_STEP)
+			var pcur_y: float = pband_top + root_y0
 			var ry: float = pcur_y - rg[0]
 			if sv is Vector2:
 				rx = sv.x
@@ -1205,7 +1208,7 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 					continue
 				var _d := int(depth_of.get(nid, 0))
 				out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
-			pband = pband + subtree_sep + (rg[1] - rg[0])
+			pband = pband_top + (rg[1] - rg[0])
 		# 无根链新区域：树最右沿 + 清晰间隔 起点；按 >6 叶分列（与平衡布局同口径）。
 		var maxd: int = 0
 		for d in col_x.keys():
@@ -1236,14 +1239,16 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 				ch_h += (root_range[r][1] - root_range[r][0]) + subtree_sep
 			ch_h = maxf(0.0, ch_h - subtree_sep)
 			# 2026-09-21 修复：列内无根链同样按「实际绘制底」推进（同 else 路径），避免 root_y0 不同导致带交错。
-			var cband: float = (center.y - ch_h * 0.5) - subtree_sep
+			# 2026-09-21 行网格：无根链列与人物带共用同一网格基准 pgrid（跨列同行对齐）。
+			var cband: float = _snap_row(center.y - ch_h * 0.5, pgrid, ROW_STEP) - subtree_sep
 			for r in col:
 				var ty: Dictionary = root_tidy[r]
 				var rg: Array = root_range[r]
 				var sv: Variant = saved_pos.get(r, null)
 				var rx: float = cur_x
 				var root_y0: float = ty.get(str(r), 0.0)
-				var cury: float = cband + subtree_sep + root_y0
+				var cband_top: float = _snap_row_ceil(cband + subtree_sep, pgrid, ROW_STEP)
+				var cury: float = cband_top + root_y0
 				var ry: float = cury - rg[0]
 				if sv is Vector2:
 					rx = sv.x
@@ -1255,7 +1260,7 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 						continue
 					var _d := int(depth_of.get(nid, 0))
 					out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
-				cband = cband + subtree_sep + (rg[1] - rg[0])
+				cband = cband_top + (rg[1] - rg[0])
 			# 两列无根链之间也遵循「160 + 无根链半宽」规则，与「树最右沿→首列」间隔一致（思傅 2026-09-19）
 			cur_x += col_widths[ci] + col_gap + loose_max_w * 0.5
 	else:
@@ -1266,7 +1271,7 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		#   旧代码按 (rg[1]-rg[0]) 推进锚点 cur_y，忽略了 root_y0 —— 当相邻树 root_y0 不同
 		#   （如 7 叶比 6 叶多出的叶子抬高了根中点）时，后一棵树会"窜"到前一棵内部（图1 交错、图3 飞列）。
 		#   改为用「实际绘制底」推进：band_bottom 累积真实绘制最大 y，下一棵绘制顶贴其下 + subtree_sep。
-		var start_y: float = center.y - total_h * 0.5
+		var start_y: float = _snap_row(center.y - total_h * 0.5, center.y, ROW_STEP)
 		var band_bottom: float = start_y - subtree_sep   # 使首棵绘制顶恰为 start_y（整体居中，绘制跨度 = total_h）
 		for r in roots:
 			var ty: Dictionary = root_tidy[r]
@@ -1275,12 +1280,18 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 			var sv: Variant = saved_pos.get(r, null)
 			var rx: float = col_x[0]
 			var root_y0: float = ty.get(str(r), 0.0)
-			# 本树绘制顶 = band_bottom + subtree_sep；锚点 cur_y 满足 cur_y - root_y0 = 绘制顶
-			var cur_y: float = band_bottom + subtree_sep + root_y0
+			# 本树绘制顶吸附到整行网格（≥ band_bottom + subtree_sep）——防 subtree_sep 累积漂移导致带间错行
+			var band_top: float = _snap_row_ceil(band_bottom + subtree_sep, start_y, ROW_STEP)
+			var cur_y: float = band_top + root_y0
 			var ry: float = cur_y - min_c
 			if sv is Vector2:
 				rx = sv.x
 				ry = sv.y
+				# 松散链根（非人物/事件）钉位 y 吸附整行网格：保留玩家「哪一行」的意图，
+				# 但不再让钉位把整条链拖到半行/错行处（人物/事件锚点钉位保持原样，避免"自动排列"观感）。
+				var _rk_else: String = owner._fold._kind_of(str(r))
+				if _rk_else != "person" and _rk_else != "event":
+					ry = _snap_row(sv.y, start_y, ROW_STEP)
 			# 根置于 ry（带顶锚点）；子节点相对 y 减去根自身 tidy-y（ty[root] 为子群中点），
 			# 使根居中于子群（XMind 局部对称 · 美学3），而非落在带顶。
 			out[r] = Vector2(rx, ry)
@@ -1292,8 +1303,8 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 				# 未钉位时 rx==col_x[0]，与旧绝对列完全等价。
 				var _d := int(depth_of.get(nid, 0))
 				out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
-			# 本树绘制底 = cur_y + (rg[1]-rg[0]) - root_y0 = band_bottom + subtree_sep + (rg[1]-rg[0])
-			band_bottom = band_bottom + subtree_sep + (rg[1] - rg[0])
+			# 本树绘制底 = band_top + (rg[1]-rg[0])（下一带据此吸附整行，避免 40px 累积漂移）
+			band_bottom = band_top + (rg[1] - rg[0])
 	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
 	for mid2 in owner._manual_nodes:
 		var sv3: Variant = saved_pos.get(mid2, null)
@@ -1503,8 +1514,16 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 	for r in main_roots:
 		total_main_h += root_packed_h[r] + subtree_sep
 	total_main_h = maxf(0.0, total_main_h - subtree_sep)
-	var cur_y: float = center.y - total_main_h * 0.5
+	# 行网格（2026-09-21）：balanced 布局行距基准 = 最高卡 + 兄弟间隙（与 _pack_contour/_sibling_sep 同口径），
+	# 主堆叠起点与每带绘制顶吸附同一网格（防 subtree_sep 累积漂移导致带间错行）。
+	var _b_max_h: float = 140.0
+	for _nd_b in nodes:
+		_b_max_h = maxf(_b_max_h, float(est_h.get(_nd_b.id, 140.0)))
+	var _b_step: float = _b_max_h + _CONTOUR_SEP * _row_step_scale
+	var _b_grid: float = _snap_row(center.y - total_main_h * 0.5, center.y, _b_step)
+	var cur_y: float = _b_grid
 	for r in main_roots:
+		cur_y = _snap_row_ceil(cur_y, _b_grid, _b_step)
 		var parts2: Dictionary = root_contours[r]
 		var ph2: float = root_packed_h[r]
 		var min_c: float = 0.0
@@ -1850,6 +1869,28 @@ func _tidy_y(root: String, child_map: Dictionary, slot: float) -> Dictionary:
 	var cursor := [0.0]
 	_tidy_assign_y(str(root), child_map, slot, cursor, res)
 	return res
+
+
+## ===================== 全局行网格对齐（2026-09-21 · 思傅截图4） =====================
+## 现象：推理链推进（不断新增链路 → 多个独立根 ⇒ 多个「带」）后，各带的卡片行互相错开
+##   （实测两套行网格相差 ≈83 实尺），链条呈阶梯、长距离斜连线，甚至半行叠压。
+## 根因：带堆叠每加一个带就累加一次 `subtree_sep`(40px)，而行的离散步长是 ROW_STEP；
+##   两者不同步 ⇒ 每带相对前一带永久漂移 40px ⇒ 行网格错位（2 带 ≈ 80px，与实测吻合）。
+## 修法（纯 y 方向吸附，不改任何树形/列结构 ⇒ 美学1~5 不变）：
+##   · 森林起点吸附到相对画布中心的整行网格；
+##   · 每个带的「实际绘制顶」按 ceil 吸附到同一网格（保证 ≥ subtree_sep 间隙，且不再累积漂移）；
+##   · 根钉位的 y 吸附到同一网格（保留玩家「放在哪一行」的意图，但不破坏跨带同层共线）。
+func _snap_row(y: float, anchor: float, row_step: float) -> float:
+	if row_step <= 1.0:
+		return y
+	return anchor + round((y - anchor) / row_step) * row_step
+
+
+func _snap_row_ceil(y: float, anchor: float, row_step: float) -> float:
+	if row_step <= 1.0:
+		return y
+	return anchor + ceil((y - anchor) / row_step) * row_step
+
 
 func _tidy_assign_y(u: String, child_map: Dictionary, slot: float, cursor: Array, res: Dictionary) -> void:
 	var kids: Array = child_map.get(u, [])
