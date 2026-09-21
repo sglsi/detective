@@ -117,6 +117,61 @@ func _initialize() -> void:
 		print("  %s (%s): %.0f, %.0f" % [id, KIND[id], out2[id].x, out2[id].y])
 	_run_checks(gv2, out2, KIND, "P钉位")
 
+	# ===== 场景3（思傅 2026-09-21 截图2）：孤立人物 + 纯 结论→推断→线索 链（链与人物无任何关系边）=====
+	# 人物冻结在链条整洁带（画布中心列 col0）上 → 旧去重叠把结论单独垂直推下 → 链条成阶梯，
+	# 父居中于子/同层共线被破坏。修复后：去重叠按弱连通分量整块刚性平移（孤立单点让位）。
+	var gv3 = GV.new()
+	var holder3 := Control.new()
+	root.add_child(holder3)
+	holder3.add_child(gv3)
+	await process_frame
+	gv3._canvas = canvas
+	gv3._mode = GV.ViewMode.MODE_C
+	gv3._graph_nodes = [
+		{"id": "P", "kind": "person", "label": "华生", "sub": "", "data": {}},
+		{"id": "C", "kind": "conclusion", "label": "是名军医", "sub": "", "data": {}},
+		{"id": "H", "kind": "hypo", "label": "从事医疗行业", "sub": "", "data": {}},
+		{"id": "L", "kind": "clue", "label": "身上有消毒液气味", "sub": "", "data": {}},
+	]
+	gv3._relations = [
+		# 生产口径：from=更深层(子)、to=更浅层(父)（_add_edge 新建时归一化后的存盘形态）
+		{"from": "H", "to": "C", "kind": "support"},
+		{"from": "L", "to": "H", "kind": "support"},
+	]
+	gv3._root_anchor_pos = {}
+	gv3._manual_nodes = []
+	# 人物冻结位：与链条整洁带（col0=center.x=960、带垂直居中 y≈540）同列相撞，且在链上方
+	gv3._node_center = {
+		"P": Vector2(960.0, 300.0),
+		"C": Vector2(200.0, 800.0), "H": Vector2(500.0, 800.0), "L": Vector2(800.0, 800.0),
+	}
+	gv3._layout._relayout_on_edge = false
+	var out3: Dictionary = gv3._layout._compute_layout(
+		gv3._graph_nodes.duplicate(), {})
+	gv3._node_center = out3.duplicate()
+	gv3._layout._apply_global_overlap_fix()
+	out3 = gv3._node_center
+
+	print("== positions (孤立人物+纯链) ==")
+	for id in ["P", "C", "H", "L"]:
+		print("  %s: %.0f, %.0f" % [id, out3[id].x, out3[id].y])
+	# ⑤ 链条三卡共线（同 y）——旧实现结论被单独推下即在此失败
+	var collinear: bool = absf(out3["C"].y - out3["H"].y) < 1.0 \
+		and absf(out3["H"].y - out3["L"].y) < 1.0
+	_chk(collinear, "[纯链] ⑤ 结论/推断/线索 同 y 共线（父居中于子）C=%.0f H=%.0f L=%.0f"
+		% [out3["C"].y, out3["H"].y, out3["L"].y])
+	# ⑥ 列右向展开：C < H < L
+	_chk(out3["C"].x < out3["H"].x and out3["H"].x < out3["L"].x,
+		"[纯链] ⑥ 深度列右向 C=%.0f H=%.0f L=%.0f" % [out3["C"].x, out3["H"].x, out3["L"].x])
+	# ⑦ 与孤立人物无 AABB 重叠
+	var hit := []
+	for id in ["C", "H", "L"]:
+		var rp: Rect2 = gv3._layout._node_rect("P")
+		var rq: Rect2 = gv3._layout._node_rect(id)
+		if rp.intersects(rq):
+			hit.append(id)
+	_chk(hit.is_empty(), "[纯链] ⑦ 链与孤立人物无重叠" + ("" if hit.is_empty() else "；撞：" + ", ".join(hit)))
+
 	if _ok:
 		print("AESTHETIC_REPRO: PASS")
 	else:

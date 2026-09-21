@@ -131,6 +131,32 @@ func _apply_global_overlap_fix() -> void:
 		return
 	# 钉位子树全集：拖动过的根及其后代整体刚性，去重叠时跳过（不让后代被推散）
 	var _prot: Dictionary = _pinned_subtree_nodes()
+	# 2026-09-21（思傅截图2：首条纯链被孤立人物顶成阶梯）——推挤单位从「单节点」升格为
+	# 「弱连通分量整块」：旧实现把与人物相撞的结论单独垂直推下（推断/线索留在原 y），
+	# 父居中于子/同层共线当场破坏，链条成阶梯。整洁树美学为纲（思傅定案）→ 任何避让都
+	# 不得改变树内相对形状：整分量同 dy 刚性平移（x 不变=列结构不变；相对 y 不变=五律不变）。
+	#   · 分量 = _relation_components()（忽略方向与 kind）；孤立节点各自成单点分量。
+	#   · 含刚性节点（_manual_nodes/钉位子树）的分量整块视为刚性，不可推。
+	#   · 双方皆可动 → 推「节点数更少的分量」（孤立单点让位，整树保持居中整洁带位）；
+	#     同为单点或同为多节点 → 沿旧口径推下方分量。
+	#   · 同分量内部重叠：整块平移无法解决，跳过（由布局本身的兄弟/父子间隔保证不发生）。
+	var _comp: Dictionary = _relation_components()
+	var _comp_of := {}
+	var _comp_members := {}
+	for id in ids:
+		var key: String = ("c" + str(int(_comp[id]))) if _comp.has(id) else ("s" + str(id))
+		_comp_of[id] = key
+		if not _comp_members.has(key):
+			_comp_members[key] = []
+		_comp_members[key].append(id)
+	var _comp_fixed := {}
+	for key in _comp_members:
+		var fx := false
+		for mid in _comp_members[key]:
+			if owner._manual_nodes.has(mid) or _prot.has(mid):
+				fx = true
+				break
+		_comp_fixed[key] = fx
 	ids.sort_custom(func(a, b): return owner._node_center[a].y < owner._node_center[b].y)
 	var rects := {}
 	for id in ids:
@@ -141,29 +167,42 @@ func _apply_global_overlap_fix() -> void:
 			var id_a: String = ids[i]
 			for j in range(i + 1, ids.size()):
 				var id_b: String = ids[j]
+				if _comp_of[id_a] == _comp_of[id_b]:
+					continue   # 同分量内部重叠：整块平移无解，跳过（布局间隔保证不发生）
 				var ra: Rect2 = rects[id_a]
 				var rb: Rect2 = rects[id_b]
 				if not ra.intersects(rb):
 					continue
-				var a_fixed: bool = owner._manual_nodes.has(id_a) or _prot.has(id_a)
-				var b_fixed: bool = owner._manual_nodes.has(id_b) or _prot.has(id_b)
+				var a_fixed: bool = _comp_fixed[_comp_of[id_a]]
+				var b_fixed: bool = _comp_fixed[_comp_of[id_b]]
 				if a_fixed and b_fixed:
 					# 双方都是玩家落点（刚性）：不挪动，避免拖动松手后被"自动排列"
 					continue
+				# 选被推方：对侧刚性 → 推本侧；双方可动 → 推节点数更少的分量（孤立单点让位）
+				var push_a := false
 				if b_fixed:
-					# 下方刚性 → 上方可动节点上移：使 a 底边 ≤ b 顶边 − 24
+					push_a = true
+				elif not a_fixed:
+					var sa: int = (_comp_members[_comp_of[id_a]] as Array).size()
+					var sb: int = (_comp_members[_comp_of[id_b]] as Array).size()
+					if sa < sb:
+						push_a = true
+				if push_a:
+					# 上方分量整块上移：使 a 底边 ≤ b 顶边 − 80
 					var push_up: float = ra.end.y - rb.position.y + 80.0
-					owner._node_center[id_a] = Vector2(owner._node_center[id_a].x,
-						owner._node_center[id_a].y - push_up)
-					rects[id_a] = _node_rect(id_a)
-					_sync_node_view(id_a)
+					for pid in _comp_members[_comp_of[id_a]]:
+						owner._node_center[pid] = Vector2(owner._node_center[pid].x,
+							owner._node_center[pid].y - push_up)
+						rects[pid] = _node_rect(pid)
+						_sync_node_view(pid)
 				else:
-					# 上方刚性，或双方皆可动 → 下方节点下移
+					# 下方分量整块下移
 					var push: float = ra.end.y - rb.position.y + 80.0
-					owner._node_center[id_b] = Vector2(owner._node_center[id_b].x,
-						owner._node_center[id_b].y + push)
-					rects[id_b] = _node_rect(id_b)
-					_sync_node_view(id_b)
+					for pid in _comp_members[_comp_of[id_b]]:
+						owner._node_center[pid] = Vector2(owner._node_center[pid].x,
+							owner._node_center[pid].y + push)
+						rects[pid] = _node_rect(pid)
+						_sync_node_view(pid)
 				moved_any = true
 		if not moved_any:
 			break
@@ -2009,6 +2048,9 @@ func _build_parent_of() -> Dictionary:
 			# 非人物端挂为人物之子，树结构对边方向免疫（与 _add_edge 归一化同语义）。
 			add_parent.call(_t, _f)
 		else:
+			# 非人物边尊重既有约定 from=子(更深层)、to=父：由 _add_edge 在新建时归一化，
+			# 此处不再按 kind 层级强转——交替链（推断→线索→推断…）等「浅层挂深层之下」
+			# 的合法画法须按玩家绘制顺序认定父子（test_balanced_layout 交替链为权威口径）。
 			add_parent.call(_f, _t)
 	# 布局树仅由玩家建立的 _relations（support/target 边）驱动——玩家连线即玩家布局结构。
 	# 「结论→结论」推导边继承：玩家从结论 A 推导综合结论 B（A→B support）时，新结论 B 应
