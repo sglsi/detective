@@ -335,6 +335,89 @@ func _initialize() -> void:
 		"E2 另一棵树不在同列插进同分量的两根之间（E1.x=%.0f / E2.x=%.0f / E3.x=%.0f；y=%.0f/%.0f/%.0f）" % [e1x, e2x, e3x, e1y, e2y, e3y])
 	_overlap_check(gv, out5, kindE, labelE)
 
+	# ---- 段G：弱连线视觉树应按「一棵树」排（思傅 2026-09-21 图1：三棵无根树水平起伏）----
+	# 每棵视觉树：线索 -support-> 推断；推断 -relate(弱关联)-> 结论（结论/推断在布局树各为根）
+	var kindG := {}
+	var labelG := {}
+	var relG := []
+	for i in 3:
+		var gc := "GC%d" % i
+		var gh := "GH%d" % i
+		var gr := "GR%d" % i
+		kindG[gc] = "clue"
+		kindG[gh] = "hypo"
+		kindG[gr] = "conclusion"
+		labelG[gc] = "线索%d：支撑线索描述文本" % i
+		labelG[gh] = "推断%d：中间推断描述文本" % i
+		labelG[gr] = "结论%d：链式结论描述文本" % i
+		relG.append({"from": gc, "to": gh, "kind": "support"})
+		relG.append({"from": gh, "to": gr, "kind": "relate"})
+	gv._graph_nodes = []
+	for idg in kindG:
+		gv._graph_nodes.append({"id": idg, "kind": kindG[idg], "label": labelG[idg], "sub": "", "data": {}})
+	gv._relations = relG.duplicate()
+	var nodesG := []
+	for idg in kindG:
+		nodesG.append({"id": idg, "kind": kindG[idg], "label": labelG[idg]})
+	# G1 逻辑图布局：每棵视觉树的 线索/推断/结论 应同 y（水平平整）
+	var outG := {}
+	gv._layout._logic_tree_layout(nodesG, center, {}, outG)
+	for i in 3:
+		var yc: float = outG["GC%d" % i].y
+		var yh: float = outG["GH%d" % i].y
+		var yr: float = outG["GR%d" % i].y
+		var dev: float = maxf(absf(yc - yh), absf(yh - yr))
+		_chk(dev < 1.0, "G1 视觉树%d 三节点同 y（dev=%.0fpx，线索/推断/结论 y=%.0f/%.0f/%.0f）" % [i, dev, yc, yh, yr])
+	_overlap_check(gv, outG, kindG, labelG)
+	# G2 平衡布局同口径
+	var outG2 := {}
+	gv._layout._balanced_tree_layout(nodesG, center, {}, outG2)
+	for i in 3:
+		var yc2: float = outG2["GC%d" % i].y
+		var yh2: float = outG2["GH%d" % i].y
+		var yr2: float = outG2["GR%d" % i].y
+		var dev2: float = maxf(absf(yc2 - yh2), absf(yh2 - yr2))
+		_chk(dev2 < 1.0, "G2 平衡布局 视觉树%d 三节点同 y（dev=%.0fpx）" % [i, dev2])
+	_overlap_check(gv, outG2, kindG, labelG)
+
+	# ---- 段H：图2 复现——多根弱链大分量 + 支撑链，深度列必须整齐（结构服从关系）----
+	var kindH := {}
+	var labelH := {}
+	var relH := []
+	for i in 2:
+		var hc := "HC%d" % i
+		var hh := "HH%d" % i
+		var hr := "HR%d" % i
+		kindH[hc] = "clue"
+		kindH[hh] = "hypo"
+		kindH[hr] = "conclusion"
+		labelH[hc] = "线索：支撑文本"
+		labelH[hh] = "推断：中间文本"
+		labelH[hr] = "结论：链尾文本"
+		relH.append({"from": hc, "to": hh, "kind": "support"})
+		relH.append({"from": hh, "to": hr, "kind": "support"})
+	relH.append({"from": "HR0", "to": "HR1", "kind": "relate"})
+	for idh in kindH:
+		gv._graph_nodes.append({"id": idh, "kind": kindH[idh], "label": labelH[idh], "sub": "", "data": {}})
+	gv._relations = relH.duplicate()
+	var nodesH := []
+	for idh in kindH:
+		nodesH.append({"id": idh, "kind": kindH[idh], "label": labelH[idh]})
+	var outH := {}
+	gv._layout._logic_tree_layout(nodesH, center, {}, outH)
+	for i in 2:
+		var yhc: float = outH["HC%d" % i].y
+		var yhh: float = outH["HH%d" % i].y
+		var yhr: float = outH["HR%d" % i].y
+		var devh: float = maxf(absf(yhc - yhh), absf(yhh - yhr))
+		_chk(devh < 1.0, "H1 视觉链%d 三节点同 y（dev=%.0fpx）" % [i, devh])
+	var xs_by_kind := {"clue": {}, "hypo": {}, "conclusion": {}}
+	for idh in outH:
+		xs_by_kind[kindH[idh]][outH[idh].x] = true
+	for kk in xs_by_kind:
+		_chk(xs_by_kind[kk].size() == 1, "H2 %s 全部节点同 x 列（占 %d 列）" % [kk, xs_by_kind[kk].size()])
+	_overlap_check(gv, outH, kindH, labelH)
+
 	if _ok:
 		print("WRAP_RESULT: PASS — 叶子计数触发搬迁布局全部性质验证通过")
 	else:

@@ -726,6 +726,90 @@ func _split_roots_into_columns(loose: Array, total_leaf: int, leaf_of_root: Dict
 
 
 
+## 弱连通分量多根合并（2026-09-21 思傅图1/图2 退化根治）：
+## support/target 之外的连线（弱关联 relate / 反对 oppose / 矛盾 contradict）把多棵布局树
+## 连成「视觉上的一棵树」时，布局必须按一棵树排——否则各根按独立根带堆叠（带间 subtree_sep），
+## 链内节点水平起伏、结构观感断裂（上一版仅做「相邻排序」不够）。
+## 合并规则：分量内按调用方传入顺序（组件分组内 kind 层级自顶向底），把后续根 r 挂到
+## 「与 r 的子树有任意性质连线的、已合并结构中层级最高（kind rank 最小）的节点 u」之下；
+## 同层级取连线多者，再取 id 稳定序。人物/事件根与玩家钉位根永不合并
+## （与 _build_parent_of 的人物保护、孤儿吸收的钉位豁免同哲学）。
+## 就地修改 child_map（追加合并子边），返回被吸收的根 id 数组（调用方从 roots 中移除）。
+func _merge_component_forest(roots: Array, child_map: Dictionary) -> Array:
+	var comp := _relation_components()
+	var rank_of := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3}
+	var merged_nodes := {}    # cid -> Dictionary{node_id: true}：该分量已合并结构的节点全集
+	var anchor_dangling := {} # cid -> bool：锚点（首个根）是否「无 support 后代」的悬空节点
+	var absorbed: Array = []
+	for r in roots:
+		var rs := str(r)
+		var cid := int(comp.get(rs, -1))
+		if not merged_nodes.has(cid):
+			var _sub0 := _subtree_ids(rs, child_map)
+			merged_nodes[cid] = _sub0
+			anchor_dangling[cid] = (_sub0.size() <= 1)   # 锚点无 support 后代 = 悬空
+			continue
+		var rk: String = owner._fold._kind_of(rs)
+		var own := _subtree_ids(rs, child_map)
+		var is_substantial: bool = own.size() > 1   # 含 support 后代 = 实质性支撑子树
+		if rk == "person" or rk == "event" or owner._root_anchor_pos.has(rs):
+			# 人物/事件根、玩家钉位根保持独立根；子树并入候选集供后续根挂接
+			for nid in own:
+				merged_nodes[cid][nid] = true
+			continue
+		if is_substantial and not anchor_dangling.get(cid, false):
+			# 分量锚点已是实质性支撑树（如 H 的 HR0 / E 的 E1），后续另一棵实质性支撑树（HR1/E3）
+			# 不得被吸收——否则压成深链、破坏「结构服从关系」单链横向齐整（图2 退化根因）。
+			# 各自保持独立水平带即可，relate/oppose/contradict 仅作视觉连线。
+			for nid in own:
+				merged_nodes[cid][nid] = true
+			continue
+		# 悬空根（无 support 后代），或「锚点为悬空 + 自身为实质性支撑树」（G：GR0 锚点 + GH0）：
+		# 挂到「与 own 有任意性质连线、已合并结构中层级最高的节点」之下，整分量收为一棵树才水平齐整。
+		# 收集 u(已合并结构) — v(r 子树内) 的全部连线（任意性质，双向）
+		var links := {}    # u -> 连线数
+		for rel in owner._relations:
+			var vf := str(rel.get("from", ""))
+			var vt := str(rel.get("to", ""))
+			if vf == "" or vt == "" or vf == vt:
+				continue
+			var u := ""
+			if merged_nodes[cid].has(vf) and own.has(vt):
+				u = vf
+			elif merged_nodes[cid].has(vt) and own.has(vf):
+				u = vt
+			else:
+				continue
+			if own.has(u):
+				continue    # 防环：挂接目标不得在 r 自己的子树内
+			links[u] = int(links.get(u, 0)) + 1
+		if links.is_empty():
+			# 暂无候选（连通路径经由尚未合并的根）：保持独立根，子树并入候选集
+			for nid in own:
+				merged_nodes[cid][nid] = true
+			continue
+		# 选 u：kind 层级最高（rank 最小=越靠根向）> 连线最多 > id 稳定序
+		var best_u := ""
+		var best_rank := 99
+		var best_n := -1
+		for u in links:
+			var ur: int = int(rank_of.get(owner._fold._kind_of(str(u)), 3))
+			var un: int = int(links[u])
+			if best_u == "" or ur < best_rank or (ur == best_rank and (un > best_n or (un == best_n and str(u) < best_u))):
+				best_u = str(u)
+				best_rank = ur
+				best_n = un
+		if not child_map.has(best_u):
+			child_map[best_u] = []
+		if not (rs in child_map[best_u]):
+			child_map[best_u].append(rs)
+		absorbed.append(rs)
+		for nid in own:
+			merged_nodes[cid][nid] = true
+	return absorbed
+
+
+
 func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
 	var parent_of := _build_parent_of()
 	var child_map := {}
@@ -759,6 +843,14 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 	for nd in nodes:
 		node_by_id[nd.id] = nd
 		est_h[nd.id] = _real_node_height(nd.id, nd)
+
+	# 根排序：先按弱连通分量聚拢（视觉上相连的树始终相邻），再做多根合并（2026-09-21 图1/图2）：
+	# 非 support/target 连线（弱关联/反对/矛盾）把多棵布局树连成视觉上的一棵树时，按一棵树排布
+	# （后续根挂到层级最高的已合并节点下），链内节点才能水平对齐；否则各根独立根带堆叠（40px
+	# 错位）即「水平起伏」。注意必须先于深度 BFS：合并会改变树深与子级集合。
+	roots = _group_roots_by_component(roots)
+	for ar in _merge_component_forest(roots, child_map):
+		roots.erase(ar)
 
 	# BFS 真实树深（按 _build_parent_of 关系，非 kind）：串行结论沿链更深一层
 	var depth_of := {}
@@ -807,9 +899,6 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		max_h = maxf(max_h, est_h[nd.id])
 	var ROW_STEP: float = max_h + _CONTOUR_SEP
 
-	# 根排序：**先按弱连通分量聚拢**（视觉上相连的树始终相邻、不被别的树分隔，思傅 2026-09-21），
-	# 再在分量内按 kind 聚类（同 kind 相邻成带）+ id 稳定序。
-	roots = _group_roots_by_component(roots)
 
 	# 各根水平带垂直堆叠（多人物各占一独立水平带）。先算每根 tidy-Y 跨度，再森林垂直居中、自上而下铺开。
 	var subtree_sep: float = 40.0   # 根带间垂直间隙（亲近分组：异人物/异组留少量空）
@@ -1071,6 +1160,12 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 	if roots.is_empty() and not nodes.is_empty():
 		roots = [nodes[0].id]
 
+	# 根排序 + 弱连通分量多根合并（2026-09-21 图1/图2，与默认布局同口径）：
+	# 先于深度 BFS 与左右分派（合并改变树深与子级集合）。
+	roots = _group_roots_by_component(roots)
+	for ar in _merge_component_forest(roots, child_map):
+		roots.erase(ar)
+
 	# 真实高度（测量前置，与默认布局同口径）
 	var est_h := {}
 	var node_by_id := {}
@@ -1155,8 +1250,6 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 			_lc_guard += 1
 		leaf_count_of_root[_lc_rt] = int(leaf_count_of_root.get(_lc_rt, 0)) + 1
 
-	# 根排序（与默认布局同口径）：先按弱连通分量聚拢（视觉相连的树相邻），再分量内 kind + id。
-	roots = _group_roots_by_component(roots)
 
 	# 预打包：主根按「左右两半各自轮廓打包」（两侧都垂直居中于根 = 美学3+4），其余根照旧整棵右向
 	var subtree_sep: float = 40.0
