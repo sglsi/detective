@@ -1961,8 +1961,16 @@ func _is_tree_root(id: String) -> bool:
 	if owner._fold._kind_of(id) == "person":
 		return true
 	# 作为任意 support/target 边的 from（推导依据方）⇒ 有父，非根
+	# 2026-09-21 补：作为「from=人物/事件」边的 to ⇒ 同样有父（人物恒为根、非人物端
+	# 反转挂为其子，与 _build_parent_of 同口径），非根。
+	var _idk: String = owner._fold._kind_of(id)
 	for r in owner._relations:
-		if r.get("kind", "") in ["support", "target"] and str(r.get("from", "")) == id:
+		if r.get("kind", "") not in ["support", "target"]:
+			continue
+		if str(r.get("from", "")) == id:
+			return false
+		if str(r.get("to", "")) == id and _idk != "person" and _idk != "event" \
+				and owner._fold._kind_of(str(r.get("from", ""))) in ["person", "event"]:
 			return false
 	# 结论领域 target 金边（conclusion → person）→ 挂在人物下，非根
 	if owner._fold._kind_of(id) == "conclusion":
@@ -1990,6 +1998,15 @@ func _build_parent_of() -> Dictionary:
 		if _fk == "person" and _tk == "person":
 			# 人物↔人物：约定 from=上级(父)、to=下级(子/下属)。与常规(from=子,to=父)相反，
 			# 故 add_parent(子,父)=add_parent(to,from)。例：德雷伯→斯特兰森 ⇒ 斯特兰森嵌套于德雷伯下。
+			add_parent.call(_t, _f)
+		elif (_fk == "person" or _fk == "event") and _tk != "person" and _tk != "event":
+			# 2026-09-21（思傅定案·截图真病灶）：人物/事件恒为放射根。当边方向写成
+			# from=人物、to=非人物（「拖人物到结论上归属」交互、从人物起笔画线、或旧存档
+			# 历史边——_add_edge 的 rd 归一化只管新建边）时，旧逻辑按 from=子 把人物挂为
+			# 非人物之子，随后被下方「人物恒为根」强制剔除父候选——这条边从布局树上脱落，
+			# 人物与该结论沦为两个独立根、竖向摞进同一列（截图「结论排在人物下面、推断
+			# 线索在人物右边」的成因），整洁树五规则全被撕裂。现按根语义反转挂接：
+			# 非人物端挂为人物之子，树结构对边方向免疫（与 _add_edge 归一化同语义）。
 			add_parent.call(_t, _f)
 		else:
 			add_parent.call(_f, _t)

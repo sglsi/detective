@@ -92,8 +92,22 @@ func _direct_outer_neighbors(id: String) -> Array:
 	for r in owner._relations:
 		var k := str(r.get("kind", ""))
 		if k != "support" and k != "target": continue
-		if str(r.get("to", "")) == id:
-			out.append(str(r.get("from", "")))
+		var f := str(r.get("from", ""))
+		var t := str(r.get("to", ""))
+		var fk: String = _kind_of(f)
+		var tk: String = _kind_of(t)
+		# 与 _build_parent_of 同口径（2026-09-21）：人物/事件恒为放射根——
+		#   · from=人物 边的非人物 to 端挂为其子（方向反转，树对边方向免疫）；
+		#   · from=非人物 to=人物 边的 from 端仍挂为人物之子；
+		#   · 人物↔人物：from=上级父、to=下级子。
+		if fk == "person" and tk == "person":
+			if f == id: out.append(t)
+		elif fk == "person" or fk == "event":
+			if f == id: out.append(t)
+		elif tk == "person" or tk == "event":
+			if t == id: out.append(f)
+		elif t == id:
+			out.append(f)
 	return out
 
 
