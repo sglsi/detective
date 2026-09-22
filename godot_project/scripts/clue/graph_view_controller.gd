@@ -1754,6 +1754,34 @@ func _toast_msg(text: String) -> void:
 	t.tween_property(_toast, "modulate:a", 0.0, 1.5).set_delay(0.6)
 
 
+# ===================== P0：布局诊断导出（2026-09-22） =====================
+## 把「截图反推」升级为「读数据」：导出当前墙的 输入(节点/边/钉位) + 输出(坐标) + 违规清单。
+## 导出的 JSON 可直接作为 tools/fixtures/ 的回归 fixture。
+func layout_diagnostic_json() -> String:
+	var diag: Dictionary = _layout.layout_diagnostic({
+		"mode": "C" if _mode == ViewMode.MODE_C else "B",
+		"case_wide": _case_wide,
+		"focus_person": _focus_person,
+	})
+	return JSON.stringify(diag)
+
+
+## 落地导出：剪贴板（Web 端唯一可行通道）+ user:// 文件（桌面端可直接读）+ toast + 控制台打印。
+## 触发：Ctrl+Shift+D（见 _input）。
+func _dump_layout_diagnostic() -> void:
+	var txt: String = layout_diagnostic_json()
+	var diag: Dictionary = JSON.parse_string(txt) if txt != "" else {}
+	var viol: Array = diag.get("violations", [])
+	DisplayServer.clipboard_set(txt)
+	var path: String = "user://layout_diag_%d.json" % int(Time.get_unix_time_from_system())
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f != null:
+		f.store_string(txt)
+		f.close()
+	print("[LAYOUT_DIAG] violations=%d path=%s\n%s" % [viol.size(), path, txt])
+	_toast_msg("布局诊断已复制到剪贴板（%d 项违规）· %s" % [viol.size(), path])
+
+
 # ===================== 视图记忆 =====================
 func _persist_view() -> void:
 	if _state_store.is_empty(): return
@@ -2276,6 +2304,13 @@ func _clear_drag_preview() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# === P0 布局诊断导出：Ctrl+Shift+D（复制 JSON 到剪贴板 + 落盘 user://）===
+	# 放在最前，避免被拖动/弹窗分支吞掉；优先级高于其它手势。
+	if event is InputEventKey and event.pressed and not event.echo \
+			and event.ctrl_pressed and event.shift_pressed and event.keycode == KEY_D:
+		_dump_layout_diagnostic()
+		get_viewport().set_input_as_handled()
+		return
 	# === 弹窗拖动（统一可拖拽窗口）— 优先于节点/连线拖动处理 ===
 	if _popup_dragging and _popup_drag_panel and is_instance_valid(_popup_drag_panel):
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:

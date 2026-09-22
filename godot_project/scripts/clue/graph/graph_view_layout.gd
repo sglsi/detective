@@ -644,6 +644,16 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 ##   顶栏「自动排列」进入后定格）> 自动平衡（2026-09-17：默认右向树打包高度超阈值时，
 ##   自动分摊到人物两侧，避免线索越收越多、单条竖列越拉越长浪费画布横向空间）>
 ##   _logic_tree_layout（默认纯右向整洁树，小树行为不变）。
+##
+## —— P1 装配线（2026-09-22 统一阶段定义；所有路径共用同一套原语）——
+##   [1] 组件划分：_relation_components（全部边，忽略方向/kind）=「视觉相连即同组件」
+##   [2] 组件内整洁树：_build_parent_of → 深度列 col_x → _tidy_y（父居中于子/兄弟有序）
+##   [3] 组件/带堆叠：_band_next / _band_root_y / _place_band（四处路径共用；此前为四处复制粘贴）
+##   [4] 钉位约束：仅真根生效（_compute_layout 顶部 purge），非人物/事件根 y 吸附行网格
+##   [5] 去重叠兜底：_apply_global_overlap_fix（分量刚性平移）→ _resolve_residual_overlaps（有界重排）
+##   [6] 自检：check_invariants + layout_diagnostic（Ctrl+Shift+D 导出真值 JSON / 可直接当 fixture）
+## 收敛目标（P2+）：[1]~[6] 做成显式 pipeline，四路径收敛为 1 条 + 2 个策略开关；
+##   用变尺寸 tidy 内核（contour/apportion/thread，van der Ploeg 式）替换 slot 与行网格常量。
 func _run_main_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
 	if owner._use_rank_layout:
 		_auto_rank_layout(nodes, center, saved_pos, out)
@@ -1190,25 +1200,22 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		# 2026-09-21 行网格：人物带起点吸附整行网格；每带绘制顶再 ceil 吸附同一网格（防 subtree_sep 累积漂移）。
 		var pgrid: float = _snap_row(center.y - ph_total * 0.5, center.y, ROW_STEP)
 		var pband: float = pgrid - subtree_sep
+		var _dx_person := func(nid: String) -> float:
+			return float(col_x.get(int(depth_of.get(nid, 0)), col_x[0])) - float(col_x[0])
 		for r in person_roots:
 			var ty: Dictionary = root_tidy[r]
 			var rg: Array = root_range[r]
-			var sv: Variant = saved_pos.get(r, null)
+			var root_y0: float = float(ty.get(str(r), 0.0))
+			var _bn: Array = _band_next(pband, float(rg[1]) - float(rg[0]), pgrid, ROW_STEP, subtree_sep)
+			var pband_top: float = float(_bn[0])
 			var rx: float = col_x[0]
-			var root_y0: float = ty.get(str(r), 0.0)
-			var pband_top: float = _snap_row_ceil(pband + subtree_sep, pgrid, ROW_STEP)
-			var pcur_y: float = pband_top + root_y0
-			var ry: float = pcur_y - rg[0]
+			var ry: float = _band_root_y(pband_top, root_y0, float(rg[0]))
+			var sv: Variant = saved_pos.get(r, null)
 			if sv is Vector2:
-				rx = sv.x
-				ry = sv.y
-			out[r] = Vector2(rx, ry)
-			for nid in ty.keys():
-				if str(nid) == str(r):
-					continue
-				var _d := int(depth_of.get(nid, 0))
-				out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
-			pband = pband_top + (rg[1] - rg[0])
+				rx = (sv as Vector2).x
+				ry = (sv as Vector2).y
+			_place_band(str(r), ty, root_y0, rx, ry, _dx_person, out)
+			pband = float(_bn[1])
 		# 无根链新区域：树最右沿 + 清晰间隔 起点；按 >6 叶分列（与平衡布局同口径）。
 		var maxd: int = 0
 		for d in col_x.keys():
@@ -1241,26 +1248,22 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 			# 2026-09-21 修复：列内无根链同样按「实际绘制底」推进（同 else 路径），避免 root_y0 不同导致带交错。
 			# 2026-09-21 行网格：无根链列与人物带共用同一网格基准 pgrid（跨列同行对齐）。
 			var cband: float = _snap_row(center.y - ch_h * 0.5, pgrid, ROW_STEP) - subtree_sep
+			var _dx_loose := func(nid: String) -> float:
+				return float(col_x.get(int(depth_of.get(nid, 0)), col_x[0])) - float(col_x[0])
 			for r in col:
 				var ty: Dictionary = root_tidy[r]
 				var rg: Array = root_range[r]
-				var sv: Variant = saved_pos.get(r, null)
+				var root_y0: float = float(ty.get(str(r), 0.0))
+				var _bn: Array = _band_next(cband, float(rg[1]) - float(rg[0]), pgrid, ROW_STEP, subtree_sep)
+				var cband_top: float = float(_bn[0])
 				var rx: float = cur_x
-				var root_y0: float = ty.get(str(r), 0.0)
-				var cband_top: float = _snap_row_ceil(cband + subtree_sep, pgrid, ROW_STEP)
-				var cury: float = cband_top + root_y0
-				var ry: float = cury - rg[0]
+				var ry: float = _band_root_y(cband_top, root_y0, float(rg[0]))
+				var sv: Variant = saved_pos.get(r, null)
 				if sv is Vector2:
-					rx = sv.x
-					ry = sv.y
-				# 根置于 ry（带顶锚点）；子节点相对 y 减去根自身 tidy-y（美学3）
-				out[r] = Vector2(rx, ry)
-				for nid in ty.keys():
-					if str(nid) == str(r):
-						continue
-					var _d := int(depth_of.get(nid, 0))
-					out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
-				cband = cband_top + (rg[1] - rg[0])
+					rx = (sv as Vector2).x
+					ry = (sv as Vector2).y
+				_place_band(str(r), ty, root_y0, rx, ry, _dx_loose, out)
+				cband = float(_bn[1])
 			# 两列无根链之间也遵循「160 + 无根链半宽」规则，与「树最右沿→首列」间隔一致（思傅 2026-09-19）
 			cur_x += col_widths[ci] + col_gap + loose_max_w * 0.5
 	else:
@@ -1273,38 +1276,31 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		#   改为用「实际绘制底」推进：band_bottom 累积真实绘制最大 y，下一棵绘制顶贴其下 + subtree_sep。
 		var start_y: float = _snap_row(center.y - total_h * 0.5, center.y, ROW_STEP)
 		var band_bottom: float = start_y - subtree_sep   # 使首棵绘制顶恰为 start_y（整体居中，绘制跨度 = total_h）
+		var _dx_else := func(nid: String) -> float:
+			return float(col_x.get(int(depth_of.get(nid, 0)), col_x[0])) - float(col_x[0])
 		for r in roots:
 			var ty: Dictionary = root_tidy[r]
 			var rg: Array = root_range[r]
-			var min_c: float = rg[0]
-			var sv: Variant = saved_pos.get(r, null)
+			var root_y0: float = float(ty.get(str(r), 0.0))
+			# P1 统一原语：带推进（实际绘制底 + 行网格吸附）——防 subtree_sep 累积漂移导致带间错行
+			var _bn: Array = _band_next(band_bottom, float(rg[1]) - float(rg[0]), start_y, ROW_STEP, subtree_sep)
+			var band_top: float = float(_bn[0])
 			var rx: float = col_x[0]
-			var root_y0: float = ty.get(str(r), 0.0)
-			# 本树绘制顶吸附到整行网格（≥ band_bottom + subtree_sep）——防 subtree_sep 累积漂移导致带间错行
-			var band_top: float = _snap_row_ceil(band_bottom + subtree_sep, start_y, ROW_STEP)
-			var cur_y: float = band_top + root_y0
-			var ry: float = cur_y - min_c
+			# 根置于「子群中点」而非带顶（XMind 局部对称 · 美学3）
+			var ry: float = _band_root_y(band_top, root_y0, float(rg[0]))
+			var sv: Variant = saved_pos.get(r, null)
 			if sv is Vector2:
-				rx = sv.x
-				ry = sv.y
+				rx = (sv as Vector2).x
+				ry = (sv as Vector2).y
 				# 松散链根（非人物/事件）钉位 y 吸附整行网格：保留玩家「哪一行」的意图，
 				# 但不再让钉位把整条链拖到半行/错行处（人物/事件锚点钉位保持原样，避免"自动排列"观感）。
 				var _rk_else: String = owner._fold._kind_of(str(r))
 				if _rk_else != "person" and _rk_else != "event":
-					ry = _snap_row(sv.y, start_y, ROW_STEP)
-			# 根置于 ry（带顶锚点）；子节点相对 y 减去根自身 tidy-y（ty[root] 为子群中点），
-			# 使根居中于子群（XMind 局部对称 · 美学3），而非落在带顶。
-			out[r] = Vector2(rx, ry)
-			for nid in ty.keys():
-				if str(nid) == str(r):
-					continue
-				# X 相对根（2026-09-18 修复）：根被钉位（rx=锚点.x）时子列必须相对根偏移，
-				# 否则子树仍落在以画布中心为基准的 col_x 绝对列上——人物移走后推理链滞留原位。
-				# 未钉位时 rx==col_x[0]，与旧绝对列完全等价。
-				var _d := int(depth_of.get(nid, 0))
-				out[nid] = Vector2(rx + (float(col_x.get(_d, col_x[0])) - float(col_x[0])), ry + (ty[nid] - root_y0))
-			# 本树绘制底 = band_top + (rg[1]-rg[0])（下一带据此吸附整行，避免 40px 累积漂移）
-			band_bottom = band_top + (rg[1] - rg[0])
+					ry = _snap_row((sv as Vector2).y, start_y, ROW_STEP)
+			# 子节点 x 相对根偏移（根被钉位时子树随根走，不再滞留在画布中心绝对列）
+			_place_band(str(r), ty, root_y0, rx, ry, _dx_else, out)
+			# 本带绘制底（下一带据此吸附整行，避免 40px 累积漂移）
+			band_bottom = float(_bn[1])
 	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
 	for mid2 in owner._manual_nodes:
 		var sv3: Variant = saved_pos.get(mid2, null)
@@ -1523,9 +1519,11 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 	var _b_grid: float = _snap_row(center.y - total_main_h * 0.5, center.y, _b_step)
 	var cur_y: float = _b_grid
 	for r in main_roots:
-		cur_y = _snap_row_ceil(cur_y, _b_grid, _b_step)
 		var parts2: Dictionary = root_contours[r]
 		var ph2: float = root_packed_h[r]
+		# P1 统一原语：带推进（绘制顶吸附行网格 + 按实高推进）
+		var _bn: Array = _band_next(cur_y - subtree_sep, ph2, _b_grid, _b_step, subtree_sep)
+		var band_top: float = float(_bn[0])
 		var min_c: float = 0.0
 		for sk in parts2.keys():
 			var cont2: Dictionary = parts2[sk]["contour"]
@@ -1533,20 +1531,20 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 				min_c = minf(min_c, cont2[rd][0])
 		var sv: Variant = saved_pos.get(r, null)
 		var rx: float = center.x
-		var ry: float = cur_y - min_c
+		# 根 y：带顶按轮廓 min_c 校准（左右两半共用同一根位）
+		var ry: float = band_top - min_c
 		if sv is Vector2:
-			rx = sv.x
-			ry = sv.y
+			rx = (sv as Vector2).x
+			ry = (sv as Vector2).y
 		out[r] = Vector2(rx, ry)
 		for sk in parts2.keys():
 			var dirv: float = -1.0 if str(sk) == "L" else 1.0
 			var rel: Dictionary = parts2[sk]["rel"]
-			for nid in rel.keys():
-				if str(nid) == str(r):
-					continue
-				var d2: int = int(depth_of.get(nid, 0))
-				out[nid] = Vector2(rx + dirv * float(col_off.get(d2, 0.0)), ry + float(rel[nid]))
-		cur_y += ph2 + subtree_sep
+			# 每个 part（L/R）用同一原语放置，dx 方向按侧取反（镜像 A4）
+			var _dx_part := func(nid: String) -> float:
+				return dirv * float(col_off.get(int(depth_of.get(nid, 0)), 0.0))
+			_place_band(str(r), rel, 0.0, rx, ry, _dx_part, out)
+		cur_y = float(_bn[1]) + subtree_sep
 
 	# 树最右沿（仅右向扩展，do_relocate 用）：person 根的 R part 最远列偏移 + 半宽（根在 center.x）
 	var tree_right_edge: float = 0.0
@@ -1892,6 +1890,35 @@ func _snap_row_ceil(y: float, anchor: float, row_step: float) -> float:
 	return anchor + ceil((y - anchor) / row_step) * row_step
 
 
+## ===================== P1：统一「带」放置原语（2026-09-22） =====================
+## 背景：此前 4 条布局路径各自复制了同一段带堆叠数学（实际绘制底推进 + 行网格吸附 + 带内相对放置），
+##   形成"修一处漏三处"的历史 bug 类（ce82409 / 012a11f 都要改多处且容易不同步）。
+## 现收敛为三个原语，所有路径共用；行为与收敛前逐点一致（由 tools/fixtures 金标准证明）。
+## 术语：带（band）= 一个「根 + 其整棵子树」的绘制块，沿 y 依次堆叠。
+## ① 推进：给定上一带绘制底，求本带绘制顶（≥ prev_bottom + gap，并吸附行网格）与绘制底。
+func _band_next(prev_bottom: float, height: float, grid_ref: float, step: float, gap: float) -> Array:
+	var top: float = _snap_row_ceil(prev_bottom + gap, grid_ref, step)
+	return [top, top + height]
+
+
+## ② 带根 y：根在自己的子群中点（off_root），带顶按 min_off 校准 → 根居中于子群（美学3），不落带顶。
+func _band_root_y(band_top: float, off_root: float, min_off: float) -> float:
+	return band_top + off_root - min_off
+
+
+## ③ 带内一次性放置：根 + 全部后代。
+##   offsets[nid] = 该节点相对根子群的 y 偏移（右向树 = ty[nid]；平衡布局 = rel[nid]）
+##   base_off     = 根的 y 偏移基准（右向树 = ty[root]；平衡布局 = 0）
+##   dx_of(nid)   = 该节点「相对根」的 x 偏移（右向树 = col_x[d]-col_x[0]；平衡布局 = dirv*col_off[d]）
+func _place_band(root: String, offsets: Dictionary, base_off: float, rx: float, ry: float,
+		dx_of: Callable, out: Dictionary) -> void:
+	out[root] = Vector2(rx, ry)
+	for nid in offsets.keys():
+		if str(nid) == root:
+			continue
+		out[nid] = Vector2(rx + float(dx_of.call(str(nid))), ry + (float(offsets[nid]) - base_off))
+
+
 func _tidy_assign_y(u: String, child_map: Dictionary, slot: float, cursor: Array, res: Dictionary) -> void:
 	var kids: Array = child_map.get(u, [])
 	if kids.is_empty():
@@ -1985,168 +2012,8 @@ func _ordered_children(u: String, child_map: Dictionary) -> Array:
 	return kids
 
 
-## 后处理消重叠 + 父居中（已废弃 · 2026-09-07 G3 升级）。
-## 原列式 2 趟收敛后处理已被 BuchheimWalker 轮廓打包（_pack_contour）取代：
-## 轮廓法在布局阶段即保证零重叠 + 父居中于直接子首尾中点，无需事后修正。
-## 函数保留为空壳仅为兼容潜在历史引用；正常布局路径不再调用。
-func _resolve_and_recenter(out: Dictionary, child_map: Dictionary, depth_of: Dictionary, est_h: Dictionary) -> void:
-	return
 
 
-# ===================== 模式 C：XMind 星形布局（第8节改造 · A①+B① · 保留以备回退，默认已改逻辑图） =====================
-## 以「关系树根」（人物；或无人物的结论）为画布中心；根的直接子节点（结论）均分左/右两侧，
-## 每侧子树向远离中心方向横向生长（结论→推断→线索），连线同侧不跨中心交叉。
-## 仅根节点位置可被玩家手动锁定（持久化到 graph_root_anchors），其余全部自动派生。
-##
-## 树的构建：用玩家真实建立的有向边（_relations 中 support/target，以及结论领域 target 金边）
-## 确定父子关系——from = 推导依据（子），to = 被推导对象（父）。即 父 = r.to，子 = r.from。
-## 这能正确处理「推断→推断」同层级边（如 W-C1+W-C2→W-C3，W-C3 作为 W-C1/W-C2 的父），
-## 而早先按「节点 kind 层级」下降的 BFS 会漏掉这类同层边、把节点丢成孤儿导致重叠。
-## 每个子节点只取一个父：多个候选父时取 ring_depth 更大者（更靠近结论/人物的上层），保持链紧凑。
-## 根的直接子节点按左右扇区分派，每子树按估算带长分配独立上下带，再递归向外放射；
-## 同侧多分支不再共享同一垂直列，避免堆叠重叠。超出画布由 fit_view 缩放看全。
-func _star_tree_layout(nodes: Array, center: Vector2, saved_root: Dictionary, out: Dictionary) -> void:
-	# 收集「子 → 候选父」并解析唯一父（抽为 _build_parent_of，布局与拖拽子树计算共用口径）
-	var parent_of := _build_parent_of()
-
-	# 父子表 + 根集合（从未作为任何子出现的节点 = 根）
-	var child_map := {}
-	for ch in parent_of:
-		var p: String = parent_of[ch]
-		if not child_map.has(p): child_map[p] = []
-		if not (ch in child_map[p]): child_map[p].append(ch)
-	var has_parent := {}
-	for ch in parent_of: has_parent[ch] = true
-	var roots := []
-	for nd in nodes:
-		if not has_parent.has(nd.id):
-			if not (nd.id in roots): roots.append(nd.id)
-	if roots.is_empty() and not nodes.is_empty():
-		roots = [nodes[0].id]
-
-	# 放射根集合：优先人物根（多人物各成树、互不重叠）；其余「非人物孤立根」
-	# （如删除某关系后变成根的推断/结论）并入首个放射根，统一左右放射，避免多根各自
-	# 左右放射导致相邻子树带重叠（需求2：删除边后根节点不再与既有文本框叠加）。
-	var person_roots := []
-	for r in roots:
-		if owner._fold._kind_of(r) == "person":
-			person_roots.append(r)
-	var emit_roots: Array = person_roots if person_roots.size() > 0 else (roots if roots.size() > 0 else [])
-	var main_root: String = emit_roots[0] if emit_roots.size() > 0 else ""
-	if main_root != "" and not child_map.has(main_root):
-		child_map[main_root] = []
-	for rt in roots:
-		if rt == main_root: continue
-		if owner._fold._kind_of(rt) == "person": continue   # 其它人物根各自独立放射
-		# 需求：推断/结论/链类的孤立根（删除关系后变根、或本就无父）也不再并入主根，
-		# 各自独立散布（碰撞感知落位），与孤立线索一致；避免「删除关系后变成根的推断/结论」
-		# 被强行并入主根放射带，也避免它们随人物拖动而移动。
-		continue
-
-	# BFS：标记所有树内节点并求最大深度（用于自适应列间距）
-	var assigned := {}
-	var level_of := {}
-	var max_level: int = 0
-	var q := []
-	for r in emit_roots:
-		if assigned.has(r): continue
-		assigned[r] = true
-		level_of[r] = 0
-		q.append(r)
-	while q.size() > 0:
-		var rest := []
-		for u in q:
-			for nb in child_map.get(u, []):
-				if assigned.has(nb): continue
-				assigned[nb] = true
-				var lv: int = level_of.get(u, 0) + 1
-				level_of[nb] = lv
-				max_level = maxi(max_level, lv)
-				rest.append(nb)
-		q = rest
-	# 估算高度（用于同列垂直堆叠留 20px 间隙，保证不重叠）
-	var est_h := {}
-	for nd in nodes: est_h[nd.id] = maxf(_est_node_h(nd), 140.0)
-	# 估算每棵子树所需垂直带长（含间隙），用于把不同结论分支分配到独立上下扇区，避免同侧堆叠
-	var memo := {}
-	for _nd in nodes:
-		_subtree_span_est(_nd.id, child_map, est_h, memo)
-
-	# 列间距自适应画布宽度与树深：保证最深一列仍落在画布内
-	var m: float = 60.0
-	var half_avail: float = maxf(center.x - m - 90.0, 200.0)
-	var col_gap: float = maxf(_clue_box_height(), clampf(half_avail / maxf(float(max_level), 1.0), 165.0, 300.0))   # 需求3：下限≥一个线索文本框高度
-
-	# 放射根位置：仅 emit_roots 计 root_gap 均布；非人物孤立根已并入 main_root，不再单独定位
-	var root_gap: float = 360.0
-	var root_pos := {}
-	for i in emit_roots.size():
-		var rid: String = emit_roots[i]
-		var rp := Vector2(center.x, center.y)
-		if emit_roots.size() > 1:
-			rp.x = center.x + (float(i) - float(emit_roots.size() - 1) * 0.5) * root_gap
-		var sv: Variant = saved_root.get(rid, null)
-		if sv is Vector2:
-			rp = sv
-		root_pos[rid] = rp
-		out[rid] = rp
-
-	# 按放射根的直接子节点分成左右扇区，每子树按带长分配独立上下带：结论星形分布于根四周，
-	# 每条结论子树向同侧同带向外放射生长（推断→线索），避免不同分支垂直堆叠重叠。
-	for r in emit_roots:
-		var rx: float = root_pos[r].x
-		var ry: float = root_pos[r].y
-		var ch0: Array = child_map.get(r, []).duplicate()
-		var half_n0: int = ceili(float(ch0.size()) / 2.0)
-		var left_ch := []
-		var right_ch := []
-		for i in ch0.size():
-			if i < half_n0:
-				left_ch.append(ch0[i])
-			else:
-				right_ch.append(ch0[i])
-		_place_side_children(left_ch, rx, ry, -1.0, col_gap, memo, est_h, child_map, out)
-		_place_side_children(right_ch, rx, ry, 1.0, col_gap, memo, est_h, child_map, out)
-
-	# 孤立（未接入树）节点：保存位优先；否则按 kind 分层垂直整齐排列（替代原随机螺旋），
-	# 使默认星形布局下无关系节点也不乱飞，与「自动排列」视觉规则一致。
-	var existing_spare := {}
-	for _k in out:
-		if out[_k] is Vector2:
-			existing_spare[_k] = out[_k]
-	# 先处理保存位/手动位
-	for nd in nodes:
-		if out.has(nd.id): continue
-		var sv3: Variant = saved_root.get(nd.id, null)
-		if sv3 is Vector2:
-			out[nd.id] = sv3
-			existing_spare[nd.id] = sv3
-			continue
-	# 剩余孤立节点按 kind 分组、分层排列
-	var isolated_by_kind := {}
-	for nd in nodes:
-		if out.has(nd.id): continue
-		var k: String = owner._fold._kind_of(nd.id)
-		if not isolated_by_kind.has(k):
-			isolated_by_kind[k] = []
-		isolated_by_kind[k].append(nd.id)
-	var kind_col := {"conclusion": 1.0, "hypo": 2.0, "chain": 2.0, "clue": 3.0, "person": 0.0, "event": 0.0}
-	var ROW_H := 130.0
-	for k in isolated_by_kind:
-		var ids: Array = isolated_by_kind[k]
-		if ids.is_empty(): continue
-		var col_idx: float = kind_col.get(k, 3.0)
-		var base_x: float = center.x + col_idx * col_gap
-		var total_h: float = maxf(0.0, float(ids.size() - 1)) * ROW_H
-		var top_y: float = center.y - total_h * 0.5
-		for i in ids.size():
-			var nid: String = ids[i]
-			out[nid] = Vector2(base_x, top_y + float(i) * ROW_H)
-			existing_spare[nid] = out[nid]
-
-	# 软钳制：仅防 NaN / 极端值（保留列间距，不收缩到画布 margin，否则深树列会重叠）。超出画布由 fit_view 缩放看全。
-	for idf in out:
-		out[idf] = _clamp_to_canvas(out[idf])
 
 
 ## 兄弟子树轮廓间距（测量前置 · 2026-09-08）：线索兄弟按「半个线索文本框真实高度」分隔
@@ -2162,23 +2029,6 @@ func _sib_gap(h: float) -> float:
 	return maxf(h * 0.25, 80.0)
 
 
-## 把一组同侧子节点从 root 沿 dirv 方向逐列向外排布（复用 _assign_subtree 递归子树）
-func _assign_side(root: String, group: Array, child_map: Dictionary, sp: Dictionary, est_h: Dictionary, out: Dictionary, dirv: float, col_gap: float) -> void:
-	if group.is_empty(): return
-	var rx: float = out.get(root, Vector2.ZERO).x
-	var ry: float = out.get(root, Vector2.ZERO).y
-	var total := 0.0
-	var _gap_sum := 0.0
-	for c in group:
-		total += sp.get(c, 140.0) as float
-		_gap_sum += _sib_gap(sp.get(c, 140.0))
-	total += _gap_sum
-	var top: float = ry - total * 0.5
-	var cur: float = top
-	for c in group:
-		var h: float = sp.get(c, 140.0) as float
-		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + h, rx + dirv * col_gap, dirv, col_gap)
-		cur += h + _sib_gap(h)
 
 
 ## 节点是否为「关系树根」（手动拖拽时仅根的位置被持久化）
@@ -2487,22 +2337,6 @@ func _subtree_span_est(u: String, child_map: Dictionary, est_h: Dictionary, memo
 	return s
 
 
-## 把根的直接子节点按子树带长分配到根的某一侧（dirv=-1 左 / +1 右），上下交替排布，
-## 使各结论子树占据独立垂直扇区，避免同侧多分支堆叠重叠。
-func _place_side_children(children: Array, root_x: float, root_y: float, dirv: float, col_gap: float, sp: Dictionary, est_h: Dictionary, child_map: Dictionary, out: Dictionary) -> void:
-	if children.is_empty(): return
-	var total: float = 0.0
-	var _gap_sum: float = 0.0
-	for c in children:
-		total += sp.get(c, est_h.get(c, 140.0) as float)
-		_gap_sum += _sib_gap(est_h.get(c, 140.0) as float)
-	total += _gap_sum
-	var top: float = root_y - total * 0.5
-	var cur: float = top
-	for c in children:
-		var span: float = sp.get(c, est_h.get(c, 140.0) as float)
-		_assign_subtree(c, child_map, sp, est_h, out, cur, cur + span, root_x + dirv * col_gap, dirv, col_gap)
-		cur += span + _sib_gap(span)
 
 
 ## 递归布点：父居其子带中央；子带按各自子树带长精确切分（不足则居中留白），兄弟带间保证 ≥15px，绝不溢出交叠
@@ -2652,65 +2486,6 @@ func _auto_rank_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out
 		out[idf] = _clamp_to_canvas(out[idf])
 
 
-# ===================== XMind 式自由布局（保留；当前模式 C 用关系树，此处未启用） =====================
-func _xmind_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
-	# 人物锚点：沿用已保存位置（人物可自由拖动/画布可有多个人物）；
-	# 无保存时默认放在水平约 72% 处，给推理树留出向左铺开的空间。
-	var person_pos: Vector2 = center
-	var sp: Variant = saved_pos.get(owner._focus_person, null)
-	if sp is Vector2:
-		person_pos = sp
-	else:
-		person_pos = _clamp_to_canvas(Vector2(owner._canvas.size.x * 0.72, owner._canvas.size.y * 0.5))
-	out[owner._focus_person] = person_pos
-	# 层深：结论离人物最近(1)，推断/推理链中层(2)，线索最外层(3)
-	var layer_of := {}
-	for nd in nodes:
-		match nd.kind:
-			"conclusion":
-				layer_of[nd.id] = 1
-			"chain":
-				layer_of[nd.id] = 2
-			"hypo":
-				layer_of[nd.id] = 2
-			"clue":
-				layer_of[nd.id] = 3
-			_:
-				layer_of[nd.id] = 4
-	# 生长方向：人物偏右则向左铺开，偏左则向右铺开，避免树伸出画布
-	var dirv := 1.0
-	if person_pos.x >= owner._canvas.size.x * 0.5:
-		dirv = -1.0
-	var col_gap: float = 250.0
-	# 按层分列；已保存位置直接沿用（尊重玩家拖动）
-	var by_layer := {}
-	var max_layer := 0
-	for nd in nodes:
-		if nd.id == owner._focus_person:
-			continue
-		var saved_v: Variant = saved_pos.get(nd.id, null)
-		if saved_v is Vector2:
-			out[nd.id] = saved_v
-		else:
-			var lv: int = layer_of.get(nd.id, 4)
-			if not by_layer.has(lv):
-				by_layer[lv] = []
-			by_layer[lv].append(nd.id)
-			if lv > max_layer:
-				max_layer = lv
-	# 同层同列：列 x 随层距人物递增，列内按高度均匀堆叠（多结论/多推断同侧时整齐排列）
-	for lv in by_layer.keys():
-		var ids: Array = by_layer[lv]
-		var col_x: float = person_pos.x + dirv * (float(lv) * col_gap)
-		var n := ids.size()
-		var step: float = 92.0
-		var total_h: float = float(maxi(n - 1, 0)) * step
-		var top: float = clampf(person_pos.y - total_h * 0.5, 60.0, owner._canvas.size.y - 60.0)
-		for j in n:
-			out[ids[j]] = _clamp_to_canvas(Vector2(col_x, top + float(j) * step))
-	# 布局收尾：全部钳制到画布内，防止默认布局把文本节点挤出可视区
-	for idf in out:
-		out[idf] = _clamp_to_canvas(out[idf])
 
 
 # ===================== 画布钳制 =====================
@@ -2806,3 +2581,153 @@ func _persist_node_positions() -> void:
 		if p is Vector2:
 			pos[id] = p
 	owner._state_store["graph_root_anchors"] = pos
+
+
+# ===================== P0：布局诊断导出 + 不变量自检（2026-09-22） =====================
+## 目的：把「截图反推」升级为「读数据」。导出内容 = 输入（节点尺寸/边/钉位）+ 输出（坐标）+ 违规清单，
+## 该 JSON **可直接作为 tools/fixtures/ 的回归 fixture**（同一输入 → 断言不变量 + 坐标快照）。
+## 只读，不改变任何布局行为。
+func layout_diagnostic(extra: Dictionary = {}) -> Dictionary:
+	var ids: Array = owner._node_center.keys()
+	ids.sort()
+	var nodes_out: Array = []
+	for k in ids:
+		var sid := str(k)
+		var wh := Vector2.ZERO
+		var v: Variant = owner._node_views.get(sid)
+		if v != null and is_instance_valid(v):
+			wh = v.size
+		nodes_out.append({
+			"id": sid,
+			"kind": str(owner._node_kind.get(sid, "")),
+			"label": str(owner._node_data.get(sid, {}).get("label", "")),
+			"w": wh.x, "h": wh.y,
+		})
+	var rels: Array = []
+	for r in owner._relations:
+		rels.append({
+			"from": str(r.get("from", "")), "to": str(r.get("to", "")),
+			"kind": str(r.get("kind", "")), "color_key": str(r.get("color_key", "")),
+		})
+	var pins := {}
+	for pk in owner._root_anchor_pos:
+		var pv: Variant = owner._root_anchor_pos[pk]
+		if pv is Vector2:
+			pins[str(pk)] = [pv.x, pv.y]
+	var comp_map: Dictionary = _relation_components()
+	var groups := {}
+	for k in comp_map:
+		var cid: int = int(comp_map[k])
+		if not groups.has(cid):
+			groups[cid] = []
+		groups[cid].append(str(k))
+	var ckeys: Array = groups.keys()
+	ckeys.sort()
+	var comps: Array = []
+	for c in ckeys:
+		var arr: Array = groups[c]
+		arr.sort()
+		comps.append(arr)
+	var centers := {}
+	for k in owner._node_center:
+		var cv: Vector2 = owner._node_center[k]
+		centers[str(k)] = [cv.x, cv.y]
+	var out := {
+		"version": 1,
+		"canvas": [owner._canvas.size.x, owner._canvas.size.y] if owner._canvas != null else [1920.0, 1080.0],
+		"nodes": nodes_out,
+		"relations": rels,
+		"pins": pins,
+		"manual": owner._manual_nodes.duplicate(),
+		"components": comps,
+		"computed": centers,
+		"violations": check_invariants(),
+	}
+	for k in extra:
+		out[k] = extra[k]
+	return out
+
+
+## 不变量自检（P0）：违规清单（空 = 合规）。用于 in-game 自检与 fixture 回归。
+## ① 零重叠（硬）② 父居中于子 ③ 兄弟有序 ④ 同层共线（同组件+同深度，最多左右两列）
+## 钉位节点（玩家落点）豁免 ②③④；孤立节点（无关系边）豁免 ④（其稳定不动是设计选择）。
+## 依赖 owner._node_center / _node_views 已就绪（调用前请先写入布局结果）。
+func check_invariants() -> Array:
+	var bad: Array = []
+	var ids: Array = owner._node_center.keys()
+	ids.sort()
+	if ids.size() < 2:
+		return bad
+	for i in ids.size():
+		for j in range(i + 1, ids.size()):
+			var ra: Rect2 = _node_rect(str(ids[i]))
+			var rb: Rect2 = _node_rect(str(ids[j]))
+			if ra.intersects(rb):
+				bad.append("重叠: %s×%s" % [ids[i], ids[j]])
+	var pf: Dictionary = _build_parent_of()
+	var kids := {}
+	for ch in pf:
+		var p := str(pf[ch])
+		if not kids.has(p):
+			kids[p] = []
+		kids[p].append(str(ch))
+	var depth := {}
+	var queue: Array = []
+	for k in ids:
+		var sid := str(k)
+		if not pf.has(sid):
+			depth[sid] = 0
+			queue.append(sid)
+	var guard := 0
+	while queue.size() > 0 and guard < 100000:
+		guard += 1
+		var u: String = str(queue.pop_front())
+		for c in kids.get(u, []):
+			if depth.has(c):
+				continue
+			depth[c] = int(depth[u]) + 1
+			queue.append(c)
+	var pinned := {}
+	for pk in owner._root_anchor_pos:
+		pinned[str(pk)] = true
+	# 兄弟序必须与布局同源口径（_ordered_children：链路亲和 → kind → id），否则「兄弟有序」会假阳性。
+	var kids_ordered := {}
+	for p in kids.keys():
+		kids_ordered[str(p)] = _ordered_children(str(p), kids)
+	for p in kids_ordered:
+		if pinned.has(p):
+			continue
+		var cs: Array = kids_ordered[p]
+		if cs.is_empty():
+			continue
+		var lo := 1e18
+		var hi := -1e18
+		var prev_y := -1e18
+		var ordered := true
+		for c in cs:
+			var cy: float = owner._node_center.get(c, Vector2.ZERO).y
+			lo = minf(lo, cy)
+			hi = maxf(hi, cy)
+			if cy < prev_y - 1.0:
+				ordered = false
+			prev_y = cy
+		var mid := (lo + hi) * 0.5
+		var py: float = owner._node_center.get(p, Vector2.ZERO).y
+		if absf(py - mid) > 1.0:
+			bad.append("父未居中: %s(父%.0f 子中点%.0f)" % [p, py, mid])
+		if not ordered:
+			bad.append("兄弟乱序: %s" % p)
+	var comp_map: Dictionary = _relation_components()
+	var by_group := {}
+	for k in ids:
+		var sid := str(k)
+		if pinned.has(sid) or not comp_map.has(sid) or not depth.has(sid):
+			continue
+		var key := "%d|%d" % [int(comp_map[sid]), int(depth[sid])]
+		if not by_group.has(key):
+			by_group[key] = {}
+		by_group[key][roundf(owner._node_center[sid].x)] = true
+	for key in by_group:
+		if by_group[key].size() > 2:
+			bad.append("同层不共线: 组%s xs=%s" % [key, str(by_group[key].keys())])
+	return bad

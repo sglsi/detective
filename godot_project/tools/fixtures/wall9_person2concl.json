@@ -1,0 +1,146 @@
+{
+  "canvas": [
+    1920.0,
+    1080.0
+  ],
+  "expected": {
+    "C1": [
+      580.0,
+      500.0
+    ],
+    "C2": [
+      1340.0,
+      500.0
+    ],
+    "H1": [
+      200.0,
+      500.0
+    ],
+    "H2": [
+      1720.0,
+      500.0
+    ],
+    "L1": [
+      -180.0,
+      500.0
+    ],
+    "L2": [
+      2100.0,
+      260.0
+    ],
+    "L3": [
+      2100.0,
+      740.0
+    ],
+    "P": [
+      960.0,
+      500.0
+    ]
+  },
+  "expected_violations": [],
+  "manual": [],
+  "name": "wall9_person2concl",
+  "nodes": [
+    {
+      "h": 400.0,
+      "id": "C1",
+      "kind": "conclusion",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "C2",
+      "kind": "conclusion",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "H1",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "H2",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "L1",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "L2",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "L3",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "P",
+      "kind": "person",
+      "label": "",
+      "w": 260.0
+    }
+  ],
+  "pins": {},
+  "relations": [
+    {
+      "color_key": "green",
+      "from": "L1",
+      "kind": "support",
+      "to": "H1"
+    },
+    {
+      "color_key": "green",
+      "from": "L2",
+      "kind": "support",
+      "to": "H2"
+    },
+    {
+      "color_key": "green",
+      "from": "L3",
+      "kind": "support",
+      "to": "H2"
+    },
+    {
+      "color_key": "green",
+      "from": "H1",
+      "kind": "support",
+      "to": "C1"
+    },
+    {
+      "color_key": "green",
+      "from": "H2",
+      "kind": "support",
+      "to": "C2"
+    },
+    {
+      "color_key": "green",
+      "from": "P",
+      "kind": "support",
+      "to": "C1"
+    },
+    {
+      "color_key": "green",
+      "from": "P",
+      "kind": "support",
+      "to": "C2"
+    }
+  ]
+}

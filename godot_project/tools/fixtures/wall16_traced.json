@@ -1,0 +1,270 @@
+{
+  "canvas": [
+    1920.0,
+    1080.0
+  ],
+  "expected": {
+    "b1": [
+      1340.0,
+      60.0
+    ],
+    "b2": [
+      1720.0,
+      1020.0
+    ],
+    "b3": [
+      1340.0,
+      540.0
+    ],
+    "b4": [
+      1720.0,
+      1500.0
+    ],
+    "b5": [
+      1720.0,
+      1980.0
+    ],
+    "g1": [
+      2100.0,
+      60.0
+    ],
+    "g2": [
+      1720.0,
+      60.0
+    ],
+    "g3": [
+      2100.0,
+      1020.0
+    ],
+    "g4": [
+      1720.0,
+      540.0
+    ],
+    "g5": [
+      2100.0,
+      1500.0
+    ],
+    "g6": [
+      2100.0,
+      1980.0
+    ],
+    "t1": [
+      960.0,
+      60.0
+    ],
+    "t2": [
+      960.0,
+      780.0
+    ],
+    "t3": [
+      1340.0,
+      1020.0
+    ],
+    "t4": [
+      960.0,
+      1740.0
+    ],
+    "t5": [
+      1340.0,
+      1740.0
+    ]
+  },
+  "expected_violations": [],
+  "manual": [],
+  "name": "wall16_traced",
+  "nodes": [
+    {
+      "h": 400.0,
+      "id": "b1",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "b2",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "b3",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "b4",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "b5",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "g1",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "g2",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "g3",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "g4",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "g5",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "g6",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "t1",
+      "kind": "conclusion",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "t2",
+      "kind": "conclusion",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "t3",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "t4",
+      "kind": "conclusion",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "t5",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    }
+  ],
+  "pins": {},
+  "relations": [
+    {
+      "color_key": "green",
+      "from": "b1",
+      "kind": "support",
+      "to": "t1"
+    },
+    {
+      "color_key": "green",
+      "from": "g2",
+      "kind": "support",
+      "to": "b1"
+    },
+    {
+      "color_key": "green",
+      "from": "g1",
+      "kind": "support",
+      "to": "g2"
+    },
+    {
+      "color_key": "green",
+      "from": "t3",
+      "kind": "support",
+      "to": "t2"
+    },
+    {
+      "color_key": "green",
+      "from": "b3",
+      "kind": "support",
+      "to": "t2"
+    },
+    {
+      "color_key": "green",
+      "from": "b2",
+      "kind": "support",
+      "to": "t3"
+    },
+    {
+      "color_key": "green",
+      "from": "g4",
+      "kind": "support",
+      "to": "b3"
+    },
+    {
+      "color_key": "green",
+      "from": "g3",
+      "kind": "support",
+      "to": "b2"
+    },
+    {
+      "color_key": "green",
+      "from": "t5",
+      "kind": "support",
+      "to": "t4"
+    },
+    {
+      "color_key": "green",
+      "from": "b4",
+      "kind": "support",
+      "to": "t5"
+    },
+    {
+      "color_key": "green",
+      "from": "b5",
+      "kind": "support",
+      "to": "t5"
+    },
+    {
+      "color_key": "green",
+      "from": "g5",
+      "kind": "support",
+      "to": "b4"
+    },
+    {
+      "color_key": "green",
+      "from": "g6",
+      "kind": "support",
+      "to": "b5"
+    }
+  ]
+}

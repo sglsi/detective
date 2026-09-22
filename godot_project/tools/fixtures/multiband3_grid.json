@@ -1,0 +1,168 @@
+{
+  "canvas": [
+    1920.0,
+    1080.0
+  ],
+  "expected": {
+    "A1": [
+      960.0,
+      -420.0
+    ],
+    "A2": [
+      960.0,
+      300.0
+    ],
+    "A3": [
+      960.0,
+      1500.0
+    ],
+    "H1": [
+      1340.0,
+      -420.0
+    ],
+    "H2": [
+      1340.0,
+      60.0
+    ],
+    "H3": [
+      1340.0,
+      1020.0
+    ],
+    "J3": [
+      1340.0,
+      1500.0
+    ],
+    "K2": [
+      1340.0,
+      540.0
+    ],
+    "L1": [
+      1720.0,
+      -420.0
+    ],
+    "M3": [
+      1340.0,
+      1980.0
+    ]
+  },
+  "expected_violations": [],
+  "manual": [],
+  "name": "multiband3_grid",
+  "nodes": [
+    {
+      "h": 400.0,
+      "id": "A1",
+      "kind": "conclusion",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "A2",
+      "kind": "conclusion",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "A3",
+      "kind": "conclusion",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "H1",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "H2",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "H3",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "J3",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "K2",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "L1",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "M3",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    }
+  ],
+  "pins": {},
+  "relations": [
+    {
+      "color_key": "green",
+      "from": "H1",
+      "kind": "support",
+      "to": "A1"
+    },
+    {
+      "color_key": "green",
+      "from": "L1",
+      "kind": "support",
+      "to": "H1"
+    },
+    {
+      "color_key": "green",
+      "from": "H2",
+      "kind": "support",
+      "to": "A2"
+    },
+    {
+      "color_key": "green",
+      "from": "K2",
+      "kind": "support",
+      "to": "A2"
+    },
+    {
+      "color_key": "green",
+      "from": "H3",
+      "kind": "support",
+      "to": "A3"
+    },
+    {
+      "color_key": "green",
+      "from": "J3",
+      "kind": "support",
+      "to": "A3"
+    },
+    {
+      "color_key": "green",
+      "from": "M3",
+      "kind": "support",
+      "to": "A3"
+    }
+  ]
+}

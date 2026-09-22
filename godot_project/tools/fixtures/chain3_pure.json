@@ -1,0 +1,61 @@
+{
+  "canvas": [
+    1920.0,
+    1080.0
+  ],
+  "expected": {
+    "C": [
+      960.0,
+      540.0
+    ],
+    "H": [
+      1340.0,
+      540.0
+    ],
+    "L": [
+      1720.0,
+      540.0
+    ]
+  },
+  "expected_violations": [],
+  "manual": [],
+  "name": "chain3_pure",
+  "nodes": [
+    {
+      "h": 400.0,
+      "id": "C",
+      "kind": "conclusion",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "H",
+      "kind": "hypo",
+      "label": "",
+      "w": 260.0
+    },
+    {
+      "h": 400.0,
+      "id": "L",
+      "kind": "clue",
+      "label": "",
+      "w": 260.0
+    }
+  ],
+  "pins": {},
+  "relations": [
+    {
+      "color_key": "green",
+      "from": "H",
+      "kind": "support",
+      "to": "C"
+    },
+    {
+      "color_key": "green",
+      "from": "L",
+      "kind": "support",
+      "to": "H"
+    }
+  ]
+}
