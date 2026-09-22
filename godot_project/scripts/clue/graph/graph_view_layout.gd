@@ -602,6 +602,8 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 		# 修正（取舍）：**关系树内的未钉节点一律重排到纯整洁树位**（美学1~5 完全由关系决定，为纲）；
 		# **仅「孤立（无任何关系边）节点」保持拖前实际位**——它们无树美学可服从，稳定不动才是合理
 		# 补充，强行重排只会因去重叠而乱漂（test_isolated_clue 禁令：孤立线索不应随人物漂走）。
+		# 注（2026-09-22）：此处的"拖前位"只是**装箱前的基准值**；孤立卡最终落位由 _pack_components
+		# 决定（无硬锚点 → 作为单点分量参与装箱）。仅当可动分量 ≤1（装箱整体恒等）时它才真正留在原位。
 		# 玩家显式钉位的子树仍走下方「锚点跟随」+「钉位重派生」刚性平移，属美学之上的玩家补充。
 		var _prot2: Dictionary = _pinned_subtree_nodes()
 		var _rel_nodes: Dictionary = _relation_components()   # 含任意关系边的节点 → 属某棵关系树
@@ -1569,7 +1571,8 @@ func _place_band(root: String, offsets: Dictionary, base_off: float, rx: float, 
 ##   ① 整块刚性平移 ⇒ 分量内相对形状完全不变（A1~A4 全保）；
 ##   ② **可动分量 ≤1 时恒等**（单组件墙坐标逐点不变）；
 ##   ③ **含钉位的分量 = 固定障碍**（钉位是玩家最终布设，位置已定）⇒ 只对自由分量装箱并避让；
-##      孤立卡片同样不参与装箱（保留拖前位，2026-09-21 决策）但计入障碍；
+##      **孤立卡片：有硬锚点 → 固定障碍；无锚点 → 作为单点分量参与装箱**（2026-09-22 修订：
+##      旧「保留拖前位」会把它钉在"上一次布局的残位"上，长柱被拆散后即孤悬远处）；
 ##   ④ 目标 = **最小化整墙适配屏幕所需缩放** `max(W/屏宽, H/屏高)` ⇒ 宽屏自动横向、
 ##      窄屏自动竖排；取代旧「竖列叶>6 搬右列」这类阈值规则 —— 与画布/链路数量无关，
 ##      可泛化到**任意链路与卡片组合**（屏幕越宽 ⇒ 装箱越横；窄屏自然竖排）。
@@ -1601,13 +1604,25 @@ func _pack_components(out: Dictionary) -> void:
 	var comp: Dictionary = _relation_components()
 	var groups := {}          # 可动分量（无钉位）
 	var order: Array = []
-	var obstacles: Array = []  # 固定障碍：孤立卡片 + 含钉位的分量
+	var obstacles: Array = []  # 固定障碍：含钉位的分量 + 有硬锚点的孤立卡
+	# 孤立卡片（无任何关系边）位置来源必须明确（2026-09-22 思傅报「人物节点被孤立地放在很远的地方」）：
+	# 旧实现在这里 `continue`（完全排除装箱），而它在别处又"保留拖前位"——那个"拖前位"其实只是
+	# **上一次布局的残位**：首次布局/边变更重排（_relayout_on_edge）时 prev_center 为空，孤立卡由
+	# 装箱**之前**的带堆叠长柱算出（x=主列 col_x[0]、y 落在长柱某处）；随后装箱把 7 个分量搬进紧凑块，
+	# 孤立卡留在原地 ⇒ 长柱被拆散后它就成了悬空的单张卡（实测真实墙：NPC_DRE 距最近卡片 2000px、
+	# H3-C10 距 80px，纯属巧合 —— 两种输入（无/有拖前位）下坐标完全相同，证明其位非玩家所摆）。
+	# 现在分两路：① 有**硬锚点**（玩家 pinned 显式落点）→ 保留其位并作为**固定障碍**；
+	#           ② 无锚点 → 作为**单点分量**参与装箱，与各组件块排进同一货架（彻底消灭"布局残位"）。
+	var sidx: int = 0
 	for k in out.keys():
 		var sid := str(k)
 		if not comp.has(sid):
-			# 孤立卡片（无任何关系边）：保留拖前位，且**不参与装箱任何判定**
-			#（既不当障碍、也不计入适配缩放目标）—— 否则一张被玩家拖到远处的孤立卡
-			# 会把「适配屏幕」计算带偏，选出明显更差的排法（实测真实墙：13.60M → 25.91M）。
+			if owner._root_anchor_pos.has(sid):
+				obstacles.append(_out_rect(sid, out))
+			else:
+				sidx -= 1                     # 负 cid：与真实分量（≥0）不冲突
+				groups[sidx] = [sid]
+				order.append(sidx)
 			continue
 		var cid: int = int(comp[sid])
 		if not groups.has(cid):

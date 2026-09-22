@@ -95,8 +95,8 @@ func _initialize() -> void:
 	_chk(ov.is_empty(), "真实卡片矩形零重叠%s" % ("" if ov.is_empty() else "；" + str(ov)))
 
 	# ④⑤ 组件矩形不相交 + 不变量 + 全局指标
-	# 度量口径（2026-09-22）：**只统计有关系的节点**（组件成员）。孤立卡保留拖前位、位置不受
-	# 装箱控制，计入会把「适配缩放」带偏（实测：含孤立卡 5495×4715/fit 4.37 vs 组件口径 5240×2040/fit 2.73）。
+	# 度量口径（2026-09-22）：包围盒/适配缩放**只统计有关系的节点**（组件成员）；孤立卡用「离最近卡片
+	# 的间隙」单独把关（⑦）——2026-09-22 起无硬锚点的孤立卡作为单点分量参与装箱，不再孤悬。
 	var comp: Dictionary = gv._layout._relation_components()
 	var groups := {}
 	var strays: Array = []
@@ -132,17 +132,24 @@ func _initialize() -> void:
 	var fit: float = maxf(W / 1920.0, H / 1080.0)
 	print("组件包围盒 %.0f×%.0f（面积 %.2fM，适配缩放 %.2f；孤立卡 %d 张）" %
 		[W, H, W * H / 1e6, fit, strays.size()])
-	if not strays.is_empty():
-		var slo := Vector2(1e18, 1e18); var shi := Vector2(-1e18, -1e18)
-		for sid in strays:
-			var ps: Vector2 = out[sid]
-			slo = Vector2(minf(slo.x, ps.x - 130.0), minf(slo.y, ps.y - 200.0))
-			shi = Vector2(maxf(shi.x, ps.x + 130.0), maxf(shi.y, ps.y + 200.0))
-		print("  [info] 孤立卡范围 x[%.0f,%.0f] y[%.0f,%.0f]（保留拖前位、不参与装箱；由玩家自定位置）" %
-			[slo.x, shi.x, slo.y, shi.y])
 	# ⑥ 钉位不得把包围盒炸开：修前（同一口径）5495×4415 / 24.26M / fit 4.09
 	_chk(W * H / 1e6 <= 16.0, "钉位未炸开包围盒（面积 %.2fM ≤ 16.0M；修前 24.26M）" % (W * H / 1e6))
 	_chk(fit <= 3.0, "适配缩放 %.2f ≤ 3.0（修前 4.09）" % fit)
+	# ⑦ 孤立卡不孤悬（2026-09-22 修订：无硬锚点的孤立卡作为单点分量参与装箱）
+	#    修前：H3-C10 停在 (960,2660)、距最近卡片 2000+px（那是装箱前带堆叠长柱的残位）。
+	var gap_worst: float = 0.0
+	for sid in strays:
+		var a: Vector2 = out[sid]
+		var best: float = 1e18
+		for oid in out.keys():
+			if str(oid) == str(sid): continue
+			var b: Vector2 = out[oid]
+			var dx: float = maxf(absf(a.x - b.x) - 260.0, 0.0)
+			var dy: float = maxf(absf(a.y - b.y) - 400.0, 0.0)
+			best = minf(best, sqrt(dx * dx + dy * dy))
+		gap_worst = maxf(gap_worst, best)
+		print("  [info] 孤立卡 %s (%.0f,%.0f) 距最近卡片间隙 %.0f px" % [sid, a.x, a.y, best])
+	_chk(gap_worst <= 480.0, "孤立卡不孤悬（最大间隙 %.0f ≤ 480 = 一个行距）" % gap_worst)
 
 	var flat := {}
 	for k in ids:

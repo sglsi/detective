@@ -1,783 +1,792 @@
 {
- "_comment": "思傅真实墙·建关系中间态（39 卡 / 4 分量 / NPC_HOP 被钉）。Ctrl+Shift+D 导出 2026-09-22 21:00。只存输入。",
+ "_comment": "思傅真实墙 #3（39 卡 / 7 分量 + 2 张孤立卡 / NPC_DRE 与 H3-C10 无任何关系边）。Ctrl+Shift+D 导出 2026-09-22 22:33。只存输入。",
  "canvas": [
-  1920.0,
+  1919.998046875,
   1080.0
  ],
  "case_wide": true,
  "focus_person": "NPC_HOP",
  "mode": "C",
  "manual": [
+  "NPC_DRE",
+  "H2-02",
+  "H3-C10",
+  "c312",
   "NPC_HOP"
  ],
- "pins": {
-  "NPC_HOP": [
-   3915.10961914062,
-   -935.079467773438
-  ]
- },
+ "pins": {},
  "nodes": [
   {
    "id": "H2-01",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H2-02",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H2-03",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H2-04",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H2-05",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H3-A1",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H3-A2",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H3-A5",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H3-B1",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H3-B4",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H3-C1",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H3-C10",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H3-C6",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "H3-C8",
    "kind": "hypo",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "NPC_DRE",
    "kind": "person",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "NPC_HOP",
    "kind": "person",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c201",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c202",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c203",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c204",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c205",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c206",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c301",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c302",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c303",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c304",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c305",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c308",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c309",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c310",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "c311",
    "kind": "clue",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "conclusion_CL2-1",
    "kind": "conclusion",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "conclusion_CL2-2",
    "kind": "conclusion",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "conclusion_CL2-4",
    "kind": "conclusion",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "conclusion_CL2-6",
    "kind": "conclusion",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "conclusion_CL3-1",
    "kind": "conclusion",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "conclusion_CL3-2",
    "kind": "conclusion",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "conclusion_CL3-3",
    "kind": "conclusion",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   },
   {
    "id": "conclusion_CL3-4",
    "kind": "conclusion",
    "label": "",
-   "sub": "",
-   "data": {}
+   "w": 260.0,
+   "h": 400.0
   }
  ],
  "relations": [
   {
    "from": "c202",
    "to": "H2-01",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H2-01",
    "to": "conclusion_CL2-1",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c204",
    "to": "H2-03",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H2-03",
    "to": "conclusion_CL2-4",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c201",
    "to": "H2-03",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c205",
    "to": "H2-04",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H2-04",
    "to": "conclusion_CL2-6",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c206",
    "to": "H2-05",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H2-05",
    "to": "conclusion_CL2-6",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c203",
    "to": "H2-02",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H2-02",
    "to": "conclusion_CL2-2",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "conclusion_CL2-4",
    "to": "NPC_HOP",
-   "kind": "target"
+   "kind": "target",
+   "color_key": "gold"
   },
   {
    "from": "conclusion_CL2-6",
    "to": "NPC_HOP",
-   "kind": "target"
+   "kind": "target",
+   "color_key": "gold"
   },
   {
    "from": "conclusion_CL2-1",
    "to": "NPC_HOP",
-   "kind": "target"
+   "kind": "target",
+   "color_key": "gold"
   },
   {
    "from": "c301",
    "to": "H3-A5",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H3-A5",
    "to": "conclusion_CL3-2",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c303",
    "to": "H3-A1",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H3-A1",
    "to": "conclusion_CL3-2",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c302",
    "to": "H3-A2",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H3-A2",
    "to": "conclusion_CL3-2",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c304",
    "to": "H3-B1",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H3-B1",
    "to": "conclusion_CL3-1",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c309",
    "to": "H3-C1",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H3-C1",
    "to": "conclusion_CL3-3",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c310",
    "to": "H3-C8",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c311",
    "to": "H3-C6",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H3-C6",
    "to": "conclusion_CL3-4",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c308",
    "to": "H3-B4",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "H3-B4",
    "to": "conclusion_CL3-1",
-   "kind": "support"
+   "kind": "support",
+   "color_key": "green"
   },
   {
    "from": "c305",
    "to": "H3-B4",
-   "kind": "support"
-  },
-  {
-   "from": "conclusion_CL3-1",
-   "to": "NPC_DRE",
-   "kind": "target"
-  },
-  {
-   "from": "conclusion_CL3-2",
-   "to": "NPC_DRE",
-   "kind": "target"
-  },
-  {
-   "from": "conclusion_CL3-3",
-   "to": "NPC_HOP",
-   "kind": "target"
-  },
-  {
-   "from": "conclusion_CL2-2",
-   "to": "NPC_HOP",
-   "kind": "target"
+   "kind": "support",
+   "color_key": "green"
   }
  ],
  "violations_before": [],
  "computed_before": {
   "H2-01": [
-   4675.109375,
-   -1415.07946777344
+   540,
+   -220
   ],
   "H2-02": [
-   4675.109375,
-   -935.079467773438
+   -980,
+   1300
   ],
   "H2-03": [
-   3155.10961914062,
-   -1415.07946777344
+   540,
+   500
   ],
   "H2-04": [
-   3155.10961914062,
-   -695.079467773438
+   -980,
+   -100
   ],
   "H2-05": [
-   3155.10961914062,
-   -215.079467773438
+   -980,
+   380
   ],
   "H3-A1": [
-   1720.0,
-   720.0
+   1720,
+   -220
   ],
   "H3-A2": [
-   1720.0,
-   1200.0
+   1720,
+   260
   ],
   "H3-A5": [
-   1720.0,
-   1680.0
+   1720,
+   740
   ],
   "H3-B1": [
-   199.999938964844,
-   840.0
+   2900,
+   -220
   ],
   "H3-B4": [
-   199.999938964844,
-   1560.0
+   2900,
+   500
   ],
   "H3-C1": [
-   4675.109375,
-   -455.079467773438
+   200,
+   1300
   ],
   "H3-C10": [
-   2900.0,
-   540.0
+   960,
+   -700
   ],
   "H3-C6": [
-   1000.0,
-   2360.0
+   2180,
+   1300
   ],
   "H3-C8": [
-   -180.0,
-   2360.0
+   1000,
+   1300
   ],
   "NPC_DRE": [
-   959.999938964844,
-   1200.0
+   960,
+   -2620
   ],
   "NPC_HOP": [
-   3915.10961914062,
-   -935.079467773438
+   -220,
+   140
   ],
   "c201": [
-   2775.10961914062,
-   -1655.07946777344
+   920,
+   260
   ],
   "c202": [
-   5055.109375,
-   -1415.07946777344
+   920,
+   -220
   ],
   "c203": [
-   5055.109375,
-   -935.079467773438
+   -600,
+   1300
   ],
   "c204": [
-   2775.10961914062,
-   -1175.07946777344
+   920,
+   740
   ],
   "c205": [
-   2775.10961914062,
-   -695.079467773438
+   -1360,
+   -100
   ],
   "c206": [
-   2775.10961914062,
-   -215.079467773438
+   -1360,
+   380
   ],
   "c301": [
-   2100.0,
-   1680.0
+   2100,
+   740
   ],
   "c302": [
-   2100.0,
-   1200.0
+   2100,
+   260
   ],
   "c303": [
-   2100.0,
-   720.0
+   2100,
+   -220
   ],
   "c304": [
-   -180.000061035156,
-   840.0
+   3280,
+   -220
   ],
   "c305": [
-   -180.000061035156,
-   1320.0
+   3280,
+   260
   ],
   "c308": [
-   -180.000061035156,
-   1800.0
+   3280,
+   740
   ],
   "c309": [
-   5055.109375,
-   -455.079467773438
+   580,
+   1300
   ],
   "c310": [
-   200.0,
-   2360.0
+   1380,
+   1300
   ],
   "c311": [
-   1380.0,
-   2360.0
+   2560,
+   1300
   ],
   "conclusion_CL2-1": [
-   4295.109375,
-   -1415.07946777344
+   160,
+   -220
   ],
   "conclusion_CL2-2": [
-   4295.109375,
-   -935.079467773438
+   -1360,
+   1300
   ],
   "conclusion_CL2-4": [
-   3535.10961914062,
-   -1415.07946777344
+   160,
+   500
   ],
   "conclusion_CL2-6": [
-   3535.10961914062,
-   -455.079467773438
+   -600,
+   140
   ],
   "conclusion_CL3-1": [
-   579.999938964844,
-   1200.0
+   2520,
+   140
   ],
   "conclusion_CL3-2": [
-   1340.0,
-   1200.0
+   1340,
+   260
   ],
   "conclusion_CL3-3": [
-   4295.109375,
-   -455.079467773438
+   -180,
+   1300
   ],
   "conclusion_CL3-4": [
-   620.0,
-   2360.0
+   1800,
+   1300
   ]
  },
  "expected_after": {
   "H2-01": [
-   4675.11,
-   -1415.08
+   480.0,
+   -220.0
   ],
   "H2-02": [
-   4675.11,
-   -935.08
+   -200.0,
+   1300.0
   ],
   "H2-03": [
-   3155.11,
-   -1415.08
+   480.0,
+   500.0
   ],
   "H2-04": [
-   3155.11,
-   -695.08
+   -1040.0,
+   -100.0
   ],
   "H2-05": [
-   3155.11,
-   -215.08
+   -1040.0,
+   380.0
   ],
   "H3-A1": [
-   1975.11,
-   -1655.08
+   1660.0,
+   -220.0
   ],
   "H3-A2": [
-   1975.11,
-   -1175.08
+   1660.0,
+   260.0
   ],
   "H3-A5": [
-   1975.11,
-   -695.08
+   1660.0,
+   740.0
   ],
   "H3-B1": [
-   455.11,
-   -1535.08
+   2840.0,
+   -220.0
   ],
   "H3-B4": [
-   455.11,
-   -815.08
+   2840.0,
+   500.0
   ],
   "H3-C1": [
-   4675.11,
-   -455.08
+   980.0,
+   1300.0
   ],
   "H3-C10": [
-   75.11,
-   -15.08
+   -1420.0,
+   1300.0
   ],
   "H3-C6": [
-   1675.11,
-   -15.08
+   2960.0,
+   1300.0
   ],
   "H3-C8": [
-   495.11,
-   -15.08
+   1780.0,
+   1300.0
   ],
   "NPC_DRE": [
-   1215.11,
-   -1175.08
+   -1000.0,
+   1300.0
   ],
   "NPC_HOP": [
-   3915.11,
-   -935.08
+   -280.0,
+   140.0
   ],
   "c201": [
-   2775.11,
-   -1655.08
+   860.0,
+   260.0
   ],
   "c202": [
-   5055.11,
-   -1415.08
+   860.0,
+   -220.0
   ],
   "c203": [
-   5055.11,
-   -935.08
+   180.0,
+   1300.0
   ],
   "c204": [
-   2775.11,
-   -1175.08
+   860.0,
+   740.0
   ],
   "c205": [
-   2775.11,
-   -695.08
+   -1420.0,
+   -100.0
   ],
   "c206": [
-   2775.11,
-   -215.08
+   -1420.0,
+   380.0
   ],
   "c301": [
-   2355.11,
-   -695.08
+   2040.0,
+   740.0
   ],
   "c302": [
-   2355.11,
-   -1175.08
+   2040.0,
+   260.0
   ],
   "c303": [
-   2355.11,
-   -1655.08
+   2040.0,
+   -220.0
   ],
   "c304": [
-   75.11,
-   -1535.08
+   3220.0,
+   -220.0
   ],
   "c305": [
-   75.11,
-   -1055.08
+   3220.0,
+   260.0
   ],
   "c308": [
-   75.11,
-   -575.08
+   3220.0,
+   740.0
   ],
   "c309": [
-   5055.11,
-   -455.08
+   1360.0,
+   1300.0
   ],
   "c310": [
-   875.11,
-   -15.08
+   2160.0,
+   1300.0
   ],
   "c311": [
-   2055.11,
-   -15.08
+   3340.0,
+   1300.0
   ],
   "conclusion_CL2-1": [
-   4295.11,
-   -1415.08
+   100.0,
+   -220.0
   ],
   "conclusion_CL2-2": [
-   4295.11,
-   -935.08
+   -580.0,
+   1300.0
   ],
   "conclusion_CL2-4": [
-   3535.11,
-   -1415.08
+   100.0,
+   500.0
   ],
   "conclusion_CL2-6": [
-   3535.11,
-   -455.08
+   -660.0,
+   140.0
   ],
   "conclusion_CL3-1": [
-   835.11,
-   -1175.08
+   2460.0,
+   140.0
   ],
   "conclusion_CL3-2": [
-   1595.11,
-   -1175.08
+   1280.0,
+   260.0
   ],
   "conclusion_CL3-3": [
-   4295.11,
-   -455.08
+   600.0,
+   1300.0
   ],
   "conclusion_CL3-4": [
-   1295.11,
-   -15.08
+   2580.0,
+   1300.0
   ]
  }
 }
