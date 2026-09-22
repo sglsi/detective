@@ -97,6 +97,12 @@ var _subtree_sides: Dictionary = {}
 ## 上一次平衡布局实际算出的分派结果 {子id: "L"/"R"}（供拖拽判定「当前在哪一侧」）
 var _last_layout_sides: Dictionary = {}
 var _fold_keep_layout: bool = false # 折叠/展开一次性标志：重建时跳过整体重排，仅按 _all_positions 摆放，避免折叠扰动其它/上级文本框
+# 折叠锚 {折叠根 id: 折叠时刻根位}：展开时把恢复的子树按「根自锚点以来的位移」整体平移，
+# 使折叠态下被移动过的人物/根，其展开回来的链随其走（而非滞留旧位，见 2026-09-18 思傅报的回归）。
+var _fold_anchor: Dictionary = {}
+# 本次展开要恢复的节点 {root: String, ids: Array, anchor: Vector2|null}（由 _set_folded 写入，
+# _rebuild_graph 消费后清空）。
+var _fold_restore: Dictionary = {}
 var _canvas: Control = null         # _world：节点与连线挂此（STOP，承接平移/缩放/空白点击）
 var _hint_layer: Node2D = null     # 难度提示圈（最底）
 var _edge_layer: Node2D = null     # 连线绘制层（节点下）
@@ -746,19 +752,46 @@ func _rebuild_graph() -> void:
 		# 位置留待布局算出后再设；v.size 已由 _make_node 同步写入真实高
 	var pos: Dictionary
 	if _fold_keep_layout:
-		# 折叠/展开：一次性保持所有可见节点现有位置，仅增删视图，不整体重排 → 不影响其它/上级文本框
+		# 折叠/展开：**保持所有可见节点的现有位置**，仅增删视图，不整体重排。
+		# 思傅 2026-09-22：折叠后占位变小，若整墙重排则折叠链换了地方、玩家难以找到；
+		# 展开时又要再变回来 —— 来回变动不利查阅。故折叠/展开不改变任何已存在节点的位置。
+		# 边界处理：
+		#  · 展开恢复的隐藏节点由 _all_positions 还原；若其折叠根在此期间被移动过（折叠态拖人物），
+		#    按「根自锚点以来的位移」把整棵恢复子树同步平移（链随人物走，不滞留旧位）。
+		#  · 若有可见节点尚无位置记录（如折叠期间新生成）→ 无法保持，退回整体重排。
 		_fold_keep_layout = false
 		pos = {}
+		var _missing: Array = []
 		for nd in nodes:
-			pos[nd.id] = _all_positions.get(nd.id, Vector2.ZERO)
+			var _sid := str(nd.id)
+			if _all_positions.has(_sid):
+				pos[_sid] = _all_positions[_sid]
+			else:
+				_missing.append(_sid)
+		if _missing.is_empty() and not _fold_restore.is_empty():
+			var _root := str(_fold_restore.get("root", ""))
+			var _anc: Variant = _fold_restore.get("anchor", null)
+			var _cur: Variant = pos.get(_root, null)
+			if _anc is Vector2 and _cur is Vector2:
+				var _d: Vector2 = _cur - _anc
+				if _d.length() > 0.5:
+					for _sid2 in _fold_restore.get("ids", []):
+						var _ss := str(_sid2)
+						var _sv: Variant = _all_positions.get(_ss, null)
+						if _sv is Vector2:
+							pos[_ss] = _sv + _d
+		_fold_restore = {}
+		if not _missing.is_empty():
+			# 缺位节点（折叠期间新生成）：保持位置不可得 → 退回整体重排（与原语义一致）
+			pos = _layout._compute_layout(nodes, _pre_center)
 	else:
 		pos = _layout._compute_layout(nodes, _pre_center)
-		# 合并可见节点位置进全局缓存（隐藏节点的位置由 _all_positions 保留）。
-		# ⚠️ 仅模式 C 合并：模式 B 是垂直分层的临时聚焦视图，若写入会污染 _all_positions，
-		# 导致切回星型/重进时个别节点位置错乱回初始（问题2）。
-		if _mode == ViewMode.MODE_C:
-			for id in pos:
-				_all_positions[id] = pos[id]
+	# 合并可见节点位置进全局缓存（隐藏节点的位置由 _all_positions 保留）。
+	# ⚠️ 仅模式 C 合并：模式 B 是垂直分层的临时聚焦视图，若写入会污染 _all_positions，
+	# 导致切回星型/重进时个别节点位置错乱回初始（问题2）。
+	if _mode == ViewMode.MODE_C:
+		for id in pos:
+			_all_positions[id] = pos[id]
 	_node_center = pos
 	for nd in nodes:
 		var v: Control = _node_views[nd.id]

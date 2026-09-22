@@ -237,27 +237,26 @@ func _set_folded(id: String, v: bool) -> void:
 				owner._all_positions[s] = owner._node_center[s]
 		if owner._node_center.has(id):
 			owner._all_positions[id] = owner._node_center[id]
+			# 折叠锚：记下根此刻的位，供展开时按「根自锚点以来的位移」同步恢复整棵子树
+			owner._fold_anchor[id] = owner._node_center[id]
 	else:
 		owner._folded_nodes.erase(id)
 		# 展开需一并清掉下层的子树折叠，否则线索保持隐藏无法正确显示
+		var _restored: Array = []
 		for s in _subtree_ids(id):
 			owner._folded_nodes.erase(s)
+			_restored.append(str(s))
 			if owner._node_center.has(s):
 				owner._all_positions[s] = owner._node_center[s]
 		if owner._node_center.has(id):
 			owner._all_positions[id] = owner._node_center[id]
-	# 第8节改造（A①+B①）：折叠/展开后按星形重新自动排布（不保留折叠前的零散位置）
-	owner._fold_keep_layout = false
+		owner._fold_restore = {"root": id, "ids": _restored, "anchor": owner._fold_anchor.get(id, null)}
+		owner._fold_anchor.erase(id)
+	# 2026-09-22（思傅定案）：折叠/展开**保持现有位置**，仅增删视图，不整体重排 ——
+	# 折叠后占位变小，若整墙重排则折叠链换了地方、玩家难以找到；展开又要再变回来，来回变动不利查阅。
+	# （旧行为 `_fold_keep_layout = false` 出自早期"星形布局"时代的第8节改造 A①+B①，已不适用。）
+	owner._fold_keep_layout = true
 	owner._rebuild_graph()
-
-
-# ===================== 拖动前折叠子树 =====================
-func _fold_subtree_for_drag(id: String) -> void:
-	if owner._state != GraphViewController.State.EDITABLE: return
-	var subs := _subtree_ids(id)
-	if subs.is_empty() and not owner._folded_nodes.has(id):
-		return
-	call_deferred("_apply_fold_subtree", id, subs)
 
 
 ## 沿玩家关系树（_build_parent_of 子图）收集本节点的整棵下游子树 id（不含 id 自身）。

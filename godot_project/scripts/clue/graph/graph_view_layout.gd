@@ -2616,11 +2616,23 @@ func check_invariants() -> Array:
 	var kids_ordered := {}
 	for p in kids.keys():
 		kids_ordered[str(p)] = _ordered_children(str(p), kids)
+	var _vis := {}
+	for k in ids:
+		_vis[str(k)] = true
 	for p in kids_ordered:
 		if pinned.has(p):
 			continue
-		var cs: Array = kids_ordered[p]
-		if cs.is_empty():
+		var cs_all: Array = kids_ordered[p]
+		var cs: Array = []
+		var _cut_by_fold := false
+		for _c in cs_all:
+			if _vis.has(str(_c)):
+				cs.append(_c)
+			else:
+				_cut_by_fold = true      # 该父有子节点被折叠隐藏
+		if cs.is_empty() or _cut_by_fold:
+			# 折叠豁免（2026-09-22）：折叠/展开**保持位置**（不再重排），父与其可见子的居中关系
+			# 被有意冻结 ⇒ 不对「父居中/兄弟序」报警；隐藏子也不得用 (0,0) 参与中点计算。
 			continue
 		var lo := 1e18
 		var hi := -1e18
