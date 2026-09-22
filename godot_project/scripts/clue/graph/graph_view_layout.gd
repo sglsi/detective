@@ -674,6 +674,9 @@ func _run_main_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out:
 		_balanced_tree_layout(nodes, center, saved_pos, out)
 	else:
 		_logic_tree_layout(nodes, center, saved_pos, out)
+	# R3 组件矩形装箱（2026-09-22）：各弱连通分量整块刚性平移到装箱位。
+	# 单分量墙为恒等变换（坐标不变）；分量内相对形状不变 ⇒ 美学1~5 全保。
+	_pack_components(out)
 
 
 ## 自动平衡阈值（2026-09-17）：默认纯右向树的整树打包高度超过该值时自动改走左右平衡布局。
@@ -684,6 +687,8 @@ const _AUTO_BALANCE_H := 1500.0
 ## 判定：默认（非「自动排列定格」）布局下，主根（人物）整树打包高度是否超阈值。
 ## 复用 _pack_contour（与正式布局同口径，含亲和排序），估算与实际布局一致；
 ## 无节点/主根无子树时恒 false（小树保持纯右向，行为不变）。
+
+
 func _should_auto_balance(nodes: Array) -> bool:
 	if nodes.is_empty():
 		return false
@@ -1824,6 +1829,140 @@ func _place_band(root: String, offsets: Dictionary, base_off: float, rx: float, 
 		out[nid] = Vector2(rx + float(dx_of.call(sid)), ry + (float(offsets[nid]) - base_off))
 
 
+
+
+## ===================== R3 组件矩形装箱（2026-09-22） =====================
+## 为何：旧实现把**全部根**（跨组件）放进一条纵向带堆叠 ⇒ 各组件被竖着串成一列、
+##   整体包围盒大量空置（实测思傅墙：4100×3280、仅 64.7% 利用）。
+## 做法：把**每个弱连通分量当作一个矩形块**，先量出各自包围盒，再用
+##   **札法装箱**（高度降序、行宽取多个候选并取面积最小）算出各块位置，最后把整体
+##   重心对齐原包围盒中心（视觉上仍居中）。
+## 关键性质：① 每个分量**整块刚性平移** ⇒ 分量内相对形状完全不变（A1~A4 全保）；
+##   ② **单分量墙 = 恒等变换**（坐标逐点不变），保证单树场景与旧行为完全一致；
+##   ③ 分量间不对齐是**数学必然**（相互无结构关系），本步只保证「不交错、不重叠、尽量紧凑」。
+const _PACK_GAP: float = 160.0      # 分组件间隙（与列距 380 同量级，视觉上能分辨块）
+
+
+func _pack_components(out: Dictionary) -> void:
+	if out.size() < 2:
+		return
+	var comp: Dictionary = _relation_components()
+	# 组件划分（可动）：只把**有关联边的**节点计入装箱。
+	# ⚠️ 孤立卡片（无任何关系边）**不参与装箱**：2026-09-21 决策「仅孤立节点保留拖前位」——
+	# 若把它们也整块平移，任何其它组件的变化都会通过「整体重心/货架行」把孤立卡一起挪走
+	# （实测：拖动人物后孤立结论跟移 150px，违反稳定性/心智地图）。
+	var groups := {}
+	var order: Array = []
+	var frozen: Array = []
+	for k in out.keys():
+		var sid := str(k)
+		if not comp.has(sid):
+			frozen.append(sid)
+			continue
+		var cid: int = int(comp[sid])
+		if not groups.has(cid):
+			groups[cid] = []
+			order.append(cid)
+		groups[cid].append(sid)
+	if order.size() <= 1:
+		return                       # 可动组件 ≤1：无装箱可做 ⇒ 恒等（保持既有绝对坐标）
+	if order.size() <= 1:
+		return                       # 单分量：恒等（坐标逐点不变）
+	var boxes: Array = []
+	for cid in order:
+		var lo := Vector2(1e18, 1e18)
+		var hi := Vector2(-1e18, -1e18)
+		for sid in groups[cid]:
+			# 关键：此处布局结果尚在 out（_node_center 仍是旧值）⇒ 必须按 out 现算盒子，
+			# 否则盒子取到旧坐标、装箱offset 全错 → 分量互相压叠（2026-09-22 踩过）。
+			var r: Rect2 = _out_rect(sid, out)
+			lo = Vector2(minf(lo.x, r.position.x), minf(lo.y, r.position.y))
+			hi = Vector2(maxf(hi.x, r.end.x), maxf(hi.y, r.end.y))
+		boxes.append({"cid": cid, "lo": lo, "w": hi.x - lo.x, "h": hi.y - lo.y})
+	# 高度降序（大块先放；同高按 cid 保序 ⇒ 确定性）
+	boxes.sort_custom(func(a, b):
+		if absf(float(a["h"]) - float(b["h"])) > 1.0:
+			return float(a["h"]) > float(b["h"])
+		return int(a["cid"]) < int(b["cid"]))
+	var total: float = 0.0
+	var max_w: float = 0.0
+	for b in boxes:
+		total += (float(b["w"]) + _PACK_GAP) * (float(b["h"]) + _PACK_GAP)
+		max_w = maxf(max_w, float(b["w"]))
+	var side: float = sqrt(total)
+	# 行宽候选取 [max_w, 2·sqrt(总面积)] 区间上均匀采样：太小 → 拉成一根长柱；太大 → 出现大片空白行。
+	var candidates: Array = [max_w]
+	for _i in range(1, 13):
+		candidates.append(max_w + maxf(side * 2.0 - max_w, 1.0) * float(_i) / 12.0)
+	var best: Dictionary = {}
+	var best_valid: Dictionary = {}
+	for W in candidates:
+		var r: Dictionary = _shelf_pack(boxes, maxf(float(W), max_w), _PACK_GAP)
+		var rw: float = maxf(float(r["w"]), 1.0)
+		var rh: float = maxf(float(r["h"]), 1.0)
+		var ratio: float = maxf(rw, rh) / minf(rw, rh)
+		# 目标：**长宽比 ≤ 2 的前提下取面积最小** —— 既省画布（实测比"最小化最长边"少 21% 面积），
+		# 又不会退化成一根又高又窄的长条（纯最小面积会给出 2540×4120，比 2:1 更长）。
+		if ratio <= 2.0:
+			if best_valid.is_empty() or float(r["area"]) < float(best_valid["area"]) - 1.0:
+				best_valid = r
+		if best.is_empty() or float(r["area"]) < float(best["area"]) - 1.0:
+			best = r
+	if not best_valid.is_empty():
+		best = best_valid
+	var off: Dictionary = best["off"]
+	# 居中参照 = **画布中心**（固定常量）：不用「结果包围盒中心」当参照，否则任一组件变化都会
+	# 通过重心把所有组件一起平移（全局耦合 ⇒ 心智地图被破坏）。
+	var _cc: Vector2 = owner._canvas.size * 0.5
+	if owner._canvas.size.x < 800.0 or owner._canvas.size.y < 600.0:
+		_cc = Vector2(960.0, 540.0)
+	var delta_all: Vector2 = _cc - (Vector2(best["lo"]) + Vector2(best["hi"])) * 0.5
+	for cid in order:
+		var d: Vector2 = Vector2(off[cid]) + delta_all
+		if d.length() < 0.01:
+			continue
+		for sid in groups[cid]:
+			out[sid] = out[sid] + d
+	_pack_stats = "components=%d frozen=%d boxes=%.0f×%.0f" % [order.size(), frozen.size(),
+		float(best["w"]), float(best["h"])]
+
+
+## 据布局结果 out 现算卡片矩形（packing 阶段专用；_node_rect 读的是 _node_center，
+## 在 _run_main_layout 内部尚未回写 ⇒ 直接用会拿到旧坐标）。
+func _out_rect(id: String, out: Dictionary) -> Rect2:
+	var c: Vector2 = out.get(id, Vector2.ZERO)
+	var k: String = str(owner._node_kind.get(id, "hypo"))
+	var w: float = _node_width_for_kind(k)
+	var h: float = _view_height(id)
+	if not owner._node_views.has(id) or h <= 1.0:
+		h = maxf(_est_node_h(owner._node_data.get(id, {})), 110.0)
+	return Rect2(c - Vector2(w, h) * 0.5, Vector2(w, h))
+
+
+## 札法装箱：按给定行宽 W 从左到右、从上到下放置（返回各块平移量 + 整体包围盒）。
+## 平移量 = “把该块的左上角搬到装箱坐标 (x,y)”。
+func _shelf_pack(boxes: Array, W: float, gap: float) -> Dictionary:
+	var off := {}
+	var x := 0.0
+	var y := 0.0
+	var row_h := 0.0
+	var max_x := 0.0
+	for b in boxes:
+		var bw: float = float(b["w"])
+		var bh: float = float(b["h"])
+		if x > 0.0 and x + bw > W + 0.5:
+			y += row_h + gap
+			x = 0.0
+			row_h = 0.0
+		var lo: Vector2 = b["lo"]
+		off[b["cid"]] = Vector2(x - lo.x, y - lo.y)
+		x += bw + gap
+		max_x = maxf(max_x, x - gap)
+		row_h = maxf(row_h, bh)
+	return {"off": off, "lo": Vector2(0, 0), "hi": Vector2(max_x, y + row_h),
+		"area": max_x * (y + row_h), "w": max_x, "h": y + row_h}
+
+
 ## ===================== 链路亲和排序（2026-09-17 · 思傅「同链相邻」原则） =====================
 ## 以「子树之间真实连边数」为亲和度做贪心重排：有连边 ⇒ 属同一链，排序时让彼此相邻，
 ## 使链上结论-推断-线索不被其他链隔离、连线短且不成深 U。
@@ -1834,6 +1973,9 @@ var _aff_adj_dirty := true
 ## 钉位三档 · semi（P3 · 2026-09-22）：本帧的「顺序参照位」（拖前实际位置）。
 ## semi 节点贡献自己的落点 y，其余兄弟用参照 y 参与比较 ⇒ 稳定的先后顺序（只改先后、不改绝对位）。
 var _order_ref: Dictionary = {}
+
+## R3 装箱统计（诊断用）
+var _pack_stats: String = ""
 
 
 func _aff_adjacency() -> Dictionary:
@@ -2644,21 +2786,33 @@ func check_invariants() -> Array:
 			continue
 		var lo := 1e18
 		var hi := -1e18
-		var prev_y := -1e18
-		var ordered := true
+		var px: float = owner._node_center.get(p, Vector2.ZERO).x
+		# 兄弟有序（2026-09-22 修正假阳性）：左右平衡布局中**左/右侧的子序各自递增**，
+		# 跨侧比较（如左侧最后一名 vs 右侧第一名）会产生假阳性 ⇒ 先按相对父亲的侧分组再各组内校验。
+		var sides := {}
+		var side_order: Array = []
 		for c in cs:
+			var cx: float = owner._node_center.get(c, Vector2.ZERO).x
+			var side := "L" if cx < px - 0.5 else "R"
+			if not sides.has(side):
+				sides[side] = []
+				side_order.append(side)
+			sides[side].append(c)
 			var cy: float = owner._node_center.get(c, Vector2.ZERO).y
 			lo = minf(lo, cy)
 			hi = maxf(hi, cy)
-			if cy < prev_y - 1.0:
-				ordered = false
-			prev_y = cy
+		for _sk in side_order:
+			var prev_y := -1e18
+			for c in sides[_sk]:
+				var cy2: float = owner._node_center.get(c, Vector2.ZERO).y
+				if cy2 < prev_y - 1.0:
+					bad.append("兄弟乱序: %s（%s侧）" % [p, _sk])
+					break
+				prev_y = cy2
 		var mid := (lo + hi) * 0.5
 		var py: float = owner._node_center.get(p, Vector2.ZERO).y
 		if absf(py - mid) > 1.0:
 			bad.append("父未居中: %s(父%.0f 子中点%.0f)" % [p, py, mid])
-		if not ordered:
-			bad.append("兄弟乱序: %s" % p)
 	var comp_map: Dictionary = _relation_components()
 	var by_group := {}
 	for k in ids:

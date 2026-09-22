@@ -1,0 +1,761 @@
+{
+ "_comment": "思傅真实墙（华生案 · 38 卡 · 6 弱连通分量）Ctrl+Shift+D 导出 2026-09-22；只保留输入，坐标由布局计算",
+ "canvas": [
+  1920.0,
+  1080.0
+ ],
+ "case_wide": true,
+ "focus_person": "NPC_HOP",
+ "mode": "C",
+ "manual": [
+  "NPC_DRE",
+  "conclusion_CL2-4",
+  "conclusion_CL2-6",
+  "conclusion_CL2-1",
+  "H2-02",
+  "H3-C10",
+  "c312"
+ ],
+ "pins": {},
+ "nodes": [
+  {
+   "id": "H2-01",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H2-02",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H2-03",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H2-04",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H2-05",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H3-A1",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H3-A2",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H3-A5",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H3-B1",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H3-B4",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H3-C1",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H3-C6",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "H3-C8",
+   "kind": "hypo",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "NPC_DRE",
+   "kind": "person",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "NPC_HOP",
+   "kind": "person",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c201",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c202",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c203",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c204",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c205",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c206",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c301",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c302",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c303",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c304",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c305",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c308",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c309",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c310",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "c311",
+   "kind": "clue",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "conclusion_CL2-1",
+   "kind": "conclusion",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "conclusion_CL2-2",
+   "kind": "conclusion",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "conclusion_CL2-4",
+   "kind": "conclusion",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "conclusion_CL2-6",
+   "kind": "conclusion",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "conclusion_CL3-1",
+   "kind": "conclusion",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "conclusion_CL3-2",
+   "kind": "conclusion",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "conclusion_CL3-3",
+   "kind": "conclusion",
+   "label": "",
+   "sub": "",
+   "data": {}
+  },
+  {
+   "id": "conclusion_CL3-4",
+   "kind": "conclusion",
+   "label": "",
+   "sub": "",
+   "data": {}
+  }
+ ],
+ "relations": [
+  {
+   "from": "c202",
+   "to": "H2-01",
+   "kind": "support"
+  },
+  {
+   "from": "H2-01",
+   "to": "conclusion_CL2-1",
+   "kind": "support"
+  },
+  {
+   "from": "c204",
+   "to": "H2-03",
+   "kind": "support"
+  },
+  {
+   "from": "H2-03",
+   "to": "conclusion_CL2-4",
+   "kind": "support"
+  },
+  {
+   "from": "c201",
+   "to": "H2-03",
+   "kind": "support"
+  },
+  {
+   "from": "c205",
+   "to": "H2-04",
+   "kind": "support"
+  },
+  {
+   "from": "H2-04",
+   "to": "conclusion_CL2-6",
+   "kind": "support"
+  },
+  {
+   "from": "c206",
+   "to": "H2-05",
+   "kind": "support"
+  },
+  {
+   "from": "H2-05",
+   "to": "conclusion_CL2-6",
+   "kind": "support"
+  },
+  {
+   "from": "c203",
+   "to": "H2-02",
+   "kind": "support"
+  },
+  {
+   "from": "H2-02",
+   "to": "conclusion_CL2-2",
+   "kind": "support"
+  },
+  {
+   "from": "conclusion_CL2-4",
+   "to": "NPC_HOP",
+   "kind": "target"
+  },
+  {
+   "from": "conclusion_CL2-6",
+   "to": "NPC_HOP",
+   "kind": "target"
+  },
+  {
+   "from": "conclusion_CL2-1",
+   "to": "NPC_HOP",
+   "kind": "target"
+  },
+  {
+   "from": "c301",
+   "to": "H3-A5",
+   "kind": "support"
+  },
+  {
+   "from": "H3-A5",
+   "to": "conclusion_CL3-2",
+   "kind": "support"
+  },
+  {
+   "from": "c303",
+   "to": "H3-A1",
+   "kind": "support"
+  },
+  {
+   "from": "H3-A1",
+   "to": "conclusion_CL3-2",
+   "kind": "support"
+  },
+  {
+   "from": "c302",
+   "to": "H3-A2",
+   "kind": "support"
+  },
+  {
+   "from": "H3-A2",
+   "to": "conclusion_CL3-2",
+   "kind": "support"
+  },
+  {
+   "from": "c304",
+   "to": "H3-B1",
+   "kind": "support"
+  },
+  {
+   "from": "H3-B1",
+   "to": "conclusion_CL3-1",
+   "kind": "support"
+  },
+  {
+   "from": "c309",
+   "to": "H3-C1",
+   "kind": "support"
+  },
+  {
+   "from": "H3-C1",
+   "to": "conclusion_CL3-3",
+   "kind": "support"
+  },
+  {
+   "from": "c310",
+   "to": "H3-C8",
+   "kind": "support"
+  },
+  {
+   "from": "c311",
+   "to": "H3-C6",
+   "kind": "support"
+  },
+  {
+   "from": "H3-C6",
+   "to": "conclusion_CL3-4",
+   "kind": "support"
+  },
+  {
+   "from": "c308",
+   "to": "H3-B4",
+   "kind": "support"
+  },
+  {
+   "from": "H3-B4",
+   "to": "conclusion_CL3-1",
+   "kind": "support"
+  },
+  {
+   "from": "c305",
+   "to": "H3-B4",
+   "kind": "support"
+  },
+  {
+   "from": "conclusion_CL3-1",
+   "to": "NPC_DRE",
+   "kind": "target"
+  },
+  {
+   "from": "conclusion_CL3-2",
+   "to": "NPC_DRE",
+   "kind": "target"
+  }
+ ],
+ "violations_before": [
+  "兄弟乱序: NPC_HOP"
+ ],
+ "computed_before": {
+  "H2-01": [
+   1720.00012207031,
+   1220.0
+  ],
+  "H2-02": [
+   3280.0,
+   -120.0
+  ],
+  "H2-03": [
+   1720.00012207031,
+   1940.0
+  ],
+  "H2-04": [
+   200.000122070312,
+   1340.0
+  ],
+  "H2-05": [
+   200.000122070312,
+   1820.0
+  ],
+  "H3-A1": [
+   1720.00012207031,
+   -700.0
+  ],
+  "H3-A2": [
+   1720.00012207031,
+   -220.0
+  ],
+  "H3-A5": [
+   1720.00012207031,
+   260.0
+  ],
+  "H3-B1": [
+   200.000122070312,
+   -580.0
+  ],
+  "H3-B4": [
+   200.000122070312,
+   140.0
+  ],
+  "H3-C1": [
+   3280.0,
+   320.0
+  ],
+  "H3-C6": [
+   3280.0,
+   760.0
+  ],
+  "H3-C8": [
+   2900.0,
+   1200.0
+  ],
+  "NPC_DRE": [
+   960.000122070312,
+   -220.0
+  ],
+  "NPC_HOP": [
+   960.000122070312,
+   1580.0
+  ],
+  "c201": [
+   2100.0,
+   1700.0
+  ],
+  "c202": [
+   2100.0,
+   1220.0
+  ],
+  "c203": [
+   3660.0,
+   -120.0
+  ],
+  "c204": [
+   2100.0,
+   2180.0
+  ],
+  "c205": [
+   -179.999877929688,
+   1340.0
+  ],
+  "c206": [
+   -179.999877929688,
+   1820.0
+  ],
+  "c301": [
+   2100.0,
+   260.0
+  ],
+  "c302": [
+   2100.0,
+   -220.0
+  ],
+  "c303": [
+   2100.0,
+   -700.0
+  ],
+  "c304": [
+   -179.999877929688,
+   -580.0
+  ],
+  "c305": [
+   -179.999877929688,
+   -100.0
+  ],
+  "c308": [
+   -179.999877929688,
+   380.0
+  ],
+  "c309": [
+   3660.0,
+   320.0
+  ],
+  "c310": [
+   3280.0,
+   1200.0
+  ],
+  "c311": [
+   3660.0,
+   760.0
+  ],
+  "conclusion_CL2-1": [
+   1340.00012207031,
+   1220.0
+  ],
+  "conclusion_CL2-2": [
+   2900.0,
+   -120.0
+  ],
+  "conclusion_CL2-4": [
+   1340.00012207031,
+   1940.0
+  ],
+  "conclusion_CL2-6": [
+   580.000122070312,
+   1580.0
+  ],
+  "conclusion_CL3-1": [
+   580.000122070312,
+   -220.0
+  ],
+  "conclusion_CL3-2": [
+   1340.00012207031,
+   -220.0
+  ],
+  "conclusion_CL3-3": [
+   2900.0,
+   320.0
+  ],
+  "conclusion_CL3-4": [
+   2900.0,
+   760.0
+  ]
+ },
+ "expected_after": {
+  "H2-01": [
+   1720.0,
+   320.0
+  ],
+  "H2-02": [
+   200.0,
+   1840.0
+  ],
+  "H2-03": [
+   1720.0,
+   1040.0
+  ],
+  "H2-04": [
+   200.0,
+   440.0
+  ],
+  "H2-05": [
+   200.0,
+   920.0
+  ],
+  "H3-A1": [
+   1720.0,
+   -1320.0
+  ],
+  "H3-A2": [
+   1720.0,
+   -840.0
+  ],
+  "H3-A5": [
+   1720.0,
+   -360.0
+  ],
+  "H3-B1": [
+   200.0,
+   -1200.0
+  ],
+  "H3-B4": [
+   200.0,
+   -480.0
+  ],
+  "H3-C1": [
+   1380.0,
+   1840.0
+  ],
+  "H3-C6": [
+   1000.0,
+   2400.0
+  ],
+  "H3-C8": [
+   -180.0,
+   2400.0
+  ],
+  "NPC_DRE": [
+   960.0,
+   -840.0
+  ],
+  "NPC_HOP": [
+   960.0,
+   680.0
+  ],
+  "c201": [
+   2100.0,
+   800.0
+  ],
+  "c202": [
+   2100.0,
+   320.0
+  ],
+  "c203": [
+   580.0,
+   1840.0
+  ],
+  "c204": [
+   2100.0,
+   1280.0
+  ],
+  "c205": [
+   -180.0,
+   440.0
+  ],
+  "c206": [
+   -180.0,
+   920.0
+  ],
+  "c301": [
+   2100.0,
+   -360.0
+  ],
+  "c302": [
+   2100.0,
+   -840.0
+  ],
+  "c303": [
+   2100.0,
+   -1320.0
+  ],
+  "c304": [
+   -180.0,
+   -1200.0
+  ],
+  "c305": [
+   -180.0,
+   -720.0
+  ],
+  "c308": [
+   -180.0,
+   -240.0
+  ],
+  "c309": [
+   1760.0,
+   1840.0
+  ],
+  "c310": [
+   200.0,
+   2400.0
+  ],
+  "c311": [
+   1380.0,
+   2400.0
+  ],
+  "conclusion_CL2-1": [
+   1340.0,
+   320.0
+  ],
+  "conclusion_CL2-2": [
+   -180.0,
+   1840.0
+  ],
+  "conclusion_CL2-4": [
+   1340.0,
+   1040.0
+  ],
+  "conclusion_CL2-6": [
+   580.0,
+   680.0
+  ],
+  "conclusion_CL3-1": [
+   580.0,
+   -840.0
+  ],
+  "conclusion_CL3-2": [
+   1340.0,
+   -840.0
+  ],
+  "conclusion_CL3-3": [
+   1000.0,
+   1840.0
+  ],
+  "conclusion_CL3-4": [
+   620.0,
+   2400.0
+  ]
+ }
+}
