@@ -505,6 +505,16 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 		owner._state_store["graph_root_anchors"] = owner._root_anchor_pos.duplicate()
 		owner._state_store["graph_manual_nodes"] = owner._manual_nodes.duplicate()
 	var center := owner._canvas.size * 0.5
+	# 钉位三档 · semi：顺序参照位（拖前实际位置；无则用当前中心）——仅用于兄弟/根先后比较
+	_order_ref = (pre_center if not pre_center.is_empty() else owner._node_center).duplicate()
+	# semi 顺序意图清理：节点已删除/已隐藏的 hint 一律丢弃（避免无限增长）
+	if not owner._pin_order_hints.is_empty():
+		var _alive := {}
+		for _nd in nodes:
+			_alive[str(_nd.id)] = true
+		for _hk in owner._pin_order_hints.keys():
+			if not _alive.has(str(_hk)):
+				owner._pin_order_hints.erase(_hk)
 	# 真实浏览器画布足够大；headless/极小画布时用虚拟中心兜底，避免布局把所有节点挤进一小块（生产不受影响）
 	if owner._canvas.size.x < 800.0 or owner._canvas.size.y < 600.0:
 		center = Vector2(960.0, 540.0)
@@ -713,117 +723,7 @@ func _should_auto_balance(nodes: Array) -> bool:
 	return (gmax - gmin) > _AUTO_BALANCE_H
 
 
-# ===================== 模式 C：按关系驱动的横向阶梯树（DEPRECATED · 已被 _logic_tree_layout 取代，保留不调用） =====================
-## 旧版按 kind 分列（person=0,conclusion=1,hypo=2,clue=3）的阶梯布局；因「串行结论会被并列同列」、
-## 且非真正按关系树深铺开，已被 _logic_tree_layout（真实树深右向、兄弟垂直、父居子）取代。保留作回退参考。
-func _relation_tree_layout_DEPRECATED(nodes: Array, center: Vector2, saved_pos: Dictionary, out: Dictionary) -> void:
-	# 性质层：决定节点所在纵向阶梯列（人物最内、线索最外）
-	var depth_of := {}
-	for nd in nodes:
-		match nd.get("kind", ""):
-			"person": depth_of[nd.id] = 0
-			"conclusion": depth_of[nd.id] = 1
-			"hypo", "chain": depth_of[nd.id] = 2
-			"clue": depth_of[nd.id] = 3
-			_: depth_of[nd.id] = 4
-	# 根集合 = 人物节点（当前单焦点人物；算法支持多人物各成一树）
-	var roots: Array = []
-	for nd in nodes:
-		if nd.get("kind", "") == "person" and not (nd.id in roots):
-			roots.append(nd.id)
-	if roots.is_empty() and not nodes.is_empty():
-		roots = [nodes[0].id]
-	var adj := owner._fold._build_adjacency()
-	# 构建父子关系树：从根 BFS，邻居"性质层更深"者作子，每节点只承接一次（防环）
-	var child_map := {}
-	var assigned := {}
-	var q: Array = []
-	for r in roots:
-		if assigned.has(r): continue
-		assigned[r] = true
-		q.append(r)
-		child_map[r] = []
-	while q.size() > 0:
-		var rest: Array = []
-		for u in q:
-			for nb in adj.get(u, []):
-				if assigned.has(nb): continue
-				if not (depth_of.get(nb, 4) > depth_of.get(u, 4)):
-					continue
-				assigned[nb] = true
-				if not child_map.has(u): child_map[u] = []
-				child_map[u].append(nb)
-				child_map[nb] = []
-				rest.append(nb)
-		q = rest
-	# 子树叶子高：内部 = Σ 子叶子高，用于垂直带划分
-	var high := {}
-	for r in roots:
-		high[r] = 1
-	for u in assigned:
-		high[u] = 1
-	_collect_high(roots, child_map, high)
-	# 节点估算高度（文字行数×行高 + 副标题 + 内边距），用于垂直带切分；兄弟间距见 _sib_gap（文本框高一半）。
-	# 跨场景累积改造（2026-08-29）：下限抬到 140，与碰撞模型（max(view_h,110)+clearance 24 ⇒ 需 ≥134
-	# 中心距）对齐；否则估算高度（短标签约 52）远小于真实卡片高，密集兄弟会被带内堆叠压成重叠。
-	var est_h := {}
-	for nd in nodes:
-		est_h[nd.id] = maxf(_est_node_h(nd), 140.0)
-	var memo := {}
-	for _nd in nodes:
-		_subtree_span_est(_nd.id, child_map, est_h, memo)
-	# 人物定位：保存位优先（人物可自由拖动）；多人物水平错开
-	var col_gap: float = maxf(_clue_box_height(), 300.0)   # 需求3：列间距下限 = 一个线索文本框高度
-	# 跨场景带入·任务：上一场景携带内容偏左、本场景新内容偏右，建立关系前分区域放置（建立关系后自然并入同一层级树）
-	var _is_cw := owner._case_wide and not owner._carried_ids.is_empty()
-	var _carried_x: float = center.x - 380.0
-	var _new_x: float = center.x + 380.0
-	for r in roots:
-		var _sv: Variant = saved_pos.get(r, null)
-		var _rx: float
-		if _sv is Vector2:
-			_rx = _sv.x
-		else:
-			_rx = _carried_x if (_is_cw and (r in owner._carried_ids)) else _new_x
-		var ry: float = _sv.y if (_sv is Vector2) else center.y
-		out[r] = Vector2(_rx, ry)
-	for r in roots:
-		var _sv2: Variant = saved_pos.get(r, null)
-		var rx2: float = _sv2.x if (_sv2 is Vector2) else out[r].x
-		var ry2: float = _sv2.y if (_sv2 is Vector2) else center.y
-		# 根偏右→树向左生长，偏左→向右（方向不硬性统一，保持画布内）
-		var dirv := 1.0
-		if rx2 >= owner._canvas.size.x * 0.5:
-			dirv = -1.0
-		var _half3: float = maxf(memo.get(r, 140.0) * 0.5, 60.0)
-		var top2: float = ry2 - _half3
-		var bot2: float = ry2 + _half3
-		_assign_subtree(r, child_map, memo, est_h, out, top2, bot2, rx2, dirv, col_gap)
-	# 孤立（未接入树）节点：保存位优先；跨场景带入区分「携带/新」种子区，碰撞感知放置保证零重叠
-	var existing_spare := {}
-	for _k in out:
-		if out[_k] is Vector2:
-			existing_spare[_k] = out[_k]
-	for nd in nodes:
-		if out.has(nd.id): continue
-		var sv: Variant = saved_pos.get(nd.id, null)
-		if sv is Vector2:
-			out[nd.id] = sv
-			existing_spare[nd.id] = sv
-			continue
-		var _kind: String = owner._fold._kind_of(nd.id)
-		var _seed := Vector2(_new_x - 40.0, center.y - 220.0)
-		if _is_cw and (nd.id in owner._carried_ids):
-			_seed = Vector2(_carried_x + 40.0, center.y - 220.0)
-		out[nd.id] = _find_non_overlapping_position(_seed, nd.id, _kind, existing_spare, 24.0)
-		existing_spare[nd.id] = out[nd.id]
-	# 手动拖动过的节点保持原位，不被自动布局覆盖（保证每个人物/结论/推断/线索都能自由移动）
-	for mid2 in owner._manual_nodes:
-		var _sv3: Variant = saved_pos.get(mid2, null)
-		if _sv3 is Vector2 and out.has(mid2):
-			out[mid2] = _sv3
-	for idf in out:
-		out[idf] = _clamp_to_canvas(out[idf])
+
 
 
 # ===================== 模式 C 默认：XMind 逻辑图（偏右侧整洁树 · REWRITE 2026-09-05） =====================
@@ -1069,6 +969,10 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 				roots.append(nd.id)
 	if roots.is_empty() and not nodes.is_empty():
 		roots = [nodes[0].id]
+
+	# 钉位三档 · semi：根的「顺序意图」——只改带的先后，不改绝对位（永不重叠）
+	if _has_order_hint(roots):
+		roots.sort_custom(func(a, b): return _order_key_of(str(a)) < _order_key_of(str(b)))
 
 	# 链路亲和重排：每父节点直接子按「同链相邻」原则排序（_ordered_children），
 	# 使 tidy-Y 纵向铺开时同链分支在垂直序中相邻（A2 要求）；与提交版轮廓打包前同序处理一致。
@@ -1359,6 +1263,10 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 				roots.append(nd.id)
 	if roots.is_empty() and not nodes.is_empty():
 		roots = [nodes[0].id]
+
+	# 钉位三档 · semi：根的「顺序意图」——只改带的先后，不改绝对位（永不重叠）
+	if _has_order_hint(roots):
+		roots.sort_custom(func(a, b): return _order_key_of(str(a)) < _order_key_of(str(b)))
 
 	# 根排序（弱连通分量聚拢，与默认布局同口径）；先于深度 BFS 与左右分派。
 	roots = _group_roots_by_component(roots)
@@ -1923,6 +1831,10 @@ func _place_band(root: String, offsets: Dictionary, base_off: float, rx: float, 
 var _aff_adj_cache: Dictionary = {}
 var _aff_adj_dirty := true
 
+## 钉位三档 · semi（P3 · 2026-09-22）：本帧的「顺序参照位」（拖前实际位置）。
+## semi 节点贡献自己的落点 y，其余兄弟用参照 y 参与比较 ⇒ 稳定的先后顺序（只改先后、不改绝对位）。
+var _order_ref: Dictionary = {}
+
 
 func _aff_adjacency() -> Dictionary:
 	if _aff_adj_dirty:
@@ -1962,6 +1874,30 @@ func _cross_affinity(sa: Dictionary, sb: Dictionary) -> int:
 ## 保证同序输入产生同构布局（多父/共有前提时顺序可复现、可读）。
 ## 2026-09-17 追加「同链相邻」亲和重排：在稳定基础序之上，从首枝出发贪心接上与当前末枝
 ## 亲和度最高的兄弟子树（亲和并列时保持基础序），零亲和时与原序完全一致（行为不变）。
+## 钉位三档 · semi：顺序意图键——semi 落点优先，其次参照位；都没有则 +INF（排最后）。
+func _order_key_of(id: String) -> float:
+	var sid := str(id)
+	var hv: Variant = owner._pin_order_hints.get(sid, null)
+	if hv is Vector2:
+		return (hv as Vector2).y
+	var rv: Variant = _order_ref.get(sid, null)
+	if rv is Vector2:
+		return (rv as Vector2).y
+	var cv: Variant = owner._node_center.get(sid, null)
+	if cv is Vector2:
+		return (cv as Vector2).y
+	return 1e18
+
+
+## 该集合内是否存在 semi 顺序意图（有则按意图排，
+## 不再让「同链相邻」亲和启发式（紧凑性）覆盖玩家意图：结构不变量 > 钉位 > 紧凑性）。
+func _has_order_hint(ids: Array) -> bool:
+	for i in ids:
+		if owner._pin_order_hints.has(str(i)):
+			return true
+	return false
+
+
 func _ordered_children(u: String, child_map: Dictionary) -> Array:
 	var kids: Array = child_map.get(u, []).duplicate()
 	var kind_rank := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3, "_": 3}
@@ -1971,6 +1907,11 @@ func _ordered_children(u: String, child_map: Dictionary) -> Array:
 		if ra != rb:
 			return ra < rb
 		return str(a) < str(b))
+	# 钉位三档 · semi（P3）：玩家拖过的兄弟贡献顺序意图——按落点/参照 y 定先后（美学2 的合法输入）。
+	# 此时不再跑亲和重排：紧凑性（同链相邻）属最低优先级，不得覆盖玩家意图。
+	if _has_order_hint(kids):
+		kids.sort_custom(func(a, b): return _order_key_of(str(a)) < _order_key_of(str(b)))
+		return kids
 	if kids.size() >= 3:
 		var sets := {}
 		for k in kids:
@@ -2567,6 +2508,25 @@ func _persist_node_positions() -> void:
 ## 目的：把「截图反推」升级为「读数据」。导出内容 = 输入（节点尺寸/边/钉位）+ 输出（坐标）+ 违规清单，
 ## 该 JSON **可直接作为 tools/fixtures/ 的回归 fixture**（同一输入 → 断言不变量 + 坐标快照）。
 ## 只读，不改变任何布局行为。
+## 诊断导出辅助：每个节点的钉位档位（free/semi/pinned）
+func _diag_pin_tiers() -> Dictionary:
+	var out := {}
+	for k in owner._node_center.keys():
+		var sid := str(k)
+		out[sid] = owner.pin_tier_of(sid)
+	return out
+
+
+## 诊断导出辅助：semi 顺序意图落点
+func _diag_order_hints() -> Dictionary:
+	var out := {}
+	for k in owner._pin_order_hints.keys():
+		var v: Variant = owner._pin_order_hints[k]
+		if v is Vector2:
+			out[str(k)] = [(v as Vector2).x, (v as Vector2).y]
+	return out
+
+
 func layout_diagnostic(extra: Dictionary = {}) -> Dictionary:
 	var ids: Array = owner._node_center.keys()
 	ids.sort()
@@ -2619,6 +2579,8 @@ func layout_diagnostic(extra: Dictionary = {}) -> Dictionary:
 		"relations": rels,
 		"pins": pins,
 		"manual": owner._manual_nodes.duplicate(),
+		"pin_tiers": _diag_pin_tiers(),
+		"order_hints": _diag_order_hints(),
 		"components": comps,
 		"computed": centers,
 		"violations": check_invariants(),

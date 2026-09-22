@@ -64,6 +64,9 @@ var _case_wide: bool = false
 var _teaching: bool = false                   # 教学墙（场景一 watson/messenger）：禁用结论 gate 自动补边，关系由玩家逐个手动建立
 var _manual_nodes: Array = []
 var _root_anchor_pos: Dictionary = {}   # 第8节改造（A①+B①）：仅「关系树根」(人物/无人物的结论) 的位置被手动锁定并持久化
+## 钉位三档 (P3 · 2026-09-22) · semi：玩家拖动「树内节点」的落点——**只解释为兄弟/根之间的先后顺序**，
+##   x 由深度写死、y 由整洁树规则决定 ⇒ 数学上不可能违反 A1~A4、不可能产生重叠。存档键 graph_pin_order_hints。
+var _pin_order_hints: Dictionary = {}
 var _node_offsets: Dictionary = {}      # 需求3/5：非根节点（结论/推断）相对「父派生位」的偏移；拖动后保持随父移动
 var _carried_ids: Array = []            # 开墙时已存在（上一场景携带）的节点 id；布局据此与「本场景新内容」分区域放置
 var _scene_clue_ids: Array = []         # 本场景采集页收集到的线索 id（=「本场景新内容」）；布局分离时这些算新，其余算携带
@@ -354,6 +357,7 @@ func build(data: Dictionary) -> void:
 	_placed_clues = (_state_store.get("graph_placed_clues", []) as Array).duplicate()
 	_manual_nodes = (Array(_state_store.get("graph_manual_nodes", [])) as Array).duplicate()
 	_root_anchor_pos = (Dictionary(_state_store.get("graph_root_anchors", {})) as Dictionary).duplicate()
+	_pin_order_hints = (Dictionary(_state_store.get("graph_pin_order_hints", {})) as Dictionary).duplicate()
 	_node_offsets = (Dictionary(_state_store.get("graph_node_offsets", {})) as Dictionary).duplicate()   # 需求3/5
 	# 左右平衡布局（2026-09-09）：模式与玩家手动换侧结果随存档还原（点过「自动排列」后定格）
 	_balanced_layout = bool(_state_store.get("graph_balanced_layout", false))
@@ -412,6 +416,7 @@ func build(data: Dictionary) -> void:
 			_state_store.erase("graph_root_anchors")
 	_all_positions = {}
 	_root_anchor_pos = {}
+	_pin_order_hints = {}
 
 	# 升级兜底聚焦（修根因 2026-08-19 v3）：缓存里残留的 "__case__" 一律强制重置为空，
 	# 不论 _persons 是否为空。这样可以让下面的缺省逻辑（如果用户实际有 NPC 线索）落到 NPC 真名。
@@ -1657,6 +1662,57 @@ func _zoom_at(mouse_pos: Vector2, factor: float) -> void:
 ## 一键排列语义 = 整墙整洁复位：清空手动钉位/偏移（否则被钉节点与其后代不参与重排、看不出平衡效果），
 ## 但**保留玩家的手动换侧选择**（_subtree_sides）。仅在模式 C（图谱）可用。
 ## 旧 BFS 深度分列（_auto_rank_layout / _use_rank_layout）保留代码但不再由本按钮触发。
+## ===================== 钉位三档（P3 · 2026-09-22 · 思傅定案三档） =====================
+## free   ：无钉位，完全由规则决定（默认）。
+## semi   ：**软约束「顺序意图」**——玩家落点只决定它排在兄弟/根之间的**先后**；
+##          x 由深度唯一决定、y 由整洁树规则决定 ⇒ 永不违反 A1~A4、永不产生重叠。
+## pinned ：**硬锚点**——真根拖到哪钉到哪，整棵子树刚性跟随；与其它卡冲突时交由去重叠兜底
+##          按「整洁树优先、钉位让位」处理。
+## 档位归属（谁被拖 ⇒ 哪一档）：人物/事件 或 无父（真根）→ pinned；树内节点（有父）→ semi。
+## 理由：拖根 = 整棵树刚性平移（五律全保）；拖树内节点若硬钉会把它拖离整洁位、破坏同层共线/父居中——
+##   这正是 09-21 图片里那一族症状的生成器；改为顺序意图后从根上消除。
+func pin_tier_of(id: String) -> String:
+	var sid := str(id)
+	if _root_anchor_pos.has(sid) or (sid in _manual_nodes):
+		return "pinned"
+	if _pin_order_hints.has(sid):
+		return "semi"
+	return "free"
+
+
+## 被拖节点应落哪一档：真根（人物/事件/无父）→ pinned；树内节点 → semi。
+func _dropped_tier(id: String) -> String:
+	var sid := str(id)
+	var k := str(_node_kind.get(sid, ""))
+	if k == "person" or k == "event":
+		return "pinned"
+	var pf: Dictionary = _layout._build_parent_of()
+	if not pf.has(sid):
+		return "pinned"
+	return "semi"
+
+
+## 记录一次「拖动落点」到对应档位（semi 只记顺序意图，不写硬锚点，
+## 避免“布局服从卡片位置”——拖动后的 y 由规则重新决定，只保留“排在谁前面”）。
+func _record_drop_pin(id: String) -> void:
+	var sid := str(id)
+	var pos: Variant = _node_center.get(sid, null)
+	if not (pos is Vector2):
+		return
+	if _dropped_tier(sid) == "pinned":
+		_root_anchor_pos[sid] = pos
+		if not (sid in _manual_nodes):
+			_manual_nodes.append(sid)
+		_pin_order_hints.erase(sid)
+	else:
+		_pin_order_hints[sid] = pos
+		_root_anchor_pos.erase(sid)
+		_manual_nodes.erase(sid)
+	_state_store["graph_root_anchors"] = _root_anchor_pos
+	_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
+	_state_store["graph_pin_order_hints"] = _pin_order_hints.duplicate()
+
+
 func auto_layout() -> void:
 	if _mode != GraphViewController.ViewMode.MODE_C:
 		return
@@ -1664,8 +1720,10 @@ func auto_layout() -> void:
 	_node_offsets = {}        # 清空手动相对偏移，重排即回到整洁层级（需求3/5 复位）
 	_manual_nodes = []        # 清空钉位登记：整墙全部节点参与平衡重排
 	_root_anchor_pos = {}
+	_pin_order_hints = {}    # 钉位三档（P3）：自动排列 = 完全回归规则，连顺序意图也清掉
 	_state_store["graph_root_anchors"] = {}
 	_state_store["graph_manual_nodes"] = []
+	_state_store["graph_pin_order_hints"] = {}
 	_layout._relayout_on_edge = true   # 强制忽略拖前旧位，按新结构全量重排
 	_rebuild_graph()
 	_persist_view()
@@ -1789,6 +1847,7 @@ func _persist_view() -> void:
 	_state_store["graph_focus"] = _focus_person
 	_state_store["graph_seed"] = _layout_seed
 	_state_store["graph_manual_nodes"] = _manual_nodes.duplicate()
+	_state_store["graph_pin_order_hints"] = _pin_order_hints.duplicate()
 	_state_store["graph_folded_nodes"] = _folded_nodes
 	_state_store["graph_nodes"] = _graph_nodes.duplicate()
 	_state_store["graph_derived_conclusions"] = _derived_conclusions.duplicate()

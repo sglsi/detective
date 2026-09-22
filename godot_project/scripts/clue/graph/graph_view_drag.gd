@@ -78,9 +78,8 @@ func commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 				owner._state_store["graph_node_offsets"] = owner._node_offsets.duplicate()
 				owner._layout._relayout_on_edge = true   # 忽略拖前旧位，按新拓扑全量重排
 			elif owner._node_center.has(id):
-				owner._root_anchor_pos[id] = owner._node_center[id]
-				if not (id in owner._manual_nodes):
-					owner._manual_nodes.append(id)
+				# 钉位三档（P3）：真根=硬钉；树内节点=顺序意图（semi）
+				owner._record_drop_pin(id)
 		if moved and not _side_switched:
 			# 规则1/2/3：被拖节点(X)停在玩家手动位(新位置钉入 owner._root_anchor_pos + 登记 owner._manual_nodes)，
 			# 而其全部后代的「旧手动位」一律清空——让它们从 X 的新位置自动重新派生(向上不动、随上属走)。
@@ -92,9 +91,8 @@ func commit_move(id: String, at: Vector2 = Vector2.INF) -> void:
 			# 例外（2026-09-19）：人物关联边的非人物端（被拖结论）不钉位——钉住会与平衡布局
 			# 脱钩（干留落点、叶枝镜像到另一侧），且与人物双刚性令去重叠永久跳过（人物被盖）。
 			if _keep_x_pin:
-				owner._root_anchor_pos[id] = owner._node_center[id]
-				if not (id in owner._manual_nodes):
-					owner._manual_nodes.append(id)
+				# 钉位三档（P3）：真根=硬钉（整棵子树刚性跟随）；树内节点=顺序意图（semi）
+				owner._record_drop_pin(id)
 			for _d in owner._layout._descendants(id):
 				if _d in owner._manual_nodes:
 					owner._manual_nodes.erase(_d)
