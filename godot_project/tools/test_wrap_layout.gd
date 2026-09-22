@@ -271,15 +271,21 @@ func _initialize() -> void:
 	for id in loose_ids:
 		loose_root_xs.append(out4[id].x)
 	var lcolset := {}
-	for v in loose_root_xs:
-		lcolset[v] = true
-	_chk(lcolset.size() >= 2, "D3 无根链 8 叶 >6 → 分 ≥2 列（结论根占 %d 个 x 列）" % lcolset.size())
-	# D5: 所有无根链整体在树右侧，且与树留清晰间隔（≥120，明显非同一整体）
 	var min_lr := 1e18
 	for v in loose_root_xs:
+		lcolset[v] = true
 		min_lr = minf(min_lr, v)
-	_chk(min_lr > tree_right + 120.0, "D4 无根链整体搬到树右侧且留清晰间隔（min_x=%.0f > 树最右沿 %.0f + 120）" % [min_lr, tree_right])
-	_chk(min_lr > center.x, "D5 无根链无左镜像列（全部在中心右侧）")
+	# D3~D5（2026-09-22 更新）：原「无根链 8 叶 >6 → 分 ≥2 列 + 整体搬树右侧」机制**已退役**
+	# （存档：docs/backup/layout_leaf6_relocate_backup.md）。新契约 = 全部根**并入单主列垂直堆叠**；
+	# 宽屏横向排布由 R3 组件装箱承担（目标 = 最小化整墙适配屏幕所需缩放）。
+	_chk(lcolset.size() == 1 and absf(min_lr - center.x) < 1.0,
+		"D3 无根链并入单主列（x=%.0f = 主列 %.0f；不再按叶数分列）" % [min_lr, center.x])
+	_chk(absf(min_lr - out4["DP"].x) < 1.0, "D4 无根链与人物根同列（x=%.0f）" % min_lr)
+	var right_roots := 0
+	for id in loose_ids:
+		if out4[id].x > tree_right + 1.0:
+			right_roots += 1
+	_chk(right_roots == 0, "D5 不再有「搬树右侧」的独立列（右侧根数=%d）" % right_roots)
 	_overlap_check(gv, out4, KINDD, LABELD)
 
 	# ---- 段E：视觉相连的无根链（同一连通分量的多个根）不得被别的树分隔 ----

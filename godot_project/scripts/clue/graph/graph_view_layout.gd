@@ -823,44 +823,6 @@ func _group_roots_by_component(roots: Array) -> Array:
 	return out
 
 
-## 以「弱连通分量」为最小单位把无根链切进 ≤ ncols 列：同分量的根永远落在同一列。
-## 每列目标叶数 = max(单列上限, 总叶/期望列数)；单个分量超限时独占一列（不拆开）。
-func _split_roots_into_columns(loose: Array, total_leaf: int, leaf_of_root: Dictionary, max_leaf: int, ncols: int) -> Array:
-	var comp := _relation_components()
-	var blocks: Array = []
-	for r in loose:
-		var c: int = int(comp.get(str(r), -1))
-		var found: int = -1
-		for bi in blocks.size():
-			if int(blocks[bi]["cid"]) == c:
-				found = bi
-				break
-		if found < 0:
-			blocks.append({"cid": c, "roots": [], "leaf": 0})
-			found = blocks.size() - 1
-		blocks[found]["roots"].append(r)
-		blocks[found]["leaf"] = int(blocks[found]["leaf"]) + int(leaf_of_root.get(str(r), 0))
-	var target: int = maxi(1, ncols)
-	var per_col_leaf: int = maxi(max_leaf, ceili(float(total_leaf) / float(target)))
-	var cols: Array = []
-	var cur: Array = []
-	var cur_leaf: int = 0
-	for b in blocks:
-		var bleaf: int = int(b["leaf"])
-		if cur.size() > 0 and cur_leaf + bleaf > per_col_leaf and cols.size() + 1 < target:
-			cols.append(cur)
-			cur = []
-			cur_leaf = 0
-		cur.append_array(b["roots"])
-		cur_leaf += bleaf
-	if cur.size() > 0:
-		cols.append(cur)
-	if cols.is_empty():
-		cols.append([])
-	return cols
-
-
-
 ## 弱连通分量多根合并（2026-09-21 思傅图1/图2 退化根治）：
 ## support/target 之外的连线（弱关联 relate / 反对 oppose / 矛盾 contradict）把多棵布局树
 ## 连成「视觉上的一棵树」时，布局必须按一棵树排——否则各根按独立根带堆叠（带间 subtree_sep），
@@ -1075,161 +1037,43 @@ func _logic_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, ou
 		total_h += (gmax - gmin) + subtree_sep
 	total_h = maxf(0.0, total_h - subtree_sep)
 
-	# 叶子计数触发分散（2026-09-19 思傅定案；2026-09-21 修订：纯无根森林**永不拆列**）：
-	#   有树（person/event 根）且主列叶子(树叶+同列无根叶) > 6 → 无根链整体搬到**树右侧**新空区域
-	#   （单列竖向、允许超高、不递归切分，B/C 定案）。
-	#   纯无根森林（无人物/事件根）**一律单主列垂直堆叠**（2026-09-21 思傅 图1/图3 根治：原「>6 叶
-	#   自身多列铺开」把树切进不同 x 列、各列独立垂直居中——整棵树被横向甩飞（图3「飞到哪去了」）、
-	#   树带互相交错起伏（图1），「结构服从关系」被斩断；图2 证明单主列带状堆叠才是正确形态，
-	#   故「自身多列铺开」整支移除，任意叶数都落 else 单主列）。
-	#   整洁树（person/event 根）结构完全不动、永不镜像、始终主列垂直堆叠居中。
-	var col_gap: float = 160.0   # 列间水平间隙
-	# 根分类：人物根（整洁树） vs 无根链（零散链路）。kind 同 roots 排序口径（owner._fold._kind_of）。
-	var person_roots: Array = []
-	var loose_roots: Array = []
+	# 根分流（2026-09-22 简化）：原「竖列叶数 > 6 → 无根链搬右侧分列」机制已退役，
+	# 全部根（人物树 + 无根链）**并入单主列垂直堆叠**；宽屏横向交给 R3 组件装箱
+	# （目标 = 最小化整墙适配屏幕所需缩放）。退役代码存档：
+	# docs/backup/layout_leaf6_relocate_backup.md（含恢复指南）。
+	# ===== 纯无根森林 / 无无根链：全部根单主列垂直堆叠、整体垂直居中 =====
+	# 2026-09-21 修复：相邻树带交错重叠。
+	#   实际绘制带 = [cur_y - root_y0, cur_y + (rg[1]-rg[0]) - root_y0]，
+	#   其中 root_y0 = 根自身 tidy-y（根在自身子群中心，未必是带顶）。
+	#   旧代码按 (rg[1]-rg[0]) 推进锚点 cur_y，忽略了 root_y0 —— 当相邻树 root_y0 不同
+	#   （如 7 叶比 6 叶多出的叶子抬高了根中点）时，后一棵树会"窜"到前一棵内部（图1 交错、图3 飞列）。
+	#   改为用「实际绘制底」推进：band_bottom 累积真实绘制最大 y，下一棵绘制顶贴其下 + subtree_sep。
+	var start_y: float = _snap_row(center.y - total_h * 0.5, center.y, _pack_step)
+	var band_bottom: float = start_y - subtree_sep   # 使首棵绘制顶恰为 start_y（整体居中，绘制跨度 = total_h）
+	var _dx_else := func(nid: String) -> float:
+		return float(col_x.get(int(depth_of.get(nid, 0)), col_x[0])) - float(col_x[0])
 	for r in roots:
-		var rk: String = owner._fold._kind_of(str(r))
-		if rk == "person" or rk == "event":
-			person_roots.append(r)
-		else:
-			loose_roots.append(r)
-	# 各节点归属根（人物根=整洁树，其余=无根链）；统计主列叶子数（child_map 中无条目=叶子节点）
-	var root_of := {}
-	for r in roots:
-		var stack: Array = [r]
-		while stack.size() > 0:
-			var u: String = str(stack.pop_back())
-			root_of[u] = r
-			for c in child_map.get(u, []):
-				stack.append(c)
-	var leaf_count_of_root: Dictionary = {}
-	var tree_leaf_count: int = 0
-	var loose_leaf_count: int = 0
-	for nd in nodes:
-		var nid: String = str(nd.id)
-		if child_map.has(nid):
-			continue
-		var rr: String = str(root_of.get(nid, nid))
-		leaf_count_of_root[rr] = leaf_count_of_root.get(rr, 0) + 1
-		var rk: String = owner._fold._kind_of(rr)
-		if rk == "person" or rk == "event":
-			tree_leaf_count += 1
-		else:
-			loose_leaf_count += 1
-	# 两分支判定（2026-09-21 修订：纯无根森林不再拆列，任意叶数都落 else 单主列堆叠）：
-	#   do_relocate = 有树 + 无根链 + 主列叶子 > 6 → 无根链整体搬树右侧（B/C 定案，保留）；
-	#   其余（含纯无根森林）→ 全部单主列垂直堆叠（else）。
-	var do_relocate: bool = (not loose_roots.is_empty()) and (not person_roots.is_empty()) and (tree_leaf_count + loose_leaf_count > 6)
-
-	if do_relocate:
-		# ===== 搬迁：人物整洁树独占主列；无根链整体搬到树右侧新空区域（单列竖向、允许超高）=====
-		# 人物带：主列（col_x[0]）垂直堆叠、整体居中（根-干-枝-叶层展结构保持，永不镜像）
-		var ph_total: float = 0.0
-		for r in person_roots:
-			ph_total += (root_range[r][1] - root_range[r][0]) + subtree_sep
-		ph_total = maxf(0.0, ph_total - subtree_sep)
-		# 2026-09-21 修复：人物带同样按「实际绘制底」推进，避免相邻人物树 root_y0 不同导致带交错（同 else 路径）。
-		# 2026-09-21 行网格：人物带起点吸附整行网格；每带绘制顶再 ceil 吸附同一网格（防 subtree_sep 累积漂移）。
-		var pgrid: float = _snap_row(center.y - ph_total * 0.5, center.y, _pack_step)
-		var pband: float = pgrid - subtree_sep
-		var _dx_person := func(nid: String) -> float:
-			return float(col_x.get(int(depth_of.get(nid, 0)), col_x[0])) - float(col_x[0])
-		for r in person_roots:
-			var ty: Dictionary = root_tidy[r]
-			var rg: Array = root_range[r]
-			var _bn: Array = _band_next(pband, float(rg[1]) - float(rg[0]), pgrid, _pack_step, subtree_sep)
-			var pband_top: float = float(_bn[0])
-			var rx: float = col_x[0]
-			var ry: float = _band_root_y(pband_top, 0.0, float(rg[0]))
-			var sv: Variant = saved_pos.get(r, null)
-			if sv is Vector2:
-				rx = (sv as Vector2).x
-				ry = (sv as Vector2).y
-			_place_band(str(r), ty, 0.0, rx, ry, _dx_person, out)
-			pband = float(_bn[1])
-		# 无根链新区域：树最右沿 + 清晰间隔 起点；按 >6 叶分列（与平衡布局同口径）。
-		var maxd: int = 0
-		for d in col_x.keys():
-			maxd = maxi(maxd, int(d))
-		var main_right: float = float(col_x.get(maxd, col_x[0])) - float(col_x[0]) + max_w.get(maxd, 150.0) * 0.5
-		var loose_max_w: float = 0.0
-		for r in loose_roots:
-			for d in col_x.keys():
-				var _dd: int = int(d)
-				loose_max_w = maxf(loose_max_w, float(col_x.get(_dd, col_x[0])) - float(col_x[0]) + max_w.get(_dd, 150.0))
-		var start_x: float = col_x[0] + main_right + col_gap + loose_max_w * 0.5
-		var ncols: int = maxi(1, ceili(float(loose_leaf_count) / 6.0))
-		# 按「弱连通分量」为最小单位切列：同一棵视觉树（同分量的多个根）绝不被拆到两列
-		var lcols: Array = _split_roots_into_columns(loose_roots, loose_leaf_count, leaf_count_of_root, 6, ncols)
-		var col_widths: Array = []
-		for col in lcols:
-			var w: float = 0.0
-			for r in col:
-				for d in col_x.keys():
-					var _dd: int = int(d)
-					w = maxf(w, float(col_x.get(_dd, col_x[0])) - float(col_x[0]) + max_w.get(_dd, 150.0) * 0.5)
-			col_widths.append(w)
-		var cur_x: float = start_x
-		for ci in lcols.size():
-			var col: Array = lcols[ci]
-			var ch_h: float = 0.0
-			for r in col:
-				ch_h += (root_range[r][1] - root_range[r][0]) + subtree_sep
-			ch_h = maxf(0.0, ch_h - subtree_sep)
-			# 2026-09-21 修复：列内无根链同样按「实际绘制底」推进（同 else 路径），避免 root_y0 不同导致带交错。
-			# 2026-09-21 行网格：无根链列与人物带共用同一网格基准 pgrid（跨列同行对齐）。
-			var cband: float = _snap_row(center.y - ch_h * 0.5, pgrid, _pack_step) - subtree_sep
-			var _dx_loose := func(nid: String) -> float:
-				return float(col_x.get(int(depth_of.get(nid, 0)), col_x[0])) - float(col_x[0])
-			for r in col:
-				var ty: Dictionary = root_tidy[r]
-				var rg: Array = root_range[r]
-				var _bn: Array = _band_next(cband, float(rg[1]) - float(rg[0]), pgrid, _pack_step, subtree_sep)
-				var cband_top: float = float(_bn[0])
-				var rx: float = cur_x
-				var ry: float = _band_root_y(cband_top, 0.0, float(rg[0]))
-				var sv: Variant = saved_pos.get(r, null)
-				if sv is Vector2:
-					rx = (sv as Vector2).x
-					ry = (sv as Vector2).y
-				_place_band(str(r), ty, 0.0, rx, ry, _dx_loose, out)
-				cband = float(_bn[1])
-			# 两列无根链之间也遵循「160 + 无根链半宽」规则，与「树最右沿→首列」间隔一致（思傅 2026-09-19）
-			cur_x += col_widths[ci] + col_gap + loose_max_w * 0.5
-	else:
-		# ===== 纯无根森林 / 无无根链：全部根单主列垂直堆叠、整体垂直居中 =====
-		# 2026-09-21 修复：相邻树带交错重叠。
-		#   实际绘制带 = [cur_y - root_y0, cur_y + (rg[1]-rg[0]) - root_y0]，
-		#   其中 root_y0 = 根自身 tidy-y（根在自身子群中心，未必是带顶）。
-		#   旧代码按 (rg[1]-rg[0]) 推进锚点 cur_y，忽略了 root_y0 —— 当相邻树 root_y0 不同
-		#   （如 7 叶比 6 叶多出的叶子抬高了根中点）时，后一棵树会"窜"到前一棵内部（图1 交错、图3 飞列）。
-		#   改为用「实际绘制底」推进：band_bottom 累积真实绘制最大 y，下一棵绘制顶贴其下 + subtree_sep。
-		var start_y: float = _snap_row(center.y - total_h * 0.5, center.y, _pack_step)
-		var band_bottom: float = start_y - subtree_sep   # 使首棵绘制顶恰为 start_y（整体居中，绘制跨度 = total_h）
-		var _dx_else := func(nid: String) -> float:
-			return float(col_x.get(int(depth_of.get(nid, 0)), col_x[0])) - float(col_x[0])
-		for r in roots:
-			var ty: Dictionary = root_tidy[r]
-			var rg: Array = root_range[r]
-			# P1 统一原语：带推进（实际绘制底 + 组件原点网格吸附）——防累积漂移导致带间错行
-			var _bn: Array = _band_next(band_bottom, float(rg[1]) - float(rg[0]), start_y, _pack_step, subtree_sep)
-			var band_top: float = float(_bn[0])
-			var rx: float = col_x[0]
-			# 根置于「子群中点」而非带顶（XMind 局部对称 · 美学3）
-			var ry: float = _band_root_y(band_top, 0.0, float(rg[0]))
-			var sv: Variant = saved_pos.get(r, null)
-			if sv is Vector2:
-				rx = (sv as Vector2).x
-				ry = (sv as Vector2).y
-				# 松散链根（非人物/事件）钉位 y 吸附整行网格：保留玩家「哪一行」的意图，
-				# 但不再让钉位把整条链拖到半行/错行处（人物/事件锚点钉位保持原样，避免"自动排列"观感）。
-				var _rk_else: String = owner._fold._kind_of(str(r))
-				if _rk_else != "person" and _rk_else != "event":
-					ry = _snap_row((sv as Vector2).y, start_y, _pack_step)
-			# 子节点 x 相对根偏移（根被钉位时子树随根走，不再滞留在画布中心绝对列）
-			_place_band(str(r), ty, 0.0, rx, ry, _dx_else, out)
-			# 本带绘制底（下一带据此吸附整行，避免 40px 累积漂移）
-			band_bottom = float(_bn[1])	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
+		var ty: Dictionary = root_tidy[r]
+		var rg: Array = root_range[r]
+		# P1 统一原语：带推进（实际绘制底 + 组件原点网格吸附）——防累积漂移导致带间错行
+		var _bn: Array = _band_next(band_bottom, float(rg[1]) - float(rg[0]), start_y, _pack_step, subtree_sep)
+		var band_top: float = float(_bn[0])
+		var rx: float = col_x[0]
+		# 根置于「子群中点」而非带顶（XMind 局部对称 · 美学3）
+		var ry: float = _band_root_y(band_top, 0.0, float(rg[0]))
+		var sv: Variant = saved_pos.get(r, null)
+		if sv is Vector2:
+			rx = (sv as Vector2).x
+			ry = (sv as Vector2).y
+			# 松散链根（非人物/事件）钉位 y 吸附整行网格：保留玩家「哪一行」的意图，
+			# 但不再让钉位把整条链拖到半行/错行处（人物/事件锚点钉位保持原样，避免"自动排列"观感）。
+			var _rk_else: String = owner._fold._kind_of(str(r))
+			if _rk_else != "person" and _rk_else != "event":
+				ry = _snap_row((sv as Vector2).y, start_y, _pack_step)
+		# 子节点 x 相对根偏移（根被钉位时子树随根走，不再滞留在画布中心绝对列）
+		_place_band(str(r), ty, 0.0, rx, ry, _dx_else, out)
+		# 本带绘制底（下一带据此吸附整行，避免 40px 累积漂移）
+		band_bottom = float(_bn[1])	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
 	for mid2 in owner._manual_nodes:
 		var sv3: Variant = saved_pos.get(mid2, null)
 		if sv3 is Vector2 and out.has(mid2):
@@ -1351,22 +1195,6 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		else:
 			root_groups[rs] = {"L": [], "R": kids_all}
 	owner._last_layout_sides = sides.duplicate()
-
-	# 每根叶数统计（供无根链分列按叶数装箱）：口径与默认布局一致——child_map 中无条目即为叶节点。
-	var leaf_count_of_root := {}
-	for nd in nodes:
-		var _lc_id: String = str(nd.id)
-		if child_map.has(_lc_id):
-			continue
-		var _lc_rt: String = _lc_id
-		var _lc_guard: int = 0
-		while parent_of.has(_lc_rt) and _lc_guard < 100000:
-			_lc_rt = str(parent_of[_lc_rt])
-			_lc_guard += 1
-		leaf_count_of_root[_lc_rt] = int(leaf_count_of_root.get(_lc_rt, 0)) + 1
-
-
-	# 预打包：主根按「左右两半各自轮廓打包」（两侧都垂直居中于根 = 美学3+4），其余根照旧整棵右向
 	var subtree_sep: float = 40.0
 	_aff_adj_dirty = true   # 链路亲和邻接缓存：单次布局内复用，跨次布局重建（relations 可能已变）
 	var root_contours := {}
@@ -1400,10 +1228,9 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 		total_h += ph + subtree_sep
 	total_h = maxf(0.0, total_h - subtree_sep)
 
-	# ===== 无根链分流（与 _logic_tree_layout 同语义；2026-09-21 修订：纯无根森林永不拆列）=====
-	# 平衡布局（person 根左右分派）下，无根链（非 person/event 根的独立根）与逻辑树布局同口径分流：
-	#   do_relocate = 有树 + 无根链 + 主列叶子(树叶+同列无根叶) > 6 → 无根链整体搬树右侧单列（允许超高、不递归切分）
-	#   否则（含纯无根森林任意叶数——多列铺开已删，2026-09-21 思傅 图1/图3）→ 无根链并入主堆叠
+	# ===== 无根链并入主堆叠（2026-09-22 简化）=====
+	# 原「叶数 > 6 → 无根链搬树右侧分列」已退役（存档：docs/backup/layout_leaf6_relocate_backup.md）。
+	# 人物/事件根在前、无根链在后（保持既有顺序），全部单主列堆叠；宽屏横向由 R3 装箱承担。
 	var person_roots: Array = []
 	var loose_roots: Array = []
 	for r in roots:
@@ -1412,30 +1239,8 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 			person_roots.append(r)
 		else:
 			loose_roots.append(r)
-	var _root_of := {}
-	for r in roots:
-		var _st: Array = [r]
-		while _st.size() > 0:
-			var _u: String = str(_st.pop_back())
-			_root_of[_u] = r
-			for _c in child_map.get(_u, []):
-				_st.append(_c)
-	var tree_leaf_count: int = 0
-	var loose_leaf_count: int = 0
-	for nd in nodes:
-		var _nid: String = str(nd.id)
-		if child_map.has(_nid):
-			continue
-		var _rr: String = str(_root_of.get(_nid, _nid))
-		var _rk2: String = owner._fold._kind_of(_rr)
-		if _rk2 == "person" or _rk2 == "event":
-			tree_leaf_count += 1
-		else:
-			loose_leaf_count += 1
-	var do_relocate: bool = (not loose_roots.is_empty()) and (not person_roots.is_empty()) and (tree_leaf_count + loose_leaf_count > 6)
 	var main_roots: Array = person_roots.duplicate()
-	if not do_relocate:
-		main_roots.append_array(loose_roots)
+	main_roots.append_array(loose_roots)
 
 	# 主堆叠（人物树；未触发时无根链并入）：仅对 main_roots 居中铺开
 	var total_main_h: float = 0.0
@@ -1478,83 +1283,6 @@ func _balanced_tree_layout(nodes: Array, center: Vector2, saved_pos: Dictionary,
 			_place_band(str(r), rel, 0.0, rx, ry, _dx_part, out)
 		cur_y = float(_bn[1]) + subtree_sep
 
-	# 树最右沿（仅右向扩展，do_relocate 用）：person 根的 R part 最远列偏移 + 半宽（根在 center.x）
-	var tree_right_edge: float = 0.0
-	for r in person_roots:
-		var _p2: Dictionary = root_contours[r]
-		for sk in _p2.keys():
-			if str(sk) != "R":
-				continue
-			var _c2: Dictionary = _p2[sk]["contour"]
-			for rd in _c2.keys():
-				var _d: int = int(rd)
-				tree_right_edge = maxf(tree_right_edge, float(col_off.get(_d, 0.0)) + max_w.get(_d, 150.0) * 0.5)
-
-	if do_relocate:
-		# 无根链整体搬到「树最右沿 + 清晰间隔」起点的多列区域；列间留 col_gap；整体相对 center.y 垂直居中。
-		# 间隔 = col_gap + 无根链自身半宽 → 保证无根链最左节点与整洁树最右节点留 ≥ 一张卡宽的可见空隙，
-		# 玩家一眼可辨二者非同一整体（原仅留 ~30px 几乎贴合，思傅 2026-09-19 指摘）。
-		var col_gap: float = 160.0
-		var loose_max_w: float = 0.0
-		for r in loose_roots:
-			var _p: Dictionary = root_contours[r]
-			for sk in _p.keys():
-				var _c: Dictionary = _p[sk]["contour"]
-				for rd in _c.keys():
-					var _d: int = int(rd)
-					loose_max_w = maxf(loose_max_w, float(col_off.get(_d, 0.0)) + max_w.get(_d, 150.0))
-		var start_x: float = center.x + tree_right_edge + col_gap + loose_max_w * 0.5
-		# 按每列 ≤6 叶目标切 ncols 列（与纯无根森林同口径），顺序切块、列间留 col_gap
-		var ncols: int = maxi(1, ceili(float(loose_leaf_count) / 6.0))
-		# 按「弱连通分量」为最小单位切列：同一棵视觉树（同分量的多个根）绝不被拆到两列
-		var lcols: Array = _split_roots_into_columns(loose_roots, loose_leaf_count, leaf_count_of_root, 6, ncols)
-		var col_widths: Array = []
-		for col in lcols:
-			var w: float = 0.0
-			for r in col:
-				var wmax: float = 0.0
-				var _p3: Dictionary = root_contours[r]
-				for sk in _p3.keys():
-					var _c3: Dictionary = _p3[sk]["contour"]
-					for rd in _c3.keys():
-						var _d: int = int(rd)
-						wmax = maxf(wmax, float(col_off.get(_d, 0.0)) + max_w.get(_d, 150.0) * 0.5)
-				w = maxf(w, wmax)
-			col_widths.append(w)
-		var cur_x: float = start_x
-		for ci in lcols.size():
-			var col: Array = lcols[ci]
-			var ch_h: float = 0.0
-			for r in col:
-				ch_h += root_packed_h[r] + subtree_sep
-			ch_h = maxf(0.0, ch_h - subtree_sep)
-			var cury: float = center.y - ch_h * 0.5
-			for r in col:
-				var parts2: Dictionary = root_contours[r]
-				var ph2: float = root_packed_h[r]
-				var min_c: float = 0.0
-				for sk in parts2.keys():
-					var cont2: Dictionary = parts2[sk]["contour"]
-					for rd in cont2.keys():
-						min_c = minf(min_c, cont2[rd][0])
-				var sv: Variant = saved_pos.get(r, null)
-				var rx: float = cur_x
-				var ry: float = cury - min_c
-				if sv is Vector2:
-					rx = sv.x
-					ry = sv.y
-				out[r] = Vector2(rx, ry)
-				for sk in parts2.keys():
-					var dirv: float = -1.0 if str(sk) == "L" else 1.0
-					var rel: Dictionary = parts2[sk]["rel"]
-					for nid in rel.keys():
-						if str(nid) == str(r):
-							continue
-						var d2: int = int(depth_of.get(nid, 0))
-						out[nid] = Vector2(rx + dirv * float(col_off.get(d2, 0.0)), ry + float(rel[nid]))
-				cury += ph2 + subtree_sep
-			# 两列无根链之间也遵循「160 + 无根链半宽」规则，与「树最右沿→首列」间隔一致（思傅 2026-09-19）
-			cur_x += col_widths[ci] + col_gap + loose_max_w * 0.5
 	# 手动拖动过的根保持钉位（钉位由 _compute_layout 外层统一覆盖，此处冗余保险）
 	for mid2 in owner._manual_nodes:
 		var sv3: Variant = saved_pos.get(mid2, null)
@@ -1877,7 +1605,9 @@ func _pack_components(out: Dictionary) -> void:
 	for k in out.keys():
 		var sid := str(k)
 		if not comp.has(sid):
-			obstacles.append(_out_rect(sid, out))
+			# 孤立卡片（无任何关系边）：保留拖前位，且**不参与装箱任何判定**
+			#（既不当障碍、也不计入适配缩放目标）—— 否则一张被玩家拖到远处的孤立卡
+			# 会把「适配屏幕」计算带偏，选出明显更差的排法（实测真实墙：13.60M → 25.91M）。
 			continue
 		var cid: int = int(comp[sid])
 		if not groups.has(cid):

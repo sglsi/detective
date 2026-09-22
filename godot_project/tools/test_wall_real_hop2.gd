@@ -95,12 +95,19 @@ func _initialize() -> void:
 	_chk(ov.is_empty(), "真实卡片矩形零重叠%s" % ("" if ov.is_empty() else "；" + str(ov)))
 
 	# ④⑤ 组件矩形不相交 + 不变量 + 全局指标
+	# 度量口径（2026-09-22）：**只统计有关系的节点**（组件成员）。孤立卡保留拖前位、位置不受
+	# 装箱控制，计入会把「适配缩放」带偏（实测：含孤立卡 5495×4715/fit 4.37 vs 组件口径 5240×2040/fit 2.73）。
 	var comp: Dictionary = gv._layout._relation_components()
 	var groups := {}
+	var strays: Array = []
 	for k in out.keys():
-		var cid: int = int(comp[str(k)]) if comp.has(str(k)) else -1
+		var sid2 := str(k)
+		if not comp.has(sid2):
+			strays.append(sid2)
+			continue
+		var cid: int = int(comp[sid2])
 		if not groups.has(cid): groups[cid] = []
-		groups[cid].append(str(k))
+		groups[cid].append(sid2)
 	var glo := Vector2(1e18, 1e18); var ghi := Vector2(-1e18, -1e18)
 	var boxes := []
 	for cid in groups.keys():
@@ -123,8 +130,17 @@ func _initialize() -> void:
 	var W: float = ghi.x - glo.x
 	var H: float = ghi.y - glo.y
 	var fit: float = maxf(W / 1920.0, H / 1080.0)
-	print("全局包围盒 %.0f×%.0f（面积 %.2fM，适配缩放 %.2f）" % [W, H, W * H / 1e6, fit])
-	# ⑥ 钉位不得把包围盒炸开：修前为 5495×4415 / 24.26M / fit 4.09
+	print("组件包围盒 %.0f×%.0f（面积 %.2fM，适配缩放 %.2f；孤立卡 %d 张）" %
+		[W, H, W * H / 1e6, fit, strays.size()])
+	if not strays.is_empty():
+		var slo := Vector2(1e18, 1e18); var shi := Vector2(-1e18, -1e18)
+		for sid in strays:
+			var ps: Vector2 = out[sid]
+			slo = Vector2(minf(slo.x, ps.x - 130.0), minf(slo.y, ps.y - 200.0))
+			shi = Vector2(maxf(shi.x, ps.x + 130.0), maxf(shi.y, ps.y + 200.0))
+		print("  [info] 孤立卡范围 x[%.0f,%.0f] y[%.0f,%.0f]（保留拖前位、不参与装箱；由玩家自定位置）" %
+			[slo.x, shi.x, slo.y, shi.y])
+	# ⑥ 钉位不得把包围盒炸开：修前（同一口径）5495×4415 / 24.26M / fit 4.09
 	_chk(W * H / 1e6 <= 16.0, "钉位未炸开包围盒（面积 %.2fM ≤ 16.0M；修前 24.26M）" % (W * H / 1e6))
 	_chk(fit <= 3.0, "适配缩放 %.2f ≤ 3.0（修前 4.09）" % fit)
 
