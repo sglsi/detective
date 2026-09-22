@@ -106,15 +106,24 @@ func _diag(name: String, data: Dictionary, center: Vector2, gv) -> void:
 	var max_h: float = 140.0
 	for nd in nodes:
 		max_h = maxf(max_h, est_h[nd.id])
-	var ROW_STEP: float = max_h + 80.0
+	var depth_of := {}
+	var q2: Array = roots.duplicate()
+	for r in roots: depth_of[r] = 0
+	while q2.size() > 0:
+		var u: String = str(q2.pop_front())
+		for c in child_map.get(u, []):
+			if depth_of.has(str(c)): continue
+			depth_of[str(c)] = int(depth_of[u]) + 1
+			q2.append(str(c))
 	var root_range := {}
 	for r in roots:
-		var ty: Dictionary = gv._layout._tidy_y(str(r), child_map, ROW_STEP)
+		var _pk: Dictionary = gv._layout._pack_contour(str(r), child_map, depth_of, est_h, {})
+		var kc: Dictionary = _pk["contour"]
 		var gmin: float = 1e18
 		var gmax: float = -1e18
-		for nid in ty.keys():
-			gmin = minf(gmin, ty[nid])
-			gmax = maxf(gmax, ty[nid])
+		for rd in kc.keys():
+			gmin = minf(gmin, kc[rd][0])
+			gmax = maxf(gmax, kc[rd][1])
 		root_range[r] = [gmin, gmax]
 
 	# 复刻 loose_total / wrap_h
