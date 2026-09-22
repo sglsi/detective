@@ -110,16 +110,33 @@ func _initialize() -> void:
 
 	# T1 未钉节点 = 纯整洁树位（逐点等于参考布局，禁止冻结在历史位）
 	# 注意：钉位根 TC2 的整棵子树（TH2/TL2_0/TL2_1）应随锚点刚性平移、不与参考一致，故跳过。
-	var frozen := []
+	# T1（R3 修订）：未钉节点必须按**整洁树重排**（而非冻结在 stale 位）。
+	# R3 组件装箱会把未钉分量**整块刚性平移**（为避让钉住的块），
+	# 故不再要求绝对坐标逐点一致，而是要求「所有未钉节点相对参考位的偏移量 = 同一个向量」
+	# （即形状完全一致，只差一个整体平移）。若有节点被冻结在 stale 位，它的偏移量会与其余不同 ⇒ 仍会报错。
+	var deltas: Array = []
+	var names: Array = []
 	for id in out_ref:
 		if id in pinned_subtree:
 			continue
 		if not out.has(id):
-			frozen.append("%s(MISSING)" % id)
+			names.append("%s(MISSING)" % id)
 			continue
-		if out[id].distance_to(out_ref[id]) > 0.5:
-			frozen.append("%s(out=%.0f,%.0f ref=%.0f,%.0f)" % [id, out[id].x, out[id].y, out_ref[id].x, out_ref[id].y])
-	_chk(frozen.is_empty(), "T1 未钉节点全部取纯整洁树位（与无钉位参考逐点一致，未冻结在 stale 位）" + ("" if frozen.is_empty() else "；仍冻结：" + ", ".join(frozen)))
+		deltas.append(out[id] - out_ref[id])
+		names.append(str(id))
+	var frozen := []
+	if deltas.is_empty():
+		frozen.append("无可比节点")
+	else:
+		var base: Vector2 = deltas[0]
+		for i in deltas.size():
+			if (Vector2(deltas[i]) - base).length() > 0.5:
+				frozen.append("%s(偏移%s ≠ 基准%s)" % [names[i], str(deltas[i]), str(base)])
+	for n in names:
+		if str(n).ends_with("(MISSING)"):
+			frozen.append(str(n))
+	_chk(frozen.is_empty(), "T1 未钉节点全部取纯整洁树位（与无钉位参考只差一个整体刚性平移；未冻结在 stale 位）"
+		+ ("" if frozen.is_empty() else "；仍冻结：" + ", ".join(frozen.slice(0, 6))))
 
 	# T2 钉位根停在锚点，其子树刚性平移（树内相对结构不变）
 	_chk(out["TC2"].distance_to(anchor) < 0.5, "T2a 钉位根 TC2 停在玩家锚点 (%.0f,%.0f)" % [anchor.x, anchor.y])

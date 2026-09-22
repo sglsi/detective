@@ -507,6 +507,7 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 	var center := owner._canvas.size * 0.5
 	# 钉位三档 · semi：顺序参照位（拖前实际位置；无则用当前中心）——仅用于兄弟/根先后比较
 	_order_ref = (pre_center if not pre_center.is_empty() else owner._node_center).duplicate()
+	_prev_centers = pre_center.duplicate()   # R3 装箱稳定性参考（拖前位置）
 	# semi 顺序意图清理：节点已删除/已隐藏的 hint 一律丢弃（避免无限增长）
 	if not owner._pin_order_hints.is_empty():
 		var _alive := {}
@@ -649,6 +650,11 @@ func _compute_layout(nodes: Array, pre_center: Dictionary = {}) -> Dictionary:
 	if owner._mode != GraphViewController.ViewMode.MODE_C:
 		# 兜底（实际恒定 MODE_C）：非 C 模式直接逻辑图布局，保证编译期全路径返回
 		_run_main_layout(nodes, center, saved_pos, out)
+	# R3 组件矩形装箱（2026-09-22 修订）：**必须在钉位应用之后**。
+	# 若先装箱、后靠“锚点跟随”搬被钉整块，那一块会跳出箱位、丢下大洞
+	# （实测真实墙 5495×4415 / 24.26M vs 3340×4040 / 13.49M）。装箱内部把
+	# 含钉位分量当作**固定障碍**，只对自由分量装箱并主动避让。
+	_pack_components(out)
 	return out
 
 
@@ -674,10 +680,6 @@ func _run_main_layout(nodes: Array, center: Vector2, saved_pos: Dictionary, out:
 		_balanced_tree_layout(nodes, center, saved_pos, out)
 	else:
 		_logic_tree_layout(nodes, center, saved_pos, out)
-	# R3 组件矩形装箱（2026-09-22）：各弱连通分量整块刚性平移到装箱位。
-	# 单分量墙为恒等变换（坐标不变）；分量内相对形状不变 ⇒ 美学1~5 全保。
-	_pack_components(out)
-
 
 ## 自动平衡阈值（2026-09-17）：默认纯右向树的整树打包高度超过该值时自动改走左右平衡布局。
 ## 统一卡 412 高 + 80 间距 ≈ 492/行：1500 ≈ 3 行，第 4 行起触发左右分摊。
@@ -1832,99 +1834,188 @@ func _place_band(root: String, offsets: Dictionary, base_off: float, rx: float, 
 
 
 ## ===================== R3 组件矩形装箱（2026-09-22） =====================
-## 为何：旧实现把**全部根**（跨组件）放进一条纵向带堆叠 ⇒ 各组件被竖着串成一列、
-##   整体包围盒大量空置（实测思傅墙：4100×3280、仅 64.7% 利用）。
-## 做法：把**每个弱连通分量当作一个矩形块**，先量出各自包围盒，再用
-##   **札法装箱**（高度降序、行宽取多个候选并取面积最小）算出各块位置，最后把整体
-##   重心对齐原包围盒中心（视觉上仍居中）。
-## 关键性质：① 每个分量**整块刚性平移** ⇒ 分量内相对形状完全不变（A1~A4 全保）；
-##   ② **单分量墙 = 恒等变换**（坐标逐点不变），保证单树场景与旧行为完全一致；
-##   ③ 分量间不对齐是**数学必然**（相互无结构关系），本步只保证「不交错、不重叠、尽量紧凑」。
+## 为何：旧实现把**全部根**（跨组件）放进一条纵向带堆叠 ⇒ 各组件被竖着串成一列、互相错位、
+##   浪费画布（实测真实墙：包围盒 4100×3280、卡片填充率仅 29.4%）。
+## 做法：把**每个弱连通分量当作一个矩形块**，量包围盒 → 货架装箱 → 各块**整块刚性平移**。
+## 关键性质：
+##   ① 整块刚性平移 ⇒ 分量内相对形状完全不变（A1~A4 全保）；
+##   ② **可动分量 ≤1 时恒等**（单组件墙坐标逐点不变）；
+##   ③ **含钉位的分量 = 固定障碍**（钉位是玩家最终布设，位置已定）⇒ 只对自由分量装箱并避让；
+##      孤立卡片同样不参与装箱（保留拖前位，2026-09-21 决策）但计入障碍；
+##   ④ 目标 = **最小化整墙适配屏幕所需缩放** `max(W/屏宽, H/屏高)` ⇒ 宽屏自动横向、
+##      窄屏自动竖排；取代旧「竖列叶>6 搬右列」这类阈值规则 —— 与画布/链路数量无关，
+##      可泛化到**任意链路与卡片组合**（屏幕越宽 ⇒ 装箱越横；窄屏自然竖排）。
+## ⚠️ 必须在**钉位应用之后**调用（见 _compute_layout 末尾）。
 const _PACK_GAP: float = 160.0      # 分组件间隙（与列距 380 同量级，视觉上能分辨块）
+
+
+func _pack_screen() -> Vector2:
+	## 参考屏幕（画布）尺寸：headless/极小画布时用虚拟尺寸兜底，避免屏幕过小导致宽高比失真
+	var sz: Vector2 = owner._canvas.size if owner._canvas != null else Vector2(1920.0, 1080.0)
+	if sz.x < 800.0 or sz.y < 600.0:
+		sz = Vector2(1920.0, 1080.0)
+	return sz
+
+
+## 按给定中心算卡片矩形（稳定性参考用；尺寸口径同 _out_rect）
+func _rect_at(id: String, center: Vector2) -> Rect2:
+	var k: String = str(owner._node_kind.get(id, "hypo"))
+	var w: float = _node_width_for_kind(k)
+	var h: float = _view_height(id)
+	if not owner._node_views.has(id) or h <= 1.0:
+		h = maxf(_est_node_h(owner._node_data.get(id, {})), 110.0)
+	return Rect2(center - Vector2(w, h) * 0.5, Vector2(w, h))
 
 
 func _pack_components(out: Dictionary) -> void:
 	if out.size() < 2:
 		return
 	var comp: Dictionary = _relation_components()
-	# 组件划分（可动）：只把**有关联边的**节点计入装箱。
-	# ⚠️ 孤立卡片（无任何关系边）**不参与装箱**：2026-09-21 决策「仅孤立节点保留拖前位」——
-	# 若把它们也整块平移，任何其它组件的变化都会通过「整体重心/货架行」把孤立卡一起挪走
-	# （实测：拖动人物后孤立结论跟移 150px，违反稳定性/心智地图）。
-	var groups := {}
+	var groups := {}          # 可动分量（无钉位）
 	var order: Array = []
-	var frozen: Array = []
+	var obstacles: Array = []  # 固定障碍：孤立卡片 + 含钉位的分量
 	for k in out.keys():
 		var sid := str(k)
 		if not comp.has(sid):
-			frozen.append(sid)
+			obstacles.append(_out_rect(sid, out))
 			continue
 		var cid: int = int(comp[sid])
 		if not groups.has(cid):
 			groups[cid] = []
 			order.append(cid)
 		groups[cid].append(sid)
+	for cid in order.duplicate():
+		var has_pin := false
+		for sid in groups[cid]:
+			# 判据只看**硬锚点** _root_anchor_pos（pinned 档：位置已定）。
+			# 不能用 _manual_nodes：它含「只被拖过一次」的历史条目（其位置并不生效），
+			# 若把这类分量当固定障碍，它们会停在带堆叠的旧位、把其余分量挤到一旁（
+			# 实测 fixture#1：包围盒恶化为 6080×3280）。
+			if owner._root_anchor_pos.has(sid):
+				has_pin = true
+				break
+		if has_pin:
+			for sid in groups[cid]:
+				obstacles.append(_out_rect(sid, out))
+			groups.erase(cid)
+			order.erase(cid)
 	if order.size() <= 1:
-		return                       # 可动组件 ≤1：无装箱可做 ⇒ 恒等（保持既有绝对坐标）
-	if order.size() <= 1:
-		return                       # 单分量：恒等（坐标逐点不变）
+		return                       # 可动分量 ≤1：无装箱可做 ⇒ 恒等
 	var boxes: Array = []
 	for cid in order:
 		var lo := Vector2(1e18, 1e18)
 		var hi := Vector2(-1e18, -1e18)
 		for sid in groups[cid]:
-			# 关键：此处布局结果尚在 out（_node_center 仍是旧值）⇒ 必须按 out 现算盒子，
-			# 否则盒子取到旧坐标、装箱offset 全错 → 分量互相压叠（2026-09-22 踩过）。
+			# 关键：此时布局结果尚在 out（_node_center 仍是旧值）⇒ 必须按 out 现算盒子
 			var r: Rect2 = _out_rect(sid, out)
 			lo = Vector2(minf(lo.x, r.position.x), minf(lo.y, r.position.y))
 			hi = Vector2(maxf(hi.x, r.end.x), maxf(hi.y, r.end.y))
 		boxes.append({"cid": cid, "lo": lo, "w": hi.x - lo.x, "h": hi.y - lo.y})
-	# 高度降序（大块先放；同高按 cid 保序 ⇒ 确定性）
+	# 装箱顺序 = **高度降序**（大块先放，同高按 cid 保序）——装箱效率最高（面积最优）；
+	# 稳定性由后面「偏移选择取位移最小者」承担，不靠排序。
 	boxes.sort_custom(func(a, b):
 		if absf(float(a["h"]) - float(b["h"])) > 1.0:
 			return float(a["h"]) > float(b["h"])
 		return int(a["cid"]) < int(b["cid"]))
+	var screen: Vector2 = _pack_screen()
 	var total: float = 0.0
 	var max_w: float = 0.0
 	for b in boxes:
 		total += (float(b["w"]) + _PACK_GAP) * (float(b["h"]) + _PACK_GAP)
 		max_w = maxf(max_w, float(b["w"]))
 	var side: float = sqrt(total)
-	# 行宽候选取 [max_w, 2·sqrt(总面积)] 区间上均匀采样：太小 → 拉成一根长柱；太大 → 出现大片空白行。
+	# 行宽候选在 [max_w, 2√总面积] 上均匀采样 13 点
 	var candidates: Array = [max_w]
 	for _i in range(1, 13):
 		candidates.append(max_w + maxf(side * 2.0 - max_w, 1.0) * float(_i) / 12.0)
 	var best: Dictionary = {}
-	var best_valid: Dictionary = {}
+	var best_score: float = 1e18
 	for W in candidates:
 		var r: Dictionary = _shelf_pack(boxes, maxf(float(W), max_w), _PACK_GAP)
-		var rw: float = maxf(float(r["w"]), 1.0)
-		var rh: float = maxf(float(r["h"]), 1.0)
-		var ratio: float = maxf(rw, rh) / minf(rw, rh)
-		# 目标：**长宽比 ≤ 2 的前提下取面积最小** —— 既省画布（实测比"最小化最长边"少 21% 面积），
-		# 又不会退化成一根又高又窄的长条（纯最小面积会给出 2540×4120，比 2:1 更长）。
-		if ratio <= 2.0:
-			if best_valid.is_empty() or float(r["area"]) < float(best_valid["area"]) - 1.0:
-				best_valid = r
-		if best.is_empty() or float(r["area"]) < float(best["area"]) - 1.0:
+		# 目标 = 最小化整块适配屏幕所需缩放（宽屏 ⇒ 横向；窄屏 ⇒ 竖排）；同分取面积小者
+		var sc: float = maxf(maxf(float(r["w"]), 1.0) / screen.x, maxf(float(r["h"]), 1.0) / screen.y)
+		if best.is_empty() or sc < best_score - 0.0005 \
+				or (absf(sc - best_score) <= 0.0005 and float(r["area"]) < float(best["area"]) - 1.0):
+			best_score = sc
 			best = r
-	if not best_valid.is_empty():
-		best = best_valid
 	var off: Dictionary = best["off"]
-	# 居中参照 = **画布中心**（固定常量）：不用「结果包围盒中心」当参照，否则任一组件变化都会
-	# 通过重心把所有组件一起平移（全局耦合 ⇒ 心智地图被破坏）。
-	var _cc: Vector2 = owner._canvas.size * 0.5
-	if owner._canvas.size.x < 800.0 or owner._canvas.size.y < 600.0:
-		_cc = Vector2(960.0, 540.0)
-	var delta_all: Vector2 = _cc - (Vector2(best["lo"]) + Vector2(best["hi"])) * 0.5
+	var pw: float = float(best["w"])
+	var ph: float = float(best["h"])
+	# 整体偏移选择：围绕固定障碍四个方位贴边放 + 画布居中；
+	# 取「不与障碍相交 且 整墙包围盒适配缩放最小」者 —— 钉住的块不再被撞、也不浪费画布。
+	var o_lo := Vector2(1e18, 1e18)
+	var o_hi := Vector2(-1e18, -1e18)
+	for r in obstacles:
+		o_lo = Vector2(minf(o_lo.x, r.position.x), minf(o_lo.y, r.position.y))
+		o_hi = Vector2(maxf(o_hi.x, r.end.x), maxf(o_hi.y, r.end.y))
+	var has_obs: bool = not obstacles.is_empty()
+	var ccs: Array = [screen * 0.5 - Vector2(pw, ph) * 0.5]
+	if has_obs:
+		ccs.append(Vector2(o_hi.x + _PACK_GAP, o_lo.y))                 # 右
+		ccs.append(Vector2(o_lo.x - _PACK_GAP - pw, o_lo.y))            # 左
+		ccs.append(Vector2(o_lo.x, o_hi.y + _PACK_GAP))                 # 下
+		ccs.append(Vector2(o_lo.x, o_lo.y - _PACK_GAP - ph))            # 上
+		ccs.append(Vector2(o_hi.x + _PACK_GAP, o_hi.y + _PACK_GAP))      # 右下
+		ccs.append(Vector2(o_lo.x - _PACK_GAP - pw, o_hi.y + _PACK_GAP)) # 左下
+	# 稳定性（心智地图）参考：各可动分量「拖前包围盒左上角」。
+	var prev_lo := {}
 	for cid in order:
-		var d: Vector2 = Vector2(off[cid]) + delta_all
+		var plo := Vector2(1e18, 1e18)
+		var got := false
+		for sid in groups[cid]:
+			var pc: Variant = _prev_centers.get(sid, null)
+			if pc is Vector2:
+				var rr: Rect2 = _rect_at(sid, pc)
+				plo = Vector2(minf(plo.x, rr.position.x), minf(plo.y, rr.position.y))
+				got = true
+		prev_lo[cid] = plo if got else Vector2(0, 0)
+	var evals: Array = []
+	for c in ccs:
+		var prect := Rect2(c, Vector2(pw, ph))
+		var hit := false
+		for r in obstacles:
+			if prect.intersects(r):
+				hit = true
+				break
+		if hit:
+			continue
+		var g_lo: Vector2 = Vector2(minf(c.x, o_lo.x), minf(c.y, o_lo.y)) if has_obs else c
+		var g_hi: Vector2 = Vector2(maxf(c.x + pw, o_hi.x), maxf(c.y + ph, o_hi.y)) if has_obs else c + Vector2(pw, ph)
+		var fit: float = maxf((g_hi.x - g_lo.x) / screen.x, (g_hi.y - g_lo.y) / screen.y)
+		# 位移量：各分量从拖前位到新位的曼哈顿距离之和
+		var shift: float = 0.0
+		for cid in order:
+			var nlo: Vector2 = c + Vector2(off[cid])
+			var pl: Vector2 = prev_lo[cid]
+			if pl.x > 1e17:
+				continue
+			shift += absf(nlo.x - pl.x) + absf(nlo.y - pl.y)
+		evals.append({"c": c, "fit": fit, "shift": shift})
+	if evals.is_empty():
+		evals.append({"c": ccs[0], "fit": 1e18, "shift": 0.0})
+	var min_fit: float = 1e18
+	for e in evals:
+		min_fit = minf(min_fit, float(e["fit"]))
+	# 在适配差不超 10% 的候选里取位移最小者
+	# （避免「拖一个分量、其余分量整块跳」）；否则取适配最优。
+	var best_delta: Vector2 = Vector2(evals[0]["c"])
+	var best_cmp: float = 1e18
+	for e in evals:
+		var fit_v: float = float(e["fit"])
+		if fit_v > min_fit * 1.10 + 0.0005:
+			continue
+		var cmp: float = float(e["shift"]) * 1e-6 + fit_v
+		if cmp < best_cmp - 1e-9:
+			best_cmp = cmp
+			best_delta = Vector2(e["c"])
+	var best_fit: float = min_fit
+	for cid in order:
+		var d: Vector2 = Vector2(off[cid]) + best_delta
 		if d.length() < 0.01:
 			continue
 		for sid in groups[cid]:
 			out[sid] = out[sid] + d
-	_pack_stats = "components=%d frozen=%d boxes=%.0f×%.0f" % [order.size(), frozen.size(),
-		float(best["w"]), float(best["h"])]
+	_pack_stats = "free=%d fixed=%d boxes=%.0f×%.0f" % [order.size(), obstacles.size(), pw, ph]
 
 
 ## 据布局结果 out 现算卡片矩形（packing 阶段专用；_node_rect 读的是 _node_center，
@@ -1973,6 +2064,8 @@ var _aff_adj_dirty := true
 ## 钉位三档 · semi（P3 · 2026-09-22）：本帧的「顺序参照位」（拖前实际位置）。
 ## semi 节点贡献自己的落点 y，其余兄弟用参照 y 参与比较 ⇒ 稳定的先后顺序（只改先后、不改绝对位）。
 var _order_ref: Dictionary = {}
+## R3 装箱稳定性参考：本帧拖前各节点中心（空 = 无参考）。
+var _prev_centers: Dictionary = {}
 
 ## R3 装箱统计（诊断用）
 var _pack_stats: String = ""
