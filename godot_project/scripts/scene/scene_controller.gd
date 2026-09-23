@@ -60,7 +60,7 @@ const HOTSPOT_TABLES := {
 		{"id": "hoof_print", "label": "马蹄印", "pos": Vector2(1000, 680), "size": Vector2(220, 48),
 		 "desc": "马蹄印零乱，右前蹄刚换新蹄铁，旧蹄铁磨损严重", "correct": true},
 		{"id": "footprint", "label": "行人脚印", "pos": Vector2(760, 790), "size": Vector2(260, 48),
-		 "desc": "两道早期足迹：一人步伐 4 英尺+、一人 3.5 英尺——案发现场共两人", "correct": true},
+		 "desc": "两道早期足迹：一人步长 2.6~2.9 英尺、一人 2.4~2.7 英尺——案发现场共两人", "correct": true},
 		{"id": "grass_trample", "label": "碾轧花草", "pos": Vector2(470, 720), "size": Vector2(220, 48),
 		 "desc": "路边花草凌乱、似被碾轧——马车曾在此停靠上下客", "correct": true},
 	],

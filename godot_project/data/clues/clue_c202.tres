@@ -6,11 +6,11 @@
 script = ExtResource("1_clue")
 id = "c202"
 name = "双道平行车轮印"
-description = "泥地上两道平行的深沟轮印，间距约4.5英尺（约1.37米）——典型的四轮出租马车轴距。用卷尺精确测量后确认为伦敦双座出租马车。"
+description = "泥地上两道平行的深沟轮印，前后两组辙印的纵向间距（轴距）约6英尺10英寸（82英寸）——典型的四轮出租马车。用卷尺精确测量后确认为伦敦出租四轮马车（brougham型）。"
 category = "痕迹"
 location = "劳瑞斯顿花园街3号"
 discovery_condition = "放大查看 + 卷尺测量"
-observation = "平行深沟轮印，间距约4.5英尺。"
+observation = "平行深沟轮印，轴距约6英尺10英寸（82英寸）。"
 analysis = "四轮出租马车。"
 related_clues = []
 related_npcs = []

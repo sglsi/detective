@@ -6,12 +6,12 @@
 script = ExtResource("1_clue")
 id = "c206"
 name = "步伐距离差异"
-description = "测量后：第一人每步约2英尺（61cm），身高应超6英尺（183cm）；第二人步幅较小约5英尺半（168cm）。两人体格差异明显——高的一个与醉汉描述吻合。"
+description = "测量后：第一人（方头靴）步长约2.6~2.9英尺（中值2.75），按步长/身高比0.45推算身高约6英尺（183cm）；第二人（尖头漆皮靴）步长约2.4~2.7英尺（中值2.55）→身高约5英尺8英寸（172cm）。两人体格差异明显——高的一个与醉汉描述吻合。"
 category = "痕迹"
 location = "劳瑞斯顿花园街3号"
 discovery_condition = "放大查看 + 卷尺测量"
-observation = "步幅差异明显。"
-analysis = "一人6英尺+，一人5英尺半，与醉汉吻合。"
+observation = "步长差异明显：一组约2.6~2.9英尺，一组约2.4~2.7英尺。"
+analysis = "一人6英尺+（方头靴），一人约5英尺8英寸（尖头漆皮靴）；高个与醉汉吻合。"
 related_clues = []
 related_npcs = ["NPC_DRE", "NPC_HOP"]
 timeline_position = 1.6

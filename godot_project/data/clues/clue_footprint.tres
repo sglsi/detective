@@ -5,13 +5,13 @@
 [resource]
 script = ExtResource("1_clue")
 id = "clue_footprint"
-name = "方头靴脚印"
-description = "现场泥地上的一串方头靴脚印，伴有一名矮个男子的步伐痕迹。"
+name = "两串并肩的脚印"
+description = "现场泥地上并排的两串脚印：一双方头靴（步长较大、印痕深），一双尖头漆皮靴（步长较小、印痕浅）。"
 category = "痕迹"
 location = "劳瑞斯顿花园街3号门外"
 discovery_condition = "勘验门外泥地"
-observation = "脚印为方头靴，步幅短，同行的还有另一双大码靴印。"
-analysis = "矮个方头靴者即书写血字之人；另一双大码靴指向受害者同行者。"
+observation = "方头靴步长较大、印痕最深；同行的尖头漆皮靴步长较小、印痕浅。"
+analysis = "方头靴的六英尺壮汉即书写血字之人；尖头漆皮靴者体型清瘦、身高约5英尺8英寸，是与他同行的另一人。"
 related_clues = ["clue_rache", "clue_stick"]
 related_npcs = ["jefferson_hope"]
 timeline_position = 2.0
