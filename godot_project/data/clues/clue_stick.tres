@@ -6,12 +6,12 @@
 script = ExtResource("1_clue")
 id = "clue_stick"
 name = "墙边小木棍"
-description = "血字旁倚墙放置的一截小木棍，似用来够高书写。"
+description = "血字旁倚墙放置的一截小木棍。"
 category = "痕迹"
 location = "劳瑞斯顿花园街3号"
 discovery_condition = "勘验血字附近"
-observation = "木棍顶端沾有少量血迹，长度恰可够到血字高度。"
-analysis = "佐证血字由矮个者借助木棍书写，进一步坐实凶手身材特征。"
+observation = "木棍顶端干净——既无血迹，也不沾墙粉，长度也够不到血字的高度。"
+analysis = "排除「身量矮小者借助木棍够高书写」的设想：血字齐着一个六英尺男人的眼高，是书写者直接以手蘸血写成；这根木棍从未被当作书写工具。"
 related_clues = ["clue_footprint"]
 related_npcs = ["jefferson_hope"]
 timeline_position = 2.2

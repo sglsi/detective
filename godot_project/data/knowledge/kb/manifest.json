@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "20260920153119",
+  "version": "20260923145322",
   "domain_count": 12,
   "entry_count": 91,
   "domains": [
@@ -16,7 +16,7 @@
       "name": "交通工具与工程测量",
       "file": "KB-B.json",
       "count": 3,
-      "hash": "63e47db45e11"
+      "hash": "0f18390918b9"
     },
     {
       "id": "KB-C",

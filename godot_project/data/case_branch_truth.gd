@@ -167,7 +167,7 @@ static func _legacy_branches() -> Array:
 			"nodes": [
 				{"id": "c205", "layer": "clue"}, {"id": "c206", "layer": "clue"},
 				{"id": "c311", "layer": "clue"},
-				{"id": "c309", "layer": "clue"},          # 血字离地6英尺 → 身高精确化锚点
+				{"id": "c309", "layer": "clue"},          # 血字字迹齐站立眼高（离地约171cm）→ 身高精确化锚点
 				{"id": "C_SOTCB_402", "layer": "clue"},   # 醉汉身高6英尺+（场景四交叉验证）
 				{"id": "H2-04", "layer": "hypo"}, {"id": "H2-05", "layer": "hypo"},
 				{"id": "H2-06", "layer": "hypo"}, {"id": "H2-07", "layer": "hypo"},
