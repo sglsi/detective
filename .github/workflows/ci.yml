@@ -1,41 +1,42 @@
 name: CI
 
-# P3 模块 11 — 三套测试（后端 Node / Godot headless / Python）自动运行，防回归。
-# 触发：push 到主分支、所有 PR、每日定时复跑（cron）、以及手动 dispatch。
+# P3 模块 11 �? 三套测试（后�? Node / Godot headless / Python）自动运行，防回归�?
+# 触发：push 到主分支、所�? PR、每日定时复跑（cron）、以及手�? dispatch�?
 on:
   push:
     branches: [main, master, dev]
   pull_request:
   schedule:
-    # 每日 02:07 UTC 定时复跑，捕获依赖/资源静默退化；分钟避开整点以降低 runner 峰值
+    # 每日 02:07 UTC 定时复跑，捕获依�?/资源静默退化；分钟避开整点以降�? runner 峰�?
     - cron: "7 2 * * *"
   workflow_dispatch:
 
-# 同一 ref 的并发运行互相取消，避免重复占用与结果互相覆盖
+# 同一 ref 的并发运行互相取消，避免重复占用与结果互相覆�?
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  # 须与项目实际 Godot 版本一致（godot_project/project.godot 中记录为 4.7.stable）。
-  # 若 4.7.stable 未在 GitHub Releases 公开发布，请将此处改为已发布的版本，
-  # 或改用组织内部的 Godot 缓存/镜像。
+  # 须与项目实际 Godot 版本一致（godot_project/project.godot 中记录为 4.7.stable）�?
+  # �? 4.7.stable 未在 GitHub Releases 公开发布，请将此处改为已发布的版本，
+  # 或改用组织内部的 Godot 缓存/镜像�?
   GODOT_VERSION: "4.7-stable"
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    # 固定 24.04：避�? 2026-10-19 �? ubuntu-latest 自动迁移�? Ubuntu 26 带来的不确定�?
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
       - name: Setup Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -52,8 +53,8 @@ jobs:
           URL="https://github.com/godotengine/godot/releases/download/${GV}/${ASSET}"
           echo "Downloading Godot ${GV} from ${URL}"
           curl -fSL "$URL" -o godot.zip || {
-            echo "::error::无法下载 Godot ${GV}。请确认该版本已在 GitHub Releases 发布，"
-            echo "        或修改 env.GODOT_VERSION 为已发布版本，或改用内部镜像。"
+            echo "::error::无法下载 Godot ${GV}。请确认该版本已�? GitHub Releases 发布�?"
+            echo "        或修�? env.GODOT_VERSION 为已发布版本，或改用内部镜像�?"
             exit 1
           }
           unzip -o godot.zip
@@ -62,5 +63,5 @@ jobs:
           ./godot --version
 
       - name: Run CI suites (backend + godot + python)
-        # run_ci.sh 为本地与 CI 共用的单一真相源，自动启动后端、跑三套测试并汇总。
+        # run_ci.sh 为本地与 CI 共用的单一真相源，自动启动后端、跑三套测试并汇总�?
         run: GODOT_BIN="$PWD/godot" bash scripts/run_ci.sh
