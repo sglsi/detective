@@ -20,7 +20,7 @@ env:
   # 须与项目实际 Godot 版本一致（godot_project/project.godot 中记录为 4.7.stable）。
   # 若 4.7.stable 未在 GitHub Releases 公开发布，请将此处改为已发布的版本，
   # 或改用组织内部的 Godot 缓存/镜像。
-  GODOT_VERSION: "4.7.stable"
+  GODOT_VERSION: "4.7-stable"
 
 jobs:
   ci:
