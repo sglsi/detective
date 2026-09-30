@@ -359,26 +359,35 @@ func _create_observers() -> void:
 
 	_messenger_obs = ClueObserver.new(); _messenger_obs.name = "messenger_observer"; add_child(_messenger_obs)
 	var mess_tex = load("res://assets/characters/messenger/messenger_portrait.png")
+	# hotspot 屏上位置 = box(913,83,373,843) contain 显示 672x1597 图片的实际像素位置：
+	#   contain 按高度充满 → 图显示 355×843，水平居中各空 9 像素 → 左=922 右=1277 上=83 下=926
+	#   屏上 hotspot 中心 = (922 + cx*355, 83 + cy*843)，x/y 是矩形左上角（中心 - w/2, - h/2）
+	# 2026-09-30 锚点经 PIL 像素级分析定位后重算（线索名称不变，x/y/w/h/crop 全更新）
 	var mhot := DifficultyManager.filter_hotspots_by_difficulty([
-		# 热点位置与新全身立绘 560,343/150,447（等比 0.75）对齐，观察时仍用 spritesheet 细节图
-		{"id":"tattoo","label":"手臂上有锚的文身","x":590,"y":628,"w":68,"h":30,"desc":"锚文身是海员中的常见标志","correct":true,
-		 "crop":{"x":0.16,"y":0.39,"cx":0.46,"cy":0.59},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"tattoo"},
-		{"id":"beard","label":"军人式络腮胡","x":598,"y":463,"w":68,"h":34,"desc":"军人中常见","correct":true,
-		 "crop":{"x":0.36884,"y":0.1568,"cx":0.59970,"cy":0.3408},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"beard"},
-		{"id":"posture","label":"站姿笔挺，有军人气质","x":583,"y":583,"w":75,"h":41,"desc":"在军事训练中形成的肌肉记忆","correct":true,
+		# tattoo anchor (0.205, 0.358) → 屏上中心 (994, 385) → x=960 y=370
+		{"id":"tattoo","label":"手臂上有锚的文身","x":960,"y":370,"w":68,"h":30,"desc":"锚文身是海员中的常见标志","correct":true,
+		 "crop":{"x":0.105,"y":0.298,"cx":0.305,"cy":0.418},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"tattoo"},
+		# beard anchor (0.43, 0.17) → 屏上中心 (1075, 226) → x=1041 y=209
+		{"id":"beard","label":"军人式络腮胡","x":1041,"y":209,"w":68,"h":34,"desc":"军人中常见","correct":true,
+		 "crop":{"x":0.255,"y":0.085,"cx":0.605,"cy":0.255},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"beard"},
+		# posture anchor (0.50, 0.32) → 屏上中心 (1100, 353) → x=1062 y=332
+		{"id":"posture","label":"站姿笔挺，有军人气质","x":1062,"y":332,"w":75,"h":41,"desc":"在军事训练中形成的肌肉记忆","correct":true,
 		 "crop":{"x":0.0,"y":0.0,"cx":1.0,"cy":1.0},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"posture"},
-		{"id":"manner","label":"态度自高自大，带着发号施令的神气","x":594,"y":418,"w":71,"h":34,"desc":"发号施令中形成的气质","correct":true,
-		 "crop":{"x":0.35698,"y":0.0855,"cx":0.60997,"cy":0.3500},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"manner"},
-		{"id":"sleeve","label":"袖口磨损","x":631,"y":553,"w":60,"h":30,"desc":"袖口磨损 -> 干扰:衣服旧了","correct":false,
-		 "crop":{"x":0.6606,"y":0.52,"cx":0.8406,"cy":0.72},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"sleeve"},
-		{"id":"limp","label":"走路略跛","x":598,"y":726,"w":68,"h":34,"desc":"右腿略跛 -> 干扰:扭伤","correct":false,
-		 "crop":{"x":0.4905,"y":0.7800,"cx":0.7005,"cy":0.98768},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"limp"},
+		# manner anchor (0.43, 0.16) → 屏上中心 (1075, 218) → x=1039 y=201
+		{"id":"manner","label":"态度自高自大，带着发号施令的神气","x":1039,"y":201,"w":71,"h":34,"desc":"发号施令中形成的气质","correct":true,
+		 "crop":{"x":0.205,"y":0.005,"cx":0.655,"cy":0.315},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"manner"},
+		# sleeve anchor (0.68, 0.50) → 屏上中心 (1163, 505) → x=1133 y=490
+		{"id":"sleeve","label":"袖口磨损","x":1133,"y":490,"w":60,"h":30,"desc":"袖口磨损 -> 干扰:衣服旧了","correct":false,
+		 "crop":{"x":0.62,"y":0.46,"cx":0.74,"cy":0.54},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"sleeve"},
+		# limp anchor (0.23, 0.84) → 屏上中心 (1004, 791) → x=970 y=774
+		{"id":"limp","label":"走路略跛","x":970,"y":774,"w":68,"h":34,"desc":"右腿略跛 -> 干扰:扭伤","correct":false,
+		 "crop":{"x":0.155,"y":0.74,"cx":0.305,"cy":0.94},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"limp"},
 	])
 	# 困难模式 70% 深度干扰项：信使口袋露出半张药房收据（看似线索，实际只是感冒药）— 08 §阶段2 L545
 	if DifficultyManager.current_difficulty == DifficultyManager.Difficulty.HARD and randf() < 0.7:
-		mhot.append({"id":"receipt","label":"半张药房收据","x":622,"y":600,"w":62,"h":32,
+		mhot.append({"id":"receipt","label":"半张药房收据","x":1153,"y":618,"w":62,"h":32,
 			"desc":"信使口袋露出半张药房收据——看似线索，实际只是感冒药","correct":false,
-			"crop":{"x":0.62,"y":0.62,"cx":0.80,"cy":0.82},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"receipt"})
+			"crop":{"x":0.65,"y":0.55,"cx":0.78,"cy":0.69},"image":"res://assets/characters/messenger/messenger_portrait.png","anchor":"receipt"})
 	_messenger_obs.setup(sa, _ui._dialogue_label, _ui._speaker_label, mhot, mess_tex, _messenger_portrait_ctrl, "res://assets/characters/messenger/messenger_portrait.png")
 	_messenger_obs.all_recorded.connect(_on_messenger_all_recorded)
 	_messenger_obs.clue_recorded.connect(_on_collect_clue.bind("messenger"))
