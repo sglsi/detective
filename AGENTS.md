@@ -244,6 +244,13 @@ NO other objects, isolated, game asset
 - **测试方法论**：`test_drag_follow.gd` 走简化参数路径非真实 `gv.build(dict)`——测试过≠用户实测过；`tools/t_drag_seq_repro.gd` 用真实 build(dict)+六步协程序列（拖结论/拖推断/归锚人物/拖人物/自动排列后再拖/收尾）作权威回归，**协程函数调用必须 await**（漏 await 会交错执行状态互相污染，输出全错）。
 - **_mode_b_btn 残留引用（2026-09-07 顺手修复）**：模式 B 删除时 wall_relations.gd 的「未记录节点高亮」分支仍引用已删的 `_mode_b_btn`（state 恢复走到该分支即 SCRIPT ERROR 中断后续逻辑）。空 state_store+假线索探针暴露此错。规则：删除功能要全项目 grep 变量名清引用，enum 保留不算清干净。
 
+## 场景四兰斯问询对话动态帧（2026-10-20）
+
+- **机制**：进屋后与兰斯的 13 段对话背景切换为 conv 五帧"定格动画"（`godot_project/assets/scenes/sc_04_conv_0X.jpg`，JPG q88 各约 212KB）：conv_03 福尔摩斯说话 / conv_04 兰斯说话 / conv_01-02 兰斯喝咖啡（长段说话时轮换）/ conv_00 静坐倾听。按 speaker 切帧（`scene4.gd _on_line` 覆盖）："系统"演出指示节点不切帧保留上一画面；同说话人多节点在帧组内轮换制造动作感。
+- **边界（防穿帮）**：马车上 e0-e5 与街道 f 段/route 段保持原空景背景不激活；激活入口 `_start_dialogue_conv` 仅室内段使用；离开问询环节（`_enter_reasoning`/`_enter_transition` 开头 `_conv_reset()`）恢复空景——**段间不恢复**（六方向追问面板期间画面停在 conv 帧，避免"对坐→空景↔对坐"频闪）。
+- **实现要点**：复用 `SceneFramework.set_scene_background()` 自带交叉淡化（连续切图有 stale 清理，安全），零新增 UI 代码；帧图 preload 进 const 数组（编译期）。冒烟探针 `tools/t_scene4_conv_smoke.gd`。
+- **导出坑两枚**：①`export_presets.cfg` Web preset 的 exclude_filter 写 `assets/scenes/sc_0`（无通配符）**实际不生效**——pck 里照含 sc_04_police/sc_01_lab 等全部 scenes 资源，conv 帧同理直接进包，勿被该 filter 误导去做额外打包处理；②沙箱回收后 `/root/.local/share/godot/export_templates/` 丢失，导出报 "No export template found"——重跑 `tools/godot/setup_godot.sh`（幂等，模板 zip 在 tools/godot/ 只需重建软链）即可。index.html 防缓存三行 meta + `mainPack:"index.pck?v=..."` 时间戳是历史模式，Godot 导出会冲掉，导出后必须手工补回并更新戳。
+
 ## 推理链模块化（2026-09-07，进行中）
 
 **目标**：14+2 条推理链单源化——场景脚本零数据组装，truth 表由 gate 机械派生（消灭"真相表与 gate 同源"人工维护规则）。
