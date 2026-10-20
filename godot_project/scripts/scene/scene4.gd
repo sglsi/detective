@@ -41,6 +41,54 @@ const CLUES = {
 var _asked_directions: Dictionary = {}   # 已追问方向（用于全追问洞察加成与提示）
 var _d1_seen: bool = false               # 沉默线索 D1（墙上旧照片）是否已发现
 var _insight_bonus: int = 0              # v4.0 洞察星级加成（隐藏线索/全追问累计，封顶由墙处理）
+## —— 兰斯交谈动态帧（进屋后对话的"定格动画"背景，conv 序列）——
+## 与 sc_04_police.jpg 同一房间：conv_03 福尔摩斯张嘴说话 / conv_04 兰斯说话 /
+## conv_01-02 兰斯举杯喝咖啡 / conv_00 两人静坐倾听。"系统"演出指示节点不切帧保留上一画面。
+## 仅进屋后的对话段激活（_start_dialogue_conv 入口）；马车上/街道上的对话保持空景原背景，
+## 离开问询环节时经 _conv_reset() 恢复（_enter_reasoning / _enter_transition）。
+const _CONV_HOLMES: Array = [preload("res://assets/scenes/sc_04_conv_03.jpg")]
+const _CONV_LANCE: Array = [
+	preload("res://assets/scenes/sc_04_conv_04.jpg"),
+	preload("res://assets/scenes/sc_04_conv_01.jpg"),
+	preload("res://assets/scenes/sc_04_conv_02.jpg"),
+]
+const _CONV_LISTEN: Array = [preload("res://assets/scenes/sc_04_conv_00.jpg")]
+var _conv_active := false
+var _conv_key := ""
+var _conv_idx := 0
+
+## 进屋后的对话段入口：播放期间背景切换为 conv 动态帧（按说话人），离开问询环节时统一恢复。
+func _start_dialogue_conv(nodes: Array[Resource], start: String, on_end: Callable) -> void:
+	_conv_active = true
+	_conv_key = ""
+	_start_dialogue(nodes, start, on_end)
+
+func _conv_reset() -> void:
+	_conv_active = false
+	_conv_key = ""
+	if _ui: _ui.set_scene_background(scene_background())
+
+func _on_line(id: String) -> void:
+	super._on_line(id)
+	if not _conv_active: return
+	var n = _dm.current_node
+	if n == null: return
+	var sp: String = str(n.speaker)
+	if sp.contains("系统"): return
+	var key := "listen"
+	if sp.contains("兰斯"): key = "lance"
+	elif sp.contains("福尔摩斯"): key = "holmes"
+	var frames: Array = _CONV_LANCE if key == "lance" else (_CONV_HOLMES if key == "holmes" else _CONV_LISTEN)
+	if key != _conv_key:
+		_conv_key = key
+		_conv_idx = 0
+	else:
+		_conv_idx = (_conv_idx + 1) % frames.size()
+	if _ui: _ui.set_scene_background(frames[_conv_idx])
+
+func _on_dialogue_ended_base(on_end: Callable) -> void:
+	_conv_key = ""
+	super._on_dialogue_ended_base(on_end)
 
 func scene_id() -> String: return "scene4"
 func clue_source() -> String: return "scene4"
@@ -212,7 +260,7 @@ func _on_arrival_ended() -> void:
 func _see_d1_photo() -> void:
 	_d1_seen = true
 	_insight_bonus += 1   # v4.0 洞察之星加成：发现沉默线索 D1（设计 08 D1）
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("d0","系统","（特写）一张泛黄的军队合影照片，挂在有些歪斜的钉子上。","guide",["d1"]),
 		_mk_node("d1","福尔摩斯","（凑近看）一支旧式步枪团的合影——兰斯当过兵。难怪他对醉汉那副军人站姿没什么反应，见怪不怪了。","click",["d2"]),
 		_mk_node("d2","华生","所以他的观察里混着'熟视无睹'……这反而提醒我们：他漏掉的，可能正是关键。","click",["d3"]),
@@ -227,19 +275,19 @@ func _show_initial_choice() -> void:
 	])
 
 func _init_dir_case() -> void:
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("ia0","华生","（翻开笔记本）好，那就有劳兰斯警士从头讲——你是怎么发现尸体的。","click",["ia1"]),
 		_mk_node("ia1","兰斯警士","（吸了口烟斗）好，那我从头讲。","click",["end"]),
 	], "ia0", _start_step1)
 
 func _init_dir_street() -> void:
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("ib0","福尔摩斯","案发那会儿，当时街上有什么人？","click",["ib1"]),
 		_mk_node("ib1","兰斯警士","街上的人？先生，那个点，布瑞克斯顿路上连条狗都没有。……哦，等等，有几辆马车。这样，我从头讲，讲到你满意为止。","click",["end"]),
 	], "ib0", _start_step1)
 
 func _init_dir_drunk() -> void:
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("ic0","福尔摩斯","门口那个醉汉——他什么样子？","click",["ic1"]),
 		_mk_node("ic1","兰斯警士","唱得震天响的一个家伙……这样，我从头讲，不然您听不明白前后。","click",["end"]),
 	], "ic0", _start_step1)
@@ -283,7 +331,7 @@ func _start_step1() -> void:
 	nodes.append(_mk_node("s3_h","福尔摩斯","（看向玩家）……他漏了什么，你自己判断。","click",["s4"],[],"从容",3))
 	nodes.append(_mk_node("s4","华生","（在笔记本上飞快记着）记下了。可这些只是他'说的'，不是事实——得追问才挖得出来。","click",["s5"]))
 	nodes.append(_mk_node("s5","福尔摩斯","（从口袋里摸出那枚半镑金币，在指间一转）问吧。他见了这个，话会多得很。","click",["end"]))
-	_start_dialogue(nodes, "s00", _start_panel)
+	_start_dialogue_conv(nodes, "s00", _start_panel)
 
 func _start_panel() -> void:
 	# Step2 工具操作 —— 追问引导（08 L2137-2190）：六方向追问面板（统一基类 _render_investigate_panel，
@@ -300,7 +348,7 @@ func _start_panel() -> void:
 
 func _dir_time() -> void:
 	_asked_directions["time"] = true
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("t0","福尔摩斯","你具体是几点发现的？在里面待了多久？","click",["t1"]),
 		_mk_node("t1","兰斯警士","两点出头吧……两点过十分？差不多。我在里面待了几分钟，吹了警笛就出来。摩契他们来得很快，也就两三分钟。","click",["t2"]),
 		_mk_node("t2","福尔摩斯","（低声）两点十分，雨里。和花园街泥地的痕迹对得上。时间线收口了。","click",["end"]),
@@ -308,7 +356,7 @@ func _dir_time() -> void:
 
 func _dir_look() -> void:
 	_asked_directions["look"] = true
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("l0","福尔摩斯","案发那会儿是深夜，你怎么看清他模样的？","click",["l1"]),
 		_mk_node("l1","兰斯警士","他就靠在门口那盏煤气街灯的杆子上，我又提着巡逻灯凑到他脸跟前想把他轰走——离得就一两步。高个子，肯定比我高。脸是红的——喝多了嘛。别的……胡子？好像有胡子，记不太清。","clue",["l2"],[CLUES["C_SOTCB_402"], CLUES["C_SOTCB_403"]]),
 		_mk_node("l2","福尔摩斯","街灯下、提灯照脸、一两步的距离——这份证词就可靠了。高个、红脸，和花园街现场那串高大足迹、还有……（他没说下去）对上了。华生，记上。","click",["end"]),
@@ -316,7 +364,7 @@ func _dir_look() -> void:
 
 func _dir_cloth() -> void:
 	_asked_directions["cloth"] = true
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("c0","福尔摩斯","他穿什么衣服？手里拿着什么？","click",["c1"]),
 		_mk_node("c1","兰斯警士","我提灯照着他那会儿看得真真的——一件棕色外衣。帽子……好像戴着顶帽子。手里？手里没拿什么吧……","clue",["c2"],[CLUES["C_SOTCB_404"]]),
 		_mk_node("c2","福尔摩斯","（盯着他）你刚才顿了一下——'手里没拿什么'？再想想。","click",["c3"]),
@@ -326,7 +374,7 @@ func _dir_cloth() -> void:
 
 func _dir_carriage() -> void:
 	_asked_directions["carriage"] = true
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("m0","福尔摩斯","当时街上有马车吗？什么样的马车？","click",["m1"]),
 		_mk_node("m1","兰斯警士","马车？我巡逻的时候有一两辆路过……哪记得清什么样的。我出来以后？没注意，光顾着吹警笛了。","clue",["m2"],[CLUES["C_SOTCB_407"]]),
 		_mk_node("m2","福尔摩斯","（与玩家交换眼神）和花园街那对出租马车轮印、右前蹄新蹄铁——正好形成交叉验证点。记着。","click",["end"]),
@@ -334,7 +382,7 @@ func _dir_carriage() -> void:
 
 func _dir_scene() -> void:
 	_asked_directions["scene"] = true
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("r0","福尔摩斯","屋里当时什么样子？你进去看了多久？","click",["r1"]),
 		_mk_node("r1","兰斯警士","就看见地上有个死人，脸吓死人。别的没细看——我第一反应是叫人。","click",["r2"]),
 		_mk_node("r2","华生","屋里的细节，我们自己看过了：血字、戒指、烟灰……兰斯这边信息很少，正常。","click",["end"]),
@@ -342,7 +390,7 @@ func _dir_scene() -> void:
 
 func _dir_other() -> void:
 	_asked_directions["other"] = true
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("o0","福尔摩斯","还有什么不寻常的地方吗？","click",["o1"]),
 		_mk_node("o1","兰斯警士","异常……也没什么特别的。哦对了，那醉汉唱得特别响——科隆比纳那段，星光灿烂什么的。","clue",["o2"],[CLUES["C_SOTCB_406"]]),
 		_mk_node("o2","福尔摩斯","（眉头一皱）科隆比纳……是歌剧《宠姬》里的角色，'星光灿烂'是那段著名咏叹调。一个醉鬼，唱得倒是讲究。","click",["end"]),
@@ -368,7 +416,7 @@ func _start_step3() -> void:
 			for row in testimony[d]:
 				items.append({"name": str(row[0]), "desc": str(row[1])})
 	_popup("侦探笔记 · 兰斯证词（已追问 " + str(_asked_directions.size()) + " 方向 · 共 " + str(items.size()) + " 项）", items)
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("n0","福尔摩斯","把证词理一理：两点十分、下雨、高个红脸醉汉、棕色外衣、马鞭他含糊——还有马车。该问的都问了，齐了。","click",["n1"]),
 		_mk_node("n1","华生","（合上本子）可这些都还是'他说'。下一步该进知识库核对、再上推理墙了。","click",["end"]),
 	], "n0", _start_step4)
@@ -383,17 +431,19 @@ func _start_step4() -> void:
 		{"name":"醉汉与犯罪者的行为模式", "desc":"犯罪者伪装醉酒是常见的反侦察手段"},
 	]
 	_popup("知识检索 · 可选入口", know)
-	_start_dialogue([
+	_start_dialogue_conv([
 		_mk_node("k0","福尔摩斯","（翻开随身小册）需要的话，这些都能查：巡警制度、伦敦马车、证人可靠性、那出歌剧……知识库随时为你开着。","click",["k1"]),
 		_mk_node("k1","华生","（点头）先把兰斯的话和已有的线索摆上推理墙，让假设自己说话。","click",["end"]),
 	], "k0", _enter_reasoning)
 
 func _enter_reasoning() -> void:
+	_conv_reset()
 	_phase = Phase.REASONING; _wall_auto = true
 	_sync_clues()
 	_prompt_think("福尔摩斯", "华生，兰斯看到的'醉汉'——六英尺出头、棕色外衣、红脸，正对上花园街那串高大足迹。把证词摆上推理墙：十二条假设，按证词解锁。记住——证词是证人说的，不是事实。", "自信")
 
 func _enter_transition() -> void:
+	_conv_reset()
 	_phase = Phase.TRANSITION
 	_award()
 	# 阶段末小结 & 行动决策（08 L2349-2420）：
