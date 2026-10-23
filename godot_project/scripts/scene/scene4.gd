@@ -57,15 +57,27 @@ var _conv_active := false
 var _conv_key := ""
 var _conv_idx := 0
 
+## 炉火闪烁光层（conv 对话期间显示）：双光点加色 shader，焰心/照亮区 UV 由连通域质心精测
+const FIRE_FLICKER_SHADER := preload("res://shaders/fire_flicker.gdshader")
+var _fire_layer: ColorRect = null
+var _fire_tween: Tween = null
+
+## 窗外云雾层（场景四常驻）：窗玻璃上右→左缓慢飘移的云团，若隐若现
+const WINDOW_CLOUDS_SHADER := preload("res://shaders/window_clouds.gdshader")
+var _cloud_layer: ColorRect = null
+var _screen_copy: BackBufferCopy = null
+
 ## 进屋后的对话段入口：播放期间背景切换为 conv 动态帧（按说话人），离开问询环节时统一恢复。
 func _start_dialogue_conv(nodes: Array[Resource], start: String, on_end: Callable) -> void:
 	_conv_active = true
 	_conv_key = ""
+	_fire_fade(true)
 	_start_dialogue(nodes, start, on_end)
 
 func _conv_reset() -> void:
 	_conv_active = false
 	_conv_key = ""
+	_fire_fade(false)
 	if _ui: _ui.set_scene_background(scene_background())
 
 func _on_line(id: String) -> void:
@@ -89,6 +101,63 @@ func _on_line(id: String) -> void:
 func _on_dialogue_ended_base(on_end: Callable) -> void:
 	_conv_key = ""
 	super._on_dialogue_ended_base(on_end)
+
+## 炉火光层懒创建：z=-8（后缓冲拷贝 -9 之上、立绘 0 之下），SCREEN_TEXTURE 合成纯加色
+## （fog_atmosphere.gdshader 同款先例），不挡鼠标；conv 对话期间淡入、_conv_reset 淡出。
+func _ensure_fire_layer() -> void:
+	if _fire_layer: return
+	_fire_layer = ColorRect.new()
+	_fire_layer.name = "fire_flicker"
+	var sh := ShaderMaterial.new()
+	sh.shader = FIRE_FLICKER_SHADER
+	_fire_layer.material = sh
+	_fire_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fire_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fire_layer.z_index = -8
+	_fire_layer.modulate.a = 0.0
+	add_child(_fire_layer)
+
+func _fire_fade(show_fire: bool) -> void:
+	_ensure_fire_layer()
+	if _fire_tween: _fire_tween.kill()
+	_fire_tween = create_tween()
+	if show_fire:
+		_fire_layer.visible = true
+		_fire_tween.tween_property(_fire_layer, "modulate:a", 1.0, 0.35)
+	else:
+		_fire_tween.tween_property(_fire_layer, "modulate:a", 0.0, 0.35)
+		_fire_tween.tween_callback(func(): _fire_layer.visible = false)
+
+## 窗外云雾层：z=-7（火光 -8 之上），常驻场景四，随窗口缓慢飘移
+func _ensure_cloud_layer() -> void:
+	if _cloud_layer: return
+	_cloud_layer = ColorRect.new()
+	_cloud_layer.name = "window_clouds"
+	var sh := ShaderMaterial.new()
+	sh.shader = WINDOW_CLOUDS_SHADER
+	_cloud_layer.material = sh
+	_cloud_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_cloud_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cloud_layer.z_index = -7
+	add_child(_cloud_layer)
+
+## 后缓冲拷贝：WebGL(Compatibility) 下 hint_screen_texture 不会自动包含已绘制的 2D 内容，
+## 必须显式 BackBufferCopy，否则火光/云雾层采样到空屏（tool_bar 放大镜同一约束）。
+## z=-9：背景(-10) 之后、火光(-8) 之前，拷贝内容 = 背景层。
+func _ensure_screen_copy() -> void:
+	if _screen_copy: return
+	_screen_copy = BackBufferCopy.new()
+	_screen_copy.name = "Scene4ScreenCopy"
+	_screen_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	_screen_copy.z_index = -9
+	_screen_copy.visible = false
+	add_child(_screen_copy)
+
+## 场景四全程挂着窗外云雾（与对话无关：空景与 conv 帧都有窗）
+func _ready() -> void:
+	super._ready()
+	_ensure_screen_copy()
+	_ensure_cloud_layer()
 
 func scene_id() -> String: return "scene4"
 func clue_source() -> String: return "scene4"
