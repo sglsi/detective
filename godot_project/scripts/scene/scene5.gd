@@ -51,7 +51,7 @@ func clue_source() -> String: return "scene5"
 func hotspots() -> Array: return []
 func scene_title() -> String: return "贝克街 221B 会客厅"
 func scene_time_text() -> String: return "DAY 1 晚 20:00-21:00"
-func scene_background() -> Texture2D: return load("res://assets/backgrounds/baker_street_parlor.jpg")  # Tier1: 1920x1080 高清（原 sc_05_parlor 512x288 模糊）
+func scene_background() -> Texture2D: return load("res://assets/backgrounds/scene5_parlor_night.jpg")  # 夜晚 221B 会客厅专属图（4K，2026-10-25 ImageGen 生成；原复用场景八的 baker_street_parlor 像素风）
 
 ## 氛围遮罩已按需求移除（谜雾/灯光按钮及相关功能）。
 func wants_atmosphere() -> bool: return false
@@ -164,7 +164,9 @@ func _arrival_A() -> void:
 func _enter_step1() -> void:
 	# Step1 观察发现 —— 老太婆来访（伪装逼真，无低级破绽；观察项按丙并入 Step3 面板）
 	# 难度分层：简单提示 1-2 疑点 / 普通 70% 概率福尔摩斯皱眉 / 困难不动声色
-	var nodes := [
+	# ⚠️ 必须显式声明 Array[Resource]：`_start_dialogue(nodes: Array[Resource], ...)` 是类型化参数，
+	# `var nodes := [...]` 推断为无类型 Array → 传入即报 Invalid type → a5 之后对话再也起不来（卡死）。
+	var nodes: Array[Resource] = [
 		_mk_node("s0","老太婆","（满脸皱纹，背微驼，蹒跚挪入）我是为这件事来的，先生们。（掏出晚报指着广告）广告上说拾得一枚结婚金戒指。这是我女儿赛莉的。","click",["s1"]),
 		_mk_node("s1","老太婆","她去年这个时候结的婚，丈夫在联合公司的船上当乘务员，出海在外。如果他回来发现戒指没了……谁知道会干出什么。","click",["s2"]),
 		_mk_node("s2","老太婆","昨天晚上她去看马戏，应该是在路上不小心丢的。您姓——我姓索叶，女儿姓丹尼斯，女婿叫汤姆·丹尼斯，船上的乘务员。","click",["s3"]),
