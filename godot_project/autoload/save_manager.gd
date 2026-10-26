@@ -32,6 +32,10 @@ const SLOT_COUNT: int = 3
 const SLOT_DIR: String = "user://saves/"
 const SLOT_FILE_PREFIX: String = "slot_"
 
+## 云端同步的节流窗口（秒）：短时间内重复触发（打开多个面板）只请求一次
+const SYNC_THROTTLE_SEC: int = 10
+var _last_sync_time: int = 0
+
 ## 文件名安全化：仅保留字母/数字/下划线/连字符，其余替换为下划线
 func _sanitize_dir_name(raw: String) -> String:
 	var out := ""
@@ -132,21 +136,36 @@ func _ready() -> void:
 	# 连接认证状态变化
 	if AuthManager:
 		AuthManager.auth_state_changed.connect(_on_auth_changed)
-	
+
 	# 连接网络状态变化
 	if APIManager:
 		APIManager.connectivity_changed.connect(_on_connectivity_changed)
+
+	# 启动后拉一次云端存档，把云端较新的槽位写回本地缓存。
+	# 本地缓存（Web 端 IndexedDB）会随环境重建/换设备消失，
+	# 这一步保证玩家重新进入游戏时读档面板仍能看到自己的存档。
+	_sync_from_server_deferred()
+
+func _sync_from_server_deferred() -> void:
+	# 等一帧再发：此时 autoload 之间的连接与网络探测都已就绪
+	await get_tree().process_frame
+	if APIManager and APIManager.is_online and APIManager.has_identity():
+		await sync_from_server()
 
 func _on_auth_changed(_old: int, new_state: int) -> void:
 	## 认证状态变化时，考虑迁移本地存档到云端
 	if new_state == AuthManager.AuthState.LOGGED_IN and has_local_save():
 		print("[SaveManager] 检测到本地存档，提示用户是否迁移到云端")
 		# TODO: 弹出对话框询问用户是否迁移
+		# 登录后云端与本地是同一个存档空间（新账号除外），直接同步一次
+		await sync_from_server(true)
 
 func _on_connectivity_changed(online: bool) -> void:
 	if online and APIManager.get_pending_count() > 0:
 		print("[SaveManager] 网络恢复，尝试同步待处理存档")
 		APIManager.flush_pending()
+	if online and APIManager.has_identity():
+		await sync_from_server(true)
 
 # ============ 存档操作 ============
 
@@ -170,13 +189,14 @@ func save_to_slot(slot: int) -> Dictionary:
 	var local_res = _write_slot_file(slot, save_data)
 	var result = local_res
 
-	# 2) 注册用户**且确有可用令牌**时同步到云端（仅作镜像，失败不影响本地）
-	#    ⚠️ 判据必须是 has_auth_token() 而不是「非游客」：客户端可能处于
+	# 2) 有可用身份（登录令牌 **或** 游客 ID）时同步到云端（仅作镜像，失败不影响本地）。
+	#    游客也必须同步：否则未注册玩家的存档只存在于浏览器本地缓存，
+	#    环境一重建就彻底消失 —— 存档是玩家资产，不能只存在本机。
+	#    ⚠️ 判据必须是 has_identity() 而不是「非游客」：客户端可能处于
 	#    「自认已登录、却没有任何凭据」的状态（注册接口未返回令牌 / 会话已被降级），
 	#    此时发出的 POST /api/saves 既无 Authorization 也无 X-Guest-ID，
 	#    后端只能回 401「未提供认证令牌」——功能没变好，只多一条控制台红字。
-	if not GameManager.is_guest and APIManager and APIManager.is_online \
-			and APIManager.has_auth_token():
+	if APIManager and APIManager.is_online and APIManager.has_identity():
 		var server_res = await _save_to_server()
 		if not server_res.get("error", true):
 			result = server_res
@@ -226,7 +246,7 @@ func _build_save_data() -> void:
 
 # ============ 本地存档 ============
 
-func _write_slot_file(slot: int, data: Dictionary) -> Dictionary:
+func _write_slot_file(slot: int, data: Dictionary, emit_events: bool = true) -> Dictionary:
 	var dir = DirAccess.open("user://")
 	if dir:
 		dir.make_dir_recursive(_user_save_subdir())
@@ -238,9 +258,10 @@ func _write_slot_file(slot: int, data: Dictionary) -> Dictionary:
 	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
 
-	print("[SaveManager] 本地存档已保存 (槽位 ", slot, "): ", path)
-	SystemEventBus.emit_signal("game_saved", "slot_" + str(slot), last_save_timestamp)
-	game_saved.emit("slot_" + str(slot), last_save_timestamp)
+	if emit_events:
+		print("[SaveManager] 本地存档已保存 (槽位 ", slot, "): ", path)
+		SystemEventBus.emit_signal("game_saved", "slot_" + str(slot), last_save_timestamp)
+		game_saved.emit("slot_" + str(slot), last_save_timestamp)
 	last_save_id = "slot_" + str(slot)
 	return {"error": false, "save_id": "slot_" + str(slot), "slot": slot, "timestamp": last_save_timestamp}
 
@@ -277,15 +298,83 @@ func _save_to_server() -> Dictionary:
 func load_game(slot: int = 0) -> bool:
 	return await load_slot(slot)
 
-## 从指定槽位读取本地存档。离线优先；无后端时本地槽位即权威来源。
+## 从指定槽位读取存档。本地缓存优先；本地缺失（Web 端 IndexedDB 随环境重建
+## 丢失、换设备、换浏览器）时从云端拉回并落地到本地缓存 —— 云端是权威副本，
+## 本地只是加速读档的缓存。
 func load_slot(slot: int) -> bool:
 	if slot < 0 or slot >= SLOT_COUNT:
 		no_save_found.emit()
 		return false
-	if not FileAccess.file_exists(slot_path(slot)):
-		no_save_found.emit()
+	if FileAccess.file_exists(slot_path(slot)):
+		return await _load_slot_file(slot)
+
+	var restored := await _restore_slot_from_server(slot)
+	if restored:
+		return true
+	no_save_found.emit()
+	return false
+
+## 拉取云端某槽位的完整存档（失败返回空字典）
+func _fetch_slot_from_server(slot: int) -> Dictionary:
+	if not APIManager or not APIManager.is_online or not APIManager.has_identity():
+		return {}
+	var res = await APIManager.get_save_slot(slot)
+	if res.get("error", true):
+		return {}
+	var save = res.get("data", {}).get("save", {})
+	return save if save is Dictionary else {}
+
+## 从云端恢复某槽位到本地缓存并载入游戏状态
+func _restore_slot_from_server(slot: int) -> bool:
+	var save := await _fetch_slot_from_server(slot)
+	if save.is_empty():
 		return false
-	return await _load_slot_file(slot)
+	_write_slot_file(slot, save, false)
+	_restore_from_dict(save)
+	print("[SaveManager] 已从云端恢复存档 (槽位 ", slot, ")")
+	SystemEventBus.emit_signal("game_loaded")
+	game_loaded.emit("slot_" + str(slot), save.get("case_id", ""))
+	return true
+
+## 云端 → 本地同步：把云端**较新**的槽位写回本地缓存。
+## 目的：环境重建后本地缓存为空时，读档面板仍能列出并加载云端存档。
+## 只更新缓存文件，不改动当前游戏状态（这是同步，不是读档）。
+## force=true 时无视节流窗口（网络恢复/登录变化等场景需要立即同步）。
+func sync_from_server(force: bool = false) -> Dictionary:
+	if not APIManager or not APIManager.is_online or not APIManager.has_identity():
+		return {"error": true, "message": "无网络或无身份"}
+
+	var now := int(Time.get_unix_time_from_system())
+	if not force and _last_sync_time > 0 and now - _last_sync_time < SYNC_THROTTLE_SEC:
+		return {"error": false, "synced": 0, "cached": true}
+
+	var res = await APIManager.get_save_list()
+	if res.get("error", true):
+		return res
+	_last_sync_time = now
+	var saves = res.get("data", {}).get("saves", [])
+	if not saves is Array:
+		return {"error": false, "synced": 0}
+
+	var synced := 0
+	for s in saves:
+		if not s is Dictionary:
+			continue
+		var slot := int(s.get("slot", -1))
+		if slot < 0 or slot >= SLOT_COUNT:
+			continue
+		var remote_ts := int(s.get("timestamp", 0))
+		var local_meta := get_slot_meta(slot)
+		if local_meta.get("exists", false) and int(local_meta.get("timestamp", 0)) >= remote_ts:
+			continue    # 本地已是最新，保留本地
+		var save := await _fetch_slot_from_server(slot)
+		if save.is_empty():
+			continue
+		_write_slot_file(slot, save, false)
+		synced += 1
+	if synced > 0:
+		print("[SaveManager] 云端存档已同步到本地缓存: ", synced, " 个槽位")
+	return {"error": false, "synced": synced}
 
 func _load_slot_file(slot: int) -> bool:
 	var path = slot_path(slot)

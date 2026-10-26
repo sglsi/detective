@@ -65,7 +65,14 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(50));
   console.log(`  地址: http://0.0.0.0:${PORT}`);
   console.log(`  环境: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`  Supabase: ${process.env.SUPABASE_URL ? '已配置' : '未配置'}`);
+  console.log(`  Supabase: ${process.env.SUPABASE_URL || process.env.COZE_SUPABASE_URL ? '已配置' : '未配置'}`);
+  // 提前初始化存储层：既能在启动日志里看清实际落到托管库还是本地 SQLite，
+  // 也能让凭据缺失在启动阶段就暴露，而不是等到玩家第一次存档才 500。
+  try {
+    require('./db/storage').getStorage();
+  } catch (err) {
+    console.error('  [storage] 初始化失败:', err.message);
+  }
   console.log('='.repeat(50));
 });
 

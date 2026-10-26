@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 静态文件服务器 + 后端 API 反向代理。
-    - /api/* → 转发到 http://127.0.0.1:3001
+    - /api/* → 转发到 http://127.0.0.1:3000（可用 BACKEND_URL 覆盖）
     - 其他 → 提供静态文件（web_prototype 目录）
 解决沙箱代理不支持 /api/auth/* 路径的问题。
 """
@@ -14,7 +14,7 @@ import urllib.request
 import urllib.error
 
 PORT = 8080
-BACKEND = "http://127.0.0.1:3000"
+BACKEND = os.environ.get("BACKEND_URL", "http://127.0.0.1:3000")
 
 _BUILD_STAMP_RE = re.compile(r'"mainPack":"index\.pck\?v=([^"]+)"')
 
@@ -67,7 +67,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         return super().do_OPTIONS()
 
     def _proxy(self, method):
-        """将请求转发到后端 http://127.0.0.1:3001"""
+        """将请求转发到后端 http://127.0.0.1:3000"""
         target_url = BACKEND + self.path
         if self.headers.get("Content-Length"):
             body = self.rfile.read(int(self.headers["Content-Length"]))
@@ -76,8 +76,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         req = urllib.request.Request(target_url, data=body, method=method)
 
-        # 透传关键请求头
-        for hdr in ["Content-Type", "Authorization", "Accept"]:
+        # 透传关键请求头（X-Guest-ID 必须透传：游客身份是云端存档的归属键，
+        # 漏掉后端只认令牌 → 游客存档一律 401）
+        for hdr in ["Content-Type", "Authorization", "Accept", "X-Guest-ID"]:
             val = self.headers.get(hdr)
             if val:
                 req.add_header(hdr, val)

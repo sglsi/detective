@@ -207,6 +207,55 @@
 - **部署入口**：`scripts/coze-deploy-build.sh` + `scripts/coze-deploy-run.sh`
 - **运行时**：`nodejs-24`, `python-3.12`
 - **服务端口**：5000（Web 原型）+ 3000（后端 API）
+- **对外静态服务必须用 `proxy_server.py`**：裸 `python3 -m http.server` 不代理 `/api/*` → 前端注册/登录/游客会话全部 404（2026-10-26 修正 coze-deploy-run.sh）
+
+## 存档持久化（云端存档，2026-10-26）
+
+玩家存档必须活过环境重建：沙箱回收、容器重建、浏览器换缓存都不能让进度归零。
+
+**存储后端**：平台托管 Supabase（环境注入 `COZE_SUPABASE_URL` / `COZE_SUPABASE_SERVICE_ROLE_KEY` / `COZE_SUPABASE_ANON_KEY`）。
+`backend/src/db/supabase.js` 与 `storage.js` 的 `getStorage()` 均按 `SUPABASE_* || COZE_SUPABASE_*` 取值，**平台环境变量存在时自动走托管库**，无需 `.env`；取不到才回落本地 SQLite。
+
+**表结构**（`game_saves`，develop 环境用 `exec_sql` 建表）：
+```sql
+CREATE TABLE game_saves (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id text NOT NULL,          -- 登录用户 id 或 "guest:<设备派生id>"
+  case_id text NOT NULL DEFAULT '',
+  slot integer NOT NULL DEFAULT 0,
+  save_version integer NOT NULL DEFAULT 1,
+  timestamp bigint NOT NULL DEFAULT 0,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,   -- 完整存档
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, slot)                        -- upsert 依赖此约束
+);
+CREATE INDEX idx_game_saves_user_case ON game_saves (user_id, case_id, updated_at DESC);
+```
+
+**关键设计点**：
+- **整档存 payload jsonb**：早先按字段分列存储，推理链（star_chains）、线索墙状态（case_wall_state）、分支日志（case_branch_log）等字段全丢——分列不可再扩展，整档 jsonb 才是正解。
+- **upsert 键是 `(user_id, slot)`**：`upsertSave` 用 `onConflict: 'user_id,slot'`，槽位固定 0-2，同一空间反复存档只覆盖一行。
+- **PostgREST 取值坑**：`payload->>key` 在 supabase-js `select()` 里取不到值（PostgREST 直查正常）→ 一律 select 整列 payload，在 Node 侧解析摘要字段。
+- **SQLite 模式**：`SQLiteStorage` 同样加 slot/timestamp/payload 列 + `CREATE UNIQUE INDEX idx_saves_user_slot`；旧行无 payload 时 `_rowToSave` 回退分列组装。
+
+**游客身份稳定性（最关键的一环）**：游客存档以 `X-Guest-ID` 头为归属键（`authRequired` 认这个头 → `req.userId = "guest:" + guestId`）。若 id 每次启动都变，玩家就永远找不回自己的存档。
+- `api_manager.gd` 的 `ensure_guest_identity()`：优先读 `user://guest_identity.json`（Web 端即 IndexedDB，同 origin 稳定），缺失则 `_derive_device_guest_id()` 设备派生。
+- **设备指纹只能取不会抖动的量**（platform / language / hardwareConcurrency / colorDepth / 浏览器家族 / 时区）。曾把 UA 全串与屏幕尺寸纳入指纹 → 浏览器升级或改窗口大小就算"换设备"，玩家存档当场失联。
+- `create_guest_session()` 拿到的服务端 id 只在无本地稳定 id 时兜底，不覆盖。
+- **跨设备找回靠注册账号**（登录空间按 user id 归档），游客空间天然绑定本设备。
+
+**同步策略**（`save_manager.gd`）：
+- 写档：本地 `user://saves/<namespace>/slot_N.json` 为权威，同时上传云端（游客也传，条件是 `APIManager.has_identity()`）。
+- 读档：本地缺失 → `_restore_slot_from_server()` 从云端拉回并写本地；`sync_from_server()` 只在云端较新时覆盖本地（10s 节流）。
+- 触发点：启动（`_sync_from_server_deferred`）、网络恢复、登录态变化、打开读档面板前。
+- 游客读档限制已解除（稳定 id + 云端档案就绪后，游客与登录用户同权）。
+
+**代理层必须透传 `X-Guest-ID`**：`serve_web.py` / `proxy_server.py` 的 `/api` 代理原本只转发 Content-Type/Authorization/Accept → 浏览器端所有游客请求 401，身份与存档同步全废。`serve_web.py` 的代理目标端口也从写死的 3001 改为 3000（后端实际端口）。
+
+**Web 端一律同源**：`api_config.gd` 的 `get_base_url()` 在 web 平台忽略 `application/config/api_base_url`（那是编辑器用的本机绝对地址）→ 知识库曾固定去 `127.0.0.1:3001` 请求，远端知识库恒不可用。
+
+**验证手法**（playwright + chromium 可用）：`/tmp` 下的脚本开全新 browser context 打开 `http://127.0.0.1:8081/index.html`，读 IndexedDB（`indexedDB.databases()` → `/userfs/...`）确认 `guest_identity.json` 与 `saves/guest/slot_N.json` 是否落地；用 `page.on("request")` 抓 `x-guest-id` 头。已验证：两个全新 context 游客 id 一致、云端已有存档时全新 context 启动会自动回填本地槽位。
 
 ## 通用 Skill
 

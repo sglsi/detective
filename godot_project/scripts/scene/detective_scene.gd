@@ -685,13 +685,14 @@ func _do_save(slot: int = -1) -> void:
 	_ui.show_notification("✅ 进度已保存 " + Time.get_datetime_string_from_system().replace("T", " "))
 
 func _do_load() -> void:
-	# 读档为登录用户专属（游客不可读档）
-	if GameManager and GameManager.is_guest:
-		_ui.show_notification("游客模式不支持读档 — 请返回主菜单注册/登录")
-		return
 	if not SaveManager:
 		_ui.show_notification("存档系统不可用")
 		return
+	# 先与云端同步：本地缓存（Web 端 IndexedDB）会随环境重建/换设备消失，
+	# 不同步就读不到云端存档（表现为"暂无存档"）。游客同样需要——
+	# 游客身份已是稳定 id，云端存档按该 id 隔离。
+	if APIManager and APIManager.is_online and APIManager.has_identity():
+		await SaveManager.sync_from_server()
 	# 读档时才显示槽位：仅列出已有存档，按时间倒序（最新在最上面）
 	var slots: Array = SaveManager.get_slot_list_sorted()
 	if slots.is_empty():

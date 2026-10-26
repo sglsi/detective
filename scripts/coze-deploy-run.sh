@@ -38,5 +38,6 @@ fi
 cd "$PROJECT_DIR"
 echo "[coze-deploy-run] 启动 Web 原型服务 (端口 5000)..."
 
-# 使用 Python 的 http.server 在 5000 端口服务 web_prototype 目录
-exec python3 -m http.server 5000 --directory web_prototype --bind 0.0.0.0
+# 用 proxy_server.py 而非裸 http.server：前端会调用 /api/*（注册/登录/游客会话），
+# 裸 http.server 不做代理 → 部署环境所有 API 请求 404。
+exec python3 proxy_server.py --port 5000 --directory web_prototype

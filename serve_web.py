@@ -6,7 +6,7 @@ Serves the directory given by --directory on --port (default 8081), bound to
 use WebAssembly.instantiateStreaming; Godot's loader otherwise falls back to a
 slower ArrayBuffer path. The .pck is fetched as application/octet-stream.
 
-后端反向代理：/api/* → http://127.0.0.1:3001（勿用 localhost，Windows 下解析到 ::1）
+后端反向代理：/api/* → 后端（默认自动探测 3000/3001，勿用 localhost，Windows 下解析到 ::1）
 为什么需要它：Godot Web 构建里，浏览器向「绝对地址」http://localhost:3001 发跨域
 fetch（尤其是带 JSON body 的 POST）会在运行期失败（沙箱/远程预览下 localhost:3001
 不可达，或跨域预检被拦），表现为注册/登录「网络请求失败」。改为同源请求 /api，
@@ -28,10 +28,43 @@ import urllib.error
 PORT = 8081
 # 必须用 127.0.0.1 而非 localhost：Windows 上 localhost 优先解析到 IPv6 ::1，
 # 而后端 server.js 只监听 IPv4 0.0.0.0，会导致代理转发失败。
-BACKEND = "http://127.0.0.1:3001"
+# 端口必须与 backend/src/server.js 的 PORT（默认 3000）一致：
+# 指向一个没有服务在听的端口会让 Web 端所有 /api 请求 502（表现为注册/登录/存档同步全失败）。
+BACKEND = os.environ.get("BACKEND_URL", "http://127.0.0.1:3000")
 
 ## 外部化知识库目录（/kb/* 静态路由），由 main() 在 chdir 之前设定。
 KB_DIR = ""
+
+
+def _reachable(url, timeout=0.4):
+    """后端可达性探测：只连 TCP，不发 HTTP（避免依赖后端的具体路由）。"""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or 80
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _pick_backend():
+    """选出实际在监听的后端地址。
+
+    端口不能写死：后端 server.js 的 PORT 默认 3000，而部分开发机 3000 被系统服务
+    占用、实际跑在 3001。指向一个没人在听的端口会让 Web 端所有 /api 请求 502
+    （表现为注册/登录/存档同步全部失败，且看不出原因）。
+    """
+    candidates = []
+    env_url = os.environ.get("BACKEND_URL")
+    if env_url:
+        candidates.append(env_url)
+    candidates += ["http://127.0.0.1:3000", "http://127.0.0.1:3001"]
+    for url in candidates:
+        if _reachable(url):
+            return url
+    return candidates[0]
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -95,7 +128,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         body = self.rfile.read(int(length)) if length else None
 
         req = urllib.request.Request(target_url, data=body, method=method)
-        for hdr in ["Content-Type", "Authorization", "Accept"]:
+        # 必须转发 X-Guest-ID：游客身份是云端存档的归属键，
+        # 漏掉它后端只认令牌 → 游客存档一律 401（等于 Web 端存档从未上云）。
+        for hdr in ["Content-Type", "Authorization", "Accept", "X-Guest-ID"]:
             val = self.headers.get(hdr)
             if val:
                 req.add_header(hdr, val)
@@ -153,14 +188,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 def main():
-    global KB_DIR
+    global KB_DIR, BACKEND
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=PORT)
     ap.add_argument("--directory", required=True)
     ap.add_argument("--kb-dir", default="",
                     help="外部化知识库目录（/kb/* 静态路由），"
                          "默认 godot_project/data/knowledge/kb")
+    ap.add_argument("--backend", default="",
+                    help="后端基地址（默认自动探测 3000/3001）")
     args = ap.parse_args()
+
+    if args.backend:
+        BACKEND = args.backend
+    else:
+        BACKEND = _pick_backend()
 
     # 必须在 chdir 之前解析为绝对路径（chdir 后相对路径会指向 web_build）。
     repo_root = os.path.dirname(os.path.abspath(__file__))

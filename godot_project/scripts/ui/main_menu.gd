@@ -104,11 +104,11 @@ func _ready() -> void:
 		else: get_tree().quit())
 	_root.add_child(bq)
 
-	# 游客（不存档，先选难度再进游戏）
+	# 游客（云端存档按稳定游客 id 隔离，同样可读档）
 	var bg2 = mkbtn("以游客身份继续", Vector2(660, 810), Vector2(600, 45), false, true)
 	bg2.pressed.connect(func():
 		if GameManager: GameManager.is_guest = true; GameManager.current_slot = 0
-		_go_scene("res://scenes/difficulty_select.tscn"))
+		_resume_or_start())
 	_root.add_child(bg2)
 
 	# 注册 / 登录（在线走后端 127.0.0.1:3001；后端不可达时降级为本地账号）
@@ -202,8 +202,26 @@ func _on_start_pressed() -> void:
 	else:
 		_show_auth(false)
 
+## 游客入口：先与云端同步一次，再决定是「继续旧存档」还是「开新档」。
+## 环境重建后本地缓存已空，但云端还留着上次的探案 —— 不同步就等于把玩家的存档丢掉。
+func _resume_or_start() -> void:
+	if SaveManager and APIManager and APIManager.is_online and APIManager.has_identity():
+		await SaveManager.sync_from_server()
+	if SaveManager and SaveManager.has_any_save():
+		_show_start_panel()
+		return
+	_go_scene("res://scenes/difficulty_select.tscn")
+
 ## 开始游戏（已登录）→ 存档面板：已有存档按时间倒序（最新在上）/ 重新开始 / 返回
+##
+## 显示前先与云端同步一次：本地缓存（Web 端 IndexedDB）会随环境重建/换设备消失，
+## 不同步的话玩家会看到"暂无存档"，而存档其实完好地躺在云端。
 func _show_start_panel() -> void:
+	if SaveManager and APIManager and APIManager.is_online and APIManager.has_identity():
+		await SaveManager.sync_from_server()
+	_build_start_panel()
+
+func _build_start_panel() -> void:
 	var p = Control.new()
 	p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	p.mouse_filter = Control.MOUSE_FILTER_STOP

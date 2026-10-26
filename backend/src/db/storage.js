@@ -25,6 +25,7 @@ class StorageAdapter {
   async upsertSave(userId, saveData) { throw new Error('not implemented'); }
   async listSaves(userId) { throw new Error('not implemented'); }
   async getLatestSave(userId, caseId) { throw new Error('not implemented'); }
+  async getSaveSlot(userId, slot) { throw new Error('not implemented'); }
 
   // --- Progress ---
   async getProgress(userId, caseId) { throw new Error('not implemented'); }
@@ -198,6 +199,9 @@ class SQLiteStorage extends StorageAdapter {
         clue_states TEXT DEFAULT '{}',
         game_time INTEGER DEFAULT 0,
         metadata TEXT DEFAULT '{}',
+        slot INTEGER DEFAULT 0,
+        timestamp INTEGER DEFAULT 0,
+        payload TEXT DEFAULT '{}',
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       );
@@ -224,6 +228,32 @@ class SQLiteStorage extends StorageAdapter {
         UNIQUE(user_id, case_id)
       );
     `);
+
+    // 旧库升级：补 slot/timestamp/payload 三列（SQLite 不支持 ADD COLUMN IF NOT EXISTS，
+    // 重复添加会抛错，忽略即可）；随后清理同一 (user_id, slot) 的历史重复行，
+    // 最后才能建唯一索引（否则多行 slot=0 会让索引创建失败）。
+    for (const col of [
+      ['slot', 'INTEGER DEFAULT 0'],
+      ['timestamp', 'INTEGER DEFAULT 0'],
+      ['payload', "TEXT DEFAULT '{}'"],
+    ]) {
+      try {
+        this.db.exec(`ALTER TABLE game_saves ADD COLUMN ${col[0]} ${col[1]}`);
+      } catch (e) {
+        // 列已存在
+      }
+    }
+    try {
+      this.db.exec(`DELETE FROM game_saves WHERE id NOT IN (
+        SELECT id FROM (
+          SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id, slot ORDER BY updated_at DESC) AS rn
+          FROM game_saves
+        ) WHERE rn = 1
+      )`);
+    } catch (e) {
+      // 旧 SQLite 无窗口函数时跳过去重
+    }
+    this.db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_saves_user_slot ON game_saves(user_id, slot);`);
   }
 
   // --- Auth ---
@@ -272,55 +302,72 @@ class SQLiteStorage extends StorageAdapter {
   }
 
   // --- Saves ---
+  // 存档以完整 JSON payload 存储；旧行（无 payload）回退到分列字段组装。
   _rowToSave(row) {
     if (!row) return null;
-    return {
-      id: row.id,
-      user_id: row.user_id,
-      save_version: row.save_version,
-      case_id: row.case_id,
-      scene_id: row.scene_id,
-      difficulty: row.difficulty,
-      clue_count: row.clue_count,
-      observation_score: row.observation_score,
-      reasoning_score: row.reasoning_score,
-      insight_score: row.insight_score,
-      unlocked_locations: JSON.parse(row.unlocked_locations || '[]'),
-      completed_milestones: JSON.parse(row.completed_milestones || '[]'),
-      dialogue_progress: JSON.parse(row.dialogue_progress || '{}'),
-      clue_states: JSON.parse(row.clue_states || '{}'),
-      game_time: row.game_time,
-      metadata: JSON.parse(row.metadata || '{}'),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    };
+    let expanded = {};
+    try {
+      const payload = JSON.parse(row.payload || '{}');
+      if (payload && typeof payload === 'object' && Object.keys(payload).length > 0) {
+        expanded = payload;
+      }
+    } catch (e) {
+      // payload 损坏时回退到分列字段
+    }
+    if (Object.keys(expanded).length === 0) {
+      expanded = {
+        save_version: row.save_version,
+        case_id: row.case_id,
+        scene_id: row.scene_id,
+        difficulty: row.difficulty,
+        clue_count: row.clue_count,
+        observation_score: row.observation_score,
+        reasoning_score: row.reasoning_score,
+        insight_score: row.insight_score,
+        unlocked_locations: JSON.parse(row.unlocked_locations || '[]'),
+        completed_milestones: JSON.parse(row.completed_milestones || '[]'),
+        dialogue_progress: JSON.parse(row.dialogue_progress || '{}'),
+        clue_states: JSON.parse(row.clue_states || '{}'),
+        game_time: row.game_time,
+        metadata: JSON.parse(row.metadata || '{}'),
+      };
+    }
+    expanded.id = row.id;
+    expanded.user_id = row.user_id;
+    expanded.case_id = row.case_id;
+    expanded.slot = row.slot ?? 0;
+    expanded.timestamp = row.timestamp ?? 0;
+    expanded.updated_at = row.updated_at;
+    return expanded;
   }
 
   async upsertSave(userId, saveData) {
     const now = new Date().toISOString();
+    const slot = Number.isInteger(saveData.slot) ? saveData.slot : 0;
     const existing = this.db
-      .prepare('SELECT id FROM game_saves WHERE user_id = ? AND case_id = ?')
-      .get(userId, saveData.case_id);
+      .prepare('SELECT id FROM game_saves WHERE user_id = ? AND slot = ?')
+      .get(userId, slot);
 
     const id = existing ? existing.id : crypto.randomUUID();
     const json = (v, d) => JSON.stringify(v !== undefined ? v : d);
+    const payload = json(saveData, {});
 
     if (existing) {
       this.db.prepare(`
         UPDATE game_saves SET
-          save_version=?, scene_id=?, difficulty=?, clue_count=?,
+          save_version=?, case_id=?, scene_id=?, difficulty=?, clue_count=?,
           observation_score=?, reasoning_score=?, insight_score=?,
           unlocked_locations=?, completed_milestones=?, dialogue_progress=?,
-          clue_states=?, game_time=?, metadata=?, updated_at=?
+          clue_states=?, game_time=?, metadata=?, slot=?, timestamp=?, payload=?, updated_at=?
         WHERE id=?`)
         .run(
-          saveData.save_version || 1, saveData.scene_id, saveData.difficulty || 1,
+          saveData.save_version || 1, saveData.case_id || '', saveData.scene_id, saveData.difficulty || 1,
           saveData.clue_count || 0, saveData.observation_score || 0,
           saveData.reasoning_score || 0, saveData.insight_score || 0,
           json(saveData.unlocked_locations, []), json(saveData.completed_milestones, []),
           json(saveData.dialogue_progress, {}), json(saveData.clue_states, {}),
           saveData.game_time || 0, json(saveData.metadata, {}),
-          now, id
+          slot, saveData.timestamp || Math.floor(Date.now() / 1000), payload, now, id
         );
     } else {
       this.db.prepare(`
@@ -328,17 +375,17 @@ class SQLiteStorage extends StorageAdapter {
           (id, user_id, save_version, case_id, scene_id, difficulty, clue_count,
            observation_score, reasoning_score, insight_score,
            unlocked_locations, completed_milestones, dialogue_progress,
-           clue_states, game_time, metadata, created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+           clue_states, game_time, metadata, slot, timestamp, payload, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(
           id, userId,
-          saveData.save_version || 1, saveData.case_id, saveData.scene_id, saveData.difficulty || 1,
+          saveData.save_version || 1, saveData.case_id || '', saveData.scene_id, saveData.difficulty || 1,
           saveData.clue_count || 0, saveData.observation_score || 0,
           saveData.reasoning_score || 0, saveData.insight_score || 0,
           json(saveData.unlocked_locations, []), json(saveData.completed_milestones, []),
           json(saveData.dialogue_progress, {}), json(saveData.clue_states, {}),
           saveData.game_time || 0, json(saveData.metadata, {}),
-          now, now
+          slot, saveData.timestamp || Math.floor(Date.now() / 1000), payload, now, now
         );
     }
     return { save_id: id, updated_at: now };
@@ -346,18 +393,31 @@ class SQLiteStorage extends StorageAdapter {
 
   async listSaves(userId) {
     const rows = this.db.prepare(
-      `SELECT id, case_id, scene_id, difficulty, clue_count, updated_at
-       FROM game_saves WHERE user_id = ? ORDER BY updated_at DESC LIMIT 20`
+      `SELECT id, case_id, slot, scene_id, difficulty, timestamp, updated_at, payload
+       FROM game_saves WHERE user_id = ? ORDER BY timestamp DESC LIMIT 20`
     ).all(userId);
-    return rows;
+    return rows.map((r) => {
+      let label = '';
+      try { label = (JSON.parse(r.payload || '{}') || {}).label || ''; } catch (e) { label = ''; }
+      return {
+        id: r.id, case_id: r.case_id, slot: r.slot, scene_id: r.scene_id,
+        difficulty: r.difficulty, timestamp: r.timestamp, updated_at: r.updated_at, label,
+      };
+    });
   }
 
   async getLatestSave(userId, caseId) {
     let sql = 'SELECT * FROM game_saves WHERE user_id = ?';
     const args = [userId];
     if (caseId) { sql += ' AND case_id = ?'; args.push(caseId); }
-    sql += ' ORDER BY updated_at DESC LIMIT 1';
+    sql += ' ORDER BY timestamp DESC LIMIT 1';
     const row = this.db.prepare(sql).get(...args);
+    return this._rowToSave(row);
+  }
+
+  async getSaveSlot(userId, slot) {
+    const row = this.db.prepare('SELECT * FROM game_saves WHERE user_id = ? AND slot = ?')
+      .get(userId, slot);
     return this._rowToSave(row);
   }
 
@@ -454,6 +514,7 @@ class SQLiteStorage extends StorageAdapter {
 // ============================================================
 class SupabaseStorage extends StorageAdapter {
   constructor() {
+    super();
     const { getSupabaseAdmin } = require('./supabase');
     this.getSupabase = getSupabaseAdmin;
   }
@@ -494,55 +555,88 @@ class SupabaseStorage extends StorageAdapter {
     return { guest_id: guestId, expires_at: expires };
   }
 
+  // 存档以**完整 JSON payload** 落库（不拆列）：存档里含推理链结论、线索墙图谱、
+  // 对话进度等大量结构化字段，拆列保存必然丢数据，读档后进度残缺。
   async upsertSave(userId, saveData) {
     const supabase = this.getSupabase();
-    const { data: existing } = await supabase
-      .from('game_saves').select('id').eq('user_id', userId).eq('case_id', saveData.case_id)
-      .order('updated_at', { ascending: false }).limit(1).single();
-
-    const payload = {
-      user_id: userId, case_id: saveData.case_id,
-      save_version: saveData.save_version || 1, scene_id: saveData.scene_id,
-      difficulty: saveData.difficulty || 1, clue_count: saveData.clue_count || 0,
-      observation_score: saveData.observation_score || 0,
-      reasoning_score: saveData.reasoning_score || 0,
-      insight_score: saveData.insight_score || 0,
-      unlocked_locations: saveData.unlocked_locations || [],
-      completed_milestones: saveData.completed_milestones || [],
-      dialogue_progress: saveData.dialogue_progress || {},
-      clue_states: saveData.clue_states || {},
-      game_time: saveData.game_time || 0, metadata: saveData.metadata || {},
+    const now = new Date().toISOString();
+    const slot = Number.isInteger(saveData.slot) ? saveData.slot : 0;
+    const row = {
+      user_id: userId,
+      case_id: saveData.case_id || '',
+      slot,
+      save_version: saveData.save_version || 1,
+      timestamp: saveData.timestamp || Math.floor(Date.now() / 1000),
+      payload: saveData,
+      updated_at: now,
     };
-
-    let result;
-    if (existing) {
-      result = await supabase.from('game_saves').update(payload).eq('id', existing.id).select().single();
-    } else {
-      result = await supabase.from('game_saves').insert(payload).select().single();
-    }
-    if (result.error) throw result.error;
-    return { save_id: result.data.id, updated_at: result.data.updated_at };
+    const { data, error } = await supabase
+      .from('game_saves')
+      .upsert(row, { onConflict: 'user_id,slot' })
+      .select().single();
+    if (error) throw error;
+    return { save_id: data.id, updated_at: data.updated_at };
   }
 
   async listSaves(userId) {
     const supabase = this.getSupabase();
-    const { data } = await supabase
-      .from('game_saves').select('id, case_id, scene_id, difficulty, clue_count, updated_at')
-      .eq('user_id', userId).order('updated_at', { ascending: false }).limit(20);
-    return data;
+    // 托管库表按 payload jsonb 存储完整存档，没有拆出的 scene_id/difficulty 列，
+    // 摘要字段从 payload 里取（payload->> 在 supabase-js 的 select 里取不到值，
+    //   统一拉回 payload 后在 Node 侧解析更可靠）。
+    const { data, error } = await supabase
+      .from('game_saves')
+      .select('id, case_id, slot, timestamp, updated_at, payload')
+      .eq('user_id', userId).order('timestamp', { ascending: false }).limit(20);
+    if (error) throw error;
+    return (data || []).map((r) => {
+      const p = r.payload || {};
+      return {
+        id: r.id,
+        case_id: r.case_id,
+        slot: r.slot,
+        scene_id: p.scene_id || '',
+        difficulty: Number(p.difficulty ?? 0),
+        clue_count: Number(p.clue_count ?? 0),
+        timestamp: r.timestamp || 0,
+        updated_at: r.updated_at,
+        label: p.label || '',
+      };
+    });
+  }
+
+  // 把行展开成客户端可直接消费的完整存档字典（payload 顶层化）
+  _expandSaveRow(row) {
+    if (!row) return null;
+    const payload = row.payload || {};
+    const expanded = {};
+    for (const k of Object.keys(payload)) expanded[k] = payload[k];
+    expanded.id = row.id;
+    expanded.user_id = row.user_id;
+    expanded.case_id = row.case_id;
+    expanded.slot = row.slot;
+    expanded.timestamp = row.timestamp;
+    expanded.updated_at = row.updated_at;
+    return expanded;
   }
 
   async getLatestSave(userId, caseId) {
     const supabase = this.getSupabase();
     let query = supabase.from('game_saves').select('*')
-      .eq('user_id', userId).order('updated_at', { ascending: false }).limit(1);
+      .eq('user_id', userId).order('timestamp', { ascending: false }).limit(1);
     if (caseId) query = query.eq('case_id', caseId);
-    const { data, error } = await query.single();
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw error;
-    }
-    return data;
+    const { data, error } = await query.maybeSingle();
+    if (error) throw error;
+    return this._expandSaveRow(data);
+  }
+
+  // 按槽位取完整存档（客户端本地缓存丢失后据此恢复）
+  async getSaveSlot(userId, slot) {
+    const supabase = this.getSupabase();
+    const { data, error } = await supabase
+      .from('game_saves').select('*')
+      .eq('user_id', userId).eq('slot', slot).maybeSingle();
+    if (error) throw error;
+    return this._expandSaveRow(data);
   }
 
   async getProgress(userId, caseId) {
@@ -590,8 +684,10 @@ function getStorage() {
     useSupabase = true;
   } else {
     // auto: 仅当 SUPABASE_URL 和 SERVICE_KEY 均为真实非空值时使用 Supabase
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_KEY;
+    // （平台注入的 COZE_SUPABASE_* 同样视为已配置 —— 否则托管环境会退回本地
+    //   SQLite，沙箱重建后存档连同数据库文件一起消失）
+    const url = process.env.SUPABASE_URL || process.env.COZE_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_KEY || process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
     useSupabase = !!(url && key && !url.includes('your-project') && !key.includes('your-service'));
   }
   if (useSupabase) {
@@ -605,7 +701,9 @@ function getStorage() {
 }
 
 function isLocalMode() {
-  return !(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY);
+  const url = process.env.SUPABASE_URL || process.env.COZE_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY || process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
+  return !(url && key);
 }
 
 module.exports = { StorageAdapter, SQLiteStorage, SupabaseStorage, getStorage, isLocalMode, hashPassword, verifyPassword, signJwt };

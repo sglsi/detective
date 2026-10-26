@@ -2,22 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { getStorage } = require('../db/storage');
-const { authRequired, guestMiddleware } = require('../middleware/auth');
-
-const SAVE_FIELDS = [
-  'save_version', 'scene_id', 'difficulty', 'clue_count',
-  'observation_score', 'reasoning_score', 'insight_score',
-  'unlocked_locations', 'completed_milestones', 'dialogue_progress',
-  'clue_states', 'game_time', 'metadata',
-];
-
-function pickSave(body) {
-  const out = {};
-  for (const f of SAVE_FIELDS) {
-    if (body[f] !== undefined) out[f] = body[f];
-  }
-  return out;
-}
+const { authRequired } = require('../middleware/auth');
 
 // GET /api/saves — 获取存档列表
 router.get('/', authRequired, async (req, res) => {
@@ -44,7 +29,26 @@ router.get('/latest', authRequired, async (req, res) => {
   }
 });
 
-// POST /api/saves — 上传存档（M1 策略：同用户+同案覆盖最新）
+// GET /api/saves/slot/:slot — 获取指定槽位的完整存档
+// 客户端本地缓存（Web 端 IndexedDB）随环境重建丢失时，用它把存档拉回本地。
+router.get('/slot/:slot', authRequired, async (req, res) => {
+  try {
+    const slot = parseInt(req.params.slot, 10);
+    if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
+      return res.status(400).json({ error: '无效存档槽位' });
+    }
+    const storage = getStorage();
+    const save = await storage.getSaveSlot(req.userId, slot);
+    if (!save) {
+      return res.status(404).json({ error: '该槽位没有存档' });
+    }
+    res.json({ save });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/saves — 上传存档（按 user_id + slot 覆盖最新）
 router.post('/', authRequired, async (req, res) => {
   try {
     const saveData = req.body;

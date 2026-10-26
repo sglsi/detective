@@ -24,17 +24,17 @@ const WEB_PREVIEW_BACKEND_PORT: String = "3001"
 
 ## 从项目设置或环境变量获取后端地址
 static func get_base_url() -> String:
-	var url = ProjectSettings.get_setting("application/config/api_base_url", "")
-	if url != "":
-		return url
-
-	# Web 环境：base 仅取页面 origin（不含查询串），沙箱预览查询串由
-	# get_web_query_suffix() 作为后缀追加到每个请求路径之后，使浏览器内运行的游戏
-	# 能真正触达沙箱后端（修复 Issue 3 连通性）。
+	# Web 环境一律同源：跨域/绝对地址在沙箱与远程预览下都可能不可达，
+	# 而项目设置里的绝对地址（编辑器用的本机后端端口）在 Web 端并不成立。
+	# 早期 Web 端仍读项目设置 → 知识库去请求 127.0.0.1:3001 → 远端知识库恒不可用。
 	if OS.has_feature("web"):
 		var origin = _get_sandbox_origin()
 		if origin != "":
 			return origin
+
+	var url = ProjectSettings.get_setting("application/config/api_base_url", "")
+	if url != "":
+		return url
 
 	# 开发/生产自动切换
 	if OS.has_feature("editor") or OS.has_feature("debug"):

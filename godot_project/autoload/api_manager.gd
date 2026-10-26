@@ -57,6 +57,9 @@ signal queue_flushed(count: int)
 
 func _ready() -> void:
 	_check_connectivity()
+	# 启动即备好稳定游客身份：任何请求（含存档同步）都要带上它，
+	# 否则服务端无从判断这份存档属于谁（换 id = 换存档空间）。
+	ensure_guest_identity()
 
 ## 计算本次请求实际使用的基地址。
 ## Web 导出下：统一走同源相对地址 ""（由 serve_web.py / proxy_server.py
@@ -217,6 +220,73 @@ func has_auth_token() -> bool:
 ## 有 Authorization 头走令牌；只有 X-Guest-ID 时按游客放行；两者皆无则 401。
 func _has_identity() -> bool:
 	return auth_token != "" or guest_id != ""
+
+## 公开版身份判定（存档同步等外部调用需要）
+func has_identity() -> bool:
+	return _has_identity()
+
+## 稳定游客身份（存档的归属键）
+##
+## 云端存档以 X-Guest-ID 为归属键：若每次启动都换一个新 id，玩家在服务端
+## 的存档就永远取不回来（换 id = 换存档空间）。因此这里给出**稳定 id**：
+##   1) 本地持久化（user://；Web 端为 IndexedDB，同一 origin 内稳定）
+##   2) 设备派生 id（浏览器特征哈希）—— 本地存储随环境重建失效时的兜底，
+##      同一浏览器仍能算出同一个 id，存档得以找回
+const GUEST_ID_PATH := "user://guest_identity.json"
+var _stable_guest_id: String = ""
+
+func ensure_guest_identity() -> String:
+	if _stable_guest_id != "":
+		guest_id = _stable_guest_id
+		return _stable_guest_id
+
+	if FileAccess.file_exists(GUEST_ID_PATH):
+		var f = FileAccess.open(GUEST_ID_PATH, FileAccess.READ)
+		if f:
+			var stored := f.get_as_text().strip_edges()
+			f.close()
+			if stored != "":
+				_stable_guest_id = stored
+				guest_id = stored
+				return stored
+
+	var derived := _derive_device_guest_id()
+	var wf = FileAccess.open(GUEST_ID_PATH, FileAccess.WRITE)
+	if wf:
+		wf.store_string(derived)
+		wf.close()
+	_stable_guest_id = derived
+	guest_id = derived
+	print("[APIManager] 游客身份就绪: ", derived.substr(0, 12), "…")
+	return derived
+
+## 设备派生 id：同一台设备/同一浏览器恒定，环境重建后仍能对上同一份云端存档。
+## 只取不会随环境抖动的量：UA 版本号与屏幕尺寸都会变（浏览器升级/改窗口大小），
+## 一旦纳入指纹，玩家就会"莫名其妙丢失存档"——这比丢指纹更糟。
+func _derive_device_guest_id() -> String:
+	var parts := PackedStringArray()
+	parts.append("victoria-london-detective")
+	parts.append(OS.get_name())
+	parts.append(OS.get_locale())
+	if OS.has_feature("web"):
+		parts.append(str(JavaScriptBridge.eval(
+			"""(function(){
+				try {
+					var ua = navigator.userAgent || '';
+					var family = /Firefox\\//.test(ua) ? 'firefox'
+						: /Edg\\//.test(ua) ? 'edge'
+						: /Chrome\\//.test(ua) ? 'chrome'
+						: /Safari\\//.test(ua) ? 'safari' : 'other';
+					return [navigator.platform || '', navigator.language || '',
+						navigator.hardwareConcurrency || 0, screen.colorDepth || 0,
+						family, Intl.DateTimeFormat().resolvedOptions().timeZone || ''].join('|');
+				} catch(e) { return ''; }
+			})()""", true)))
+	else:
+		parts.append(OS.get_model_name())
+		parts.append(str(OS.get_unique_id()))
+	var digest := ("\n".join(parts)).sha256_text()
+	return "dev_" + digest.substr(0, 32)
 
 ## 无身份时发起一次"补建游客会话"（每代只尝试一次，避免请求风暴/递归）。
 ## 游客会话创建走 auth=false，不会再次进入本守卫。
@@ -462,22 +532,31 @@ func login_user(email: String, password: String) -> Dictionary:
 ## POST /api/auth/guest — 创建游客会话
 func create_guest_session() -> Dictionary:
 	var response = await post_request("/api/auth/guest", {}, false)
-	
+
 	if not response.get("error", true) and response.has("data"):
 		var data = response["data"]
 		if data.has("guest_id"):
-			guest_id = data["guest_id"]
+			# 服务端每次都新建游客 id，直接采用会让「同一玩家」在不同会话里
+			# 对应到不同存档空间（云端存档再也取不回来）。因此以本地稳定 id 为准，
+			# 服务端 id 只在没有稳定 id 时作为兜底。
+			if _stable_guest_id == "":
+				_stable_guest_id = str(data["guest_id"])
+				var wf = FileAccess.open(GUEST_ID_PATH, FileAccess.WRITE)
+				if wf:
+					wf.store_string(_stable_guest_id)
+					wf.close()
+			guest_id = _stable_guest_id
 			_guest_requested = false   # 身份已就绪；日后再次丢失可再补建
 			print("[APIManager] 游客会话已创建: ", guest_id)
-	
+
 	request_completed.emit("guest", not response.get("error", true), response)
 	return response
 
 ## 清除认证状态
 func clear_auth() -> void:
 	auth_token = ""
-	guest_id = ""
 	_guest_requested = false   # 允许重新补建游客身份
+	# 游客 id 保持不变：它是云端存档的归属键，清掉就等于丢掉自己的存档空间。
 
 # ============ 存档 API ============
 
@@ -493,6 +572,12 @@ func get_latest_save(case_id: String = "") -> Dictionary:
 		endpoint += "?case_id=" + case_id.uri_encode()
 	
 	var response = await get_request(endpoint)
+	return response
+
+## GET /api/saves/slot/:slot — 获取指定槽位的完整存档
+## 客户端本地缓存（Web 端 IndexedDB）随环境重建丢失时，用它把存档拉回本地。
+func get_save_slot(slot: int) -> Dictionary:
+	var response = await get_request("/api/saves/slot/" + str(slot))
 	return response
 
 ## POST /api/saves — 上传存档（M1 策略：覆盖同案件最新存档）
