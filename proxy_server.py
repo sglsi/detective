@@ -16,6 +16,11 @@ import urllib.error
 PORT = 8080
 BACKEND = os.environ.get("BACKEND_URL", "http://127.0.0.1:3000")
 
+# 外部化知识库目录（/kb/* 静态路由），与 pck 解耦：替换文件并刷新 manifest version 即生效。
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+KB_DIR = os.environ.get("KB_DIR") or os.path.join(
+    PROJECT_DIR, "godot_project", "data", "knowledge", "kb")
+
 _BUILD_STAMP_RE = re.compile(r'"mainPack":"index\.pck\?v=([^"]+)"')
 
 
@@ -23,6 +28,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/api/"):
             return self._proxy("GET")
+        if self.path.startswith("/kb/"):
+            return self._serve_kb()
         # 根入口重定向到带构建戳的 index.html：浏览器缓存的旧入口（旧 fileSizes
         # 与新 pck 尺寸不符会导致 loader 校验失败）由此彻底绕开
         if self.path in ("/", "/index.html") or self.path.startswith("/index.html?"):
@@ -35,6 +42,31 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 return
         return super().do_GET()
+
+    def _serve_kb(self):
+        """外部化知识库静态路由：/kb/<file> → KB_DIR/<file>。
+
+        仅允许扁平文件名（manifest.json / KB-X.json），拒绝任何路径穿越。
+        """
+        rel = self.path.split("?", 1)[0][len("/kb/"):]
+        if (not rel) or ("/" in rel) or ("\\" in rel) or (".." in rel):
+            self.send_error(404, "Not Found")
+            return
+        full = os.path.join(KB_DIR, rel)
+        if not KB_DIR or not os.path.isfile(full):
+            self.send_error(404, "Knowledge base file not found")
+            return
+        try:
+            with open(full, "rb") as f:
+                data = f.read()
+        except OSError as e:
+            self.send_error(500, "Read error: %s" % e)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def _build_stamp(self):
         try:
@@ -136,16 +168,22 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
 
 def main():
+    global KB_DIR
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=PORT)
     ap.add_argument("--directory", required=True)
+    ap.add_argument("--kb-dir", default=None, help="外部化知识库目录（/kb/* 静态路由）")
     args = ap.parse_args()
+
+    if args.kb_dir:
+        KB_DIR = os.path.abspath(args.kb_dir)
 
     os.chdir(args.directory)
     # 多线程：/api/* 代理是同步阻塞调用，单线程会拖死静态资源请求（导致整站卡死）。
     with http.server.ThreadingHTTPServer(("0.0.0.0", args.port), ProxyHandler) as httpd:
         print(f"[Proxy Server] Serving {args.directory} on 0.0.0.0:{args.port}", flush=True)
         print(f"[Proxy Server] /api/* → {BACKEND}", flush=True)
+        print(f"[Proxy Server] /kb/* → {KB_DIR}", flush=True)
         httpd.serve_forever()
 
 

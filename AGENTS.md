@@ -175,7 +175,9 @@
 知识库是纯参考文本，已从 pck 中剥离，可独立更新：
 
 - **权威源**：`godot_project/data/knowledge/kb/{manifest.json,KB-A..L.json}`（按域拆分）
-- **服务**：`serve_web.py` 的 `/kb/*` 静态路由（默认映射上述目录，`--kb-dir` 可覆盖）
+- **服务**：`serve_web.py` 与 `proxy_server.py` 的 `/kb/*` 静态路由（默认映射上述目录，`--kb-dir` 可覆盖）。
+  **两个服务都要有这条路由**：平台预览（5000）走的是 `proxy_server.py`，只有 `serve_web.py` 提供 `/kb/*`
+  时平台预览下知识库远端恒不可用（客户端回落内置基线，表现为日志"远端知识库不可用"）
 - **客户端**：`autoload/knowledge_base_system.gd` 按域按需拉取 + `user://kb_cache` 缓存，
   失败一律回落内置基线；面板 `scripts/knowledge/knowledge_base_panel.gd` 展示同步状态
 - **更新流程**：编辑 `kb/KB-*.json` → `python godot_project/tools/kb_tool.py bump` → 同步 `kb/` 目录到部署环境
