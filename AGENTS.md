@@ -328,6 +328,8 @@ NO other objects, isolated, game asset
 
 ## 推理墙驱动的推理进程（2026-11-19 设计审查，用户三条裁定，未实施）
 
+**完整设计与实施方案**：`设计文档/L2_详细设计/系统设计/12_推理墙驱动的推理进程_设计与实施方案.md`（七断点诊断 + 松耦合方案 + Phase 0~4 实施路线 + 验收标准）。
+
 **现状诊断（代码定位，只读审查结论）**：墙目前是"评分器 + 图谱容器"，不驱动剧情：
 - 判定与推进完全解耦：`detective_scene.gd:522-533` `_default_wall_verify` 的 `advance := _in_reasoning_phase() or (_clues.size() >= hotspots().size())`——verdict 只换通知颜色，advance 恒无条件 `_advance_now()`；scene2 覆写版（:495-506）只换四档台词仍无条件推进；scene3~8 完全不消费 verdict。
 - 里程碑一次性全亮：`wall_verify.gd:267-270` 仅 VERIFIED 时整体点亮；milestone id（S2-1..S8-4）与真相表节点**零映射**，无法作过程刻度。
