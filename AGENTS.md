@@ -326,6 +326,23 @@ NO other objects, isolated, game asset
 - **沙发背景阳光版（2026-09-14，用户"加阳光光束增加动态感"反馈）**：sofa01 二次图生图（输入=4K 无光版），prompt 描述"单一柔和金色晨光光束从窗户射入+光尘+窗框光斑投地板/家具，强调 subtle/delicate/NOT overexposed"。多模态验证 PASS（构图一致/光束从左窗射入/地板窗框光斑/沙发书架明暗交错）。落地同流程，戳 v=20260914-bg2，pck 130.5MB。**LLM SDK 多模态调用法**：`LLMClient.invoke(model=..., messages=[HumanMessage(content=[{'type':'text',...},{'type':'image_url','image_url':{'url':'data:image/jpeg;base64,...'}}])])`——messages 必须是 langchain HumanMessage 对象（传 dict 报 "must contain at least one HumanMessage"），client 方法是 invoke/stream（无 chat）。
 - **版本**：v=20260906v。
 
+## 推理墙驱动的推理进程（2026-11-19 设计审查，用户三条裁定，未实施）
+
+**现状诊断（代码定位，只读审查结论）**：墙目前是"评分器 + 图谱容器"，不驱动剧情：
+- 判定与推进完全解耦：`detective_scene.gd:522-533` `_default_wall_verify` 的 `advance := _in_reasoning_phase() or (_clues.size() >= hotspots().size())`——verdict 只换通知颜色，advance 恒无条件 `_advance_now()`；scene2 覆写版（:495-506）只换四档台词仍无条件推进；scene3~8 完全不消费 verdict。
+- 里程碑一次性全亮：`wall_verify.gd:267-270` 仅 VERIFIED 时整体点亮；milestone id（S2-1..S8-4）与真相表节点**零映射**，无法作过程刻度。
+- 图谱默认视图下进度 UI 全隐藏：`reasoning_wall.gd:348-350` `_right_panel/_center_panel/_bottom_bar.visible=false`，图谱顶栏无任何进度/命中率显示 → 玩家在墙内得不到实时反馈。
+- 双口径分裂：`graph_view_data._compute_verdict()`（:157）独立旧计数口径（contradict>0→0；support≥3→3），因 `owner._verdict` 恒 -1 而实际生效 → 图谱结论着色与 WallBranchEvaluator 的 R 口径分裂，违反"裁定3 单一评分源"。
+- 星级粒度 ≠ 真相链粒度：`StarRatingSystem.chains` key 是场景级 chain_id（7 条），`get_max_total_stars()` 实际 63⭐，注释写"14 链=126"。
+- 跨场景链早期进分母：CH03（scene:"scene2", core）真相含 c309/c311（场景三）与 C_SOTCB_402（场景四）→ scene2 时 3 条边不可建，单链 R 上限≈14/17≈82%，与 VERIFIED 阈值 80% 踩线。
+- 真相表双源：链库仅覆盖 CH01W/CH01M；14 条正式链仍在 `_legacy_branches()` 手工表。全案链素材已在 `data/reasoning_chains_all_scenes.md`。
+- 进程素材只用于结算：`case_branch_log[scene_id].per_branch`（ratio/hit/built/truth/missing_*/reversed_*/extra_*）唯一消费者是场景八结局面板。
+
+**用户三条裁定（2026-11-19，永久有效）**：
+1. **文档纪律**："不要主动创建文档文件"改为"**非必要文档不主动创建**"。
+2. **14 条正式链修正顺序——先修后搬**：问题在 legacy 表（当前运行权威）修完、经现有探针回归后再机械搬入链库（`validate_all()` 收口）；搬运与修数据不混同一批提交。口径层问题（跨场景链分母、T 按已收集线索裁剪）与搬运无关，在 `wall_branch_evaluator.gd` 修。
+3. **剧情与推理墙松耦合（设计总纲）**：正确推理引导主线剧情，不正确推理引导**旁支剧情**（不是惩罚，是另一条内容路径）——现实侦破就是在试错中分辨哪条推理正确，都选对只有福尔摩斯做得到，不是普通玩家。玩家沿迷惑分支行不通时能"**返回**"正确（或玩家认为正确）的分支继续剧情，**错误永不卡死游戏**。墙的 verdict/命中率只作为剧情分支的输入信号之一，不做硬闸门（防重蹈场景二卡死覆辙）。
+
 ## 用户偏好与长期约束
 
 - **Git 提交与推送规则（2026-09-08 用户裁定，永久有效）**：工具类软件、临时性文件、过程类文件一律不推 GitHub。永不入库：①工具类二进制（Godot 编辑器本体、导出模板 zip/tpz、editor_extract/——GitHub 单文件硬限 100MB）；②构建产物（web_build/ 的 pck/wasm；index.html 戳按历史模式除外）；③临时/过程文件（*.part、*.hdr.import、日志、下载分片、/tmp 内容）。正常入库：源码、游戏数据、设计文档、回归探针脚本（tools/t_*.gd）、工具脚本（如 setup_godot.sh——脚本入库、软件不入库）。**每次 commit 前**：git status --short 逐条过目 + git diff --cached --stat 扫描异常；**push 前**：`git rev-list --objects origin/main..HEAD | git cat-file --batch-check='%(objectsize) %(rest)' | awk '$1>100000000'` 体检；**新增大文件目录时**：git check-ignore -v 当场验证规则命中（已跟踪文件加 --no-index）。教训：.gitignore 规则路径必须与实际目录对齐（曾因 /tools/godot/ 实际在 godot_project/tools/godot/ 而规则失效，137MB 编辑器二进制进提交被 GitHub 拒收）。
@@ -334,6 +351,7 @@ NO other objects, isolated, game asset
 - 后端 API 端口固定 3000
 - Web 预览端口固定 5000
 - Godot 项目需要 Compatibility 渲染器以支持 Web 导出
+- **非必要文档不主动创建（2026-11-19 用户裁定）**：不主动创建 .md 文档/README；分析结论优先在对话中给出，确有长期沉淀价值且用户认可时才落文档。
 
 ## 参考书库（design_docs/reference_books/，2026-09-14）
 
