@@ -119,6 +119,19 @@ var _verify_drag_offset := Vector2.ZERO
 var _graph_view: Control = null               # 图谱视图（GraphViewController）叠加层
 var _recycle_panel: PanelContainer = null     # 回收站恢复面板
 
+# === Phase 2 推理进程条（顶栏第三行，墙/图谱两模式常显）===
+# 数据源：_state_ctl._evaluate_branch() 实时快照重算（内部同步 _last_branch），
+# 提交后与验证窗口/结局面板同源（wall_branch_evaluator 同一评分）。
+const VERDICT_NAMES := ["矛盾冲突", "证据不足", "倾向成立", "已获证实"]
+const VERDICT_COLORS := [Color(0.9, 0.35, 0.3), Color(0.9, 0.75, 0.3), Color(0.4, 0.85, 0.4), Color(0.3, 0.9, 0.45)]
+var _progress_fill: ColorRect = null          # ΣR 进度条前景
+var _progress_pct_lbl: Label = null
+var _progress_blocks: HBoxContainer = null    # core 链逐链 ratio 色块
+var _progress_ins_lbl: Label = null           # 洞察合成完成度
+var _progress_milestone_lbl: Label = null     # 图谱模式可见的里程碑 chip（墙模式底部栏同步保留）
+var _progress_verdict_lbl: Label = null       # 图谱模式可见的当前判定 chip
+var _progress_last_ratio := -1.0              # 去重：数值没变就不重建色块（拖动高频下省 UI 重建）
+
 # === 统一顶栏：线型/颜色/视图/焦点 选择器 ===
 var _pen_solid_btn: Button = null
 var _pen_dashed_btn: Button = null
@@ -261,6 +274,7 @@ func setup(clues: Array, hypothesis: Dictionary, on_verify: Callable, on_close: 
 	_create_ui()
 	_update_all()
 	_on_open_graph_view()    # 图谱=默认主视图（覆盖列表区；左/右/中/底面板已隐藏）
+	_refresh_progress_bar(true)   # Phase 2：进程条初始态（恢复存档后立即反映已有进度）
 
 
 ## 四档判定（裁定 3：与三星评价共用同一个分枝评分源，杜绝两套口径）。
@@ -353,7 +367,7 @@ func _create_ui() -> void:
 func _create_top_bar() -> Control:
 	var bar := Control.new()
 	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	bar.offset_bottom = 110
+	bar.offset_bottom = 152
 	# 顶栏 z_index 必须远高于 graph_view 叠加层（z=5），否则线型/颜色/视图按钮被全屏图谱拦截
 	bar.z_index = 100
 	bar.mouse_filter = Control.MOUSE_FILTER_STOP   # 显式 STOP，截停向下传播
@@ -558,6 +572,79 @@ func _create_top_bar() -> Control:
 		row2.add_child(add_btn)
 
 	row2.add_child(_mk_sep())
+
+
+	# ===== 第三行：推理进程条（Phase 2）——ΣR 总进度 + core 链逐链色块 + 洞察完成度 + 判定/里程碑 chip =====
+	var row3 := HBoxContainer.new()
+	row3.add_theme_constant_override("separation", 8)
+	row3.mouse_filter = Control.MOUSE_FILTER_PASS
+	col.add_child(row3)
+
+	var prog_lbl := Label.new()
+	prog_lbl.text = "推理进程"
+	prog_lbl.add_theme_font_size_override("font_size", 14)
+	prog_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	prog_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row3.add_child(prog_lbl)
+
+	# ΣR 进度条：自绘两色（底槽 + 前景），248px 宽
+	var prog_bg := ColorRect.new()
+	prog_bg.color = Color(0.22, 0.18, 0.12, 0.9)
+	prog_bg.custom_minimum_size = Vector2(248, 14)
+	prog_bg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	prog_bg.mouse_filter = Control.MOUSE_FILTER_PASS
+	row3.add_child(prog_bg)
+	_progress_fill = ColorRect.new()
+	_progress_fill.color = Color(0.30, 0.72, 0.42)
+	_progress_fill.size = Vector2(0, 14)
+	_progress_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	prog_bg.add_child(_progress_fill)
+	_progress_pct_lbl = Label.new()
+	_progress_pct_lbl.text = "0%"
+	_progress_pct_lbl.add_theme_font_size_override("font_size", 14)
+	_progress_pct_lbl.add_theme_color_override("font_color", COL_GOLD_LIGHT)
+	_progress_pct_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_progress_pct_lbl.custom_minimum_size = Vector2(48, 24)
+	_progress_pct_lbl.tooltip_text = "全链总进度 ΣR = Σ命中 / Σ分母（core 链未激活按 0 计入）"
+	row3.add_child(_progress_pct_lbl)
+
+	row3.add_child(_mk_sep())
+
+	_progress_blocks = HBoxContainer.new()
+	_progress_blocks.add_theme_constant_override("separation", 4)
+	_progress_blocks.tooltip_text = "core 链逐链推理进度（悬停看链名与百分比；绿金≥80% / 黄≥50% / 橙>0 / 灰=未推进）"
+	_progress_blocks.mouse_filter = Control.MOUSE_FILTER_PASS
+	row3.add_child(_progress_blocks)
+
+	row3.add_child(_mk_sep())
+
+	_progress_ins_lbl = Label.new()
+	_progress_ins_lbl.text = ""
+	_progress_ins_lbl.add_theme_font_size_override("font_size", 14)
+	_progress_ins_lbl.add_theme_color_override("font_color", Color(0.55, 0.75, 0.95))
+	_progress_ins_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_progress_ins_lbl.tooltip_text = "洞察合成完成度：合成层（非线索层）真相边的命中加权 / 总数，加结论节点产出"
+	row3.add_child(_progress_ins_lbl)
+
+	var prog_spacer := Control.new()
+	prog_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	prog_spacer.mouse_filter = Control.MOUSE_FILTER_PASS
+	row3.add_child(prog_spacer)
+
+	# 图谱模式下底部栏/中央面板被隐藏，判定与里程碑以 chip 形式迁入进程条行（Phase 2.2）
+	_progress_milestone_lbl = Label.new()
+	_progress_milestone_lbl.text = ""
+	_progress_milestone_lbl.add_theme_font_size_override("font_size", 14)
+	_progress_milestone_lbl.add_theme_color_override("font_color", Color(0.80, 0.70, 0.40))
+	_progress_milestone_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row3.add_child(_progress_milestone_lbl)
+
+	_progress_verdict_lbl = Label.new()
+	_progress_verdict_lbl.text = "当前判定：证据不足"
+	_progress_verdict_lbl.add_theme_font_size_override("font_size", 14)
+	_progress_verdict_lbl.add_theme_color_override("font_color", VERDICT_COLORS[1])
+	_progress_verdict_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row3.add_child(_progress_verdict_lbl)
 
 
 	_rel_ctl._sync_top_bar()
@@ -1324,8 +1411,76 @@ func _show_export_save_panel(txt: String) -> void:
 	dlg.popup_centered()
 
 
+## Phase 2：推理进程条刷新——实时快照重算（加/删边、存档点触发；提交判定后 force）。
+## 数据源与提交判定同源（wall_branch_evaluator / hard_mode_evaluator 经 _evaluate_branch），
+## 困难模式返回 four_dim 结构（per_branch=[]、insight_truth=0）→ 色块区自然为空、洞察隐藏。
+func _refresh_progress_bar(force: bool = false) -> void:
+	if _progress_fill == null or not is_instance_valid(_progress_fill):
+		return
+	if _state_ctl == null or not is_instance_valid(_state_ctl):
+		return
+	var res := _state_ctl._evaluate_branch()
+	if res.is_empty():
+		return
+	var ratio := clampf(float(res.get("ratio", 0.0)), 0.0, 1.0)
+	_progress_fill.color = _ratio_color(ratio)
+	_progress_fill.size = Vector2(248.0 * ratio, 14.0)
+	_progress_pct_lbl.text = "%d%%" % int(round(ratio * 100.0))
+	_progress_last_ratio = ratio
+	# core 链逐链色块：per_branch 过滤 core（链数少，重建成本低；tooltip 带链名与明细）
+	for c in _progress_blocks.get_children():
+		c.queue_free()
+	var pb: Array = res.get("per_branch", [])
+	for b in pb:
+		if not bool(b.get("core", false)):
+			continue
+		var r := clampf(float(b.get("ratio", 0.0)), 0.0, 1.0)
+		var blk := ColorRect.new()
+		blk.custom_minimum_size = Vector2(26, 14)
+		blk.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		blk.color = _ratio_color(r)
+		blk.tooltip_text = "%s  %d/%d（%d%%）" % [
+			str(b.get("name", "")),
+			int(round(float(b.get("hit", 0.0)))),
+			int(b.get("truth", 0)),
+			int(round(r * 100.0)),
+		]
+		blk.mouse_filter = Control.MOUSE_FILTER_PASS
+		_progress_blocks.add_child(blk)
+	# 洞察合成完成度（合成层真相边 + 结论节点；困难模式恒 0 → 隐藏）
+	var ins_t := int(res.get("insight_truth", 0))
+	if ins_t > 0:
+		_progress_ins_lbl.text = "洞察 %d/%d" % [int(round(float(res.get("insight_hit", 0.0)))), ins_t]
+		_progress_ins_lbl.visible = true
+	else:
+		_progress_ins_lbl.visible = false
+	# 判定 chip（与 wall_verify._update_verdict_label 同一映射；verdict 直接取本次重算结果，
+	# 与 get_verdict() 同源——避免为读判定再做一次全量评估）
+	if _difficulty == Diff.HARD:
+		_progress_verdict_lbl.text = "困难模式 · 定性反馈"
+		_progress_verdict_lbl.add_theme_color_override("font_color", Color(0.85, 0.65, 0.25))
+	else:
+		var v := clampi(int(res.get("verdict", 1)), 0, 3)
+		_progress_verdict_lbl.text = "当前判定：" + VERDICT_NAMES[v]
+		_progress_verdict_lbl.add_theme_color_override("font_color", VERDICT_COLORS[v])
+	# 里程碑 chip（图谱模式下底部栏被隐藏，此处为唯一可见出口）
+	if _milestone_total > 0:
+		_progress_milestone_lbl.text = "里程碑 %d/%d" % [_milestone_confirmed, _milestone_total]
+		_progress_milestone_lbl.visible = true
+	else:
+		_progress_milestone_lbl.visible = false
+
+
+func _ratio_color(r: float) -> Color:
+	if r >= 0.8: return Color(0.30, 0.80, 0.45)
+	if r >= 0.5: return Color(0.88, 0.75, 0.30)
+	if r > 0.0: return Color(0.85, 0.55, 0.25)
+	return Color(0.42, 0.38, 0.32)
+
+
 func _gv_relations_changed(rels: Array) -> void:
 	_relations = rels
+	_refresh_progress_bar()
 
 
 ## 连线被选中/取消选中：驱动顶栏线型/性质按钮切换为「编辑选中线」并反映其状态；

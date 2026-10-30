@@ -19,10 +19,8 @@ func _update_verdict_label() -> void:
 		owner._verdict_lbl.text = "困难模式 · 定性反馈（按真相而非作者链）"
 		owner._verdict_lbl.add_theme_color_override("font_color", Color(0.85, 0.65, 0.25))
 		return
-	var txt: String = ["矛盾冲突", "证据不足", "倾向成立", "已获证实"][v]
-	var col: Color = [owner.COL_RED, owner.COL_YELLOW, Color(0.4, 0.85, 0.4), owner.COL_GREEN][v]
-	owner._verdict_lbl.text = "当前判定：" + txt
-	owner._verdict_lbl.add_theme_color_override("font_color", col)
+	owner._verdict_lbl.text = "当前判定：" + owner.VERDICT_NAMES[v]
+	owner._verdict_lbl.add_theme_color_override("font_color", owner.VERDICT_COLORS[v])
 
 
 # === 验证 ===
@@ -287,6 +285,7 @@ func _open_verify_result() -> void:
 
 	owner._verify_win = win
 	owner._verify_v = v
+	owner._refresh_progress_bar(true)   # Phase 2：提交判定落地，进程条切到判定值
 
 
 func _on_verify_confirm(v: int) -> void:
@@ -309,7 +308,7 @@ func _on_verify_confirm(v: int) -> void:
 ## 正式墙（裁定4）：只显等级 + 三星 + 一句话，不暴露错在哪（错处留到场景八全案结论才公布）。
 ## 练习墙（用户 2026-09 拍板）：评价体系照常运行，另附「差在哪」逐项明细——教学墙正该教。
 func _build_verify_summary() -> String:
-	var levels := ["矛盾冲突", "证据不足", "倾向成立", "已获证实"]
+	var levels: Array = owner.VERDICT_NAMES
 	var v := owner.get_verdict()
 	if owner._practice_mode:
 		return _teaching_report()
@@ -531,7 +530,7 @@ func _soft_compare_report() -> String:
 
 
 func _compute_report(v: int) -> String:
-	var levels := {0: "矛盾冲突", 1: "证据不足", 2: "倾向成立", 3: "已获证实"}
+	var levels := {0: owner.VERDICT_NAMES[0], 1: owner.VERDICT_NAMES[1], 2: owner.VERDICT_NAMES[2], 3: owner.VERDICT_NAMES[3]}
 	var hypo_name: String = owner._hypothesis.get("title", "")
 	var support := owner._state_ctl._support_signals()
 	var contra := owner._state_ctl._contradiction_signals()

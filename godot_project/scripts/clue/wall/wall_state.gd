@@ -98,6 +98,8 @@ func _restore_state() -> void:
 
 
 func _persist_state() -> void:
+	if owner and is_instance_valid(owner):
+		owner._refresh_progress_bar()   # Phase 2：墙内容变化统一汇聚点——进程条实时跟随
 	if not owner._persist_enabled: return   # 调用方未开启持久化则不写（兼容旧调用方）
 	var assoc := []
 	for c in owner._clues:

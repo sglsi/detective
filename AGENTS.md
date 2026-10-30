@@ -366,6 +366,16 @@ NO other objects, isolated, game asset
 - **已知遗留**：①CH09F 真实玩家 R 上限 0.889（person:NPC_HOPE 边在无人物锚的场景八墙上不可建；Phase 0 的 unavailable 裁剪只覆盖 clue 层不覆盖 person 层；VERIFIED 阈值 80% 仍可达）——Phase 2/3 若做人物锚或扩展裁剪再处理；②孤儿 clue（601/602/803）随 legacy 删除而消失，链库 truth 不含（行为等价）。
 - **Gate B7 已走**：index.pck 152236528，index.html 戳 `v=20261030101830`。
 
+### Phase 2 推理进程可视化（2026-10-30 已实施，P0 UI 零剧情风险）
+
+- **2.1 图谱顶栏「推理进程条」（reasoning_wall.gd）**：顶栏加第三行（`offset_bottom` 110→152，z_index=100 图谱模式恒可见）——ΣR 总进度自绘条（ColorRect 底槽+`_progress_fill` 前景，248×14）+ 百分比文本 + core 链逐链 ratio 色块（HBox，`_ratio_color` 四档 ≥0.8 绿/≥0.5 黄/>0 橙/0 灰，tooltip 链名明细）+ 洞察合成完成度（`insight_hit/insight_truth`）+ 里程碑 chip（`_milestone_confirmed/_milestone_total`）+ 判定 chip。
+- **刷新函数 `_refresh_progress_bar(force:=false)`**：实时调 `_state_ctl._evaluate_branch()` 全量重算（每次加/删边触发一次，非帧级，无需节流）。挂点四路：`_gv_relations_changed`（图谱回调链）、`wall_state._persist_state()` 头部（墙模式内容变化统一汇聚点，放 `_persist_enabled` return 之前防 persist 关闭的墙不刷）、`wall_verify._open_verify_result()` 尾部 force（提交后墙 queue_free，force 挂点必须在窗口打开时）、`setup()` 尾部 force（初始态渲染）。**图谱是默认主视图**（setup 自动 `_on_open_graph_view`），graph_view 快照路径开墙即可用。
+- **VERDICT const 消四处文案漂移**：`reasoning_wall.gd` 提取 `VERDICT_NAMES := ["矛盾冲突","证据不足","倾向成立","已获证实"]` + `VERDICT_COLORS`；`wall_verify.gd` 的 `_update_verdict_label`/`_build_verify_summary`（:311）/`_compute_report`（:533）全部改引用。判定 chip 直接用 `res.get("verdict")` 省一次全量评估。
+- **困难模式自动降级**：`hard_mode_evaluator` 返回兼容字段（`per_branch=[]`/`sum_max=1.0`/`insight_truth=0`）→ 进程条零改动可用（ΣR=四维 ratio、色块空、洞察隐藏）。
+- **探针**：`tools/t_phase2_progress.gd` 7 断言全过（初始 0% / _last_branch 就绪 / 连真相边 c201→H2-01 走真实回调 ΣR 0→3.23% / UI 与 _last_branch 一致 / 活色块数==core 链数（is_queued_for_deletion 过滤）/ 提交后一致 / 验证窗口创建）。
+- **回归全绿**：t_flow_diff 0 错、verdict_sync fails=0、test_branch_evaluator 全过、baseline OVERALL 全 1.0、validate_all 空、q6 仅 1 个历史 FAIL。
+- **Gate B7 坑补记**：**导出模板目录会中途消失**（`/root/.local/share/godot/export_templates/` 本次在 Phase 1 导出成功后再次丢失）→ `--export-release` 报 "Cannot export project with preset Web due to configuration errors / No export template found" 且 **pck 完全不动（mtime/大小与旧版相同）**——"导出后 pck 大小与上次相同"是导出失败判据，不是内容巧合；重跑 `tools/godot/setup_godot.sh`（幂等）即恢复。恢复后重导 pck 152238460（+1.9KB 脚本改动），index.html 戳 `v=20261030113111`（三行 meta + mainPack 均被导出冲掉后补回，fileSizes 导出自带同步）。
+
 ## 用户偏好与长期约束
 
 - **Git 提交与推送规则（2026-09-08 用户裁定，永久有效）**：工具类软件、临时性文件、过程类文件一律不推 GitHub。永不入库：①工具类二进制（Godot 编辑器本体、导出模板 zip/tpz、editor_extract/——GitHub 单文件硬限 100MB）；②构建产物（web_build/ 的 pck/wasm；index.html 戳按历史模式除外）；③临时/过程文件（*.part、*.hdr.import、日志、下载分片、/tmp 内容）。正常入库：源码、游戏数据、设计文档、回归探针脚本（tools/t_*.gd）、工具脚本（如 setup_godot.sh——脚本入库、软件不入库）。**每次 commit 前**：git status --short 逐条过目 + git diff --cached --stat 扫描异常；**push 前**：`git rev-list --objects origin/main..HEAD | git cat-file --batch-check='%(objectsize) %(rest)' | awk '$1>100000000'` 体检；**新增大文件目录时**：git check-ignore -v 当场验证规则命中（已跟踪文件加 --no-index）。教训：.gitignore 规则路径必须与实际目录对齐（曾因 /tools/godot/ 实际在 godot_project/tools/godot/ 而规则失效，137MB 编辑器二进制进提交被 GitHub 拒收）。
