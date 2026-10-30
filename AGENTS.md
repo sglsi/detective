@@ -376,6 +376,16 @@ NO other objects, isolated, game asset
 - **回归全绿**：t_flow_diff 0 错、verdict_sync fails=0、test_branch_evaluator 全过、baseline OVERALL 全 1.0、validate_all 空、q6 仅 1 个历史 FAIL。
 - **Gate B7 坑补记**：**导出模板目录会中途消失**（`/root/.local/share/godot/export_templates/` 本次在 Phase 1 导出成功后再次丢失）→ `--export-release` 报 "Cannot export project with preset Web due to configuration errors / No export template found" 且 **pck 完全不动（mtime/大小与旧版相同）**——"导出后 pck 大小与上次相同"是导出失败判据，不是内容巧合；重跑 `tools/godot/setup_godot.sh`（幂等）即恢复。恢复后重导 pck 152238460（+1.9KB 脚本改动），index.html 戳 `v=20261030113111`（三行 meta + mainPack 均被导出冲掉后补回，fileSizes 导出自带同步）。
 
+### Phase 3 里程碑 gate 化 + 案件进程轴（2026-10-30 已实施，场景二试点）
+
+- **3.1 gate 字段（scene2.gd 试点）**：S2-1..S2-8 每条 milestone 加 `"gate":[...]`（真相节点/线索 id 数组，**OR 语义**——任一 gate 节点被玩家连出即点亮）。标注对照链库真相节点：S2-2→[H2-01,CL2-1]、S2-5→[CL2-4]（三线合一假设级）、S2-8→[H2-10]（钩子假设"留在屋里"，不在链库 truth 但在墙上，gate 是 relations 字符串匹配与链库无关）；S2-1 死亡地点无专门节点用 c201（现场首证）。其余场景按同模式跟进（S3-1..S8-4）。
+- **3.2 点亮逻辑（wall_state.gd）**：`_check_milestone_gates()`——gate 任一 id 出现在任一 relation 端点即点亮（`_gate_id_hit` 兼容结论节点 `conclusion_` 前缀形态）；**点亮不回退**（删边/撤销不降级，里程碑是已确立事实刻度）；点亮时 `_register_milestone_index()` 把 id→text/scene 写进 `state_store["milestone_index"]`（案件大墙随 case_wall_state 存档，进程轴据此跨场景汇总）。挂点搭 Phase 2 的 `_refresh_progress_bar()` 四路（加/删边/提交/setup 自动继承，零新增挂点）；点亮后内部 `_persist_state()` 重入 refresh 一次，此时无新增自然收敛（无需 guard）。VERIFIED 兜底全亮保留（wall_verify），且兜底点亮同样登记 index。
+- **3.3 merge 语义（wall_state.gd _persist_state）**：milestones_lit 写回从「当前墙覆盖」改「与 state_store 现有数组合并（union）」——案件大墙跨场景共享 case_wall_state，场景三写入不再冲掉场景二已点亮里程碑。旧档 id 数组结构不变，merge 天然兼容。
+- **3.4 案件进程轴（detective_scene.gd）**：`_case_progress_items()` 数据段置顶于案件簿面板——①已确立事实：milestones_lit + milestone_index 按 id 排序逐条显示（无登记的旧档 id 降级显示裸 id）；②推理链概况：StarRatingSystem.case_branch_log 各场景 per_branch 的 ratio/built/truth + 链名（ReasoningChains.CHAINS 查名）。教学墙/空档时该段自动缺省。
+- **探针**：`tools/t_phase3_milestones.gd` 8 断言全过（初始全灭/真实 persist 链路点亮+持久/index 登记/conclusion_ 前缀命中/merge 保留他场景/删边不回退/进程轴数据契约）。**坑**：①`_update_milestone_ui` 是 wall_state 本层方法，误加 `owner.` 前缀报 "Nonexistent function in base Control (ReasoningWall)"；②探针 setup 第 9 参 `persist` 必须 true，否则 `_persist_state` 被 `_persist_enabled` 拦截，持久化断言全废（Phase 2 探针传 false 是因为它只断言墙内存值）。
+- **回归全绿**：t_flow_diff 0 错、verdict_sync fails=0、test_branch_evaluator 全过、baseline OVERALL 全 1.0、validate_all 空、t_phase2_progress fails=0。
+- **Gate B7 已走**：export_templates 再次丢失（本会话第二次）→ setup_godot.sh 恢复后重导 pck 152245216，index.html 戳 `v=20261030153252`。
+
 ## 用户偏好与长期约束
 
 - **Git 提交与推送规则（2026-09-08 用户裁定，永久有效）**：工具类软件、临时性文件、过程类文件一律不推 GitHub。永不入库：①工具类二进制（Godot 编辑器本体、导出模板 zip/tpz、editor_extract/——GitHub 单文件硬限 100MB）；②构建产物（web_build/ 的 pck/wasm；index.html 戳按历史模式除外）；③临时/过程文件（*.part、*.hdr.import、日志、下载分片、/tmp 内容）。正常入库：源码、游戏数据、设计文档、回归探针脚本（tools/t_*.gd）、工具脚本（如 setup_godot.sh——脚本入库、软件不入库）。**每次 commit 前**：git status --short 逐条过目 + git diff --cached --stat 扫描异常；**push 前**：`git rev-list --objects origin/main..HEAD | git cat-file --batch-check='%(objectsize) %(rest)' | awk '$1>100000000'` 体检；**新增大文件目录时**：git check-ignore -v 当场验证规则命中（已跟踪文件加 --no-index）。教训：.gitignore 规则路径必须与实际目录对齐（曾因 /tools/godot/ 实际在 godot_project/tools/godot/ 而规则失效，137MB 编辑器二进制进提交被 GitHub 拒收）。

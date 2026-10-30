@@ -263,7 +263,10 @@ func _open_verify_result() -> void:
 	scr.add_child(rep)
 
 	if v == ReasoningWall.Verdict.VERIFIED:
-		for m in owner._milestones: m["lit"] = true
+		for m in owner._milestones:
+			if not m.get("lit", false):
+				m["lit"] = true
+				owner._state_ctl._register_milestone_index(m)   # Phase 3.4：兜底点亮同样登记，进程轴可见
 		owner._milestone_confirmed = owner._milestone_total
 		owner._state_ctl._update_milestone_ui()
 

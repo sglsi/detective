@@ -248,7 +248,7 @@ func _show_map_panel() -> void:
 
 func _show_casebook_panel() -> void:
 	if ClueSystem: _sync_clues()   # 进入推理前（对话阶段）也实时反映已收集线索，避免案件簿「已收集 0/N」失真
-	var items: Array = []
+	var items: Array = _case_progress_items()   # Phase 3.4：案件进程轴置顶
 	var steps := casebook_steps()
 	var done := casebook_done_flags()
 	for i in steps.size():
@@ -256,6 +256,45 @@ func _show_casebook_panel() -> void:
 		var is_done: bool = i < done.size() and bool(done[i])
 		items.append({"name": ("✅ " if is_done else "⬜ ") + steps[i], "desc": ""})
 	_popup("案件簿 — 血字的研究 · " + scene_id(), items)
+
+
+## Phase 3.4：案件进程轴——跨场景汇总已点亮里程碑与推理链概况。
+## 里程碑数据源 = case_wall_state.milestones_lit（Phase 3.3 merge 后跨场景累计）
+## + milestone_index（Phase 3.2 点亮登记的 text/scene）；教学墙/旧档无登记时该段自动缺省。
+## 链概况 = StarRatingSystem.case_branch_log 各场景 per_branch 的 ratio/built/truth。
+func _case_progress_items() -> Array:
+	var items: Array = []
+	if ClueSystem == null:
+		return items
+	var cw: Dictionary = ClueSystem.case_wall_state
+	var lit: Array = cw.get("milestones_lit", [])
+	var idx: Dictionary = cw.get("milestone_index", {})
+	if not lit.is_empty():
+		items.append({"name": "—— 案件进程轴 · 已确立事实 ——", "desc": ""})
+		var rows: Array = []
+		for mid in lit:
+			var info: Dictionary = idx.get(str(mid), {})
+			rows.append({"id": str(mid), "text": str(info.get("text", ""))})
+		rows.sort_custom(func(a, b): return str(a["id"]) < str(b["id"]))
+		for r in rows:
+			var disp: String = r["text"] if r["text"] != "" else r["id"]
+			items.append({"name": "■ " + disp, "desc": r["id"]})
+	if StarRatingSystem != null:
+		var blog: Dictionary = StarRatingSystem.get_case_branch_log()
+		var chain_rows: Array = []
+		for sid in blog:
+			var pb: Dictionary = blog[sid].get("per_branch", {})
+			for cid in pb:
+				var st: Dictionary = pb[cid]
+				var cname: String = str(cid)
+				if ReasoningChains.CHAINS.has(cid):
+					cname = str(ReasoningChains.CHAINS[cid].get("name", cid))
+				chain_rows.append({"name": "· %s：%d%%" % [cname, int(round(float(st.get("ratio", 0.0)) * 100.0))],
+					"desc": "已连 %d / 真相 %d（%s）" % [int(st.get("built", 0)), int(st.get("truth", 0)), str(sid)]})
+		if not chain_rows.is_empty():
+			items.append({"name": "—— 推理链概况 ——", "desc": ""})
+			items.append_array(chain_rows)
+	return items
 
 func _show_inventory_panel() -> void:
 	var items: Array = []

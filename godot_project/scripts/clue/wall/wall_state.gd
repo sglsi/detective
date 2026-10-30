@@ -112,6 +112,11 @@ func _persist_state() -> void:
 		bf[h.get("id", "")] = owner._battle_hypo_states.get(h.get("id", ""), 0)
 	for c in owner._battle.get("contradictions", []):
 		bf[c.get("id", "")] = owner._battle_contra_states.get(c.get("id", ""), false)
+	# Phase 3.3：milestones_lit merge 而非覆盖——案件大墙跨场景共享 case_wall_state，
+	# 场景 N 写入若直接覆盖会冲掉其他场景已点亮的里程碑。旧档 id 数组结构不变，merge 天然兼容。
+	var prev_lit: Array = owner._state_store.get("milestones_lit", [])
+	for pid in prev_lit:
+		if not m_lit.has(pid): m_lit.append(pid)
 	# ⚠️ 不要 _state_store.clear()！（Bug1）图谱视图把节点位置/模式/焦点也写进同一份
 	# state_store 引用，clear() 会把它们一起抹掉。这里只覆盖推理墙自身关心的键。
 	owner._state_store["associated"] = assoc
@@ -169,11 +174,54 @@ func _init_milestones(hypo: Dictionary) -> void:
 	owner._milestones = []
 	var ms: Array = hypo.get("milestones", [])
 	for m in ms:
-		owner._milestones.append({"id": m.get("id", ""), "text": m.get("text", ""), "lit": false})
+		owner._milestones.append({"id": m.get("id", ""), "text": m.get("text", ""), "gate": m.get("gate", []), "lit": false})
 	if owner._milestones.is_empty():
-		owner._milestones.append({"id": "core", "text": hypo.get("title", "核心结论"), "lit": false})
+		owner._milestones.append({"id": "core", "text": hypo.get("title", "核心结论"), "gate": [], "lit": false})
 	owner._milestone_total = owner._milestones.size()
 	owner._milestone_confirmed = 0
+
+
+## Phase 3.2：里程碑 gate 命中检查——gate 数组（真相节点/线索 id）任一节点被玩家连出
+## （出现在任一 relation 端点，结论节点兼容 "conclusion_" 前缀形态）即逐条点亮。
+## 点亮一经发生不因删边回退（里程碑是已确立的事实刻度）；VERIFIED 时 wall_verify 仍全亮兜底。
+func _check_milestone_gates() -> void:
+	if owner._milestones.is_empty() or owner._relations.is_empty():
+		return
+	var touched := false
+	for m in owner._milestones:
+		if m.get("lit", false):
+			continue
+		var gate: Array = m.get("gate", [])
+		if gate.is_empty():
+			continue
+		for gid in gate:
+			if _gate_id_hit(str(gid)):
+				m["lit"] = true
+				touched = true
+				_register_milestone_index(m)
+				break
+	if touched:
+		_update_milestone_ui()
+		_persist_state()
+
+
+func _gate_id_hit(gid: String) -> bool:
+	for r in owner._relations:
+		var f := str(r.get("from", ""))
+		var t := str(r.get("to", ""))
+		if f == gid or t == gid or f == "conclusion_" + gid or t == "conclusion_" + gid:
+			return true
+	return false
+
+
+## Phase 3.4：点亮时把里程碑登记进 state_store["milestone_index"]（id→text/scene），
+## 案件大墙随 case_wall_state 存档，案件进程轴（detective_scene._show_casebook_panel）据此跨场景汇总。
+func _register_milestone_index(m: Dictionary) -> void:
+	var idx: Dictionary = owner._state_store.get("milestone_index", {})
+	if idx.has(m.get("id", "")):
+		return
+	idx[m.get("id", "")] = {"text": m.get("text", ""), "scene": str(owner._state_store.get("owner_scene", ""))}
+	owner._state_store["milestone_index"] = idx
 
 
 func _update_milestone_ui() -> void:

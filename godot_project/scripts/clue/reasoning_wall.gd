@@ -1419,6 +1419,9 @@ func _refresh_progress_bar(force: bool = false) -> void:
 		return
 	if _state_ctl == null or not is_instance_valid(_state_ctl):
 		return
+	# Phase 3.2：gate 命中检查搭同一挂点（加/删边/提交/setup 四路刷新自动继承）；
+	# 点亮后内部 _persist_state 会重入本函数一次，此时已无新增自然收敛。
+	_state_ctl._check_milestone_gates()
 	var res := _state_ctl._evaluate_branch()
 	if res.is_empty():
 		return
