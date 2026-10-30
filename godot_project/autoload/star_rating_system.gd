@@ -120,14 +120,17 @@ func get_chain_total(chain_id: String) -> int:
 func get_chain_count() -> int:
 	return chains.size()
 
-## 案件总星级 = 所有推理链星级之和（例：6 链满星 = 54⭐；完整 14 链 = 126⭐）
+## 案件总星级 = 所有推理链星级之和（每链满星 9⭐）
+## ⚠️ 粒度说明（Phase 0 修正）：chains 的 key 是场景级 chain_id（scene2..scene8，共 7 个），
+## 不是真相表 16 链/14 正式链——全案满星 = 7×9 = 63⭐，并非旧注释所写 126⭐。
+## 链粒度统一（每条真相链独立评星）待 Phase 1 链库化后处理（12 号设计文档 §断点5）。
 func get_total_stars() -> int:
 	var t := 0
 	for cr in chains.values():
 		t += int(cr["observation"]) + int(cr["reasoning"]) + int(cr["insight"])
 	return t
 
-## 案件满星 = 已提交链数 × 9（支持任意链数，默认 14 链 => 126⭐）
+## 案件满星 = 已提交链数 × 9（当前键为场景级 chain_id，全案 7 链 = 63⭐）
 func get_max_total_stars() -> int:
 	return chains.size() * MAX_STARS_PER_CHAIN
 

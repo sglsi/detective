@@ -214,12 +214,20 @@ func _evaluate_branch() -> Dictionary:
 	var ev = load("res://scripts/clue/wall_branch_evaluator.gd")
 	if ev == null:
 		return {}
+	# Phase 0.1：把「本墙已收集线索」传给评估器，真相边按可用性裁剪（跨场景链
+	# 早期场景的分母修正）。墙线索池 owner._clues 就是画布上实际可用的线索。
+	var collected_ids: Array = []
+	for c in owner._clues:
+		var cid := str(c.get("id", ""))
+		if cid != "":
+			collected_ids.append(cid)
 	var res: Dictionary = ev.evaluate(
 		snap.get("relations", []),
 		snap.get("graph_nodes", []),
 		snap.get("derived_conclusions", []),
 		owner._scene_id,
-		owner._practice_mode)
+		owner._practice_mode,
+		collected_ids)
 	owner._last_branch = res
 	return res
 

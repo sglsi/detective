@@ -326,7 +326,7 @@ NO other objects, isolated, game asset
 - **沙发背景阳光版（2026-09-14，用户"加阳光光束增加动态感"反馈）**：sofa01 二次图生图（输入=4K 无光版），prompt 描述"单一柔和金色晨光光束从窗户射入+光尘+窗框光斑投地板/家具，强调 subtle/delicate/NOT overexposed"。多模态验证 PASS（构图一致/光束从左窗射入/地板窗框光斑/沙发书架明暗交错）。落地同流程，戳 v=20260914-bg2，pck 130.5MB。**LLM SDK 多模态调用法**：`LLMClient.invoke(model=..., messages=[HumanMessage(content=[{'type':'text',...},{'type':'image_url','image_url':{'url':'data:image/jpeg;base64,...'}}])])`——messages 必须是 langchain HumanMessage 对象（传 dict 报 "must contain at least one HumanMessage"），client 方法是 invoke/stream（无 chat）。
 - **版本**：v=20260906v。
 
-## 推理墙驱动的推理进程（2026-11-19 设计审查，用户三条裁定，未实施）
+## 推理墙驱动的推理进程（2026-11-19 设计审查；Phase 0 已实施 2026-10-30）
 
 **完整设计与实施方案**：`设计文档/L2_详细设计/系统设计/12_推理墙驱动的推理进程_设计与实施方案.md`（七断点诊断 + 松耦合方案 + Phase 0~4 实施路线 + 验收标准）。
 
@@ -344,6 +344,15 @@ NO other objects, isolated, game asset
 1. **文档纪律**："不要主动创建文档文件"改为"**非必要文档不主动创建**"。
 2. **14 条正式链修正顺序——先修后搬**：问题在 legacy 表（当前运行权威）修完、经现有探针回归后再机械搬入链库（`validate_all()` 收口）；搬运与修数据不混同一批提交。口径层问题（跨场景链分母、T 按已收集线索裁剪）与搬运无关，在 `wall_branch_evaluator.gd` 修。
 3. **剧情与推理墙松耦合（设计总纲）**：正确推理引导主线剧情，不正确推理引导**旁支剧情**（不是惩罚，是另一条内容路径）——现实侦破就是在试错中分辨哪条推理正确，都选对只有福尔摩斯做得到，不是普通玩家。玩家沿迷惑分支行不通时能"**返回**"正确（或玩家认为正确）的分支继续剧情，**错误永不卡死游戏**。墙的 verdict/命中率只作为剧情分支的输入信号之一，不做硬闸门（防重蹈场景二卡死覆辙）。
+
+### Phase 0 口径统一（2026-10-30 已实施，三子项全落地）
+
+- **0.1 真相边按已收集线索裁剪**：`wall_branch_evaluator.gd` `evaluate()` 新增尾参 `collected_ids: Array = []`——空 = 不裁剪（旧行为，兼容旧调用方/探针）；非空时构建 clue 节点 id 集（norm 归一化），真相边两端任一为"该链 clue 节点且未收集"→ 剔出 T/missing_edges、记入 `unavailable_edges`（返回 dict 与 per_branch 均透传）。**只裁边不裁节点**（hypo/concl 是战场候选本就可产出）。调用点 `wall_state._evaluate_branch()` 从 `owner._clues` 构建 collected_ids 传入（困难模式 HardModeEvaluator 分支未动）。**修复量化**：CH03@scene2 ratio 0.8235（14/17）→ 1.0000（truth 17→14、unavailable=3）、OVERALL 0.9118→1.0000；CASE_A（collected 空）78 行基线零差异证明兼容性。
+- **0.2 图谱写色切同一评分源**：`graph_view_controller.gd` 新增 `_cb_verdict_provider: Callable`（build 从 data dict 读 `"verdict_provider"`）+ `_sync_verdict()`（`_rebuild_graph()` 首行调用：provider 有效→`_verdict = provider.call()`，否则回写 -1 回落旧口径）；`reasoning_wall.gd` gv.build data dict 加 `"verdict_provider": Callable(self, "get_verdict")`。`graph_view_data._compute_verdict()` 的 `owner._verdict >= 0` 优先分支无需改。**行为证据**：乱连 3 条 support 后 verdict=1（旧口径 support≥3 给 3"变绿"）；摘 provider 回落 -1 不影响旧调用方。
+- **0.3 星级注释修正**：`star_rating_system.gd` get_total_stars/get_max_total_stars 注释改回实况——chains key 是场景级 chain_id（scene2..scene8 共 7 个）→ 满星 63⭐ 非 126；链粒度统一待 Phase 1。
+- **回归探针两枚（入库 tools/）**：`t_phase0_baseline.gd`（CASE_A collected 空/CASE_B 全量 noop/CASE_C scene2 缺 `["c309","c311","C_SOTCB_402"]` /CHECK_own_scene 不变式——各链本场景线索必可用，collected 按链 home 场景前缀并集构建即可，无需硬编码 clue→scene 映射）；`t_phase0_verdict_sync.gd`（四断言：provider 同源/乱连不绿/`_compute_verdict` 一致/摘 provider 回落 -1；实例化骨架抄 t_flow_diff，`get_verdict()` 返回值必须显式 `var wv: int` 不能 `:=` 推断）。
+- **既有回归全绿**：test_branch_evaluator（T1-T8）、t_flow_diff（0 SCRIPT ERROR）、t_validate_m（零闭合错误）。**q6_contract_guard 1 个历史遗留 FAIL（非本次引入）**：guard 期望 `gv.hit_off_left = 540`，reasoning_wall.gd 实际 `= 346`（HEAD 已如此，前人改契入区未同步 guard）——本次不碰契入区不顺手修 guard，待后续同步。
+- **Gate B7 已走**：rm -rf .godot → --import → --export-release "Web"（index.pck 152182048），index.html 三行 meta + `mainPack:"index.pck?v=20261030085935"` 补回（每次导出都被冲掉）。
 
 ## 用户偏好与长期约束
 

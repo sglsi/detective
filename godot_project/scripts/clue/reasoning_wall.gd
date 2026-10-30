@@ -990,6 +990,9 @@ func _on_open_graph_view() -> void:
 		# 不再冻结编辑；「防看评价后改图作弊」由提交当场 wall_verify 直锁 _editable + 结果弹窗遮罩承担，
 		# 墙销毁重开后允许整理图面（重复提交已被拦截，无作弊面）。
 		"editable": true, "verdict": get_verdict(),
+		# Phase 0.2：图谱实时着色评分源——rebuild 时由控制器回取 WallBranchEvaluator 判定，
+		# 与提交验证同源（替代旧计数口径兜底「support≥3 即绿」）。
+		"verdict_provider": Callable(self, "get_verdict"),
 		"state_store": _state_store,
 		"auto_fold": _auto_fold,
 		"case_wide": _case_wide,

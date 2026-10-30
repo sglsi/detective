@@ -56,7 +56,8 @@ var _persons: Array = []            # [{id, name}]
 var _focus_person: String = ""
 var _difficulty: int = Diff.NORMAL
 var _editable: bool = true
-var _verdict: int = -1              # -1 表示由本视图自行推算
+var _verdict: int = -1              # -1 表示由本视图自行推算；有 verdict_provider 时恒为墙侧分支评分源结果
+var _cb_verdict_provider: Callable = Callable()   # Phase 0.2：墙侧 get_verdict()（WallBranchEvaluator 同一评分源）
 var _state_store: Dictionary = {}
 var _placed_clues: Array = []
 var _auto_fold: bool = false
@@ -340,6 +341,8 @@ func build(data: Dictionary) -> void:
 	_editable = data.get("editable", true)
 	# 不再冻结墙侧 verdict 快照（问题3）：结论节点红/橙/黄/绿与文字始终按图内关系实时推算，
 	# 「关联正确后即时变色」，无需退出重进。LOCKED 墙关系不可变，实时推算与已定 verdict 一致。
+	# Phase 0.2：实时推算的「推算源」从旧计数口径（_compute_verdict 兜底）切到墙侧
+	# WallBranchEvaluator——rebuild 时经 verdict_provider 同步 _verdict，着色与提交判定同源。
 	_verdict = -1
 	_state_store = data.get("state_store", {})
 	_deleted_target_edges = _state_store.get("graph_deleted_target", {})   # 需求1：恢复已删除的结论→人物边（从持久化 state_store 读）
@@ -351,6 +354,7 @@ func build(data: Dictionary) -> void:
 	_cb_pen_changed = data.get("on_pen_changed", Callable())
 	_cb_relations_changed = data.get("on_relations_changed", Callable())
 	_cb_edge_selected = data.get("on_edge_selected", Callable())
+	_cb_verdict_provider = data.get("verdict_provider", Callable())
 	_show_toolbar = data.get("show_toolbar", false)
 	_auto_fold = data.get("auto_fold", false)
 	_case_wide = data.get("case_wide", false)
@@ -710,9 +714,21 @@ func _refresh_toolbar_state() -> void:
 ##   3) 原 id 字符串
 ## 证据连线（数据边）派生：玩家关系 + 自动推断（clue.relation_tags→推断 / 推断→结论）
 # ===================== 图重建 =====================
+## Phase 0.2：着色评分源同步——经墙侧 verdict_provider 取 WallBranchEvaluator 判定，
+## 与提交验证同一评分源（修复旧计数口径「support≥3 即绿」与真实判定分裂的问题）。
+## provider 缺省（旧调用方/探针）时保持 -1，_compute_verdict 回落旧口径不受影响。
+## snapshot_player_work 只读数组，rebuild 内调用无重入风险。
+func _sync_verdict() -> void:
+	if _cb_verdict_provider.is_valid():
+		_verdict = int(_cb_verdict_provider.call())
+	else:
+		_verdict = -1   # 无 provider 回落旧口径（-1 = 本视图自行推算）
+
+
 ## 节点卡片真实高度：视图已测量用视图，否则回退字符估算
 ## 同列纵向去重叠：同一列（x 相邻）节点按真实卡片高度，保证相邻卡片上下边距 ≥15px，并把整列回居中避免整体下沉堆出画布
 func _rebuild_graph() -> void:
+	_sync_verdict()
 	_data._compute_common_clues()
 	_data._derive_edges()
 	# 清旧节点 + 旧折叠控件（扫画布清除历史残留图元，避免拖动中重建叠加出重复同名节点）

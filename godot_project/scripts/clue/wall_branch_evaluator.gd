@@ -24,7 +24,7 @@
 ##   同时看「精度」与「覆盖率」，仍是单一公式、一句话讲得清。
 ##
 ## ── 两个必须补的洞 ──────────────────────────────────────────────
-## 洞1（只做最短链就三星）：标 core 链（破案必经 8 条），未激活的 core 链按 R=0
+## 洞1（只做最短链就三星）：标 core 链（破案必经 10 条），未激活的 core 链按 R=0
 ##      计入分母；optional 链激活才计分、做砸不拖分（保住「错误无惩罚」）。
 ## 洞2（误导项怎么算）：误导节点在真相里标 expect:"negate"。
 ##      玩家否定它 → 命中得分（奖励识破）；玩家采纳它 → 0 分且三星硬条件失败。
@@ -65,9 +65,20 @@ static func norm(nid: String) -> String:
 ## derived_conclusions 玩家落盘结论 [{id,text,...}]
 ## scene_id           当前场景（只评该场景及之前的链；场景二不该要求玩家完成场景八的链）
 ## practice           练习墙（场景一）：只算明细不产出星级，调用方据此不提交 StarRatingSystem
+## collected_ids      本墙已收集线索 id 集（Phase 0.1）。真相边两端涉及未收集线索时，
+##                    该边从 T 与 missing_edges 剔除、记入 unavailable_edges——跨场景链
+##                    （CH03 标在 scene2，真相含场景三/四线索）在早期场景结算不再被
+##                    永远缺失的边压低 R。传空数组 = 不裁剪（旧行为，兼容旧调用方/探针）。
 static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: Array,
-		scene_id: String, practice: bool = false) -> Dictionary:
+		scene_id: String, practice: bool = false, collected_ids: Array = []) -> Dictionary:
 	var allowed := _allowed_scenes(scene_id)
+
+	# ── 已收集线索集合（归一化与真相 id 同一空间）──────────────────
+	var collected := {}
+	for cid in collected_ids:
+		var ck := norm(str(cid))
+		if ck != "":
+			collected[ck] = true
 
 	# ── 玩家产物集合 ────────────────────────────────────────────
 	var player_nodes := {}          # 归一化 id -> true（玩家主动产出的推断/结论）
@@ -205,7 +216,7 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 		var is_core: bool = bool(b.get("core", false))
 		var bid3: String = str(b.get("id", ""))
 
-		var res := _score_branch(b, nodes_of[bid3], edges_of[bid3], node_owner_truth)
+		var res := _score_branch(b, nodes_of[bid3], edges_of[bid3], node_owner_truth, collected)
 		var built: int = int(res.get("built", 0))
 		# optional 链「激活」= 至少命中一项（说明玩家真在推这条链），
 		# 而不是「碰过一下」——否则一次误连就激活冷门链开始拖分，与「错误无惩罚」冲突。
@@ -219,6 +230,7 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 				"hit": 0.0, "built": 0, "truth": int(res.get("truth", 0)),
 				"missing_nodes": [], "missing_edges": [],
 				"reversed_edges": [], "extra_edges": [],
+				"unavailable_edges": [],
 			})
 			continue
 
@@ -237,6 +249,7 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 			"reversed_edges": res.get("reversed_edges", []),
 			"extra_edges": res.get("extra_edges", []),
 			"matched_edges": res.get("matched_edges", []),
+			"unavailable_edges": res.get("unavailable_edges", []),
 		})
 
 		# —— 洞察（合成层）聚合：非线索层的真相边 + 结论节点 ——
@@ -306,13 +319,38 @@ static func _node_set(b: Dictionary) -> Dictionary:
 ## node_owner_truth 为「hypo/concl 节点 → 其归属链 id」映射（首条链认领），用于
 ## 共享节点去重：同一节点出现在多条链时，只在归属链计 T，避免完美解 T 虚高。
 static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: Array,
-		node_owner_truth: Dictionary = {}) -> Dictionary:
+		node_owner_truth: Dictionary = {}, collected: Dictionary = {}) -> Dictionary:
 	var truth_nodes: Array = b.get("nodes", [])
 	var truth_edges: Array = b.get("edges", [])
 	var mislead_ids := {}
 	for m in b.get("misleads", []):
 		mislead_ids[norm(str(m.get("id", "")))] = str(m.get("expect", "negate"))
 	var bid: String = str(b.get("id", ""))
+
+	# ── 真相边按「本墙已收集线索」裁剪（Phase 0.1）─────────────────
+	# 跨场景链在早期场景结算时，真相引用的后置场景线索还没收集、物理上连不出来；
+	# 不裁剪则 T 含永远缺失项，链 R 有结构性上限（CH03@scene2 = 14/17≈0.824）。
+	# collected 为空 = 不裁剪（旧行为）。被裁边记 unavailable_edges 供诊断展示；
+	# 节点项不受影响（hypo/concl 战场候选本就可产出）。
+	var unavailable_edges: Array = []
+	if not collected.is_empty():
+		var clue_ids := {}
+		for n in truth_nodes:
+			if str(n.get("layer", "")) == "clue":
+				clue_ids[norm(str(n.get("id", "")))] = true
+		var eff_edges: Array = []
+		for e in truth_edges:
+			var efk := norm(str(e.get("from", "")))
+			var etk := norm(str(e.get("to", "")))
+			if (clue_ids.has(efk) and not collected.has(efk)) \
+					or (clue_ids.has(etk) and not collected.has(etk)):
+				unavailable_edges.append({
+					"from": str(e.get("from", "")), "to": str(e.get("to", "")),
+					"kind": str(e.get("kind", "")),
+				})
+				continue
+			eff_edges.append(e)
+		truth_edges = eff_edges
 
 	# 真相项数 T = 边数 + **玩家可产出的**节点数（hypo 推断 / concl 结论）。
 	# ⚠️ 线索(clue)与人物(person)不计入 T：线索是观察得来、墙上预置，人物由 related_npcs 自动派生，
@@ -393,7 +431,7 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 		"truth": truth, "built": built, "hit": hit,
 		"missing_nodes": missing_nodes, "missing_edges": missing_edges,
 		"reversed_edges": reversed_edges, "extra_edges": extra_edges,
-		"matched_edges": matched_edges,
+		"matched_edges": matched_edges, "unavailable_edges": unavailable_edges,
 	}
 
 
