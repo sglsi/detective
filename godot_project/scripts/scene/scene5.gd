@@ -82,7 +82,7 @@ func reasoning_hypothesis() -> Dictionary:
 				{"id":"H5-02","text":"来者是来占便宜的（想骗戒指）","correct":false},
 				{"id":"H5-03","text":"来者和案件有关，是凶手派来的","correct":true},
 				{"id":"H5-04","text":"来者就是凶手本人伪装的","correct":true},
-				{"id":"H5-05","text":"应该跟踪她，看她到底是谁","correct":true},
+				{"id":"H5-05","in_truth":false,"text":"应该跟踪她，看她到底是谁","correct":true},
 				{"id":"H5-06","text":"不用跟踪，放她走也没关系","correct":false,"kind":"mislead"},
 				{"id":"H5-07","text":"凶手是马车夫","correct":true},
 				{"id":"H5-08","text":"戒指是凶手故意掉的，引蛇出洞","correct":true},

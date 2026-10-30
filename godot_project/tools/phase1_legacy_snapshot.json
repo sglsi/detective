@@ -1,0 +1,1680 @@
+{
+	"CH01M": {
+		"core": false,
+		"edges": [
+			{
+				"from": "tattoo",
+				"kind": "support",
+				"to": "M-01"
+			},
+			{
+				"from": "beard",
+				"kind": "support",
+				"to": "M-02"
+			},
+			{
+				"from": "posture",
+				"kind": "support",
+				"to": "M-02"
+			},
+			{
+				"from": "manner",
+				"kind": "support",
+				"to": "M-04"
+			},
+			{
+				"from": "M-01",
+				"kind": "support",
+				"to": "CL1-01"
+			},
+			{
+				"from": "M-02",
+				"kind": "support",
+				"to": "CL1-01"
+			},
+			{
+				"from": "M-04",
+				"kind": "support",
+				"to": "CL1-02"
+			},
+			{
+				"from": "CL1-01",
+				"kind": "support",
+				"to": "CL1-02"
+			},
+			{
+				"from": "CL1-02",
+				"kind": "target",
+				"to": "person:NPC_MSG"
+			}
+		],
+		"id": "CH01M",
+		"misleads": [],
+		"name": "信使判定（练习）",
+		"nodes": [
+			{
+				"id": "tattoo",
+				"layer": "clue"
+			},
+			{
+				"id": "beard",
+				"layer": "clue"
+			},
+			{
+				"id": "manner",
+				"layer": "clue"
+			},
+			{
+				"id": "posture",
+				"layer": "clue"
+			},
+			{
+				"id": "sleeve",
+				"layer": "clue"
+			},
+			{
+				"id": "limp",
+				"layer": "clue"
+			},
+			{
+				"id": "M-01",
+				"layer": "hypo"
+			},
+			{
+				"id": "M-02",
+				"layer": "hypo"
+			},
+			{
+				"id": "M-04",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL1-01",
+				"layer": "concl"
+			},
+			{
+				"id": "CL1-02",
+				"layer": "concl"
+			},
+			{
+				"id": "person:NPC_MSG",
+				"layer": "person"
+			}
+		],
+		"practice": true,
+		"scene": "scene1"
+	},
+	"CH01W": {
+		"core": false,
+		"edges": [
+			{
+				"from": "wrist",
+				"kind": "support",
+				"to": "W-A1"
+			},
+			{
+				"from": "face_dark",
+				"kind": "support",
+				"to": "W-A1"
+			},
+			{
+				"from": "pose",
+				"kind": "support",
+				"to": "W-B1"
+			},
+			{
+				"from": "medical",
+				"kind": "support",
+				"to": "W-B2"
+			},
+			{
+				"from": "arm",
+				"kind": "support",
+				"to": "W-C1"
+			},
+			{
+				"from": "face_haggard",
+				"kind": "support",
+				"to": "W-C2"
+			},
+			{
+				"from": "W-A1",
+				"kind": "support",
+				"to": "C-A1"
+			},
+			{
+				"from": "W-B1",
+				"kind": "support",
+				"to": "C-B1"
+			},
+			{
+				"from": "W-B2",
+				"kind": "support",
+				"to": "C-B1"
+			},
+			{
+				"from": "W-C1",
+				"kind": "support",
+				"to": "C-C2"
+			},
+			{
+				"from": "W-C2",
+				"kind": "support",
+				"to": "C-C2"
+			},
+			{
+				"from": "C-A1",
+				"kind": "support",
+				"to": "C-A2"
+			},
+			{
+				"from": "C-A2",
+				"kind": "support",
+				"to": "C-MAIN"
+			},
+			{
+				"from": "C-B1",
+				"kind": "support",
+				"to": "C-MAIN"
+			},
+			{
+				"from": "C-C2",
+				"kind": "support",
+				"to": "C-MAIN"
+			},
+			{
+				"from": "C-MAIN",
+				"kind": "target",
+				"to": "person:NPC_WT"
+			}
+		],
+		"id": "CH01W",
+		"misleads": [],
+		"name": "华生教学（练习）",
+		"nodes": [
+			{
+				"id": "wrist",
+				"layer": "clue"
+			},
+			{
+				"id": "face_dark",
+				"layer": "clue"
+			},
+			{
+				"id": "pose",
+				"layer": "clue"
+			},
+			{
+				"id": "medical",
+				"layer": "clue"
+			},
+			{
+				"id": "face_haggard",
+				"layer": "clue"
+			},
+			{
+				"id": "arm",
+				"layer": "clue"
+			},
+			{
+				"id": "W-A1",
+				"layer": "hypo"
+			},
+			{
+				"id": "W-B1",
+				"layer": "hypo"
+			},
+			{
+				"id": "W-B2",
+				"layer": "hypo"
+			},
+			{
+				"id": "W-C1",
+				"layer": "hypo"
+			},
+			{
+				"id": "W-C2",
+				"layer": "hypo"
+			},
+			{
+				"id": "C-A1",
+				"layer": "concl"
+			},
+			{
+				"id": "C-B1",
+				"layer": "concl"
+			},
+			{
+				"id": "C-A2",
+				"layer": "concl"
+			},
+			{
+				"id": "C-C2",
+				"layer": "concl"
+			},
+			{
+				"id": "C-MAIN",
+				"layer": "concl"
+			},
+			{
+				"id": "person:NPC_WT",
+				"layer": "person"
+			}
+		],
+		"practice": true,
+		"scene": "scene1"
+	},
+	"CH02": {
+		"core": true,
+		"edges": [
+			{
+				"from": "c201",
+				"kind": "support",
+				"to": "H2-01"
+			},
+			{
+				"from": "c202",
+				"kind": "support",
+				"to": "H2-01"
+			},
+			{
+				"from": "c203",
+				"kind": "support",
+				"to": "H2-02"
+			},
+			{
+				"from": "c204",
+				"kind": "support",
+				"to": "H2-03"
+			},
+			{
+				"from": "H2-01",
+				"kind": "support",
+				"to": "CL2-1"
+			},
+			{
+				"from": "H2-02",
+				"kind": "support",
+				"to": "CL2-2"
+			},
+			{
+				"from": "H2-03",
+				"kind": "support",
+				"to": "CL2-3"
+			},
+			{
+				"from": "H2-01",
+				"kind": "support",
+				"to": "CL2-4"
+			},
+			{
+				"from": "H2-02",
+				"kind": "support",
+				"to": "CL2-4"
+			},
+			{
+				"from": "H2-03",
+				"kind": "support",
+				"to": "CL2-4"
+			}
+		],
+		"id": "CH02",
+		"misleads": [
+			{
+				"expect": "negate",
+				"id": "H2-M2"
+			},
+			{
+				"expect": "negate",
+				"id": "CL2-1M"
+			}
+		],
+		"name": "马车与车夫行踪",
+		"nodes": [
+			{
+				"id": "c201",
+				"layer": "clue"
+			},
+			{
+				"id": "c202",
+				"layer": "clue"
+			},
+			{
+				"id": "c203",
+				"layer": "clue"
+			},
+			{
+				"id": "c204",
+				"layer": "clue"
+			},
+			{
+				"id": "H2-01",
+				"layer": "hypo"
+			},
+			{
+				"id": "H2-02",
+				"layer": "hypo"
+			},
+			{
+				"id": "H2-03",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL2-1",
+				"layer": "concl"
+			},
+			{
+				"id": "CL2-2",
+				"layer": "concl"
+			},
+			{
+				"id": "CL2-3",
+				"layer": "concl"
+			},
+			{
+				"id": "CL2-4",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene2"
+	},
+	"CH03": {
+		"core": true,
+		"edges": [
+			{
+				"from": "c205",
+				"kind": "support",
+				"to": "H2-04"
+			},
+			{
+				"from": "c206",
+				"kind": "support",
+				"to": "H2-04"
+			},
+			{
+				"from": "c206",
+				"kind": "support",
+				"to": "H2-05"
+			},
+			{
+				"from": "c309",
+				"kind": "support",
+				"to": "H2-05"
+			},
+			{
+				"from": "C_SOTCB_402",
+				"kind": "support",
+				"to": "H2-05"
+			},
+			{
+				"from": "c205",
+				"kind": "support",
+				"to": "H2-06"
+			},
+			{
+				"from": "c311",
+				"kind": "support",
+				"to": "H2-06"
+			},
+			{
+				"from": "c206",
+				"kind": "support",
+				"to": "H2-07"
+			},
+			{
+				"from": "H2-04",
+				"kind": "support",
+				"to": "CL2-5"
+			},
+			{
+				"from": "H2-05",
+				"kind": "support",
+				"to": "CL2-6"
+			},
+			{
+				"from": "H2-06",
+				"kind": "support",
+				"to": "CL2-6"
+			}
+		],
+		"id": "CH03",
+		"misleads": [
+			{
+				"expect": "negate",
+				"id": "H2-M1"
+			},
+			{
+				"expect": "negate",
+				"id": "CL2-M1"
+			},
+			{
+				"expect": "negate",
+				"id": "CL2-2M"
+			},
+			{
+				"expect": "negate",
+				"id": "CL2-3M"
+			}
+		],
+		"name": "来客特征（多场景综合）",
+		"nodes": [
+			{
+				"id": "c205",
+				"layer": "clue"
+			},
+			{
+				"id": "c206",
+				"layer": "clue"
+			},
+			{
+				"id": "c311",
+				"layer": "clue"
+			},
+			{
+				"id": "c309",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_402",
+				"layer": "clue"
+			},
+			{
+				"id": "H2-04",
+				"layer": "hypo"
+			},
+			{
+				"id": "H2-05",
+				"layer": "hypo"
+			},
+			{
+				"id": "H2-06",
+				"layer": "hypo"
+			},
+			{
+				"id": "H2-07",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL2-5",
+				"layer": "concl"
+			},
+			{
+				"id": "CL2-6",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene2"
+	},
+	"CH04": {
+		"core": true,
+		"edges": [
+			{
+				"from": "c301",
+				"kind": "support",
+				"to": "H3-A1"
+			},
+			{
+				"from": "c301",
+				"kind": "support",
+				"to": "H3-A2"
+			},
+			{
+				"from": "c302",
+				"kind": "support",
+				"to": "H3-A1"
+			},
+			{
+				"from": "c302",
+				"kind": "support",
+				"to": "H3-A2"
+			},
+			{
+				"from": "c301",
+				"kind": "support",
+				"to": "H3-A5"
+			},
+			{
+				"from": "c301",
+				"kind": "support",
+				"to": "H3-A6"
+			},
+			{
+				"from": "c303",
+				"kind": "support",
+				"to": "H3-A7"
+			},
+			{
+				"from": "H3-A1",
+				"kind": "support",
+				"to": "CL3-2"
+			},
+			{
+				"from": "H3-A2",
+				"kind": "support",
+				"to": "CL3-2"
+			},
+			{
+				"from": "H3-A5",
+				"kind": "support",
+				"to": "CL3-2"
+			}
+		],
+		"id": "CH04",
+		"misleads": [],
+		"name": "服毒判定（场景三 A 组·尸体检验）",
+		"nodes": [
+			{
+				"id": "c301",
+				"layer": "clue"
+			},
+			{
+				"id": "c302",
+				"layer": "clue"
+			},
+			{
+				"id": "c303",
+				"layer": "clue"
+			},
+			{
+				"id": "H3-A1",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-A2",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-A5",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-A6",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-A7",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL3-2",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene3"
+	},
+	"CH05": {
+		"core": true,
+		"edges": [
+			{
+				"from": "c309",
+				"kind": "support",
+				"to": "H3-C1"
+			},
+			{
+				"from": "c309",
+				"kind": "support",
+				"to": "H3-C2"
+			},
+			{
+				"from": "c309",
+				"kind": "support",
+				"to": "H3-C3"
+			},
+			{
+				"from": "c309",
+				"kind": "support",
+				"to": "H3-C4"
+			},
+			{
+				"from": "c301",
+				"kind": "support",
+				"to": "H3-C4"
+			},
+			{
+				"from": "c309",
+				"kind": "support",
+				"to": "H3-C7"
+			},
+			{
+				"from": "c311",
+				"kind": "support",
+				"to": "H3-C3"
+			},
+			{
+				"from": "c311",
+				"kind": "support",
+				"to": "H3-C5"
+			},
+			{
+				"from": "c311",
+				"kind": "support",
+				"to": "H3-C6"
+			},
+			{
+				"from": "c311",
+				"kind": "support",
+				"to": "H3-C7"
+			},
+			{
+				"from": "H3-C1",
+				"kind": "support",
+				"to": "CL3-3"
+			},
+			{
+				"from": "H3-C2",
+				"kind": "support",
+				"to": "CL3-3"
+			},
+			{
+				"from": "H3-C3",
+				"kind": "support",
+				"to": "CL3-3"
+			},
+			{
+				"from": "H3-C4",
+				"kind": "support",
+				"to": "CL3-3"
+			},
+			{
+				"from": "H3-C5",
+				"kind": "support",
+				"to": "CL3-4"
+			},
+			{
+				"from": "H3-C6",
+				"kind": "support",
+				"to": "CL3-4"
+			},
+			{
+				"from": "H3-C7",
+				"kind": "support",
+				"to": "CL3-4"
+			}
+		],
+		"id": "CH05",
+		"misleads": [
+			{
+				"expect": "negate",
+				"id": "H3-C10"
+			},
+			{
+				"expect": "negate",
+				"id": "CL3-M1"
+			}
+		],
+		"name": "RACHE 血字与现场痕迹（场景三 C 组）",
+		"nodes": [
+			{
+				"id": "c309",
+				"layer": "clue"
+			},
+			{
+				"id": "c311",
+				"layer": "clue"
+			},
+			{
+				"id": "c301",
+				"layer": "clue"
+			},
+			{
+				"id": "H3-C1",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-C2",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-C3",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-C4",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-C5",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-C6",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-C7",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL3-3",
+				"layer": "concl"
+			},
+			{
+				"id": "CL3-4",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene3"
+	},
+	"CH06": {
+		"core": true,
+		"edges": [
+			{
+				"from": "c304",
+				"kind": "support",
+				"to": "H3-B1"
+			},
+			{
+				"from": "c304",
+				"kind": "support",
+				"to": "H3-B2"
+			},
+			{
+				"from": "c304",
+				"kind": "support",
+				"to": "H3-B5"
+			},
+			{
+				"from": "c304",
+				"kind": "support",
+				"to": "H3-B6"
+			},
+			{
+				"from": "c306",
+				"kind": "support",
+				"to": "H3-B3"
+			},
+			{
+				"from": "c305",
+				"kind": "support",
+				"to": "H3-B4"
+			},
+			{
+				"from": "c307",
+				"kind": "support",
+				"to": "H3-B6"
+			},
+			{
+				"from": "H3-B1",
+				"kind": "support",
+				"to": "CL3-1"
+			},
+			{
+				"from": "H3-B2",
+				"kind": "support",
+				"to": "CL3-1"
+			},
+			{
+				"from": "H3-B5",
+				"kind": "support",
+				"to": "CL3-5"
+			},
+			{
+				"from": "H3-B6",
+				"kind": "support",
+				"to": "CL3-5"
+			}
+		],
+		"id": "CH06",
+		"misleads": [],
+		"name": "死者身份与随身物品（场景三 B 组）",
+		"nodes": [
+			{
+				"id": "c304",
+				"layer": "clue"
+			},
+			{
+				"id": "c305",
+				"layer": "clue"
+			},
+			{
+				"id": "c306",
+				"layer": "clue"
+			},
+			{
+				"id": "c307",
+				"layer": "clue"
+			},
+			{
+				"id": "H3-B1",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-B2",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-B3",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-B4",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-B5",
+				"layer": "hypo"
+			},
+			{
+				"id": "H3-B6",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL3-1",
+				"layer": "concl"
+			},
+			{
+				"id": "CL3-5",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene3"
+	},
+	"CH07": {
+		"core": true,
+		"edges": [
+			{
+				"from": "C_SOTCB_401",
+				"kind": "support",
+				"to": "H4-03"
+			},
+			{
+				"from": "C_SOTCB_402",
+				"kind": "support",
+				"to": "H4-04"
+			},
+			{
+				"from": "C_SOTCB_403",
+				"kind": "support",
+				"to": "H4-04"
+			},
+			{
+				"from": "C_SOTCB_404",
+				"kind": "support",
+				"to": "H4-05"
+			},
+			{
+				"from": "C_SOTCB_401",
+				"kind": "support",
+				"to": "H4-07"
+			},
+			{
+				"from": "C_SOTCB_402",
+				"kind": "support",
+				"to": "H4-07"
+			},
+			{
+				"from": "C_SOTCB_403",
+				"kind": "support",
+				"to": "H4-07"
+			},
+			{
+				"from": "C_SOTCB_407",
+				"kind": "support",
+				"to": "H4-10"
+			},
+			{
+				"from": "C_SOTCB_405",
+				"kind": "support",
+				"to": "H4-11"
+			},
+			{
+				"from": "C_SOTCB_407",
+				"kind": "support",
+				"to": "H4-11"
+			},
+			{
+				"from": "H4-07",
+				"kind": "support",
+				"to": "CL4-1"
+			},
+			{
+				"from": "H4-05",
+				"kind": "support",
+				"to": "CL4-1"
+			},
+			{
+				"from": "H4-10",
+				"kind": "support",
+				"to": "CL4-1"
+			},
+			{
+				"from": "H4-07",
+				"kind": "support",
+				"to": "CL4-2"
+			},
+			{
+				"from": "H4-11",
+				"kind": "support",
+				"to": "CL4-2"
+			}
+		],
+		"id": "CH07",
+		"misleads": [
+			{
+				"expect": "negate",
+				"id": "H4-M1"
+			}
+		],
+		"name": "醉汉=凶手（马车夫）",
+		"nodes": [
+			{
+				"id": "C_SOTCB_401",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_402",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_403",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_404",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_405",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_407",
+				"layer": "clue"
+			},
+			{
+				"id": "H4-03",
+				"layer": "hypo"
+			},
+			{
+				"id": "H4-04",
+				"layer": "hypo"
+			},
+			{
+				"id": "H4-05",
+				"layer": "hypo"
+			},
+			{
+				"id": "H4-07",
+				"layer": "hypo"
+			},
+			{
+				"id": "H4-10",
+				"layer": "hypo"
+			},
+			{
+				"id": "H4-11",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL4-1",
+				"layer": "concl"
+			},
+			{
+				"id": "CL4-2",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene4"
+	},
+	"CH08": {
+		"core": false,
+		"edges": [
+			{
+				"from": "C_SOTCB_401",
+				"kind": "support",
+				"to": "H4-01"
+			},
+			{
+				"from": "C_SOTCB_401",
+				"kind": "support",
+				"to": "H4-02"
+			},
+			{
+				"from": "C_SOTCB_401",
+				"kind": "support",
+				"to": "H4-12"
+			},
+			{
+				"from": "H4-01",
+				"kind": "support",
+				"to": "CL4-3"
+			},
+			{
+				"from": "H4-02",
+				"kind": "support",
+				"to": "CL4-3"
+			},
+			{
+				"from": "H4-12",
+				"kind": "support",
+				"to": "CL4-3"
+			}
+		],
+		"id": "CH08",
+		"misleads": [],
+		"name": "兰斯证词时间线",
+		"nodes": [
+			{
+				"id": "C_SOTCB_401",
+				"layer": "clue"
+			},
+			{
+				"id": "H4-01",
+				"layer": "hypo"
+			},
+			{
+				"id": "H4-02",
+				"layer": "hypo"
+			},
+			{
+				"id": "H4-12",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL4-3",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene4"
+	},
+	"CH09A": {
+		"core": true,
+		"edges": [
+			{
+				"from": "C_SOTCB_507",
+				"kind": "support",
+				"to": "H5-03"
+			},
+			{
+				"from": "C_SOTCB_503",
+				"kind": "support",
+				"to": "H5-04"
+			},
+			{
+				"from": "C_SOTCB_507",
+				"kind": "support",
+				"to": "H5-04"
+			},
+			{
+				"from": "H5-03",
+				"kind": "support",
+				"to": "H5-04"
+			},
+			{
+				"from": "H5-04",
+				"kind": "support",
+				"to": "CL5-1"
+			},
+			{
+				"from": "C_SOTCB_503",
+				"kind": "support",
+				"to": "H5-08"
+			},
+			{
+				"from": "H5-08",
+				"kind": "support",
+				"to": "CL5-3"
+			}
+		],
+		"id": "CH09A",
+		"misleads": [
+			{
+				"expect": "negate",
+				"id": "H5-06"
+			}
+		],
+		"name": "老太婆伪装识破",
+		"nodes": [
+			{
+				"id": "C_SOTCB_503",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_507",
+				"layer": "clue"
+			},
+			{
+				"id": "H5-03",
+				"layer": "hypo"
+			},
+			{
+				"id": "H5-04",
+				"layer": "hypo"
+			},
+			{
+				"id": "H5-08",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL5-1",
+				"layer": "concl"
+			},
+			{
+				"id": "CL5-3",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene5"
+	},
+	"CH09A2": {
+		"core": false,
+		"edges": [
+			{
+				"from": "C_SOTCB_501",
+				"kind": "support",
+				"to": "H5-07"
+			},
+			{
+				"from": "C_SOTCB_508",
+				"kind": "support",
+				"to": "H5-09"
+			},
+			{
+				"from": "H5-07",
+				"kind": "support",
+				"to": "CL5-2"
+			},
+			{
+				"from": "H5-09",
+				"kind": "support",
+				"to": "CL5-2"
+			}
+		],
+		"id": "CH09A2",
+		"misleads": [],
+		"name": "凶手=北岸马车夫",
+		"nodes": [
+			{
+				"id": "C_SOTCB_501",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_508",
+				"layer": "clue"
+			},
+			{
+				"id": "H5-07",
+				"layer": "hypo"
+			},
+			{
+				"id": "H5-09",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL5-2",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene5"
+	},
+	"CH09B": {
+		"core": false,
+		"edges": [
+			{
+				"from": "C_SOTCB_603",
+				"kind": "support",
+				"to": "H6-01"
+			},
+			{
+				"from": "C_SOTCB_605",
+				"kind": "support",
+				"to": "H6-01"
+			},
+			{
+				"from": "C_SOTCB_603",
+				"kind": "support",
+				"to": "H6-07"
+			},
+			{
+				"from": "C_SOTCB_605",
+				"kind": "support",
+				"to": "H6-07"
+			},
+			{
+				"from": "H6-01",
+				"kind": "support",
+				"to": "CL6-1"
+			},
+			{
+				"from": "H6-07",
+				"kind": "support",
+				"to": "CL6-1"
+			}
+		],
+		"id": "CH09B",
+		"misleads": [
+			{
+				"expect": "negate",
+				"id": "H6-05"
+			},
+			{
+				"expect": "negate",
+				"id": "H6-06"
+			}
+		],
+		"name": "卡彭蒂耶排除",
+		"nodes": [
+			{
+				"id": "C_SOTCB_603",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_605",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_601",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_602",
+				"layer": "clue"
+			},
+			{
+				"id": "H6-01",
+				"layer": "hypo"
+			},
+			{
+				"id": "H6-07",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL6-1",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene6"
+	},
+	"CH09C": {
+		"core": false,
+		"edges": [
+			{
+				"from": "C_SOTCB_604",
+				"kind": "support",
+				"to": "H6-02"
+			},
+			{
+				"from": "C_SOTCB_604",
+				"kind": "support",
+				"to": "H6-09"
+			},
+			{
+				"from": "H6-02",
+				"kind": "support",
+				"to": "CL6-2"
+			},
+			{
+				"from": "H6-09",
+				"kind": "support",
+				"to": "CL6-2"
+			}
+		],
+		"id": "CH09C",
+		"misleads": [],
+		"name": "哈珀证词",
+		"nodes": [
+			{
+				"id": "C_SOTCB_604",
+				"layer": "clue"
+			},
+			{
+				"id": "H6-02",
+				"layer": "hypo"
+			},
+			{
+				"id": "H6-09",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL6-2",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene6"
+	},
+	"CH09D": {
+		"core": true,
+		"edges": [
+			{
+				"from": "C_SOTCB_701",
+				"kind": "support",
+				"to": "H7-02"
+			},
+			{
+				"from": "C_SOTCB_702",
+				"kind": "support",
+				"to": "H7-01"
+			},
+			{
+				"from": "C_SOTCB_703",
+				"kind": "support",
+				"to": "H7-03"
+			},
+			{
+				"from": "C_SOTCB_703",
+				"kind": "support",
+				"to": "H7-05"
+			},
+			{
+				"from": "C_SOTCB_706",
+				"kind": "support",
+				"to": "H7-01"
+			},
+			{
+				"from": "C_SOTCB_706",
+				"kind": "support",
+				"to": "H7-12"
+			},
+			{
+				"from": "C_SOTCB_707",
+				"kind": "support",
+				"to": "CL7-1"
+			},
+			{
+				"from": "C_SOTCB_708",
+				"kind": "support",
+				"to": "H7-06"
+			},
+			{
+				"from": "H7-01",
+				"kind": "support",
+				"to": "CL7-1"
+			},
+			{
+				"from": "H7-02",
+				"kind": "support",
+				"to": "CL7-1"
+			},
+			{
+				"from": "H7-03",
+				"kind": "support",
+				"to": "CL7-1"
+			},
+			{
+				"from": "H7-05",
+				"kind": "support",
+				"to": "CL7-1"
+			},
+			{
+				"from": "H7-04",
+				"kind": "support",
+				"to": "CL7-3"
+			},
+			{
+				"from": "H7-12",
+				"kind": "support",
+				"to": "CL7-3"
+			}
+		],
+		"id": "CH09D",
+		"misleads": [
+			{
+				"expect": "negate",
+				"id": "H7-08"
+			}
+		],
+		"name": "斯特兰森",
+		"nodes": [
+			{
+				"id": "C_SOTCB_701",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_702",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_703",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_706",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_707",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_708",
+				"layer": "clue"
+			},
+			{
+				"id": "H7-01",
+				"layer": "hypo"
+			},
+			{
+				"id": "H7-02",
+				"layer": "hypo"
+			},
+			{
+				"id": "H7-03",
+				"layer": "hypo"
+			},
+			{
+				"id": "H7-04",
+				"layer": "hypo"
+			},
+			{
+				"id": "H7-05",
+				"layer": "hypo"
+			},
+			{
+				"id": "H7-06",
+				"layer": "hypo"
+			},
+			{
+				"id": "H7-12",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL7-1",
+				"layer": "concl"
+			},
+			{
+				"id": "CL7-3",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene7"
+	},
+	"CH09E": {
+		"core": true,
+		"edges": [
+			{
+				"from": "C_SOTCB_704",
+				"kind": "support",
+				"to": "H7-02"
+			},
+			{
+				"from": "C_SOTCB_710",
+				"kind": "support",
+				"to": "H7-02"
+			},
+			{
+				"from": "C_SOTCB_704",
+				"kind": "support",
+				"to": "H7-11"
+			},
+			{
+				"from": "C_SOTCB_710",
+				"kind": "support",
+				"to": "H7-11"
+			},
+			{
+				"from": "H7-02",
+				"kind": "support",
+				"to": "CL7-2"
+			},
+			{
+				"from": "H7-11",
+				"kind": "support",
+				"to": "CL7-2"
+			}
+		],
+		"id": "CH09E",
+		"misleads": [],
+		"name": "药丸推理",
+		"nodes": [
+			{
+				"id": "C_SOTCB_704",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_710",
+				"layer": "clue"
+			},
+			{
+				"id": "H7-02",
+				"layer": "hypo"
+			},
+			{
+				"id": "H7-11",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL7-2",
+				"layer": "concl"
+			}
+		],
+		"scene": "scene7"
+	},
+	"CH09F": {
+		"core": true,
+		"edges": [
+			{
+				"from": "C_SOTCB_801",
+				"kind": "support",
+				"to": "H8-01"
+			},
+			{
+				"from": "C_SOTCB_802",
+				"kind": "support",
+				"to": "H8-01"
+			},
+			{
+				"from": "C_SOTCB_706",
+				"kind": "support",
+				"to": "H8-01"
+			},
+			{
+				"from": "C_SOTCB_804",
+				"kind": "support",
+				"to": "H8-02"
+			},
+			{
+				"from": "C_SOTCB_805",
+				"kind": "support",
+				"to": "H8-02"
+			},
+			{
+				"from": "C_SOTCB_806",
+				"kind": "support",
+				"to": "H8-02"
+			},
+			{
+				"from": "C_SOTCB_807",
+				"kind": "support",
+				"to": "H8-02"
+			},
+			{
+				"from": "c312",
+				"kind": "support",
+				"to": "H8-02"
+			},
+			{
+				"from": "H8-01",
+				"kind": "support",
+				"to": "CL8-1"
+			},
+			{
+				"from": "H8-02",
+				"kind": "support",
+				"to": "CL8-1"
+			},
+			{
+				"from": "CL7-1",
+				"kind": "support",
+				"to": "CL8-FINAL"
+			},
+			{
+				"from": "CL7-2",
+				"kind": "support",
+				"to": "CL8-FINAL"
+			},
+			{
+				"from": "CL8-1",
+				"kind": "support",
+				"to": "CL8-FINAL"
+			},
+			{
+				"from": "CL8-FINAL",
+				"kind": "target",
+				"to": "person:NPC_HOPE"
+			}
+		],
+		"id": "CH09F",
+		"misleads": [],
+		"name": "复仇动机",
+		"nodes": [
+			{
+				"id": "C_SOTCB_801",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_802",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_803",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_804",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_805",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_806",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_807",
+				"layer": "clue"
+			},
+			{
+				"id": "C_SOTCB_706",
+				"layer": "clue"
+			},
+			{
+				"id": "c312",
+				"layer": "clue"
+			},
+			{
+				"id": "H8-01",
+				"layer": "hypo"
+			},
+			{
+				"id": "H8-02",
+				"layer": "hypo"
+			},
+			{
+				"id": "CL8-1",
+				"layer": "concl"
+			},
+			{
+				"id": "CL8-FINAL",
+				"layer": "concl",
+				"synthesize": true
+			},
+			{
+				"id": "person:NPC_HOPE",
+				"layer": "person"
+			}
+		],
+		"scene": "scene8"
+	}
+}

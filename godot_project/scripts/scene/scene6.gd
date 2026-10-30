@@ -93,7 +93,7 @@ func reasoning_hypothesis() -> Dictionary:
 		"conclusions": [
 			{"id":"CL6-1","text":"卡彭蒂耶中尉被排除（体貌不符+不在场证明）","gate_hypo_ids":["H6-01","H6-07"]},
 			{"id":"CL6-2","text":"哈珀证词坐实阿瑟不在场证明","gate_hypo_ids":["H6-02","H6-09"]},
-			{"id":"CL6-3","text":"葛莱森「阿瑟=凶手」论被三组矛盾推翻","gate_hypo_ids":["H6-05","H6-06"]}
+			{"id":"CL6-3","in_truth":false,"text":"葛莱森「阿瑟=凶手」论被三组矛盾推翻","gate_hypo_ids":["H6-05","H6-06"]}
 		],
 		},
 		# v4.0 三星评价：声明本推理链（逐链离散制）

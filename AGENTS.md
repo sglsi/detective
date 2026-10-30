@@ -326,7 +326,7 @@ NO other objects, isolated, game asset
 - **沙发背景阳光版（2026-09-14，用户"加阳光光束增加动态感"反馈）**：sofa01 二次图生图（输入=4K 无光版），prompt 描述"单一柔和金色晨光光束从窗户射入+光尘+窗框光斑投地板/家具，强调 subtle/delicate/NOT overexposed"。多模态验证 PASS（构图一致/光束从左窗射入/地板窗框光斑/沙发书架明暗交错）。落地同流程，戳 v=20260914-bg2，pck 130.5MB。**LLM SDK 多模态调用法**：`LLMClient.invoke(model=..., messages=[HumanMessage(content=[{'type':'text',...},{'type':'image_url','image_url':{'url':'data:image/jpeg;base64,...'}}])])`——messages 必须是 langchain HumanMessage 对象（传 dict 报 "must contain at least one HumanMessage"），client 方法是 invoke/stream（无 chat）。
 - **版本**：v=20260906v。
 
-## 推理墙驱动的推理进程（2026-11-19 设计审查；Phase 0 已实施 2026-10-30）
+## 推理墙驱动的推理进程（2026-11-19 设计审查；Phase 0 已实施 2026-10-30；Phase 1 已实施 2026-10-30）
 
 **完整设计与实施方案**：`设计文档/L2_详细设计/系统设计/12_推理墙驱动的推理进程_设计与实施方案.md`（七断点诊断 + 松耦合方案 + Phase 0~4 实施路线 + 验收标准）。
 
@@ -353,6 +353,18 @@ NO other objects, isolated, game asset
 - **回归探针两枚（入库 tools/）**：`t_phase0_baseline.gd`（CASE_A collected 空/CASE_B 全量 noop/CASE_C scene2 缺 `["c309","c311","C_SOTCB_402"]` /CHECK_own_scene 不变式——各链本场景线索必可用，collected 按链 home 场景前缀并集构建即可，无需硬编码 clue→scene 映射）；`t_phase0_verdict_sync.gd`（四断言：provider 同源/乱连不绿/`_compute_verdict` 一致/摘 provider 回落 -1；实例化骨架抄 t_flow_diff，`get_verdict()` 返回值必须显式 `var wv: int` 不能 `:=` 推断）。
 - **既有回归全绿**：test_branch_evaluator（T1-T8）、t_flow_diff（0 SCRIPT ERROR）、t_validate_m（零闭合错误）。**q6_contract_guard 1 个历史遗留 FAIL（非本次引入）**：guard 期望 `gv.hit_off_left = 540`，reasoning_wall.gd 实际 `= 346`（HEAD 已如此，前人改契入区未同步 guard）——本次不碰契入区不顺手修 guard，待后续同步。
 - **Gate B7 已走**：rm -rf .godot → --import → --export-release "Web"（index.pck 152182048），index.html 三行 meta + `mainPack:"index.pck?v=20261030085935"` 补回（每次导出都被冲掉）。
+
+### Phase 1 正式链先修后搬（2026-10-30 已实施，16 链单源化完成）
+
+- **1.1 盘点（一次性探针 t_phase1_inventory.gd，已删）**：三类问题——①**gate 单源分裂**：scene5~8 钩子的 hypotheses 大多没有 gate_clue_ids，legacy 真相边才是 gate 结构真源（scene2/3 钩子 gate 全但与 legacy 有顺序/跨场景锚点差异）；②**CH09F 结构性不可达**：CL8-1/CL8-FINAL 只在 legacy 表"预留"，scene8 钩子无 conclusions 段 → 墙上无候选可拖；③**misleads 主题归属**：误导项按主题归链（体貌类归 CH03、徒步类归 CH02、醉汉类归 CH07），INSUFFICIENT 项（H3-A3/A4、H4-06/08/09）与决策项（H5-05）有意不入 truth。
+- **修正批（先修）**：①`scene8.gd` 钩子补 conclusions（CL8-1 复仇动机 / CL8-FINAL 全案闭环含 `target:"person:NPC_HOPE"`）——CH09F 从"玩家建不出"变为可达，注释同步更新；②`scene5.gd` H5-05、`scene6.gd` CL6-3 加 `"in_truth":false`（正确决策/元结论不入 truth 但保留墙候选）；③CH02 misleads 补 CL2-1M（与已收 H2-M2 同主题的结论层，对称 CH03 收 CL2-M1 模式）；④`graph_view_controller.gd` `_derived_node_correct()` hypo 分支补 `correct` 检查——INSUFFICIENT 项（kind:"true"+correct:false 如 H3-A3）此前被误判为正确推导。
+- **派生规则扩展（reasoning_chains.gd）**：新增 `_entry_in_truth()` 三重准入（in_truth 显式排除 > kind:"mislead" > correct:false——误导结论卡 CL2-M1 类靠 kind 拦截）；hypotheses 支持 `gate_hypo_ids`（hypo→hypo 边，CH09A H5-03→H5-04）；conclusions 支持 `gate_clue_ids`（clue→concl 边，CH09D C_SOTCB_707→CL7-1）；**person 层条件化**（仅 wall.persons 非空才派生 person 节点/target 边——案件大墙无人物锚列，强行派生造不可达真相项重蹈 CH03 覆辙）；validate 边端点/结论引用放宽到**全库白名单**（CH09F 跨链 synthesize 引用 CL7-1/CL7-2）。
+- **1.3 机械搬运（后搬）**：14 条链（CH02..CH09F）按 legacy 顺序搬入 `reasoning_chains.gd` CHAINS——gate 从 legacy 边推导覆盖（单源=legacy 边）、文本从各场景钩子抄、**链级裁剪**（battlefield 只保留本链 truth 节点 ∪ misleads 表项；场景钩子是场景级的，直接抄会把同场景其他链的项收进本链 truth）、CH09F 按 legacy target 边保留 `persons:[{"id":"NPC_HOPE"}]`、其余链剥 target 且 persons=[]。搬运探针 t_phase1_migrate.gd 用完即删。
+- **1.4 legacy 退役**：`case_branch_truth.gd` `branches()` 改纯链库驱动（按 CHAINS 顺序逐条 derive_truth），`_legacy_branches()` 手工表整体删除（535→72 行）；删除前快照存档 `tools/phase1_legacy_snapshot.json` 作长期回归锚。CH01M 的 legacy 快照是 2026-09-08 层级修正前的过时版本（孤儿节点 sleeve/limp、misleads 空），链库手写版为权威——探针 SKIP 并注明。
+- **等价性验证（tools/t_phase1_equivalence.gd，快照对照）**：15 链 PASS（CH01M SKIP）——meta/nodes（计分相关层）/edges/misleads 逐字段零差异；3 个**孤儿 clue WARN**（CH09B 的 C_SOTCB_601/602、CH09F 的 C_SOTCB_803——legacy nodes 列了但 edges 无引用，不参与 T 计分与边匹配，机械派生无法还原、丢失无行为影响）。validate_all() 16 链零闭合错误。
+- **基线零漂移**：t_phase0_baseline 全链 truth/ratio 与 Phase 0 实测一致（CH02=17 CH03=17 CH04=16 CH05=26 CH06=19 CH07=23 CH08=10 CH09A=12 CH09A2=7 CH09B=9 CH09C=7 CH09D=23 CH09E=8 CH09F=18）、OVERALL 全 1.0、CHECK_own_scene PASS。test_branch_evaluator T1-T8 全过、t_flow_diff 0 SCRIPT ERROR、t_phase0_verdict_sync fails=0、q6_contract_guard 仍仅 1 个历史 FAIL 无新增。
+- **已知遗留**：①CH09F 真实玩家 R 上限 0.889（person:NPC_HOPE 边在无人物锚的场景八墙上不可建；Phase 0 的 unavailable 裁剪只覆盖 clue 层不覆盖 person 层；VERIFIED 阈值 80% 仍可达）——Phase 2/3 若做人物锚或扩展裁剪再处理；②孤儿 clue（601/602/803）随 legacy 删除而消失，链库 truth 不含（行为等价）。
+- **Gate B7 已走**：index.pck 152236528，index.html 戳 `v=20261030101830`。
 
 ## 用户偏好与长期约束
 

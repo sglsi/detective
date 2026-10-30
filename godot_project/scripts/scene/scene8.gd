@@ -86,6 +86,16 @@ func reasoning_hypothesis() -> Dictionary:
 				{"id":"H8-02","text":"复仇动机（露茜·费里尔）","correct":true},
 				{"id":"H8-03","text":"凶手是马车夫","correct":true}
 			],
+			# 2026-10-30 Phase 1：补 conclusions 段——CL8-1/CL8-FINAL 此前仅在真相表作「预留」节点，
+			# Phase 1（2026-10-30）：补 conclusions——此前 CL8-1/CL8-FINAL 仅存在于 legacy 真相表
+			#（墙上无候选可拖、CH09F 结构性不可达）。CL8-FINAL 输入含跨链结论（CL7-1/CL7-2，
+			# 场景七建过则随 case_wall_state 带入画布），gate 用 conclusion_ 前缀。
+			"conclusions": [
+				{"id":"CL8-1","text":"霍普为费里尔父女复仇（动机闭环）","kind":"true","dir":"affirm","subject":["霍普"],"object":["复仇","费里尔"],"gate_hypo_ids":["H8-01","H8-02"],
+				 "adopt_desc":"自白动机＋戒指归还原主——杰弗森·霍普杀德雷伯，是为露茜·费里尔复仇。"},
+				{"id":"CL8-FINAL","text":"全案闭环：霍普连杀德雷伯与斯特兰森，为费里尔父女复仇","kind":"true","dir":"affirm","subject":["全案"],"object":["复仇闭环","杰弗森·霍普"],"gate_hypo_ids":["conclusion_CL7-1","conclusion_CL7-2","conclusion_CL8-1"],"target":"person:NPC_HOPE",
+				 "adopt_desc":"同一凶手（两案同一人）、上帝裁决（两案一毒一刀）、复仇动机（露茜·费里尔）——三线闭合，全案真相成立。"}
+			],
 		"contradictions": [
 			{"id":"C8-01","text":"老太婆伪装 vs 霍普本人","correct":true},
 			{"id":"C8-02","text":"血字RACHE=复仇 vs 误导","correct":true},

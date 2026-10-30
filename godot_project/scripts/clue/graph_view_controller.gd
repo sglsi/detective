@@ -2185,7 +2185,8 @@ func _derived_node_correct(id: String) -> bool:
 	# 推断：battlefield.hypotheses 的 kind 优先；玩家自建/采纳的推断在 _graph_nodes.data.correct
 	for h in _hypo.get("battlefield", {}).get("hypotheses", []):
 		if str(h.get("id", "")) == id:
-			return str(h.get("kind", "true")) == "true"
+			# Phase 1：correct:false（INSUFFICIENT 项如 H3-A3）同样判不正确——kind:"true" 只是剧本标注
+			return str(h.get("kind", "true")) == "true" and bool(h.get("correct", true))
 	for gn in _graph_nodes:
 		if str(gn.get("id", "")) == id:
 			return bool(gn.get("data", {}).get("correct", true))
