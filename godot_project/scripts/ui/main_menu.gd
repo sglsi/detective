@@ -9,6 +9,10 @@ var _message_lbl: Label
 var _root: Control
 
 func _ready() -> void:
+	# 活场景 demo 独立入口：URL 带 #alive 时切入（演示用，不接主游戏流程）
+	if OS.has_feature("web") and str(JavaScriptBridge.eval("window.location.hash", true)).contains("alive"):
+		get_tree().change_scene_to_file("res://scenes/test_alive.tscn")
+		return
 	# 背景
 	var bg = TextureRect.new()
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

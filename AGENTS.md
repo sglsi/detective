@@ -399,6 +399,16 @@ NO other objects, isolated, game asset
 - **回归全绿**：P4 探针 12/12、P2/P3 探针 0、等价性 PASS 15 链、baseline 全 1.0、verdict_sync 0、validate_all 空、flow_diff 0 错、evaluator 全过；drag_seq fails=2（既有状态，Phase 0 前基线对比已证实非 0~4 引入）。
 - **Gate B7 已走**：pck 152249528，index.html 戳 `v=20261031152959`。
 
+### 活场景层 demo（2026-10-31，场景一试点，未接主游戏）
+
+- **入口**：URL 带 `#alive`（main_menu._ready 里 hash 检测切 `scenes/test_alive.tscn`，5 行钩子可整体移除）；主游戏流程零改动。
+- **构成**（scripts/scene/test_alive.gd 全代码组装）：背景 sofa01（scale 0.52 余量供视差）→ 窗云层（复用 window_clouds.gdshader，窗位 win=(0.030,0.005)~(0.125,0.50) 多模态读图实测）→ 壁炉余烬（复用 fire_flicker.gdshader，hearth=(0.89,0.72)——sofa01 右缘有真实壁炉 x0.787~1.0 y0.4~0.95）→ GPUParticles2D 光尘 90 粒（光束带 x0.04~0.45，程序化 GradientTexture2D 径向纹理）→ 前景剪影层（AI 图生图+绿幕抠图 `assets/backgrounds/alive/fg_silhouette.png` 2400x1792 左桌椅右暖气片剪影，modulate 压暗 0.82）。
+- **动效**：相机慢速 drift（sin 双轴 ±7px）+ 鼠标视差（背景 16px/前景 38px 反向，lerp 平滑）——前景动幅大于背景产生纵深。
+- **GDScript 粒子坑**：ParticleProcessMaterial.emission_box_extents 是 **Vector3**（Rect2.size 直接赋会报 Vector2→Vector3）；color_ramp 是 **GradientTexture1D** 不是 Gradient（要包一层）。
+- **新增资源后探针 load null**：新 PNG 必须 `--import` 进 .godot 缓存后 headless 才能 load（探针报 get_size on null 即此因）。
+- **效果验证缺口**：headless dummy 渲染看不到画面——视差手感/粒子密度/火光强度需用户预览 `#alive` 实看后调参（PARALLAX_BG/FG、DRIFT_AMP、intensity、amount 均为常量已集中）。
+- 探针 `tools/t_alive_demo.gd`（结构断言 0 失败）；pck 152692740、戳 `v=20261031212710`。
+
 ## 用户偏好与长期约束
 
 - **Git 提交与推送规则（2026-09-08 用户裁定，永久有效）**：工具类软件、临时性文件、过程类文件一律不推 GitHub。永不入库：①工具类二进制（Godot 编辑器本体、导出模板 zip/tpz、editor_extract/——GitHub 单文件硬限 100MB）；②构建产物（web_build/ 的 pck/wasm；index.html 戳按历史模式除外）；③临时/过程文件（*.part、*.hdr.import、日志、下载分片、/tmp 内容）。正常入库：源码、游戏数据、设计文档、回归探针脚本（tools/t_*.gd）、工具脚本（如 setup_godot.sh——脚本入库、软件不入库）。**每次 commit 前**：git status --short 逐条过目 + git diff --cached --stat 扫描异常；**push 前**：`git rev-list --objects origin/main..HEAD | git cat-file --batch-check='%(objectsize) %(rest)' | awk '$1>100000000'` 体检；**新增大文件目录时**：git check-ignore -v 当场验证规则命中（已跟踪文件加 --no-index）。教训：.gitignore 规则路径必须与实际目录对齐（曾因 /tools/godot/ 实际在 godot_project/tools/godot/ 而规则失效，137MB 编辑器二进制进提交被 GitHub 拒收）。
