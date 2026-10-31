@@ -524,7 +524,17 @@ func _show_scene2_verdict_dialogue(v: int, advance: bool) -> void:
 		1:  # INSUFFICIENT
 			nodes.append(_mk_node("v1","福尔摩斯","你下的结论，跑得比证据快了。先回去把轴距、蹄铁、脚印重新看一遍。","click",["end"],[],"从容"))
 		_:  # CONTRADICTORY(0)
-			nodes.append(_mk_node("v1","福尔摩斯","你的链子自己打架了。马车、蹄铁、脚印指向的不是一个人。推翻重来。","click",["end"],[],"从容"))
+			nodes.append(_mk_node("v1","福尔摩斯","你的链子自己打架了。马车、蹄铁、脚印指向的不是一个人。推翻重来。","click",["v1b"],[],"从容"))
+			# Phase 4.3：误导旁支变体——按玩家实际采纳的误导项给"此路不通"引导（不阻断推进）
+			var adopted2: Array = _reasoning_signal("scene2").get("adopted_misleads", [])
+			if adopted2.has("H2-M1"):
+				nodes.append(_mk_node("v1b","华生","（翻笔记）你之前提到'报童'——报童是小步快跑，现场可是方头靴大步印，两回事。","click",["v1c"],[],"疑惑"))
+				nodes.append(_mk_node("v1c","福尔摩斯","回推理墙，把'报童'那条标成反对。排除一条错路，比猜对一条近路更值钱。","click",["end"],[],"凝思"))
+			elif adopted2.has("H2-M2"):
+				nodes.append(_mk_node("v1b","华生","（翻笔记）你之前说'徒步踏泥大步进花园'——可车轮印一路碾到门口，他是坐车来的。","click",["v1c"],[],"疑惑"))
+				nodes.append(_mk_node("v1c","福尔摩斯","回推理墙，把'徒步踏泥'标成反对。排除一条错路，比猜对一条近路更值钱。","click",["end"],[],"凝思"))
+			else:
+				nodes.append(_mk_node("v1b","福尔摩斯","回推理墙，把站不住的说法一条条标成反对——排除错路，剩下就是真相。","click",["end"],[],"凝思"))
 	if nodes.is_empty():
 		nodes.append(_mk_node("v1","福尔摩斯","（看着推理墙）再想想。","click",["end"],[],"从容"))
 	_start_dialogue(nodes, "v1", _on_scene2_verdict_end.bind(advance))

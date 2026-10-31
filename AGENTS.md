@@ -386,6 +386,19 @@ NO other objects, isolated, game asset
 - **回归全绿**：t_flow_diff 0 错、verdict_sync fails=0、test_branch_evaluator 全过、baseline OVERALL 全 1.0、validate_all 空、t_phase2_progress fails=0。
 - **Gate B7 已走**：export_templates 再次丢失（本会话第二次）→ setup_godot.sh 恢复后重导 pck 152245216，index.html 戳 `v=20261030153252`。
 
+### Phase 4 剧情挂载（2026-10-31 已实施，内容生产 + 机制串接）
+
+- **4.1 旁支信号层**：`StarRatingSystem.record_branch_progress` 补存 `adopted_misleads` / `negated_misleads`（顶层 + `_merge_negated` 合并 per_branch 内 negated，旧档无字段 get 兜底）；`detective_scene._reasoning_signal(scene:="")` 统一读账本（ratio/stars/hard_fail/per_branch/adopted/negated，墙未提交 ratio=-1）——场景脚本不散读 StarRatingSystem 内部。**⚠️ record_branch_progress 之前只存 ratio/stars/summary/hard_fail/per_branch，顶层 adopted/negated 被丢弃**——旁支与结局面板都依赖这次补存。
+- **4.2 verdict 分档**：基类 `_default_wall_verify` 的 advance 分支改 `_show_verdict_talk(verdict)`（原直接 `_advance_now()`）——通用四档台词（`_verdict_talk_lines` 可覆写）播完一律 `_advance_now()`；scene2 走自有覆写版不经过这里。**内容分支只改"说什么"，不改推进时序（红线）**。advance=false（预览墙）不播过渡台词保持原行为。mood 必须用表情表内值（华生"倾佩"、福尔摩斯"坚定"，"赞许/认可"不在表）。
+- **4.3 旁支任务（三条）**：scene2 CONTRADICTORY 档按 adopted（H2-M1 报童/H2-M2 徒步）给"此路不通"变体；scene3 过渡 b 段（H3-C10 RACHEL→德语复仇论，`_make_nodes` 前置拼接 b2 显式 next→t0，起始节点条件切 "b0"）；scene4 过渡 b 段（H4-M1 神秘女人→查无此人，_mk_node 显式链 b2→f0）。旁支尾节点统一引导"回推理墙标反对"（4.6 闭环：negate→洞察星机制已有，零代码）。
+- **4.4 scene4 追问 gating（安全化）**：设计原文"按信号过滤方向"**有卡死风险**（_asked_directions.size()>=6 完成条件会被过滤阻断）→ 落地为 `_dir_other` 回答深度分档：`_sig_depth_ok()`（前序场景 ratio>=0.5，基类按 scene_id 尾号推 prev）达标追加 o2b/o2c 关键证词（兰斯补"张望确认"细节 + C_SOTCB_405 grant）；否则表面档。方向永不过滤。
+- **4.5 scene5 建议分档**：`_offer_track_decision` 前插华生建议对话（本场景 ratio 三档：>=0.6 力荐 / 0.3~0.6 中性 / <0.3 谨慎+log 空=-1 落谨慎档），播完 `_show_track_choice` 出面板——只建议不替玩家决定。
+- **结局面板旁支呈现**：`_show_scene_rating` show_case_total 段加"旁支探索"（全案 adopted/negated 汇总："走过的弯路 X 次 · 回墙纠错 Y 次"）——呈现而非惩罚。
+- **探针**：`tools/t_phase4_story.gd` 12 断言全过（账本补存/信号层/四档台词/旁支链 _make_nodes 显式 next 语义/深度 gate 三态）。**坑**：①SceneTree 探针拿 autoload 用 `get_root().get_node_or_null("StarRatingSystem")`，**不是** Engine.get_singleton（autoload 非 Engine singleton，取到 null 后续 record 调 Nil 崩、quit 不到→命令超时）；②`_mk_node` 第 5 参是 next 数组，漏传写 "" 报 Parse Error。
+- **编辑工具坑（本会话两次）**：websocket 断开时 edit_file "成功"结果回滚丢失（detective_scene/star_rating_system/scene2 各丢一次）——大文件或网络不稳时改用 python 精准替换；**断连恢复后必须逐项 grep 复核所有已报成功的编辑是否真的落盘**。
+- **回归全绿**：P4 探针 12/12、P2/P3 探针 0、等价性 PASS 15 链、baseline 全 1.0、verdict_sync 0、validate_all 空、flow_diff 0 错、evaluator 全过；drag_seq fails=2（既有状态，Phase 0 前基线对比已证实非 0~4 引入）。
+- **Gate B7 已走**：pck 152249528，index.html 戳 `v=20261031152959`。
+
 ## 用户偏好与长期约束
 
 - **Git 提交与推送规则（2026-09-08 用户裁定，永久有效）**：工具类软件、临时性文件、过程类文件一律不推 GitHub。永不入库：①工具类二进制（Godot 编辑器本体、导出模板 zip/tpz、editor_extract/——GitHub 单文件硬限 100MB）；②构建产物（web_build/ 的 pck/wasm；index.html 戳按历史模式除外）；③临时/过程文件（*.part、*.hdr.import、日志、下载分片、/tmp 内容）。正常入库：源码、游戏数据、设计文档、回归探针脚本（tools/t_*.gd）、工具脚本（如 setup_godot.sh——脚本入库、软件不入库）。**每次 commit 前**：git status --short 逐条过目 + git diff --cached --stat 扫描异常；**push 前**：`git rev-list --objects origin/main..HEAD | git cat-file --batch-check='%(objectsize) %(rest)' | awk '$1>100000000'` 体检；**新增大文件目录时**：git check-ignore -v 当场验证规则命中（已跟踪文件加 --no-index）。教训：.gitignore 规则路径必须与实际目录对齐（曾因 /tools/godot/ 实际在 godot_project/tools/godot/ 而规则失效，137MB 编辑器二进制进提交被 GitHub 拒收）。

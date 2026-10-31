@@ -569,7 +569,72 @@ func _default_wall_verify(verdict: int, stars: Dictionary = {}) -> void:
 	_ui.show_notification("推理验证结果：" + entry[0])
 	var advance := _in_reasoning_phase() or (_clues.size() >= hotspots().size())
 	if advance:
-		_advance_now()
+		_show_verdict_talk(verdict)
+
+## Phase 4.1：旁支信号层——场景脚本统一经此读推理质量信号（本场景账本），
+## 不散读 StarRatingSystem 内部结构；墙未提交时 ratio=-1。
+func _reasoning_signal(scene: String = "") -> Dictionary:
+	var sid := scene if scene != "" else scene_id()
+	var sig := {"ratio": -1.0, "stars": 0, "hard_fail": false, "summary": "", "per_branch": [], "adopted_misleads": [], "negated_misleads": []}
+	if StarRatingSystem == null:
+		return sig
+	var sb: Dictionary = StarRatingSystem.get_case_branch_log().get(sid, {})
+	if sb.is_empty():
+		return sig
+	sig["ratio"] = float(sb.get("ratio", -1.0))
+	sig["stars"] = int(sb.get("stars", 0))
+	sig["hard_fail"] = bool(sb.get("hard_fail", false))
+	sig["summary"] = str(sb.get("summary", ""))
+	sig["per_branch"] = sb.get("per_branch", [])
+	sig["adopted_misleads"] = sb.get("adopted_misleads", [])
+	sig["negated_misleads"] = sb.get("negated_misleads", [])
+	return sig
+
+## Phase 4.4：问询深度 gate——前序场景推理质量（ratio>=0.5）达标才吐关键证词。
+func _sig_depth_ok() -> bool:
+	var sid := scene_id()
+	var num := int(sid.right(1))
+	if num <= 1:
+		return false
+	var prev := sid.left(len(sid) - 1) + str(num - 1)
+	return float(_reasoning_signal(prev).get("ratio", -1.0)) >= 0.5
+
+## Phase 4.2：验证后过渡对话按 verdict 四档分色（scene2 模板平移基类），
+## 播完一律 _advance_now()——内容分支只改"说什么"，不改推进时序（红线）。
+func _show_verdict_talk(v: int) -> void:
+	var lines: Array = _verdict_talk_lines(v)
+	var raw: Array = []
+	var i := 0
+	for l in lines:
+		raw.append(["vt%d" % i, l[0], l[1], "", l[2] if l.size() > 2 else "认可"])
+		i += 1
+	_start_dialogue(_make_nodes(raw), "vt0", _advance_now)
+
+## 默认四档台词；子类可覆写定制（scene2 走自有覆写版不经过这里）。
+func _verdict_talk_lines(v: int) -> Array:
+	match v:
+		3:
+			return [
+				["华生", "这一环扣得漂亮，几乎挑不出毛病。", "倾佩"],
+				["福尔摩斯", "证据会说话——只要人肯听。收拾一下，下一步。", "自信"],
+			]
+		2:
+			return [
+				["华生", "方向是对的，证据也够扎实。", "平静"],
+				["福尔摩斯", "结论站得住。继续。", "坚定"],
+			]
+		1:
+			return [
+				["华生", "推得不算错，可证据……还不够厚。", "疑惑"],
+				["福尔摩斯", "没有证据的推论只是猜想。缺的那几条，回头补上。", "凝思"],
+			]
+		0:
+			return [
+				["华生", "这条链子……好像和证据对不上。", "吃惊"],
+				["福尔摩斯", "链子打架，说明至少有一环是错的。没查过的说法别急着采信——把它们钉死或排除，比急着往前走更有用。", "凝思"],
+			]
+		_:
+			return [["华生", "（先整理一下思路。）", "平静"]]
 
 ## 统一推进剧情入口（验证确认 与 关墙返回 共用）：先清掉可能残留的浮层，
 ## 再进过渡对话。这是「新玩不推进、读档能推进」的根治点——
@@ -1183,6 +1248,17 @@ func _show_scene_rating(scene_label: String, next_scene_path: String, on_continu
 					var bl2 := Label.new(); bl2.text = btxt; bl2.add_theme_font_size_override("font_size", 14); bl2.add_theme_color_override("font_color", Color(0.62,0.58,0.48))
 					bl2.position = Vector2(600, y); bl2.size = Vector2(800,24); panel.add_child(bl2); y += 24
 				y += 6
+		# Phase 4.3：旁支探索呈现——误导采纳/纠错汇总（呈现而非惩罚）
+		if not blog.is_empty():
+			var n_adopt := 0
+			var n_negate := 0
+			for sid2 in blog.keys():
+				n_adopt += (blog[sid2] as Dictionary).get("adopted_misleads", []).size()
+				n_negate += (blog[sid2] as Dictionary).get("negated_misleads", []).size()
+			var sh := Label.new(); sh.text = "── 旁支探索 ──"; sh.add_theme_font_size_override("font_size", 17); sh.add_theme_color_override("font_color", Color(0.92,0.82,0.45))
+			sh.position = Vector2(580, y); sh.size = Vector2(800,26); panel.add_child(sh); y += 30
+			var st := Label.new(); st.text = "走过的弯路 %d 次 · 回墙纠错 %d 次 —— 每一次排除错路，都让推理更锋利" % [n_adopt, n_negate]; st.add_theme_font_size_override("font_size", 14); st.add_theme_color_override("font_color", Color(0.62,0.58,0.48))
+			st.position = Vector2(600, y); st.size = Vector2(860,24); panel.add_child(st); y += 26
 	# 继续按钮
 	var cont := Button.new(); cont.text = "继续推进"; cont.position = Vector2(760, 980); cont.size = Vector2(400, 64)
 	cont.add_theme_font_size_override("font_size", 26); cont.add_theme_color_override("font_color", Color(0.92,0.84,0.55))

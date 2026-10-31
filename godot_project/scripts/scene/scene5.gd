@@ -328,6 +328,19 @@ func _enter_transition() -> void:
 
 func _offer_track_decision() -> void:
 	# Step5 推理墙后：玩家选择是否跟踪（H5-05 跟踪 / H5-06 不跟踪=mislead）
+	# Phase 4.5：华生建议按本场景推理质量（CH09A/CH09A2 命中率）分档——只给建议不替玩家决定（红线）
+	var r := float(_reasoning_signal("scene5").get("ratio", -1.0))
+	var nodes: Array[Resource] = []
+	if r >= 0.6:
+		nodes.append(_mk_node("ad0","华生","推理墙上的命中率很高——'她'的每一步都对得上证据。要我说：跟。错过这个村，可没这个店。","click",["ad1"],[],"自信"))
+	elif r >= 0.3:
+		nodes.append(_mk_node("ad0","华生","推得有几分道理，但还有几环悬着。跟不跟……你来定，我跟上就是。","click",["ad1"],[],"思考"))
+	else:
+		nodes.append(_mk_node("ad0","华生","说实话，手头的证据还太薄，跟丢了也是白跟。不过你要是觉得该跟——我跟上就是。","click",["ad1"],[],"疑惑"))
+	nodes.append(_mk_node("ad1","系统","（她越走越快——决定就在此刻。）","guide",["end"]))
+	_start_dialogue(nodes, "ad0", _show_track_choice)
+
+func _show_track_choice() -> void:
 	_show_choice_panel("她要走了 —— 跟不跟？", [
 		{"text":"🔍 跟踪她，看她到底是谁", "cb": Callable(self, "_on_decide_track")},
 		{"text":"🚪 不跟踪，放她走", "cb": Callable(self, "_on_decide_notrack")},

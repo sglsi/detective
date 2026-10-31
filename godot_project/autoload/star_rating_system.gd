@@ -101,7 +101,20 @@ func record_branch_progress(scene_id: String, detail: Dictionary) -> void:
 		"summary": str(detail.get("summary", "")),
 		"hard_fail": bool(detail.get("hard_fail", false)),
 		"per_branch": detail.get("per_branch", []),
+		"adopted_misleads": detail.get("adopted_misleads", []),
+		"negated_misleads": _merge_negated(detail),
 	}
+
+func _merge_negated(detail: Dictionary) -> Array:
+	var out: Array = []
+	for mid in detail.get("negated_misleads", []):
+		if not out.has(mid):
+			out.append(mid)
+	for b in detail.get("per_branch", []):
+		for mid in b.get("negated_misleads", []):
+			if not out.has(mid):
+				out.append(mid)
+	return out
 
 func get_case_branch_log() -> Dictionary:
 	return case_branch_log
