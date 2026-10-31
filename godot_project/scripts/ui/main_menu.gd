@@ -115,6 +115,11 @@ func _ready() -> void:
 		_resume_or_start())
 	_root.add_child(bg2)
 
+	# 活场景层 Demo（试点演示，不接主游戏流程；验收后可整体移除）
+	var bd = mkbtn("活场景 Demo（试点）", Vector2(660, 865), Vector2(600, 45), false, true)
+	bd.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/test_alive.tscn"))
+	_root.add_child(bd)
+
 	# 注册 / 登录（在线走后端 127.0.0.1:3001；后端不可达时降级为本地账号）
 	var br = mkbtn("注 册 / 登 录", Vector2(660, 865), Vector2(600, 45), false, true)
 	BtnIconCenter.apply_center(br, "res://assets/ui/icons/person.png", 28, 8)
