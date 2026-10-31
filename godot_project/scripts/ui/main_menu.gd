@@ -116,7 +116,7 @@ func _ready() -> void:
 	_root.add_child(bg2)
 
 	# 活场景层 Demo（试点演示，不接主游戏流程；验收后可整体移除）
-	var bd = mkbtn("活场景 Demo（试点）", Vector2(660, 865), Vector2(600, 45), false, true)
+	var bd = mkbtn("活场景 Demo", Vector2(660, 965), Vector2(600, 45), false, true)
 	bd.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/test_alive.tscn"))
 	_root.add_child(bd)
 
