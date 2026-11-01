@@ -561,6 +561,38 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 func _on_wall_created(wall: ReasoningWall) -> void:
 	pass
 
+# ============== L1.5 · 多类型事件系统 ==============
+## 待注入的对话片段队列。场景在 _on_truth_node_discovered 中调用
+## _l1_queue_inject() 把节点放进队列，_start_dialogue 自动消费并
+## prepend 到下一段对话的开头。
+## 每个 inject 是一个节点 dict 数组，字段：id, speaker, text, mood
+## （最后一个节点自动指向原 start_id，无需显式写 next）
+var _l1_pending_injects: Array = []
+
+func _l1_queue_inject(inject_nodes: Array) -> void:
+	_l1_pending_injects.append(inject_nodes)
+
+func _l1_consume_injects(nodes: Array, start_id: String) -> Array:
+	if _l1_pending_injects.is_empty():
+		return [nodes, start_id]
+	var inject_all: Array = []
+	for inject_arr in _l1_pending_injects:
+		for i in range(inject_arr.size()):
+			var d: Dictionary = inject_arr[i]
+			var nid: String = str(d.get("id", "l1_inj_" + str(len(inject_all))))
+			var sp: String = str(d.get("speaker", ""))
+			var txt: String = str(d.get("text", ""))
+			var mood: String = str(d.get("mood", ""))
+			var is_last := (i == inject_arr.size() - 1)
+			var nxt: Array = []
+			if is_last:
+				nxt = [start_id]
+			inject_all.append(_mk_node(nid, sp, txt, "click", nxt, mood))
+	_l1_pending_injects.clear()
+	if inject_all.is_empty():
+		return [nodes, start_id]
+	return [inject_all + nodes, inject_all[0].id]
+
 ## 默认验证回调：展示判定结果；满足「推理阶段」或「线索已收满」则自动推进过渡。
 ## 三级反馈映射（06 §2.3 + 一致性报告 H-3）：已获证实+倾向成立→正确（绿）；
 ## 证据不足→存疑（黄）；矛盾冲突→错误（红）。
@@ -855,6 +887,10 @@ func _apply_restored_phase(_phase_val: int, _ids: Array, _clues_arr: Array) -> b
 ## 启动一段对话。start_e/start_n/start_h 分别指定三难度入口（缺省回退 start）；
 ## 场景二~八据此让同一段对话按难度走不同链（scene1 已验证）。
 func _start_dialogue(nodes: Array[Resource], start: String, on_end: Callable, start_e: String = "", start_n: String = "", start_h: String = "") -> void:
+	# L1.5：消费待注入的对话片段（真相节点触发的墙外对话注入）
+	var inj_result: Array = _l1_consume_injects(nodes, start)
+	nodes = inj_result[0]
+	start = inj_result[1]
 	if _dm:
 		if _dm.dialogue_advanced.is_connected(_on_line): _dm.dialogue_advanced.disconnect(_on_line)
 		_dm.queue_free()

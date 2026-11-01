@@ -483,7 +483,11 @@ func _apply_restored_phase(p: int, ids: Array, _clues_arr: Array) -> bool:
 # 机制：wall.truth_node_discovered 信号 → _on_truth_node_discovered → _ui.show_notification
 var _l1_truth_comments: Dictionary = {
 	"H3-A2": {"speaker": "福尔摩斯", "text": "肌肉僵硬入血——毒物入血的铁证。", "expr": "凝思"},
-	"CL3-2": {"speaker": "福尔摩斯", "text": "四线合一——死于毒杀。", "expr": "坚定"},
+	"CL3-2": {"type": "inject", "nodes": [
+		{"id": "l1_cl32a", "speaker": "华生", "text": "（惊讶）你是说——他是被毒死的？可现场没有伤口啊！", "mood": "惊讶"},
+		{"id": "l1_cl32b", "speaker": "福尔摩斯", "text": "（微微点头）毒物入血——肌肉僵硬入血、嘴唇暗紫、表情恐怖忿恨。四线合一，错不了。", "mood": "凝思"},
+		{"id": "l1_cl32c", "speaker": "福尔摩斯", "text": "进去看吧——你自己的眼睛会告诉你同样的答案。", "mood": "从容"},
+	]},
 	"H3-C3": {"speaker": "福尔摩斯", "text": "指甲里有血——写血字的人指甲没剪。", "expr": "凝思"},
 	"CL3-3": {"speaker": "福尔摩斯", "text": "RACHE——德语，复仇。", "expr": "坚定"},
 	"H3-B2": {"speaker": "福尔摩斯", "text": "一枚女人的戒指——此案的钥匙。", "expr": "狡黠"},
@@ -503,6 +507,11 @@ func _on_truth_node_discovered(node_id: String, node_kind: String, chain_id: Str
 		return
 	var info: Dictionary = _l1_truth_comments[node_id]
 	_l1_comments_shown[node_id] = true
-	if _ui and _ui.has_method("show_notification"):
-		_ui.show_notification(info.get("speaker", "") + "：" + info.get("text", ""))
+	var evtype: String = str(info.get("type", "notification"))
+	match evtype:
+		"inject":
+			_l1_queue_inject(info.get("nodes", []))
+		"notification":
+			if _ui and _ui.has_method("show_notification"):
+				_ui.show_notification(info.get("speaker", "") + "：" + info.get("text", ""))
 

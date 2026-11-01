@@ -498,7 +498,10 @@ func _hide_observers() -> void:
 # 而不是等退出墙、等结算才知道自己推得对不对。
 var _l1_truth_comments: Dictionary = {
 	"H2-01": {"speaker": "福尔摩斯", "text": "步长二英尺半——一个高个子。你抓着了。", "expr": "认可"},
-	"H2-04": {"speaker": "福尔摩斯", "text": "两人作案——一个踩点，一个动手。", "expr": "凝思"},
+	"H2-04": {"type": "inject", "nodes": [
+		{"id": "l1_h204a", "speaker": "福尔摩斯", "text": "（盯着推理墙，低声）两人——一个高个子穿靴子，一个矮个子漆皮靴。", "mood": "凝思"},
+		{"id": "l1_h204b", "speaker": "福尔摩斯", "text": "一个踩点，一个动手。分工明确，不是临时起意。", "mood": "坚定"},
+	]},
 	"CL2-1": {"speaker": "福尔摩斯", "text": "漆皮方头靴，不是平民穿的——凶手有点身份。", "expr": "凝思"},
 	"CL2-2": {"speaker": "华生", "text": "他是坐马车来的——这我倒是没想到。", "expr": "惊讶"},
 	"CL2-5": {"speaker": "福尔摩斯", "text": "来客两人，一高一矮——身材差得远。", "expr": "凝思"},
@@ -516,11 +519,17 @@ func _on_truth_node_discovered(node_id: String, node_kind: String, chain_id: Str
 		return
 	var info: Dictionary = _l1_truth_comments[node_id]
 	_l1_comments_shown[node_id] = true
-	# 用 notification 方式显示，不打断玩家操作（不弹窗、不停操作）
-	var speaker: String = info.get("speaker", "")
-	var txt: String = info.get("text", "")
-	if _ui and _ui.has_method("show_notification"):
-		_ui.show_notification(speaker + "：" + txt)
+	var evtype: String = str(info.get("type", "notification"))
+	match evtype:
+		"inject":
+			# 对话注入：下一段 _start_dialogue 时自动 prepend 到开头
+			var inject_nodes: Array = info.get("nodes", [])
+			_l1_queue_inject(inject_nodes)
+		"notification":
+			var speaker: String = info.get("speaker", "")
+			var txt: String = info.get("text", "")
+			if _ui and _ui.has_method("show_notification"):
+				_ui.show_notification(speaker + "：" + txt)
 
 func _default_wall_verify(verdict: int, stars: Dictionary = {}) -> void:
 	var fb = {

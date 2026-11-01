@@ -418,6 +418,11 @@ NO other objects, isolated, game asset
   - 分布：scene1(5) / scene2(6) / scene3(7) / scene4(5) / scene5(4) / scene6(4) / scene7(5) / scene8(3)
   - 选点原则：第一个结论（成就感）+ 最终/关键结论（核心成果）+ 最有特色的假设（画面感）
   - **扩展成本**：新节点只需在对应场景的 `_l1_truth_comments` 字典加一行，不用动结构代码
+- **L1.5 · 多类型事件系统（场景二/三试点）**：从纯 notification 升级为 notification + inject 双类型。
+  - **机制**：基类 `_l1_pending_injects` 队列 + `_l1_queue_inject()` + `_l1_consume_injects()`，`_start_dialogue` 开头自动消费并 prepend 到对话首句
+  - **scene2 试点**：H2-04（两人作案）升级为 inject——退出墙后 verdict 对话开头注入 2 段福尔摩斯评论
+  - **scene3 试点**：CL3-2（死于毒杀）升级为 inject——尸体教学段开头注入 3 段华生惊讶+福尔摩斯确认的对话
+  - **扩展方向**：后续可加更多事件类型（线索获取、道具获得、场景状态变化等），场景只改数据不改结构
 - **回归全绿**：语法 `--check-only` 0 错误、Phase 4 探针 12/12 全过。
 
 ### 活场景层 demo（2026-10-31，场景一试点，未接主游戏）
