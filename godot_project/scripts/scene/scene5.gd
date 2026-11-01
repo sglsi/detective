@@ -450,3 +450,29 @@ func _restore_saved_state() -> bool:
 		Phase.REASONING: _phase = Phase.REASONING; _wall_auto = true; _sync_clues(); _open_wall(); return true
 		Phase.TRANSITION: _enter_transition(); return true
 	return false
+
+# ============== 长期 L1 · 真相节点即时评论 ==============
+# 玩家在推理墙中建立某个真相节点时，弹出一句角色评论作为即时反馈。
+# 机制：wall.truth_node_discovered 信号 → _on_truth_node_discovered → _ui.show_notification
+var _l1_truth_comments: Dictionary = {
+	"H5-03": {"speaker": "福尔摩斯", "text": "她不是老太婆——是个探子。", "expr": "狡黠"},
+	"H5-08": {"speaker": "福尔摩斯", "text": "是霍普派来的——他上当了。", "expr": "从容"},
+	"H5-07": {"speaker": "福尔摩斯", "text": "马车夫——全伦敦跑得最快的职业。", "expr": "凝思"},
+	"H5-09": {"speaker": "福尔摩斯", "text": "宏兹迪池区——圈定范围。", "expr": "坚定"},
+}
+
+var _l1_comments_shown: Dictionary = {}
+
+func _on_wall_created(wall: ReasoningWall) -> void:
+	wall.truth_node_discovered.connect(_on_truth_node_discovered)
+
+func _on_truth_node_discovered(node_id: String, node_kind: String, chain_id: String) -> void:
+	if _l1_comments_shown.has(node_id):
+		return
+	if not _l1_truth_comments.has(node_id):
+		return
+	var info: Dictionary = _l1_truth_comments[node_id]
+	_l1_comments_shown[node_id] = true
+	if _ui and _ui.has_method("show_notification"):
+		_ui.show_notification(info.get("speaker", "") + "：" + info.get("text", ""))
+

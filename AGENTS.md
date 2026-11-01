@@ -399,7 +399,7 @@ NO other objects, isolated, game asset
 - **回归全绿**：P4 探针 12/12、P2/P3 探针 0、等价性 PASS 15 链、baseline 全 1.0、verdict_sync 0、validate_all 空、flow_diff 0 错、evaluator 全过；drag_seq fails=2（既有状态，Phase 0 前基线对比已证实非 0~4 引入）。
 - **Gate B7 已走**：pck 152249528，index.html 戳 `v=20261031152959`。
 
-### 设计复盘与中期优化（2026-11-22，设计文档 §8 + M2 软性回报）
+### 设计复盘、中期 M2 与长期 L1.4 全场景铺开（2026-11-22）
 
 - **设计复盘**：在 `设计文档/L2_详细设计/系统设计/12_推理墙驱动的推理进程_设计与实施方案.md` 新增 §8「复盘与后续优化建议」。七优点（诊断扎实/松耦合准/单源思想正确/渐进路线稳/T 裁剪精巧/negate 闭环/风险诚实）、七缺点（Phase 1 误判已完成 / milestone 全人工标注 / 困难模式双轨 / 旁支覆盖低 / 缺中等级反馈 / 进程轴定位模糊 / 验收缺体验指标）、短/中/长期建议。
 - **重要修正**：Phase 1「16 条链单源化」实际已完成（`reasoning_chains.gd` 16 条 CHAINS 全量，`case_branch_truth.gd` 退化为薄封装）。真正还没完成的数据层单源化是 **34 条 milestone 仍在各场景脚本里**（链库 milestones 字段除教学两条空）。
@@ -413,6 +413,11 @@ NO other objects, isolated, game asset
   - **scene8**：结案开头注入 — high 玩家先做结案陈词+福尔摩斯认可 / low 华生感叹没想通
 - **旁支优先级清单**：`设计文档/L2_详细设计/系统设计/旁支剧情优先级清单.md`。全案 15 个误导项分 S/A/B/C 四级，S 级 3 条已完成（报童/RACHEL/神秘女人），A 级 2 条建议下一批（scene6 卡彭蒂耶排除 / scene7 两案同一凶手），B 级 3 条合并为 1 条脚印综合旁支。排序原则：对话戏 > 动作戏 > 新场景。
 - **milestone gate 派生工具**：`tools/t_milestone_gate_suggest.gd`（GDScript 探针）+ `tools/milestone_gate_suggester.py`（Python 封装，支持 `--chain` / `--format table|json|report`）。派生规则：第一层结论 + 最终结论 + target person + 关键矛盾。全 16 链自动派生 74 个建议 gate，供 34 条 milestone 人工标注参考（自动偏结论级，人工补假设级）。
+- **L1.4 · 真相节点即时评论全场景铺开**：8 个场景 × 39 个真相节点，每条链 2~3 个关键节点挂即时评论（`_ui.show_notification` 弹窗，不打断操作）。
+  - 机制：`reasoning_wall.truth_node_discovered` 信号 → 场景 `_on_wall_created` 订阅 → `_l1_truth_comments` 字典查表 → 弹出评论
+  - 分布：scene1(5) / scene2(6) / scene3(7) / scene4(5) / scene5(4) / scene6(4) / scene7(5) / scene8(3)
+  - 选点原则：第一个结论（成就感）+ 最终/关键结论（核心成果）+ 最有特色的假设（画面感）
+  - **扩展成本**：新节点只需在对应场景的 `_l1_truth_comments` 字典加一行，不用动结构代码
 - **回归全绿**：语法 `--check-only` 0 错误、Phase 4 探针 12/12 全过。
 
 ### 活场景层 demo（2026-10-31，场景一试点，未接主游戏）
