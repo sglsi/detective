@@ -352,3 +352,45 @@ func _update_star_rating() -> void:
 	# 提交逐链三星到 StarRatingSystem（幂等覆盖；逐链离散制 v4.0）
 	if StarRatingSystem and owner._chain_id != "":
 		StarRatingSystem.submit_chain(owner._chain_id, observe_stars, reasoning_stars, insight_stars)
+
+	# ============== 长期 L1 · 真相节点驱动剧情编排 ==============
+	# 每次评分后检测新增的真相节点，触发 truth_node_discovered 信号。
+	# 场景脚本可订阅此信号，把"建立某个推理"与"触发某段剧情"挂钩，
+	# 不再需要人工在场景脚本里找挂载点。
+	_detect_truth_nodes()
+
+var _prev_truth_nodes: Dictionary = {}
+
+func _detect_truth_nodes() -> void:
+	if owner._chain_id == "":
+		return
+	if not ReasoningChains.has(owner._chain_id):
+		return
+	var chain: Dictionary = ReasoningChains.CHAINS[owner._chain_id]
+	var bf: Dictionary = chain.wall.get("battlefield", {})
+	var gv = owner._graph_view
+	if gv == null or not is_instance_valid(gv):
+		return
+	if not gv.has_method("snapshot_player_work"):
+		return
+	var snap: Dictionary = gv.snapshot_player_work()
+	var player_nodes: Array = snap.get("graph_nodes", [])
+	var player_node_ids: Dictionary = {}
+	for n in player_nodes:
+		player_node_ids[n.get("id", "")] = true
+	var new_discoveries: Array = []
+	# 假设层
+	for h in bf.get("hypotheses", []):
+		var hid: String = str(h.get("id", ""))
+		if h.get("correct", false) and player_node_ids.has(hid) and not _prev_truth_nodes.has(hid):
+			new_discoveries.append([hid, "hypothesis"])
+			_prev_truth_nodes[hid] = true
+	# 结论层
+	for c in bf.get("conclusions", []):
+		var cid: String = str(c.get("id", ""))
+		if c.get("kind", "") == "true" and player_node_ids.has(cid) and not _prev_truth_nodes.has(cid):
+			new_discoveries.append([cid, "conclusion"])
+			_prev_truth_nodes[cid] = true
+	# 广播信号（通过 owner 发，WallState 是 RefCounted 不能定义 signal）
+	for nd in new_discoveries:
+		owner.truth_node_discovered.emit(nd[0], nd[1], owner._chain_id)

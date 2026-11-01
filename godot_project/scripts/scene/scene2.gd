@@ -492,6 +492,33 @@ func _hide_observers() -> void:
 # 播完再按 advance 推进过渡（REASONING 阶段 / 线索收满）或回观察（预览墙）。
 # 机制与场景一 _show_*_verdict_dialogue 一致：墙只调 on_verify(verdict)，推进由本回调内部负责。
 # stars 为墙透传的三维星（基类 _open_wall 现已透传），本场景未使用但需保持签名兼容。
+# ============== 长期 L1 · 真相节点驱动剧情 · 场景二试点 ==============
+# 3 个试点节点：H2-01（凶手个子高）/ CL2-1（凶手穿漆皮方头靴）/ C2-01（德雷伯之死）
+# 每建立一个真相节点，福尔摩斯插一句即时评论 — 玩家在墙内操作时就能感受到反馈，
+# 而不是等退出墙、等结算才知道自己推得对不对。
+var _l1_truth_comments: Dictionary = {
+	"H2-01": {"speaker": "福尔摩斯", "text": "（低声）步长二英尺半——一个高个子。你抓着了。", "expr": "认可"},
+	"CL2-1": {"speaker": "福尔摩斯", "text": "漆皮方头靴，不是平民穿的那种——凶手有点身份。", "expr": "凝思"},
+	"C2-01": {"speaker": "福尔摩斯", "text": "德雷伯死在这间屋里——这是我们能确定的第一件事。", "expr": "从容"},
+}
+var _l1_comments_shown: Dictionary = {}
+
+func _on_wall_created(wall: ReasoningWall) -> void:
+	wall.truth_node_discovered.connect(_on_truth_node_discovered)
+
+func _on_truth_node_discovered(node_id: String, node_kind: String, chain_id: String) -> void:
+	if _l1_comments_shown.has(node_id):
+		return
+	if not _l1_truth_comments.has(node_id):
+		return
+	var info: Dictionary = _l1_truth_comments[node_id]
+	_l1_comments_shown[node_id] = true
+	# 用 notification 方式显示，不打断玩家操作（不弹窗、不停操作）
+	var speaker: String = info.get("speaker", "")
+	var txt: String = info.get("text", "")
+	if _ui and _ui.has_method("show_notification"):
+		_ui.show_notification(speaker + "：" + txt)
+
 func _default_wall_verify(verdict: int, stars: Dictionary = {}) -> void:
 	var fb = {
 		0: ["错误 ❌", Color(0.95, 0.3, 0.3)],

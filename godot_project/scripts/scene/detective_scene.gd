@@ -551,6 +551,15 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# 导致教学墙关系退出→存档→读档后全部丢失。故 teaching 墙强制使用传入的 override（按引用写回关系）。
 	var effective_state: Dictionary = state_store_override if (teaching or not state_store_override.is_empty()) else _wall_state
 	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, effective_state, advance, true, local_count, Callable(self, "_do_save"), false, _scene_clue_ids, use_case_wide, teaching)
+	# 长期 L1 · 真相节点驱动剧情：墙创建后给场景一个钩子，
+	# 场景可订阅 truth_node_discovered 信号挂即时剧情反馈。
+	_on_wall_created(wall)
+
+## 长期 L1 · 真相节点驱动剧情钩子（基类空实现，场景按需覆写。
+## 在墙创建完成后调用，场景可在此订阅 wall.truth_node_discovered 信号，
+## 实现"玩家建立某条推理 → 触发对应剧情」的数据驱动模式。
+func _on_wall_created(wall: ReasoningWall) -> void:
+	pass
 
 ## 默认验证回调：展示判定结果；满足「推理阶段」或「线索已收满」则自动推进过渡。
 ## 三级反馈映射（06 §2.3 + 一致性报告 H-3）：已获证实+倾向成立→正确（绿）；

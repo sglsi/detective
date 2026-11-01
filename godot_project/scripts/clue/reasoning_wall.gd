@@ -9,6 +9,11 @@ enum Verdict { INSUFFICIENT=1, SUPPORTED=2, VERIFIED=3, CONTRADICTORY=0 }
 enum Diff { EASY=0, NORMAL=1, HARD=2 }
 enum ClueState { COLLECTED=0, ASSOCIATED=1, VERIFIED=2, INVALID=3 }
 
+# === 长期 L1 · 真相节点驱动剧情编排 ===
+## 玩家首次建立某个真相节点时触发，场景脚本可订阅此信号插入对应对话/事件。
+## 参数：node_id（真相节点 id）、node_kind（hypothesis/conclusion/person）、chain_id
+signal truth_node_discovered(node_id: String, node_kind: String, chain_id: String)
+
 # === 分层（Request C 后架构拆分）：状态/线索库/假设树/战场/对比台/关系/验证/历史 抽到 wall/ ===
 const WallState = preload("res://scripts/clue/wall/wall_state.gd")
 var _state_ctl: WallState
