@@ -346,7 +346,19 @@ func _play_telegraph_reply() -> void:
 
 func _start_transition_dialogue() -> void:
 	# 双钩子（08 §12 / 02 §14 §12）：华生台词悬念斯特兰森 → 转场景七
-	_start_dialogue([
+	# 软性回报：按本场景推理质量插入开场段
+	var sig6: Dictionary = _reasoning_signal("scene6")
+	var r6: float = sig6.get("ratio", 0.0)
+	var q6: String = "low" if r6 < 0.4 else ("high" if r6 >= 0.7 else "mid")
+	var pre_nodes: Array[Resource] = []
+	if q6 == "high":
+		pre_nodes.append(_mk_node("q6h","华生","葛莱森还以为自己立了功呢——他真的信了卡彭蒂耶中尉是凶手。","click",["q6h2"]))
+		pre_nodes.append(_mk_node("q6h2","福尔摩斯","（冷笑一声）一根血迹斑斑的木棍 + 一个名字 = 凶手？他的推理链条，一拉就断。","click",["q6h3"]))
+		pre_nodes.append(_mk_node("q6h3","福尔摩斯","卡彭蒂耶有动机，没错。但动机不等于作案——现场的脚印、毒杀的手法、墙上的血字，哪一条跟一个军人中尉对得上？","click",["z0"],[],"凝思"))
+	elif q6 == "low":
+		pre_nodes.append(_mk_node("q6l","华生","（有点不安）葛莱森说得有鼻子有眼的……卡彭蒂耶中尉，不会真的是他吧？","click",["q6l2"]))
+		pre_nodes.append(_mk_node("q6l2","福尔摩斯","（没回答，只顾往前走）华生，看一个侦探够不够格，就看一件事——他能不能分清'可能是'和'一定是'。","click",["z0"],[],"从容"))
+	_start_dialogue(pre_nodes + [
 		_mk_node("z0","华生","（走出公寓）葛莱森这下可摔得不轻。那我们接下来找谁？","click",["z1"]),
 		_mk_node("z1","福尔摩斯","斯特兰森——德雷伯的秘书。如果我没猜错的话，他已经……","click",["z2"]),
 		_mk_node("z2","系统","（远处传来警笛声）","guide",["z3"]),

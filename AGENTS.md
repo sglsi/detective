@@ -399,6 +399,22 @@ NO other objects, isolated, game asset
 - **回归全绿**：P4 探针 12/12、P2/P3 探针 0、等价性 PASS 15 链、baseline 全 1.0、verdict_sync 0、validate_all 空、flow_diff 0 错、evaluator 全过；drag_seq fails=2（既有状态，Phase 0 前基线对比已证实非 0~4 引入）。
 - **Gate B7 已走**：pck 152249528，index.html 戳 `v=20261031152959`。
 
+### 设计复盘与中期优化（2026-11-22，设计文档 §8 + M2 软性回报）
+
+- **设计复盘**：在 `设计文档/L2_详细设计/系统设计/12_推理墙驱动的推理进程_设计与实施方案.md` 新增 §8「复盘与后续优化建议」。七优点（诊断扎实/松耦合准/单源思想正确/渐进路线稳/T 裁剪精巧/negate 闭环/风险诚实）、七缺点（Phase 1 误判已完成 / milestone 全人工标注 / 困难模式双轨 / 旁支覆盖低 / 缺中等级反馈 / 进程轴定位模糊 / 验收缺体验指标）、短/中/长期建议。
+- **重要修正**：Phase 1「16 条链单源化」实际已完成（`reasoning_chains.gd` 16 条 CHAINS 全量，`case_branch_truth.gd` 退化为薄封装）。真正还没完成的数据层单源化是 **34 条 milestone 仍在各场景脚本里**（链库 milestones 字段除教学两条空）。
+- **M2 · 七场景软性回报挂钩（中期任务，不碰红线）**：每个场景加 1~2 段"推理质量→额外对话"的软性回报，填补中等级反馈密度缺口。三档阈值：high ≥ 0.7 / mid 0.4~0.7 / low < 0.4，信号源统一走 `_reasoning_signal()`。
+  - **scene2**：verdict 对话末尾注入 — high 福尔摩斯提示下一段三个观察重点 / low 华生疑惑+福尔摩斯引导
+  - **scene3**：`_enter_transition` 尸体教学前注入 — high 福尔摩斯让玩家先说+表扬 / low 华生发怵+福尔摩斯引导用医学训练
+  - **scene4**：追问面板打开前（s5 后）注入 — high 福尔摩斯提示重点追问三方向 / low 华生问"该问什么"+福尔摩斯讲六方向方法
+  - **scene5**：`_offer_track_decision` 四档化（原三档升级）— 新增 ≥ 0.75 档：华生给出三点具体推理依据（不只说"跟"，还说"为什么"）
+  - **scene6**：`_enter_transition` 开头注入 — high 福尔摩斯逐条驳斥葛莱森结论 / low 华生还在怀疑葛莱森是否正确
+  - **scene7**：z3→z4 之间注入 — high 华生先想到药丸解释+福尔摩斯表扬 / low 华生困惑+福尔摩斯引导
+  - **scene8**：结案开头注入 — high 玩家先做结案陈词+福尔摩斯认可 / low 华生感叹没想通
+- **旁支优先级清单**：`设计文档/L2_详细设计/系统设计/旁支剧情优先级清单.md`。全案 15 个误导项分 S/A/B/C 四级，S 级 3 条已完成（报童/RACHEL/神秘女人），A 级 2 条建议下一批（scene6 卡彭蒂耶排除 / scene7 两案同一凶手），B 级 3 条合并为 1 条脚印综合旁支。排序原则：对话戏 > 动作戏 > 新场景。
+- **milestone gate 派生工具**：`tools/t_milestone_gate_suggest.gd`（GDScript 探针）+ `tools/milestone_gate_suggester.py`（Python 封装，支持 `--chain` / `--format table|json|report`）。派生规则：第一层结论 + 最终结论 + target person + 关键矛盾。全 16 链自动派生 74 个建议 gate，供 34 条 milestone 人工标注参考（自动偏结论级，人工补假设级）。
+- **回归全绿**：语法 `--check-only` 0 错误、Phase 4 探针 12/12 全过。
+
 ### 活场景层 demo（2026-10-31，场景一试点，未接主游戏）
 
 - **入口（双通道）**：主菜单「活场景 Demo（试点）」按钮（mkbtn 挂 `scenes/test_alive.tscn`）+ URL hash `#alive`（main_menu._ready 检测）——验收后两处钩子可整体移除；主游戏流程零改动。

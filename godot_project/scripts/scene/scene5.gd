@@ -331,7 +331,11 @@ func _offer_track_decision() -> void:
 	# Phase 4.5：华生建议按本场景推理质量（CH09A/CH09A2 命中率）分档——只给建议不替玩家决定（红线）
 	var r := float(_reasoning_signal("scene5").get("ratio", -1.0))
 	var nodes: Array[Resource] = []
-	if r >= 0.6:
+	if r >= 0.75:
+		# 高 ratio 档：华生给出具体推理依据
+		nodes.append(_mk_node("ad0","华生","推理墙上命中率很高，而且我注意到三点——第一，她来的时间太巧，刚登报就来；第二，她住址对不上，宏兹迪池区根本没有那条街的号；第三，她用的是丈夫的姓，可丈夫的名又说不清楚。","click",["ad0b"],[],"思考"))
+		nodes.append(_mk_node("ad0b","华生","三点加在一起——她在撒谎。撒谎的人，一定有目的。要我说：跟。错过这个村，可没这个店。","click",["ad1"],[],"自信"))
+	elif r >= 0.6:
 		nodes.append(_mk_node("ad0","华生","推理墙上的命中率很高——'她'的每一步都对得上证据。要我说：跟。错过这个村，可没这个店。","click",["ad1"],[],"自信"))
 	elif r >= 0.3:
 		nodes.append(_mk_node("ad0","华生","推得有几分道理，但还有几环悬着。跟不跟……你来定，我跟上就是。","click",["ad1"],[],"思考"))

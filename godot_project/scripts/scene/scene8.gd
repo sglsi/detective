@@ -209,13 +209,27 @@ func _enter_transition() -> void:
 	AudioManager.play_scene_bgm("scene8_resolve")
 	_award()
 	# 双钩子（08 §12；02 §16 §12）：案件完结升华（善恶灰色）+ 四签名预告
-	_start_dialogue([
+	# 软性回报：全案推理质量挂钩 — 高 ratio 玩家先做结案陈词
+	var sig8: Dictionary = _reasoning_signal("scene8")
+	var r8: float = sig8.get("ratio", 0.0)
+	var q8: String = "low" if r8 < 0.4 else ("high" if r8 >= 0.7 else "mid")
+	var pre_nodes: Array[Resource] = []
+	match q8:
+		"high":
+			pre_nodes.append(_mk_node("z8h","福尔摩斯","（转向玩家）这个案子，你从头到尾跟着推下来。结案之前——你先说。","click",["z8h2"]))
+			pre_nodes.append(_mk_node("z8h2","系统","（玩家简述了整个推理过程：从现场脚印到血字、从药丸到马车夫、从复仇动机到杰弗森·霍普——条理清晰，环环相扣。）","guide",["z8h3"]))
+			pre_nodes.append(_mk_node("z8h3","福尔摩斯","（微微颔首）不错。该有的你都有了。一个侦探的成长，比一个案子的告破更有意思。","click",["z0"],[],"认可"))
+		"low":
+			pre_nodes.append(_mk_node("z8l","华生","（长叹一声）总算是……结束了。说实话，到最后我还有几环没太想通。","click",["z8l2"]))
+			pre_nodes.append(_mk_node("z8l2","福尔摩斯","（拍拍他的肩）正常。真相这种东西，不到最后一块拼图落位，永远是散的。","click",["z0"],[],"从容"))
+	var start_id := pre_nodes[0].id if not pre_nodes.is_empty() else "z0"
+	_start_dialogue(pre_nodes + [
 		_mk_node("z0","福尔摩斯","（点燃烟斗，望着窗外的雨）华生，你看——这就是人性。一个人可以为了复仇横跨半个世界，也可以因为一个女孩的死变成魔鬼。","click",["z1"]),
 		_mk_node("z1","华生","那他……是好人还是坏人？","click",["z2"]),
 		_mk_node("z2","福尔摩斯","这不是我们能评判的。我们只负责找出真相。","click",["z3"]),
 		_mk_node("z3","系统","（画面渐暗。黑屏白字）几个月后——贝克街221B。一位年轻女士的来访：'福尔摩斯先生，我父亲失踪了。'《四签名》· 敬请期待。","guide",["z4"]),
 		_mk_node("z4","葛莱森警长","（喃喃）杰弗森·霍普……马车夫……我怎么就没想到呢。","click",["end"]),
-	], "z0", _go_to_next_scene)
+	], start_id, _go_to_next_scene)
 
 func _award() -> void:
 	# v4.0：三星由推理墙在评星时通过 StarRatingSystem.submit_chain() 逐链提交，本场景不再累加。

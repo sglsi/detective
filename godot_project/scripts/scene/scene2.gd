@@ -537,6 +537,35 @@ func _show_scene2_verdict_dialogue(v: int, advance: bool) -> void:
 				nodes.append(_mk_node("v1b","福尔摩斯","回推理墙，把站不住的说法一条条标成反对——排除错路，剩下就是真相。","click",["end"],[],"凝思"))
 	if nodes.is_empty():
 		nodes.append(_mk_node("v1","福尔摩斯","（看着推理墙）再想想。","click",["end"],[],"从容"))
+	# 软性回报：推理质量高 → 福尔摩斯主动提示下一段注意事项
+	var sig2: Dictionary = _reasoning_signal("scene2")
+	var ratio2: float = sig2.get("ratio", 0.0)
+	var quality2: String = "low"
+	if ratio2 >= 0.7:
+		quality2 = "high"
+	elif ratio2 >= 0.4:
+		quality2 = "mid"
+	match quality2:
+		"high":
+			# 替换原 end 前置入一段洞察
+			var bonus2 := _mk_node("vq","福尔摩斯","（指着地面）进去之后注意三样东西——地毯上的血迹形状、壁炉边的烟灰、窗台上的刮痕。你推到这一步，下一步就该知道看哪儿了。","click",["end"],[],"凝思")
+			for i in range(nodes.size()):
+				var nd = nodes[i]
+				if nd.id == "end":
+					continue
+				if "end" in nd.next:
+					nd.next = bonus2.next.duplicate()
+					bonus2.next = ["end"]
+					nodes.insert(i + 1, bonus2)
+					break
+		"low":
+			if nodes.size() > 0 and nodes[-1].id != "end":
+				var last2 := nodes[-1]
+				var hint2 := _mk_node("vq_low","华生","（皱着眉）我还是觉得哪里不对……","click",["vq_low2"],[],"疑惑")
+				var hint2b := _mk_node("vq_low2","福尔摩斯","别急。把现场的每样东西按顺序重新摆一遍——先到的是谁，后到的是谁，谁先离开，谁留下了。","click",["end"],[],"从容")
+				last2.next = ["vq_low"]
+				nodes.append(hint2)
+				nodes.append(hint2b)
 	_start_dialogue(nodes, "v1", _on_scene2_verdict_end.bind(advance))
 
 func _on_scene2_verdict_end(advance: bool) -> void:

@@ -398,8 +398,23 @@ func _start_step1() -> void:
 	nodes.append(_mk_node("s3_e","福尔摩斯","（低声）四点都关键：凌晨两点、下着雨、醉汉站在门口、还唱着歌。逐一追问，把每条都坐实。","click",["s3_n"],[],"指导",1))
 	nodes.append(_mk_node("s3_n","福尔摩斯","四点都关键：时间、天气、醉汉、歌声。用六方向追问把它们挖出来。","click",["s3_h"],[],"指导",2))
 	nodes.append(_mk_node("s3_h","福尔摩斯","（看向玩家）……他漏了什么，你自己判断。","click",["s4"],[],"从容",3))
-	nodes.append(_mk_node("s4","华生","（在笔记本上飞快记着）记下了。可这些只是他'说的'，不是事实——得追问才挖得出来。","click",["s5"]))
-	nodes.append(_mk_node("s5","福尔摩斯","（从口袋里摸出那枚半镑金币，在指间一转）问吧。他见了这个，话会多得很。","click",["end"]))
+	# 软性回报：推理质量高 → 福尔摩斯提示追问重点
+	var sig4: Dictionary = _reasoning_signal("scene4")
+	var ratio4: float = sig4.get("ratio", 0.0)
+	var q4: String = "low" if ratio4 < 0.4 else ("high" if ratio4 >= 0.7 else "mid")
+	var s5_next: Array = ["end"]
+	if q4 == "high":
+		nodes.append(_mk_node("s4","华生","（在笔记本上飞快记着）记下了。可这些只是他'说的'，不是事实——得追问才挖得出来。","click",["s5"]))
+		nodes.append(_mk_node("s5","福尔摩斯","（从口袋里摸出那枚半镑金币，在指间一转）问吧。他见了这个，话会多得很。","click",["s5q"]))
+		nodes.append(_mk_node("s5q","福尔摩斯","（低声对玩家）重点问三样——时间对不对得上、醉汉长什么样、当时街上有没有马车。这三样钉死了，他的证词就跑不了。","click",["end"],[],"指导"))
+	elif q4 == "low":
+		nodes.append(_mk_node("s4","华生","（在笔记本上飞快记着）记下了。可这些只是他'说的'，不是事实——得追问才挖得出来。","click",["s5"]))
+		nodes.append(_mk_node("s5","福尔摩斯","（从口袋里摸出那枚半镑金币，在指间一转）问吧。他见了这个，话会多得很。","click",["s5l"]))
+		nodes.append(_mk_node("s5l","华生","可是……该问什么呢？他已经把事情都说了一遍了。","click",["s5l2"],[],"疑惑"))
+		nodes.append(_mk_node("s5l2","福尔摩斯","（摇头）他说的是他以为发生了什么。我们要的是——发生了什么。六方向：时间、地点、人物、穿着、现场、异常。一条一条问。","click",["end"],[],"指导"))
+	else:
+		nodes.append(_mk_node("s4","华生","（在笔记本上飞快记着）记下了。可这些只是他'说的'，不是事实——得追问才挖得出来。","click",["s5"]))
+		nodes.append(_mk_node("s5","福尔摩斯","（从口袋里摸出那枚半镑金币，在指间一转）问吧。他见了这个，话会多得很。","click",["end"]))
 	_start_dialogue_conv(nodes, "s00", _start_panel)
 
 func _start_panel() -> void:

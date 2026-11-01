@@ -236,11 +236,28 @@ func _enter_transition() -> void:
 	_phase = Phase.TRANSITION
 	_award()
 	# 紧迫感机制 + 双钩子（08 §9 / §12；02 §15 §9/§12）：霍普可能逃走 + 两种杀人方式谜题 → 场景八
+	# 软性回报：推理质量挂钩 — 高 ratio 华生先提出药丸假设
+	var sig7: Dictionary = _reasoning_signal("scene7")
+	var r7: float = sig7.get("ratio", 0.0)
+	var q7: String = "low" if r7 < 0.4 else ("high" if r7 >= 0.7 else "mid")
+	var mid_nodes: Array[Resource] = []
+	match q7:
+		"high":
+			mid_nodes.append(_mk_node("z3a","华生","（忽然）等等——药丸！两粒药丸，一毒一无毒。德雷伯选了有毒的那粒，斯特兰森不肯选，凶手才动了刀！","click",["z3b"],[],"兴奋"))
+			mid_nodes.append(_mk_node("z3b","福尔摩斯","（眼睛一亮）完全正确，华生。你把两案的手法差异给解释通了。","click",["z4"],[],"认可"))
+		"low":
+			mid_nodes.append(_mk_node("z3c","华生","（摇头）我想不通。下毒和动刀，完全是两种手法——难道不是同一个凶手？","click",["z3d"],[],"疑惑"))
+			mid_nodes.append(_mk_node("z3d","福尔摩斯","别着急下结论。你先回答我：现场那两粒药丸是做什么用的？","click",["z3e"],[],"从容"))
+			mid_nodes.append(_mk_node("z3e","华生","两粒……一毒一无毒？难道是让受害者选？","click",["z4"],[],"思考"))
+		_:
+			mid_nodes.append(_mk_node("z3m","华生","（皱眉）手法不一样……这里面一定有原因。","click",["z4"],[],"思考"))
+	var z3_next: Array = [mid_nodes[0].id] if not mid_nodes.is_empty() else ["z4"]
 	_start_dialogue([
 		_mk_node("z0","福尔摩斯","（站起身）两案是同一个人。红脸、高个、棕外衣、马车夫、两粒药丸——碎片正在拼成完整的图像。","click",["z1"]),
 		_mk_node("z1","分队小孩","（气喘吁吁跑上楼）先生！打听到了——霍普今天出车了，但行踪飘忽，一上午换了三个区，像在躲什么人。","click",["z2"]),
 		_mk_node("z2","福尔摩斯","（脸色微变）不好——他可能听到风声了。若今晚离开伦敦，我们就再也抓不到他。必须在今晚之前把他引出来。","click",["z3"]),
-		_mk_node("z3","华生","（思索）同一个凶手……可为什么德雷伯下毒、斯特兰森动刀？这说不通啊。","click",["z4"]),
+		_mk_node("z3","华生","（思索）同一个凶手……可为什么德雷伯下毒、斯特兰森动刀？这说不通啊。","click",z3_next),
+	] + mid_nodes + [
 		_mk_node("z4","福尔摩斯","（赞赏）好问题，华生。一个人手法通常稳定——变了，一定有原因。答案就在那两粒药丸里：斯特兰森不肯选，凶手才拔了刀。回贝克街，设下圈套，让他自己找上门来。","click",["end"]),
 	], "z0", _go_to_next_scene)
 
