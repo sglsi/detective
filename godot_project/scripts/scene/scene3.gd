@@ -372,7 +372,7 @@ func _enter_transition() -> void:
 		]
 	# 软性回报：推理质量挂钩
 	var sig3: Dictionary = _reasoning_signal("scene3")
-	var ratio3: float = sig3.get("ratio", 0.0)
+	var ratio3: float = sig3.get("display_ratio", 0.0)
 	var q3: String = "low" if ratio3 < 0.4 else ("high" if ratio3 >= 0.7 else "mid")
 	var pre_bonus: Array = []
 	var mid_bonus: Array = []

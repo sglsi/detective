@@ -211,7 +211,7 @@ func _enter_transition() -> void:
 	# 双钩子（08 §12；02 §16 §12）：案件完结升华（善恶灰色）+ 四签名预告
 	# 软性回报：全案推理质量挂钩 — 高 ratio 玩家先做结案陈词
 	var sig8: Dictionary = _reasoning_signal("scene8")
-	var r8: float = sig8.get("ratio", 0.0)
+	var r8: float = sig8.get("display_ratio", 0.0)
 	var q8: String = "low" if r8 < 0.4 else ("high" if r8 >= 0.7 else "mid")
 	var pre_nodes: Array[Resource] = []
 	match q8:

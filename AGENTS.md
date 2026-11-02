@@ -423,7 +423,20 @@ NO other objects, isolated, game asset
   - **scene2 试点**：H2-04（两人作案）升级为 inject——退出墙后 verdict 对话开头注入 2 段福尔摩斯评论
   - **scene3 试点**：CL3-2（死于毒杀）升级为 inject——尸体教学段开头注入 3 段华生惊讶+福尔摩斯确认的对话
   - **扩展方向**：后续可加更多事件类型（线索获取、道具获得、场景状态变化等），场景只改数据不改结构
-- **回归全绿**：语法 `--check-only` 0 错误、Phase 4 探针 12/12 全过。
+
+### L2 · 困难模式向量化评分收敛
+
+- **核心问题**：困难模式误导项多（mislead_chance 0.7 vs 0.3）→ raw ratio 天然偏低，但星级/档位阈值不变 → 困难模式玩家进度感慢、拿星难
+- **方案**：引入 `display_ratio = clamp(raw_ratio × difficulty_correction, 0, 1)` 作为统一显示 R 轴
+  - **修正系数**：EASY 0.8 / NORMAL 1.0 / HARD 1.25（困难模式补偿 25%，抵消误导项增多导致的 R 偏低）
+  - **双轨分离**：raw ratio 用于存档/深度 gating（真实逻辑），display_ratio 用于显示/星级/档位/软性回报（玩家感知）
+- **改动面**：
+  - `wall_branch_evaluator.gd`：evaluate 新增 `display_ratio` + `difficulty_correction` 字段，stars/verdict/summary 改用 display_ratio
+  - `star_rating_system.gd`：case_branch_log 新增 `display_ratio` 字段（存档不破坏）
+  - `detective_scene.gd`：`_reasoning_signal` 返回新增 `display_ratio`；`_sig_depth_ok` 保留用原始 ratio（逻辑门槛不变）
+  - 7 场景 M2 软性回报：high/mid/low 分档改用 display_ratio（所见即所得，玩家感知一致）
+- **红线不变**：深度 gating（`_sig_depth_ok`）仍用原始 ratio，困难模式需要更高真实水平才能解锁证词
+- **验证**：语法 `--check-only` 0 错误。
 
 ### 活场景层 demo（2026-10-31，场景一试点，未接主游戏）
 

@@ -238,7 +238,7 @@ func _enter_transition() -> void:
 	# 紧迫感机制 + 双钩子（08 §9 / §12；02 §15 §9/§12）：霍普可能逃走 + 两种杀人方式谜题 → 场景八
 	# 软性回报：推理质量挂钩 — 高 ratio 华生先提出药丸假设
 	var sig7: Dictionary = _reasoning_signal("scene7")
-	var r7: float = sig7.get("ratio", 0.0)
+	var r7: float = sig7.get("display_ratio", 0.0)
 	var q7: String = "low" if r7 < 0.4 else ("high" if r7 >= 0.7 else "mid")
 	var mid_nodes: Array[Resource] = []
 	match q7:

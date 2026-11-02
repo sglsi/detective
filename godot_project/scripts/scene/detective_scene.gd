@@ -616,13 +616,14 @@ func _default_wall_verify(verdict: int, stars: Dictionary = {}) -> void:
 ## 不散读 StarRatingSystem 内部结构；墙未提交时 ratio=-1。
 func _reasoning_signal(scene: String = "") -> Dictionary:
 	var sid := scene if scene != "" else scene_id()
-	var sig := {"ratio": -1.0, "stars": 0, "hard_fail": false, "summary": "", "per_branch": [], "adopted_misleads": [], "negated_misleads": []}
+	var sig := {"ratio": -1.0, "display_ratio": -1.0, "stars": 0, "hard_fail": false, "summary": "", "per_branch": [], "adopted_misleads": [], "negated_misleads": []}
 	if StarRatingSystem == null:
 		return sig
 	var sb: Dictionary = StarRatingSystem.get_case_branch_log().get(sid, {})
 	if sb.is_empty():
 		return sig
 	sig["ratio"] = float(sb.get("ratio", -1.0))
+	sig["display_ratio"] = float(sb.get("display_ratio", sb.get("ratio", -1.0)))
 	sig["stars"] = int(sb.get("stars", 0))
 	sig["hard_fail"] = bool(sb.get("hard_fail", false))
 	sig["summary"] = str(sb.get("summary", ""))

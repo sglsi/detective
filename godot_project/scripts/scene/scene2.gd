@@ -578,7 +578,7 @@ func _show_scene2_verdict_dialogue(v: int, advance: bool) -> void:
 		nodes.append(_mk_node("v1","福尔摩斯","（看着推理墙）再想想。","click",["end"],[],"从容"))
 	# 软性回报：推理质量高 → 福尔摩斯主动提示下一段注意事项
 	var sig2: Dictionary = _reasoning_signal("scene2")
-	var ratio2: float = sig2.get("ratio", 0.0)
+	var ratio2: float = sig2.get("display_ratio", 0.0)
 	var quality2: String = "low"
 	if ratio2 >= 0.7:
 		quality2 = "high"

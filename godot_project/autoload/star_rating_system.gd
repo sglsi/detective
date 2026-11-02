@@ -97,6 +97,7 @@ func record_branch_progress(scene_id: String, detail: Dictionary) -> void:
 		return
 	case_branch_log[scene_id] = {
 		"ratio": float(detail.get("ratio", 0.0)),
+		"display_ratio": float(detail.get("display_ratio", detail.get("ratio", 0.0))),
 		"stars": int(detail.get("stars", 0)),
 		"summary": str(detail.get("summary", "")),
 		"hard_fail": bool(detail.get("hard_fail", false)),

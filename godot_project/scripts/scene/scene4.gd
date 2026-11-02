@@ -400,7 +400,7 @@ func _start_step1() -> void:
 	nodes.append(_mk_node("s3_h","福尔摩斯","（看向玩家）……他漏了什么，你自己判断。","click",["s4"],[],"从容",3))
 	# 软性回报：推理质量高 → 福尔摩斯提示追问重点
 	var sig4: Dictionary = _reasoning_signal("scene4")
-	var ratio4: float = sig4.get("ratio", 0.0)
+	var ratio4: float = sig4.get("display_ratio", 0.0)
 	var q4: String = "low" if ratio4 < 0.4 else ("high" if ratio4 >= 0.7 else "mid")
 	var s5_next: Array = ["end"]
 	if q4 == "high":

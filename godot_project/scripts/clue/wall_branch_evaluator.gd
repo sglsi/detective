@@ -277,14 +277,32 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 	var ratio: float = sum_hit / sum_max if sum_max > 0.0 else 0.0
 	var hard_fail: bool = not adopted.is_empty()
 
-	var stars := _stars_of(ratio)
+	# ============== L2 · 难度统一 R 轴 ==============
+	# 不同难度下误导项数量不同，raw ratio 不可直接比较。
+	# 引入 display_ratio = clamp(ratio × correction, 0, 1)
+	# 作为显示用的统一 R 轴，星级 / 档位 / 进程条全部基于 display_ratio。
+	# raw ratio 保留用于存档、结算竞技分等真实数据用途。
+	var correction: float = 1.0
+	if DifficultyManager:
+		match DifficultyManager.current_difficulty:
+			DifficultyManager.Difficulty.EASY:
+				correction = 0.8
+			DifficultyManager.Difficulty.HARD:
+				correction = 1.25
+			_:
+				correction = 1.0
+	var display_ratio: float = clamp(ratio * correction, 0.0, 1.0)
+
+	var stars := _stars_of(display_ratio)
 	if hard_fail:
 		stars = mini(stars, 2)        # 洞2：采纳误导项 → 三星硬条件失败
 
-	var verdict := _verdict_of(ratio, hard_fail or has_contradict)
+	var verdict := _verdict_of(display_ratio, hard_fail or has_contradict)
 
 	return {
 		"ratio": ratio,
+		"display_ratio": display_ratio,
+		"difficulty_correction": correction,
 		"stars": stars,
 		"verdict": verdict,
 		"hard_fail": hard_fail,
@@ -297,7 +315,7 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 		"insight_truth": ins_truth,
 		"insight_ratio": (ins_hit / float(ins_truth)) if ins_truth > 0 else -1.0,
 		"practice": practice,
-		"summary": _summary(ratio, stars, hard_fail, practice),
+		"summary": _summary(display_ratio, stars, hard_fail, practice),
 	}
 
 

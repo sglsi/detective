@@ -348,7 +348,7 @@ func _start_transition_dialogue() -> void:
 	# 双钩子（08 §12 / 02 §14 §12）：华生台词悬念斯特兰森 → 转场景七
 	# 软性回报：按本场景推理质量插入开场段
 	var sig6: Dictionary = _reasoning_signal("scene6")
-	var r6: float = sig6.get("ratio", 0.0)
+	var r6: float = sig6.get("display_ratio", 0.0)
 	var q6: String = "low" if r6 < 0.4 else ("high" if r6 >= 0.7 else "mid")
 	var pre_nodes: Array[Resource] = []
 	if q6 == "high":

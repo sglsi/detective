@@ -329,7 +329,7 @@ func _enter_transition() -> void:
 func _offer_track_decision() -> void:
 	# Step5 推理墙后：玩家选择是否跟踪（H5-05 跟踪 / H5-06 不跟踪=mislead）
 	# Phase 4.5：华生建议按本场景推理质量（CH09A/CH09A2 命中率）分档——只给建议不替玩家决定（红线）
-	var r := float(_reasoning_signal("scene5").get("ratio", -1.0))
+	var r := float(_reasoning_signal("scene5").get("display_ratio", -1.0))
 	var nodes: Array[Resource] = []
 	if r >= 0.75:
 		# 高 ratio 档：华生给出具体推理依据
