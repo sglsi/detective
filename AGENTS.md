@@ -438,6 +438,23 @@ NO other objects, isolated, game asset
 - **红线不变**：深度 gating（`_sig_depth_ok`）仍用原始 ratio，困难模式需要更高真实水平才能解锁证词
 - **验证**：语法 `--check-only` 0 错误。
 
+### L3 · 案件进程轴导航升级
+
+- **升级内容**：案件簿从纯文本成绩单 → 可交互工作台
+- **三段式结构**（保留全部旧内容 + 新增交互）：
+  1. 已确立事实（里程碑，只读，保留原 milestones_lit）
+  2. **推理链工作台**（核心新增）：16 条链按 scene1~8 分组，每条链可点击直接打开推理墙
+  3. 剧情步骤（只读，保留原 casebook_steps/done）
+- **进度三态**：未开始（灰）/ 进行中（金）/ 已完成（绿，≥80%），颜色区分一目了然
+- **排序策略**：同场景内未完成链置顶，玩家一眼知道卡在哪
+- **点击行为**：`_on_casebook_chain_clicked(chain_id)` → 关案件簿 → await 一帧 → `_open_wall`
+  - scene1 教学关：按链 id 路由到 watson/messenger 对应墙
+  - 正式场景：打开全案大墙（所有链都在里面，玩家自己定位）
+- **核心链标记**：`core: true` 的链前加 ★ 标记，区分主/支链
+- **技术要点**：案件簿专用 `_show_casebook_interactive()`，不改动通用 `_popup`；按钮三态样式复用 `_sb()` 风格化；ScrollContainer 内容高度由 yy 累加决定
+
+**验证**：`--check-only` 0 语法错误。
+
 ### 活场景层 demo（2026-10-31，场景一试点，未接主游戏）
 
 - **入口（双通道）**：主菜单「活场景 Demo（试点）」按钮（mkbtn 挂 `scenes/test_alive.tscn`）+ URL hash `#alive`（main_menu._ready 检测）——验收后两处钩子可整体移除；主游戏流程零改动。

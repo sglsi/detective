@@ -248,14 +248,190 @@ func _show_map_panel() -> void:
 
 func _show_casebook_panel() -> void:
 	if ClueSystem: _sync_clues()   # 进入推理前（对话阶段）也实时反映已收集线索，避免案件簿「已收集 0/N」失真
-	var items: Array = _case_progress_items()   # Phase 3.4：案件进程轴置顶
+	_show_casebook_interactive()
+
+## L3 · 案件簿交互版 — 从"成绩单"升级为"工作台"：
+## - 推理链按场景分组，点击可直接打开对应推理墙
+## - 进度三态（完成/进行中/未开始）颜色区分
+## - 未完成链置顶，玩家一眼知道卡在哪
+func _show_casebook_interactive() -> void:
+	var title_txt := "案件簿 — 血字的研究 · " + scene_id()
+	# 单例开关
+	if _modal_panel and is_instance_valid(_modal_panel):
+		if _modal_title == title_txt:
+			_close_modal(); return
+		_modal_panel.queue_free(); _modal_panel = null
+	var o := Panel.new(); o.position = Vector2(460, 100); o.size = Vector2(1000, 740); o.z_index = 100
+	o.add_theme_stylebox_override("panel", _sb(Color(0.08, 0.06, 0.04, 0.97), Color(0.78, 0.62, 0.28), 2, 6))
+	var tt := Label.new(); tt.text = title_txt; tt.position = Vector2(30, 20); tt.add_theme_font_size_override("font_size", 28)
+	tt.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); o.add_child(tt)
+	var drag_bar := Control.new(); drag_bar.name = "DragBar"
+	drag_bar.position = Vector2(0, 0); drag_bar.size = Vector2(1000, 64)
+	drag_bar.mouse_filter = Control.MOUSE_FILTER_STOP; o.add_child(drag_bar)
+	WindowDrag.make_draggable(o, drag_bar)
+	var sc := ScrollContainer.new(); sc.position = Vector2(30, 70); sc.size = Vector2(940, 590)
+	var ct := Control.new()
+	var yy: float = 0.0
+
+	# ---- 第一段：已确立事实（里程碑，只读）----
+	var cw: Dictionary = {}
+	var lit: Array = []
+	var idx: Dictionary = {}
+	if ClueSystem:
+		cw = ClueSystem.case_wall_state
+		lit = cw.get("milestones_lit", [])
+		idx = cw.get("milestone_index", {})
+	if not lit.is_empty():
+		var sec_lbl := Label.new()
+		sec_lbl.text = "—— 案件进程轴 · 已确立事实 ——"
+		sec_lbl.position = Vector2(10, yy); sec_lbl.size = Vector2(900, 28)
+		sec_lbl.add_theme_font_size_override("font_size", 20)
+		sec_lbl.add_theme_color_override("font_color", Color(0.75, 0.65, 0.40))
+		ct.add_child(sec_lbl); yy += 34
+		var rows: Array = []
+		for mid in lit:
+			var info: Dictionary = idx.get(str(mid), {})
+			rows.append({"id": str(mid), "text": str(info.get("text", ""))})
+		rows.sort_custom(func(a, b): return str(a["id"]) < str(b["id"]))
+		for r in rows:
+			var disp: String = r["text"] if r["text"] != "" else r["id"]
+			var n := Label.new()
+			n.text = "■  " + disp
+			n.position = Vector2(20, yy); n.size = Vector2(880, 24)
+			n.add_theme_font_size_override("font_size", 18)
+			n.add_theme_color_override("font_color", Color(0.88, 0.82, 0.68))
+			ct.add_child(n); yy += 28
+		yy += 10
+
+	# ---- 第二段：推理链分组（可点击，核心工作台）----
+	var blog: Dictionary = {}
+	if StarRatingSystem != null:
+		blog = StarRatingSystem.get_case_branch_log()
+
+	# 收集所有链的进度，按场景分组
+	var by_scene: Dictionary = {}
+	for cid in ReasoningChains.ids():
+		var chain: Dictionary = ReasoningChains.CHAINS[cid]
+		var sc: String = str(chain.get("scene", ""))
+		if sc == "":
+			continue
+		if not by_scene.has(sc):
+			by_scene[sc] = []
+		# 找该链的进度
+		var ratio_val: float = -1.0
+		var built_val: int = 0
+		var truth_val: int = 0
+		for sid in blog:
+			var pb: Dictionary = blog[sid].get("per_branch", {})
+			if pb.has(cid):
+				var st: Dictionary = pb[cid]
+				ratio_val = float(st.get("ratio", 0.0))
+				built_val = int(st.get("built", 0))
+				truth_val = int(st.get("truth", 0))
+				break
+		by_scene[sc].append({
+			"cid": cid,
+			"name": str(chain.get("name", cid)),
+			"core": bool(chain.get("core", false)),
+			"ratio": ratio_val,
+			"built": built_val,
+			"truth": truth_val,
+		})
+
+	# 排序：按场景号；同场景内未完成优先
+	var scene_order: Array = ["scene1", "scene2", "scene3", "scene4", "scene5", "scene6", "scene7", "scene8"]
+	var sec2_lbl := Label.new()
+	sec2_lbl.text = "—— 推理链工作台（点击进入推理墙） ——"
+	sec2_lbl.position = Vector2(10, yy); sec2_lbl.size = Vector2(900, 28)
+	sec2_lbl.add_theme_font_size_override("font_size", 20)
+	sec2_lbl.add_theme_color_override("font_color", Color(0.75, 0.65, 0.40))
+	ct.add_child(sec2_lbl); yy += 34
+
+	for sc in scene_order:
+		if not by_scene.has(sc):
+			continue
+		var chains: Array = by_scene[sc]
+		# 同场景：未完成(ratio<0.8)在前，已完成在后
+		chains.sort_custom(func(a, b):
+			var a_done := a["ratio"] >= 0 and a["ratio"] >= 0.8
+			var b_done := b["ratio"] >= 0 and b["ratio"] >= 0.8
+			if a_done != b_done:
+				return -1 if not a_done else 1
+			return a["cid"] < b["cid"])
+
+		# 场景标签
+		var sc_lbl := Label.new()
+		sc_lbl.text = sc.capitalize() + "  · " + str(chains.size()) + " 条链"
+		sc_lbl.position = Vector2(20, yy); sc_lbl.size = Vector2(860, 22)
+		sc_lbl.add_theme_font_size_override("font_size", 16)
+		sc_lbl.add_theme_color_override("font_color", Color(0.62, 0.55, 0.42))
+		ct.add_child(sc_lbl); yy += 26
+
+		for ch in chains:
+			var r: float = ch["ratio"]
+			var status_str: String = ""
+			var btn_color: Color = Color(0.88, 0.82, 0.68)
+			if r < 0:
+				status_str = "未开始"
+				btn_color = Color(0.55, 0.50, 0.40)
+			elif r >= 0.8:
+				status_str = "已完成 " + str(int(round(r * 100))) + "%"
+				btn_color = Color(0.55, 0.75, 0.45)
+			else:
+				status_str = "进行中 " + str(int(round(r * 100))) + "%"
+				btn_color = Color(0.88, 0.72, 0.35)
+			var core_mark: String = "★ " if ch["core"] else "  "
+			var btn := Button.new()
+			btn.text = core_mark + ch["name"] + "    " + status_str
+			btn.position = Vector2(30, yy); btn.size = Vector2(860, 40)
+			btn.add_theme_color_override("font_color", btn_color)
+			btn.add_theme_font_size_override("font_size", 18)
+			btn.add_theme_stylebox_override("normal", _sb(Color(0.12, 0.10, 0.07, 0.6), Color(0.45, 0.38, 0.22), 1, 4))
+			btn.add_theme_stylebox_override("hover", _sb(Color(0.18, 0.14, 0.09, 0.8), Color(0.75, 0.62, 0.35), 1, 4))
+			btn.add_theme_stylebox_override("pressed", _sb(Color(0.22, 0.17, 0.10, 0.9), Color(0.88, 0.72, 0.35), 1, 4))
+			btn.pressed.connect(_on_casebook_chain_clicked.bind(ch["cid"]))
+			ct.add_child(btn); yy += 46
+		yy += 6
+
+	# ---- 第三段：步骤清单（只读，保留原功能）----
 	var steps := casebook_steps()
 	var done := casebook_done_flags()
-	for i in steps.size():
-		# 防御：done 与 steps 长度不齐时按未完成处理，绝不越界崩溃
-		var is_done: bool = i < done.size() and bool(done[i])
-		items.append({"name": ("✅ " if is_done else "⬜ ") + steps[i], "desc": ""})
-	_popup("案件簿 — 血字的研究 · " + scene_id(), items)
+	if steps.size() > 0:
+		yy += 10
+		var sec3_lbl := Label.new()
+		sec3_lbl.text = "—— 剧情步骤 ——"
+		sec3_lbl.position = Vector2(10, yy); sec3_lbl.size = Vector2(900, 28)
+		sec3_lbl.add_theme_font_size_override("font_size", 20)
+		sec3_lbl.add_theme_color_override("font_color", Color(0.75, 0.65, 0.40))
+		ct.add_child(sec3_lbl); yy += 34
+		for i in range(steps.size()):
+			var is_done: bool = i < done.size() and bool(done[i])
+			var n := Label.new()
+			n.text = ("✅ " if is_done else "⬜ ") + str(steps[i])
+			n.position = Vector2(20, yy); n.size = Vector2(880, 24)
+			n.add_theme_font_size_override("font_size", 18)
+			n.add_theme_color_override("font_color", Color(0.92, 0.88, 0.78))
+			ct.add_child(n); yy += 28
+
+	ct.custom_minimum_size = Vector2(920, yy)
+	sc.add_child(ct); o.add_child(sc)
+	var cl := Button.new(); cl.text = "关闭"; cl.position = Vector2(430, 670); cl.size = Vector2(140, 45)
+	cl.add_theme_color_override("font_color", Color(0.85, 0.75, 0.45)); cl.add_theme_font_size_override("font_size", 20)
+	cl.pressed.connect(_close_modal); o.add_child(cl); add_child(o)
+	_register_modal(o, title_txt)
+
+## L3 · 案件簿点击链的回调 — 关闭案件簿 + 打开推理墙
+func _on_casebook_chain_clicked(chain_id: String) -> void:
+	_close_modal()
+	# 延迟一帧让弹窗关闭动画完成
+	await get_tree().process_frame
+	# 打开全案推理墙（当前场景的大墙，包含所有链）
+	# 教学关（scene1）用 source 指定链，正式场景用全案墙
+	if scene_id() == "scene1":
+		var src: String = "watson" if chain_id.begins_with("CH01W") else "messenger"
+		_open_wall(src)
+	else:
+		_open_wall("")
 
 
 ## Phase 3.4：案件进程轴——跨场景汇总已点亮里程碑与推理链概况。
