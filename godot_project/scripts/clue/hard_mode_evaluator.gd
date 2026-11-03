@@ -186,10 +186,16 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 		isolated, contra, total_prod)
 	var summary: String = _summary(grade, conclusion_correct, ratio)
 
-	# L2 · 难度统一 R 轴：困难模式用真相基准，ratio 本身就是归一化的，
-	# 不再乘 correction（correction 是为了拉平不同难度下误导项数量差异）。
-	# 保留 display_ratio 字段以保证下游消费方接口一致，不因难度不同缺字段崩。
-	var display_ratio: float = clamp(ratio, 0.0, 1.0)
+	# L2 · 三难度统一 R 轴校准
+	# 困难模式四维评分与 EASY/NORMAL 的硬比对评分分布完全不同（中间区间偏高、方向错也有分）。
+	# 校准策略：以结论命中率为主轴，证据/结构/步骤三维作质量乘数（最高+40%），使三难度落在同一 R 轴上。
+	#   display_ratio = clamp(conclusion_score * (0.6 + 0.4 * quality_factor), 0, 1)
+	#   quality_factor = avg(证据, 结构, 步骤)
+	# 直觉：方向对了才有分；推理质量越高分越多；方向错了零分。
+	var quality_factor: float = 0.0
+	if total_prod > 0:
+		quality_factor = (evidence_score + structure_score + step_score) / 3.0
+	var display_ratio: float = clamp(conclusion_score * (0.6 + 0.4 * quality_factor), 0.0, 1.0)
 
 	return {
 		"four_dim": true,
