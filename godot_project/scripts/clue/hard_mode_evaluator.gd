@@ -186,9 +186,15 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 		isolated, contra, total_prod)
 	var summary: String = _summary(grade, conclusion_correct, ratio)
 
+	# L2 · 难度统一 R 轴：困难模式用真相基准，ratio 本身就是归一化的，
+	# 不再乘 correction（correction 是为了拉平不同难度下误导项数量差异）。
+	# 保留 display_ratio 字段以保证下游消费方接口一致，不因难度不同缺字段崩。
+	var display_ratio: float = clamp(ratio, 0.0, 1.0)
+
 	return {
 		"four_dim": true,
 		"ratio": ratio,
+		"display_ratio": display_ratio,
 		"stars": stars,
 		"verdict": verdict,
 		"hard_fail": false,

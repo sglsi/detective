@@ -282,12 +282,16 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 	# 引入 display_ratio = clamp(ratio × correction, 0, 1)
 	# 作为显示用的统一 R 轴，星级 / 档位 / 进程条全部基于 display_ratio。
 	# raw ratio 保留用于存档、结算竞技分等真实数据用途。
+	# DifficultyManager 是 autoload，无主循环/工具脚本环境下不可用，走 Engine.has_singleton 安全访问
 	var correction: float = 1.0
-	if DifficultyManager:
-		match DifficultyManager.current_difficulty:
-			DifficultyManager.Difficulty.EASY:
+	var dm: Object = null
+	if Engine.has_singleton("DifficultyManager"):
+		dm = Engine.get_singleton("DifficultyManager")
+	if dm != null:
+		match int(dm.get("current_difficulty")):
+			0:  # EASY
 				correction = 0.8
-			DifficultyManager.Difficulty.HARD:
+			2:  # HARD
 				correction = 1.25
 			_:
 				correction = 1.0

@@ -317,7 +317,7 @@ func _show_casebook_interactive() -> void:
 			continue
 		if not by_scene.has(sc):
 			by_scene[sc] = []
-		# 找该链的进度
+		# 找该链的进度（用 display_ratio：显示轨，难度统一）
 		var ratio_val: float = -1.0
 		var built_val: int = 0
 		var truth_val: int = 0
@@ -325,7 +325,7 @@ func _show_casebook_interactive() -> void:
 			var pb: Dictionary = blog[sid].get("per_branch", {})
 			if pb.has(cid):
 				var st: Dictionary = pb[cid]
-				ratio_val = float(st.get("ratio", 0.0))
+				ratio_val = float(st.get("display_ratio", st.get("ratio", 0.0)))
 				built_val = int(st.get("built", 0))
 				truth_val = int(st.get("truth", 0))
 				break
