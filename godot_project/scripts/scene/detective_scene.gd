@@ -425,13 +425,15 @@ func _on_casebook_chain_clicked(chain_id: String) -> void:
 	_close_modal()
 	# 延迟一帧让弹窗关闭动画完成
 	await get_tree().process_frame
+	# 计算该链的节点 id 列表（用于图谱聚焦高亮）
+	var focus_ids: Array = ReasoningChains.get_chain_node_ids(chain_id) if ReasoningChains.has(chain_id) else []
 	# 打开全案推理墙（当前场景的大墙，包含所有链）
 	# 教学关（scene1）用 source 指定链，正式场景用全案墙
 	if scene_id() == "scene1":
 		var src: String = "watson" if chain_id.begins_with("CH01W") else "messenger"
-		_open_wall(src)
+		_open_wall(src, chain_id, focus_ids)
 	else:
-		_open_wall("")
+		_open_wall("", chain_id, focus_ids)
 
 
 ## Phase 3.4：案件进程轴——跨场景汇总已点亮里程碑与推理链概况。
@@ -591,7 +593,7 @@ func _prompt_think(speaker: String, line: String, mood: String = "") -> void:
 ## hypothesis——假设字典（默认 reasoning_hypothesis()）。
 ## on_verify —— 验证后回调（默认 _default_wall_verify，按 _wall_auto 推进过渡）。
 ## 这样场景一与场景二/三共用同一套墙，杜绝「手搓墙 + 基类墙」两套机制并存。
-func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Callable = Callable(), on_continue: Callable = Callable(), teaching: bool = false, state_store_override: Dictionary = {}) -> void:
+func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Callable = Callable(), on_continue: Callable = Callable(), teaching: bool = false, state_store_override: Dictionary = {}, focus_chain_id: String = "", focus_node_ids: Array = []) -> void:
 	# 单例 + 开关：已开则关闭（点一次出现，再点一次关闭），杜绝多重墙叠加导致显示异常
 	if _wall_instance and is_instance_valid(_wall_instance):
 		_wall_instance.close_wall()
@@ -727,6 +729,10 @@ func _open_wall(source: String = "", hypothesis: Dictionary = {}, on_verify: Cal
 	# 导致教学墙关系退出→存档→读档后全部丢失。故 teaching 墙强制使用传入的 override（按引用写回关系）。
 	var effective_state: Dictionary = state_store_override if (teaching or not state_store_override.is_empty()) else _wall_state
 	wall.setup(clues, hypo, cb, Callable(self, "_on_wall_closed"), _difficulty, on_continue, effective_state, advance, true, local_count, Callable(self, "_do_save"), false, _scene_clue_ids, use_case_wide, teaching)
+	# L3 · 链聚焦：从案件簿点击链进来时，视口自动对准该链节点群并高亮
+	if focus_chain_id != "":
+		wall.focus_chain_id = focus_chain_id
+		wall.focus_node_ids = focus_node_ids
 	# 长期 L1 · 真相节点驱动剧情：墙创建后给场景一个钩子，
 	# 场景可订阅 truth_node_discovered 信号挂即时剧情反馈。
 	_on_wall_created(wall)

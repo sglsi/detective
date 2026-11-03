@@ -1819,6 +1819,135 @@ func _center_on_person(z: float = 1.0) -> void:
 	_canvas.position = vp * 0.5 - c * z
 
 
+## L3 · 聚焦到指定推理链：视口平移+缩放到该链节点群中心 + 节点高亮脉冲 2s。
+## node_ids 为该链的真相节点 id 列表（hypo/conclusion/person 均可，clue id 也行），
+## 由墙侧从 ReasoningChains 计算好传入（避免图谱侧依赖链库）。
+## 空 id 列表或全部不在画布上 → 静默 no-op。
+func focus_on_chain(chain_id: String, node_ids: Array) -> void:
+	if _canvas == null or not is_instance_valid(_canvas):
+		return
+	var visible_ids: Array = []
+	for nid in node_ids:
+		var key: String = str(nid)
+		# 结论节点可能有 conclusion_ 前缀
+		if _node_center.has(key):
+			visible_ids.append(key)
+		elif _node_center.has("conclusion_" + key):
+			visible_ids.append("conclusion_" + key)
+	# 人物节点可能有 person: 前缀
+	if not visible_ids.is_empty():
+		_fit_to_nodes(visible_ids)
+		_pulse_highlight(visible_ids)
+
+
+## 把视口缩放到指定节点集合的 bbox（类似 fit_view 但只对部分节点）
+func _fit_to_nodes(node_ids: Array) -> void:
+	if node_ids.is_empty():
+		return
+	var minp := Vector2.INF
+	var maxp := Vector2(-INF, -INF)
+	for id in node_ids:
+		if not _node_center.has(id): continue
+		var c: Vector2 = _node_center[id]
+		var w: float = _cards._est_node_w(str(_node_kind.get(id, "")))
+		var h: float = _cards._est_node_h({})
+		minp = Vector2(min(minp.x, c.x - w * 0.5), min(minp.y, c.y - h * 0.5))
+		maxp = Vector2(max(maxp.x, c.x + w * 0.5), max(maxp.y, c.y + h * 0.5))
+	var bbox := maxp - minp
+	var margin := 120.0
+	var vp: Vector2 = _clip.size if _clip != null and _clip.size.x > 0 else Vector2(1280, 760)
+	var ns: float = min((vp.x - margin * 2.0) / max(bbox.x, 1.0), (vp.y - margin * 2.0) / max(bbox.y, 1.0))
+	ns = clamp(ns, 0.4, 1.6)
+	_canvas.scale = Vector2(ns, ns)
+	var center_gl := _canvas.get_global_transform().affine_inverse() * (minp + bbox * 0.5)
+	_canvas.position = -center_gl * ns + vp * 0.5
+	_zoom = ns
+
+
+## 给一批节点做 2 次金色脉冲高亮（约 2s），然后恢复原边框。
+## 用 Tween 改 border_width 制造呼吸感，颜色从金色过渡回原色。
+var _chain_pulse_tween: Tween = null
+var _chain_pulse_ids: Array = []
+var _chain_pulse_restore: Dictionary = {}  # id -> {border_color, border_width}
+
+func _pulse_highlight(node_ids: Array) -> void:
+	if node_ids.is_empty(): return
+	# 清旧的
+	if _chain_pulse_tween and is_instance_valid(_chain_pulse_tween):
+		_chain_pulse_tween.kill()
+	_restore_pulse()
+	_chain_pulse_ids = node_ids.duplicate()
+	_chain_pulse_restore.clear()
+	# 记录原始边框
+	for id in node_ids:
+		var v: Control = _node_views.get(id, null)
+		if v == null or not is_instance_valid(v): continue
+		var pc: PanelContainer = v.get_node_or_null("PanelContainer")
+		if pc == null: continue
+		var sb: StyleBoxFlat = pc.get_theme_stylebox("panel")
+		if sb is StyleBoxFlat:
+			_chain_pulse_restore[id] = {
+				"color": sb.border_color,
+				"w_l": sb.border_width_left, "w_r": sb.border_width_right,
+				"w_t": sb.border_width_top, "w_b": sb.border_width_bottom,
+			}
+	# 做两次脉冲（放大→还原→放大→还原）
+	_chain_pulse_tween = create_tween()
+	_chain_pulse_tween.set_loops(2)
+	_chain_pulse_tween.tween_method(
+		_func(_pulse_apply_progress.bind(1.0)),
+		0.0, 1.0, 0.4, Tween.TRANS_SINE, Tween.EASE_IN_OUT)
+	_chain_pulse_tween.tween_method(
+		_func(_pulse_apply_progress.bind(0.0)),
+		1.0, 0.0, 0.4, Tween.TRANS_SINE, Tween.EASE_IN_OUT)
+	_chain_pulse_tween.finished.connect(_restore_pulse)
+
+
+func _pulse_apply_progress(final_w: float, t: float) -> void:
+	var gold := Color(1.0, 0.82, 0.25)
+	for id in _chain_pulse_ids:
+		var v: Control = _node_views.get(id, null)
+		if v == null or not is_instance_valid(v): continue
+		var pc: PanelContainer = v.get_node_or_null("PanelContainer")
+		if pc == null: continue
+		var sb: StyleBoxFlat = pc.get_theme_stylebox("panel")
+		if not (sb is StyleBoxFlat): continue
+		var restore: Dictionary = _chain_pulse_restore.get(id, {})
+		var orig_col: Color = restore.get("color", sb.border_color)
+		var orig_w: float = float(restore.get("w_l", 2))
+		var tween_col: Color = orig_col.lerp(gold, t)
+		var tween_w: int = int(round(lerp(orig_w, 5.0, t)))
+		var ns := StyleBoxFlat.new()
+		ns.bg_color = sb.bg_color
+		ns.corner_radius_top_left = sb.corner_radius_top_left
+		ns.corner_radius_top_right = sb.corner_radius_top_right
+		ns.border_color = tween_col
+		ns.border_width_left = tween_w; ns.border_width_right = tween_w
+		ns.border_width_top = tween_w; ns.border_width_bottom = tween_w
+		pc.add_theme_stylebox_override("panel", ns)
+
+
+func _restore_pulse() -> void:
+	for id in _chain_pulse_restore:
+		var v: Control = _node_views.get(id, null)
+		if v == null or not is_instance_valid(v): continue
+		var pc: PanelContainer = v.get_node_or_null("PanelContainer")
+		if pc == null: continue
+		var r: Dictionary = _chain_pulse_restore[id]
+		var sb := StyleBoxFlat.new()
+		var orig: StyleBoxFlat = pc.get_theme_stylebox("panel")
+		if orig is StyleBoxFlat:
+			sb.bg_color = orig.bg_color
+			sb.corner_radius_top_left = orig.corner_radius_top_left
+			sb.corner_radius_top_right = orig.corner_radius_top_right
+		sb.border_color = r.color
+		sb.border_width_left = r.w_l; sb.border_width_right = r.w_r
+		sb.border_width_top = r.w_t; sb.border_width_bottom = r.w_b
+		pc.add_theme_stylebox_override("panel", sb)
+	_chain_pulse_ids.clear()
+	_chain_pulse_restore.clear()
+
+
 # ===================== 顶部栏动作 =====================
 func _switch_mode(m: int) -> void:
 	if m == ViewMode.MODE_A or m == ViewMode.MODE_D:

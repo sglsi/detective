@@ -78,6 +78,8 @@ var _auto_fold: bool = false                 # 场景切换进入已建立关系
 var _case_wide: bool = false                 # 全案大墙(use_case_wide)：多人物平铺全部已收集线索/推断/结论
 var _teaching: bool = false                   # 教学墙（场景一 watson/messenger）：禁用结论 gate 自动补边，关系由玩家逐个手动建立
 var _scene_clue_ids: Array = []               # 本场景「采集页」收集到的线索 id（跨场景带入·任务：左栏仅显示这些）
+var focus_chain_id: String = ""                # L3 · 链聚焦：首次开图谱时自动对准的推理链 id（空=不聚焦）
+var focus_node_ids: Array = []                 # L3 · 链聚焦：该链的节点 id 列表（由调用方从 ReasoningChains 计算好传入）
 var _verified: bool = false                  # 本次/历史是否已提交过验证（拿到判定）
 var _verified_verdict: int = -1              # 最近一次提交得到的判定
 var _on_advance: Callable = Callable()       # 验证后关墙时推进剧情的回调（仅推理阶段有效）
@@ -1102,6 +1104,14 @@ func _on_open_graph_view() -> void:
 	_clue_ctl._refresh_clue_list()   # 任务7：图谱构建后立即按画布可见线索去重左栏（打开墙即保证唯一）
 	_rel_ctl._sync_top_bar()
 	_rel_ctl._sync_connect_btn()
+	# L3 · 链聚焦：从案件簿点击某条链进来时，视口自动对准该链节点群并高亮脉冲
+	if focus_chain_id != "" and not focus_node_ids.is_empty():
+		call_deferred("_do_chain_focus")
+
+
+func _do_chain_focus() -> void:
+	if _graph_view and is_instance_valid(_graph_view):
+		_graph_view.focus_on_chain(focus_chain_id, focus_node_ids)
 
 
 # === 统一顶栏：线型/颜色/视图/焦点 选择器驱动图谱 ===

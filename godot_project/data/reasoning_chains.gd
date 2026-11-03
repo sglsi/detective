@@ -1601,6 +1601,30 @@ static func ids() -> Array:
 static func has(id: String) -> bool:
 	return CHAINS.has(id)
 
+## L3 链聚焦：返回指定链的所有节点 id（hypo + conclusion + person），用于图谱聚焦高亮。
+## 返回的 id 是图谱侧使用的形式：hypo 用原名，conclusion 带 "conclusion_" 前缀，person 用人物 id。
+static func get_chain_node_ids(chain_id: String) -> Array:
+	var ch: Dictionary = CHAINS.get(chain_id, {})
+	if ch.is_empty():
+		return []
+	var bf: Dictionary = ch.get("wall", {}).get("battlefield", {})
+	var res: Array = []
+	for h in bf.get("hypotheses", []):
+		res.append(str(h.get("id", "")))
+	for c in bf.get("conclusions", []):
+		res.append("conclusion_" + str(c.get("id", "")))
+		var tgt: String = str(c.get("target", ""))
+		if tgt.begins_with("person:"):
+			res.append(tgt.replace("person:", ""))
+	for p in ch.get("wall", {}).get("persons", []):
+		res.append(str(p.get("id", "")))
+	# 去重
+	var seen := []
+	for id in res:
+		if not id in seen and id != "":
+			seen.append(id)
+	return seen
+
 ## 返回 reasoning_wall 需要的完整运行 dict（与 reasoning_hypothesis() 钩子同构）。
 ## 深拷贝：场景侧可安全改写（如重置 verified）而不污染链库。
 static func build_wall_dict(id: String) -> Dictionary:
