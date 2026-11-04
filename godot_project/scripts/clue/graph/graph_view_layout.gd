@@ -1968,11 +1968,30 @@ func _build_parent_of() -> Dictionary:
 		if child == "" or parent == "" or child == parent: return
 		if not parent_cand.has(child): parent_cand[child] = []
 		if not (parent in parent_cand[child]): parent_cand[child].append(parent)
+	# 预扫描：图中是否有人物/事件锚点？无锚点时线索→推断→结论的自然阅读方向
+	# （左→右）更符合直觉，需反转默认父子方向，让线索当根（depth=0 最左）。
+	var _has_anchor := false
+	for _r2 in owner._relations:
+		var _f2 := str(_r2.get("from", "")); var _t2 := str(_r2.get("to", ""))
+		var _fk2 := owner._fold._kind_of(_f2); var _tk2 := owner._fold._kind_of(_t2)
+		if _fk2 == "person" or _fk2 == "event" or _tk2 == "person" or _tk2 == "event":
+			_has_anchor = true
+			break
+	var _reverse_mode := not _has_anchor
 	for r in owner._relations:
 		var k: String = r.get("kind", "")
 		if k != "support" and k != "target": continue
 		var _f := str(r.get("from", "")); var _t := str(r.get("to", ""))
 		var _fk := owner._fold._kind_of(_f); var _tk := owner._fold._kind_of(_t)
+		# 无锚点模式：非人物边全部反转（线索当根）——
+		# from↔to 互换后走下方同一套规则。
+		if _reverse_mode and _fk != "person" and _fk != "event" and _tk != "person" and _tk != "event":
+			var _tf := _t
+			_t = _f
+			_f = _tf
+			var _tfk := _tk
+			_tk = _fk
+			_fk = _tfk
 		if _fk == "person" and _tk == "person":
 			# 人物↔人物：约定 from=上级(父)、to=下级(子/下属)。与常规(from=子,to=父)相反，
 			# 故 add_parent(子,父)=add_parent(to,from)。例：德雷伯→斯特兰森 ⇒ 斯特兰森嵌套于德雷伯下。
@@ -2000,6 +2019,11 @@ func _build_parent_of() -> Dictionary:
 	for _r in owner._relations:
 		if str(_r.get("kind", "")) != "support": continue
 		var _af := str(_r.get("from", "")); var _at := str(_r.get("to", ""))
+		# 反转模式下，结论→结论边也需要反转方向，保持 parent_cand 的一致性
+		if _reverse_mode and owner._fold._kind_of(_af) == "conclusion" and owner._fold._kind_of(_at) == "conclusion":
+			var _tmp := _af
+			_af = _at
+			_at = _tmp
 		if owner._fold._kind_of(_af) == "conclusion" and owner._fold._kind_of(_at) == "conclusion":
 			for _ap in parent_cand.get(_af, []):
 				if _ap == _at or _ap == _af: continue
