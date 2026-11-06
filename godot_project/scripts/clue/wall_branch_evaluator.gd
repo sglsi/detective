@@ -70,7 +70,8 @@ static func norm(nid: String) -> String:
 ##                    （CH03 标在 scene2，真相含场景三/四线索）在早期场景结算不再被
 ##                    永远缺失的边压低 R。传空数组 = 不裁剪（旧行为，兼容旧调用方/探针）。
 static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: Array,
-		scene_id: String, practice: bool = false, collected_ids: Array = []) -> Dictionary:
+		scene_id: String, practice: bool = false, collected_ids: Array = [],
+		difficulty_override: int = -1) -> Dictionary:
 	var allowed := _allowed_scenes(scene_id)
 
 	# ── 已收集线索集合（归一化与真相 id 同一空间）──────────────────
@@ -158,10 +159,12 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 	# ⚠️ 不能一轮「单端即认领」：c309 同属 CH03/CH05，单端会让 CH03 抢走 CH05 的
 	#    (c309→H3-02)，导致 CH05 少一条真相边、CH03 多一条错误边，完美解永远到不了 100%。
 	var claimed := {}
+	var edge_idx := 0
 	for pass_two in [false, true]:
+		edge_idx = 0
 		for e in player_edges:
-			var ekey: String = "%s>%s|%s" % [str(e.get("from", "")), str(e.get("to", "")), str(e.get("kind", ""))]
-			if claimed.has(ekey):
+			edge_idx += 1
+			if claimed.has(edge_idx):
 				continue
 			var ef: String = str(e.get("from", ""))
 			var et: String = str(e.get("to", ""))
@@ -172,7 +175,7 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 				var one: bool = ns.has(ef) or ns.has(et)
 				if (not pass_two and both) or (pass_two and one):
 					edges_of[bid].append(e)
-					claimed[ekey] = true
+					claimed[edge_idx] = true
 					break
 	for nid in player_nodes.keys():
 		for b in scope:
@@ -199,10 +202,30 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 	var per_branch: Array = []
 	var sum_hit := 0.0
 	var sum_max := 0.0
+	# 注意：对误导项的 oppose（正确识破）不算矛盾，只有真正的矛盾边才算
 	var has_contradict := false
+	# 收集所有误导项 id（用于排除正确识破的 oppose 边）
+	var mislead_all := {}
+	for b in Truth.branches():
+		if not allowed.has(str(b.get("scene", ""))):
+			continue
+		for m in b.get("misleads", []):
+			mislead_all[norm(str(m.get("id", "")))] = str(m.get("expect", "negate"))
 	for e in player_edges:
-		if str(e.get("kind", "")) in ["contradict", "oppose"]:
+		var ek: String = str(e.get("kind", ""))
+		if ek == "contradict":
 			has_contradict = true
+		elif ek == "oppose":
+			# 如果两端任一是误导项且 expect=negate，这是正确识破，不算矛盾
+			var ef: String = str(e.get("from", ""))
+			var et: String = str(e.get("to", ""))
+			var is_negate_mislead := false
+			if mislead_all.has(ef) and mislead_all[ef] == "negate":
+				is_negate_mislead = true
+			if mislead_all.has(et) and mislead_all[et] == "negate":
+				is_negate_mislead = true
+			if not is_negate_mislead:
+				has_contradict = true
 
 	# 洞察（合成层）聚合：非线索层真相边 + 结论节点产出（用户裁定：战场不再作为洞察数据源）
 	var ins_hit := 0.0
@@ -283,18 +306,28 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 	# 作为显示用的统一 R 轴，星级 / 档位 / 进程条全部基于 display_ratio。
 	# raw ratio 保留用于存档、结算竞技分等真实数据用途。
 	# DifficultyManager 是 autoload，无主循环/工具脚本环境下不可用，走 Engine.has_singleton 安全访问
+	# difficulty_override >= 0 时强制使用指定难度（用于探针/测试），-1 表示读 autoload
 	var correction: float = 1.0
-	var dm: Object = null
-	if Engine.has_singleton("DifficultyManager"):
-		dm = Engine.get_singleton("DifficultyManager")
-	if dm != null:
-		match int(dm.get("current_difficulty")):
+	if difficulty_override >= 0:
+		match difficulty_override:
 			0:  # EASY
 				correction = 0.8
 			2:  # HARD
 				correction = 1.25
 			_:
 				correction = 1.0
+	else:
+		var dm: Object = null
+		if Engine.has_singleton("DifficultyManager"):
+			dm = Engine.get_singleton("DifficultyManager")
+		if dm != null:
+			match int(dm.get("current_difficulty")):
+				0:  # EASY
+					correction = 0.8
+				2:  # HARD
+					correction = 1.25
+				_:
+					correction = 1.0
 	var display_ratio: float = clamp(ratio * correction, 0.0, 1.0)
 
 	var stars := _stars_of(display_ratio)
@@ -309,6 +342,7 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 		"difficulty_correction": correction,
 		"stars": stars,
 		"verdict": verdict,
+		"has_contradict": has_contradict,
 		"hard_fail": hard_fail,
 		"adopted_misleads": adopted,
 		"negated_misleads": negated,
@@ -421,17 +455,25 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 	for e in assigned_edges:
 		var ef: String = norm(str(e.get("from", "")))
 		var et: String = norm(str(e.get("to", "")))
-		built += 1
 		var ek: String = str(e.get("kind", ""))
-		if truth_edge_map.has(_edge_key(ef, et, ek)):
-			matched_truth[_edge_key(ef, et, ek)] = true
+		built += 1
+		var fk := _edge_key(ef, et, ek)
+		var rk := _edge_key(et, ef, ek)
+		if truth_edge_map.has(fk) and not matched_truth.has(fk):
+			matched_truth[fk] = true
 			matched_edges.append({"from": ef, "to": et, "kind": ek, "weight": 1.0})
 			hit += HIT_EXACT
-		elif truth_edge_map.has(_edge_key(et, ef, ek)):
-			matched_truth[_edge_key(et, ef, ek)] = true
+		elif truth_edge_map.has(rk) and not matched_truth.has(rk):
+			matched_truth[rk] = true
 			reversed_edges.append({"from": et, "to": ef, "kind": ek})
 			matched_edges.append({"from": et, "to": ef, "kind": ek, "weight": 0.5})
 			hit += HIT_REVERSED          # 两端对、方向反 → 半分
+		elif truth_edge_map.has(fk) and matched_truth.has(fk):
+			extra_edges.append({"from": ef, "to": et, "kind": ek})
+			hit += HIT_NONE              # 重复边：进分母，不给分
+		elif truth_edge_map.has(rk) and matched_truth.has(rk):
+			extra_edges.append({"from": ef, "to": et, "kind": ek})
+			hit += HIT_NONE              # 重复反向边：进分母，不给分
 		elif mislead_ids.has(et) and ek == "oppose":
 			hit += HIT_EXACT             # 否定误导项 = 识破，给满分
 		elif mislead_ids.has(ef) and ek == "oppose":
@@ -478,12 +520,17 @@ static func _is_synthesis_edge(from_id: String, to_id: String, layer_of: Diction
 static func _allowed_scenes(scene_id: String) -> Dictionary:
 	var order: Array = ["scene1", "scene2", "scene3", "scene4", "scene5", "scene6", "scene7", "scene8"]
 	var allowed := {}
+	var found := false
 	for sid in order:
-		allowed[sid] = true
 		if sid == scene_id:
+			found = true
+			allowed[sid] = true
 			break
-	# 兜底：未知场景号（如自造 id）至少允许自己，避免整表失效
-	if not allowed.has(scene_id):
+		allowed[sid] = true
+	# 兜底：未知场景号（如自造 id）只允许自己，避免整表失效
+	# （如果找不到就放行全部 8 个，玩家在 sceneX 也能看到所有链，等于没边界）
+	if not found:
+		allowed.clear()
 		allowed[scene_id] = true
 	return allowed
 
@@ -501,15 +548,21 @@ static func _stars_of(ratio: float) -> int:
 
 ## 四档 verdict 与星级同源（裁定 3：统一评分源）。
 ## 注：CONTRADICTORY 保留独立语义——存在矛盾/采纳误导项时，即使正确率不低也判矛盾。
+## 采纳误导项(hard_fail) 或有矛盾边(has_contradict) 时，最高只能到 SUPPORTED，
+## 不能判 VERIFIED（与三星硬条件一致）。
 static func _verdict_of(ratio: float, contradicted: bool) -> int:
-	if contradicted and ratio < Truth.STAR_3:
-		return 0      # Verdict.CONTRADICTORY
+	if contradicted:
+		if ratio < Truth.STAR_1:
+			return 1  # INSUFFICIENT（有矛盾但连基本结构都没有，归入证据不足）
+		if ratio < Truth.STAR_3:
+			return 0  # CONTRADICTORY（有矛盾且正确率不高）
+		return 2      # SUPPORTED（方向大致正确，但存在硬伤<采纳误导/矛盾边>，未达验证标准）
 	if ratio >= Truth.STAR_3:
-		return 3      # Verdict.VERIFIED
+		return 3      # VERIFIED
 	if ratio >= Truth.STAR_2:
-		return 2      # Verdict.SUPPORTED
+		return 2      # SUPPORTED
 	if ratio >= Truth.STAR_1:
-		return 1      # Verdict.INSUFFICIENT
+		return 1      # INSUFFICIENT
 	return 1          # 低于 25% 仍归 INSUFFICIENT（无星，但保持四档闭合）
 
 
