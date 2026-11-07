@@ -47,6 +47,34 @@ const HIT_NONE := 0.0       # 未命中
 const CONCL_PREFIX := "conclusion_"
 const PERSON_PREFIX := "person:"
 
+## 跨场景互证加成（C）：同一推断由 ≥2 个不同场景的线索共同支撑、且玩家全部连对时，
+## 该推断节点的命中权重从 1.0 提升到 1.0 + REINFORCED_BONUS，体现「相互印证并加强」。
+## 取值依据：一个额外场景的独立佐证约等于「多读到一条强证」的边际增益，取 0.15 ≈ 1/7 项
+## （低于任何两条独立边的增量，避免稀释「多连一条正确边」的权重）。整体 R 在 evaluate
+## 末尾 clamp 到 1.0，天然不会超过满分，与设计文档 80/55/25 阈值正交（阈值在 display_ratio 上检，
+## 加成只推高由真实命中带来的 R，不会凭空造星）。
+const REINFORCED_BONUS := 0.15
+
+
+## 线索 → 所属场景推断（实现互证判定用，纯数据模式匹配，不加载场景脚本）。
+## 场景二线索 c2xx、场景三 c3xx、场景四~八均为 C_SOTCB_4xx~8xx。无法识别返回 ""。
+static func _scene_of_clue(clue_id: String) -> String:
+	if clue_id.begins_with("c2"):
+		return "scene2"
+	if clue_id.begins_with("c3"):
+		return "scene3"
+	if clue_id.begins_with("C_SOTCB_4"):
+		return "scene4"
+	if clue_id.begins_with("C_SOTCB_5"):
+		return "scene5"
+	if clue_id.begins_with("C_SOTCB_6"):
+		return "scene6"
+	if clue_id.begins_with("C_SOTCB_7"):
+		return "scene7"
+	if clue_id.begins_with("C_SOTCB_8"):
+		return "scene8"
+	return ""
+
 
 ## 节点 id 归一化：结论节点在画布上形如 "conclusion_CL3-1"，真相表里写作 "CL3-1"。
 ## 人物节点画布上是裸 id（"KILLER"），真相表里写作 "person:KILLER" —— 一并剥前缀对齐
@@ -254,6 +282,8 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 				"missing_nodes": [], "missing_edges": [],
 				"reversed_edges": [], "extra_edges": [],
 				"unavailable_edges": [],
+				"pending_edges": [], "pending_nodes": [], "pending_hits": 0,
+				"reinforced_count": 0, "reinforced_bonus": 0.0,
 			})
 			continue
 
@@ -261,6 +291,7 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 		var hit: float = float(res.get("hit", 0.0))
 		var denom: float = float(maxi(built, t))
 		var rb: float = hit / denom if denom > 0.0 else 0.0
+		rb = minf(rb, 1.0)            # 互证加成可能让单链 hit 超过 truth，R 上限封 1.0（C 硬约束）
 		sum_hit += hit
 		sum_max += denom
 		per_branch.append({
@@ -273,6 +304,11 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 			"extra_edges": res.get("extra_edges", []),
 			"matched_edges": res.get("matched_edges", []),
 			"unavailable_edges": res.get("unavailable_edges", []),
+			"pending_edges": res.get("pending_edges", []),
+			"pending_nodes": res.get("pending_nodes", []),
+			"pending_hits": int(res.get("pending_hits", 0)),
+			"reinforced_count": int(res.get("reinforced_count", 0)),
+			"reinforced_bonus": float(res.get("reinforced_bonus", 0.0)),
 		})
 
 		# —— 洞察（合成层）聚合：非线索层的真相边 + 结论节点 ——
@@ -298,6 +334,7 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 					ins_hit += 1.0
 
 	var ratio: float = sum_hit / sum_max if sum_max > 0.0 else 0.0
+	ratio = minf(ratio, 1.0)       # 互证加成（C）可让全局 hit 超过 sum_max，R 上限封 1.0
 	var hard_fail: bool = not adopted.is_empty()
 
 	# ============== L2 · 难度统一 R 轴 ==============
@@ -383,18 +420,27 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 		mislead_ids[norm(str(m.get("id", "")))] = str(m.get("expect", "negate"))
 	var bid: String = str(b.get("id", ""))
 
-	# ── 真相边按「本墙已收集线索」裁剪（Phase 0.1）─────────────────
-	# 跨场景链在早期场景结算时，真相引用的后置场景线索还没收集、物理上连不出来；
-	# 不裁剪则 T 含永远缺失项，链 R 有结构性上限（CH03@scene2 = 14/17≈0.824）。
-	# collected 为空 = 不裁剪（旧行为）。被裁边记 unavailable_edges 供诊断展示；
-	# 节点项不受影响（hypo/concl 战场候选本就可产出）。
+	# ── 可用性裁剪：边按「本墙已收集线索」裁（Phase 0.1+），节点按「可达闭包」裁（A）──
+	# 跨场景链在早期场景结算时，真相引用的后置场景线索还没收集；不裁剪则 T 含永远缺失项，
+	# 链 R 有结构性上限（CH03@scene2 未裁 = 14/17≈0.824）。
+	#   边：clue 一端未收集 → 该边当前连不出来，从 T/missing 剔除，记 unavailable_edges，
+	#      同时记 pending_edges（待解锁：解锁后边进入 T，玩家补连即可得分，R 只增不减）。
+	#   节点（A，Phase 0.2）：hypo/concl 节点按「图可达闭包」裁剪——从已收集线索出发，沿真相边
+	#      传播可达性；某一推断只要「任一 gate 线索已收集」或「任一 gate 推断已可达」即部分可用、
+	#      保留（与用户判据「部分可用时保留」逐字一致）；全部 gate 都不可达 → 未解锁 → 记
+	#      pending_node，从 T/missing 剔除、玩家产出它不惩罚。这是「墙预设并集只到当前场景
+	#      （get_hypo_union_up_to）」在计分侧的对应：早期场景不要求玩家完成后置场景才能做的项。
+	# collected 为空 = 不裁剪（旧行为，兼兼容旧调用方/探针）。
 	var unavailable_edges: Array = []
+	var pending_edges: Array = []
+	var truth_edges_full: Array = b.get("edges", [])
+	var eff_edges: Array = truth_edges
 	if not collected.is_empty():
 		var clue_ids := {}
 		for n in truth_nodes:
 			if str(n.get("layer", "")) == "clue":
 				clue_ids[norm(str(n.get("id", "")))] = true
-		var eff_edges: Array = []
+		eff_edges = []
 		for e in truth_edges:
 			var efk := norm(str(e.get("from", "")))
 			var etk := norm(str(e.get("to", "")))
@@ -404,9 +450,41 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 					"from": str(e.get("from", "")), "to": str(e.get("to", "")),
 					"kind": str(e.get("kind", "")),
 				})
+				pending_edges.append({
+					"from": str(e.get("from", "")), "to": str(e.get("to", "")),
+					"kind": str(e.get("kind", "")),
+				})
 				continue
 			eff_edges.append(e)
 		truth_edges = eff_edges
+
+	# 节点可达闭包：原点=已收集线索（truth 内的 clue 且已收集）；沿「全量真相边」传播。
+	# 边 from 可达 + to 是推断/结论 → to 可达。collected 空时全部可达（不裁剪）。
+	var reachable := {}
+	for n in truth_nodes:
+		var l: String = str(n.get("layer", ""))
+		var nid0: String = norm(str(n.get("id", "")))
+		if l == "clue" and collected.has(nid0):
+			reachable[nid0] = true
+	if collected.is_empty():
+		for n in truth_nodes:
+			if str(n.get("layer", "")) in ["hypo", "concl"]:
+				reachable[norm(str(n.get("id", "")))] = true
+	var changed := true
+	while changed:
+		changed = false
+		for e in truth_edges_full:
+			var f: String = norm(str(e.get("from", "")))
+			var t: String = norm(str(e.get("to", "")))
+			if reachable.has(f) and not reachable.has(t):
+				reachable[t] = true
+				changed = true
+	var pending_node := {}
+	for n in truth_nodes:
+		if str(n.get("layer", "")) in ["hypo", "concl"]:
+			var pn: String = norm(str(n.get("id", "")))
+			if not reachable.has(pn):
+				pending_node[pn] = true
 
 	# 真相项数 T = 边数 + **玩家可产出的**节点数（hypo 推断 / concl 结论）。
 	# ⚠️ 线索(clue)与人物(person)不计入 T：线索是观察得来、墙上预置，人物由 related_npcs 自动派生，
@@ -420,6 +498,8 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 		if str(n.get("layer", "")) in ["hypo", "concl"]:
 			if node_owner_truth.get(nid, bid) != bid:
 				continue
+			if pending_node.has(nid):
+				continue          # 未解锁节点不计 T（A）
 			truth += 1
 	var built: int = 0
 	var hit: float = 0.0
@@ -428,6 +508,9 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 	var reversed_edges: Array = []    # 玩家连了但方向反的真相边（半分）
 	var extra_edges: Array = []       # 玩家建的、不匹配任何真相边的连线（进分母拉低正确率）
 	var matched_edges: Array = []     # 真相边被命中的记录（weight: 1.0 精确 / 0.5 方向反），供洞察星聚合
+	var pending_hits: int = 0         # 玩家碰触了「待解锁」节点/边的次数（不惩罚、不计分）
+	var reinforced_count: int = 0     # 命中「跨场景互证」的推断个数（C）
+	var reinforced_bonus: float = 0.0 # 互证加成累计加分（计入 hit，R≤1.0 由 evaluate 收口）
 
 	# ① 节点项：只算玩家「主动产出」的（推断/结论）。线索是墙上预置的，不算玩家产出。
 	for n in truth_nodes:
@@ -436,6 +519,10 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 		if layer not in ["hypo", "concl"]:
 			continue
 		if node_owner_truth.get(nid, bid) != bid:
+			continue
+		if pending_node.has(nid):
+			if nid in assigned_nodes:
+				pending_hits += 1     # 玩家提前产出了未解锁推断：不惩罚、不加分
 			continue
 		if not (nid in assigned_nodes):
 			missing_nodes.append(nid)
@@ -451,6 +538,11 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 	for e in truth_edges:
 		var k := _edge_key(norm(str(e.get("from", ""))), norm(str(e.get("to", ""))), str(e.get("kind", "")))
 		truth_edge_map[k] = e
+	# 待解锁边密钥集（B）：被裁的真相边玩家此刻连不出来（线索未收集），若玩家提前连了，
+	# 不能落进 extra_edges 扣分——它匹配的是「待解锁」项，不是错误项。同样也不进 built/built 分母。
+	var pending_edge_keys := {}
+	for e in pending_edges:
+		pending_edge_keys[_edge_key(norm(str(e.get("from", ""))), norm(str(e.get("to", ""))), str(e.get("kind", "")))] = true
 	var matched_truth := {}
 	for e in assigned_edges:
 		var ef: String = norm(str(e.get("from", "")))
@@ -459,6 +551,11 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 		built += 1
 		var fk := _edge_key(ef, et, ek)
 		var rk := _edge_key(et, ef, ek)
+		if (pending_edge_keys.has(fk) or pending_edge_keys.has(rk)) \
+				and not truth_edge_map.has(fk) and not truth_edge_map.has(rk):
+			built -= 1                     # 待解锁边：不惩罚（不进 extra）、不拉分母
+			pending_hits += 1
+			continue
 		if truth_edge_map.has(fk) and not matched_truth.has(fk):
 			matched_truth[fk] = true
 			matched_edges.append({"from": ef, "to": et, "kind": ek, "weight": 1.0})
@@ -491,12 +588,50 @@ static func _score_branch(b: Dictionary, assigned_nodes: Array, assigned_edges: 
 				"kind": str(e.get("kind", "")),
 			})
 
+	# ③ 跨场景互证加成（C）：在本链全部边比对完后统一计算（此时 matched_truth 才完整）。
+	# 对每个「已产出、非误导、未待解锁」的 direct hypo 推断节点，统计其直接线索门控覆盖的
+	# 不同场景数；≥2 且全部精确命中 → 该推断获得互证加成，写进 hit 与 per_branch 可诊断字段。
+	for n in truth_nodes:
+		var rn: String = norm(str(n.get("id", "")))
+		if str(n.get("layer", "")) != "hypo" or mislead_ids.has(rn):
+			continue
+		if node_owner_truth.get(rn, bid) != bid:
+			continue
+		if pending_node.has(rn) or not (rn in assigned_nodes):
+			continue
+		if _cross_scene_score(rn, truth_edges_full, matched_truth) <= 1:
+			continue                # 线索门控不足 2 个不同场景，或未全部命中 → 不触发
+		hit += REINFORCED_BONUS
+		reinforced_count += 1
+		reinforced_bonus += REINFORCED_BONUS
+
 	return {
 		"truth": truth, "built": built, "hit": hit,
 		"missing_nodes": missing_nodes, "missing_edges": missing_edges,
 		"reversed_edges": reversed_edges, "extra_edges": extra_edges,
 		"matched_edges": matched_edges, "unavailable_edges": unavailable_edges,
+		"pending_edges": pending_edges, "pending_nodes": pending_node.keys(),
+		"pending_hits": pending_hits,
+		"reinforced_count": reinforced_count, "reinforced_bonus": reinforced_bonus,
 	}
+
+
+## 跨场景互证强度（C）：返回该推断的直接线索门控覆盖的不同场景数；若存在任一未命中的
+## 线索门控边则返回 0（未「全部连对」不触发加成）。truth_edges_full 需为本链全量真相边
+## （未做线索裁剪），matched 为玩家精确命中的真相边密钥集。
+static func _cross_scene_score(hypo_id: String, truth_edges_full: Array, matched: Dictionary) -> int:
+	var scenes := {}
+	for e in truth_edges_full:
+		var ef: String = norm(str(e.get("from", "")))
+		var et: String = norm(str(e.get("to", "")))
+		var ek: String = str(e.get("kind", ""))
+		var sc := _scene_of_clue(ef)
+		if et != hypo_id or ek != "support" or sc == "":
+			continue
+		if not matched.has(_edge_key(ef, hypo_id, "support")):
+			return 0                # 有线索门控没连对 → 不算「全部印证」
+		scenes[sc] = true
+	return scenes.size()
 
 
 static func _edge_key(a: String, b: String, kind: String) -> String:

@@ -353,6 +353,13 @@ NO other objects, isolated, game asset
 - **回归探针两枚（入库 tools/）**：`t_phase0_baseline.gd`（CASE_A collected 空/CASE_B 全量 noop/CASE_C scene2 缺 `["c309","c311","C_SOTCB_402"]` /CHECK_own_scene 不变式——各链本场景线索必可用，collected 按链 home 场景前缀并集构建即可，无需硬编码 clue→scene 映射）；`t_phase0_verdict_sync.gd`（四断言：provider 同源/乱连不绿/`_compute_verdict` 一致/摘 provider 回落 -1；实例化骨架抄 t_flow_diff，`get_verdict()` 返回值必须显式 `var wv: int` 不能 `:=` 推断）。
 - **既有回归全绿**：test_branch_evaluator（T1-T8）、t_flow_diff（0 SCRIPT ERROR）、t_validate_m（零闭合错误）。**q6_contract_guard 1 个历史遗留 FAIL（非本次引入）**：guard 期望 `gv.hit_off_left = 540`，reasoning_wall.gd 实际 `= 346`（HEAD 已如此，前人改契入区未同步 guard）——本次不碰契入区不顺手修 guard，待后续同步。
 - **Gate B7 已走**：rm -rf .godot → --import → --export-release "Web"（index.pck 152182048），index.html 三行 meta + `mainPack:"index.pck?v=20261030085935"` 补回（每次导出都被冲掉）。
+- **0.4 节点可用性裁剪 + 0.5 pending 语义 + 互证加成（2026-11 用户裁定「跨场景累积 + 相互印证 + 不割裂」，wall_branch_evaluator.gd）**：Phase 0.1 只裁边不裁节点，用户在场景二 CH03 空墙仍见 truth17 含跨场景边（C_SOTCB_402→H2-05 等）——裁定按可用性裁节点。
+  - **A 节点裁剪（图可达闭包）**：`_score_branch` 从 collected 线索沿 `truth_edges_full`（全量边，不裁）传播可达性；hypo/concl 节点若不可达判 `pending_node`，从 T/missing_nodes 剔除（truth 计算**先跳过 pending 点及其边**）。**可解释等价判定**：全部 gate_clue_ids 与 gate_hypo_ids 均不可用→未解锁记 pending；部分可用→保留（本实现用闭包达到同语义）。真实 CH03 每个 hypo 都带 scene2 线索→pending_nodes=0，符合判定；F02 剥离 collected 的构造用例证明裁剪规则按 gate 传播正确失守。
+  - **B pending 语义**：被裁边记 `pending_edges`（同时保留 `unavailable_edges` 兼容），被裁节点记 `pending_nodes`，玩家碰触 pending 边记 `pending_hits`；边循环中玩家边若匹配 pending 边密钥→豁免（built-=1、pending_hits+=1、continue，不落 extra_edges）。**pending 不惩罚、不扣分**。
+  - **C 跨场景互证加成**：const `REINFORCED_BONUS=0.15`。`_cross_scene_score(hypo_id, truth_edges_full, matched)` 统计推断节点**直接线索门控**覆盖的不同场景数（`_scene_of_clue` 按 id 前缀解析：c2→scene2/c3→scene3/C_SOTCB_4→scene4，纯模式匹配不加载场景脚本，headless 安全）；场景数≥2 且全连对→该节点命中权重 `_score_by_weight+REINFORCED_BONUS`=1.15。全局 `ratio = minf(ratio, 1.0)` 封顶、单链 rb 同封顶——与 80/55/25 阈值不冲突（实测加成后 R 0.8235→0.9665、OVERALL→0.9808）。不加成到人（证据充足不必多证），误导扣分不因 bonus 豁免。
+  - **D 单调性**：全局 ratio 封顶 + per_branch 增 `pending_edges/pending_nodes/pending_hits/reinforced_count/reinforced_bonus`（两处 append 均加，optional 非激活分支补空值）。**单调性语义**：玩家从 scene2 持续推进到 scene3 补连新解锁边时 R 单调不减；玩家不补连则 T 增 R 自然稀释（14/17→14/16），这不视为缺陷（D 约束是"推进补连不倒退"）。
+  - **回归**：`tools/t_f_cross_scene_suite.gd`（F01 跨场景累积/F02 裁剪/F03 pending 不惩罚/F04a 单场景不触发/F04b 互证/F05 单调/F06 全案）。E 19/19、D 28/28、F 8/8 全绿。
+  - **交付数值**：CH03@scene2 空墙 T=14（边8+节点6）、pending_edges=3（c309→H2-05、C_SOTCB_402→H2-05、c311→H2-06）、pending_nodes=0；CH03@scene3 空墙 T=16、pending_edges 剩 C_SOTCB_402→H2-05；场景二全案 sum_max=31、仅 CH03 有 3 条 pending_edges。
 
 ### Phase 1 正式链先修后搬（2026-10-30 已实施，16 链单源化完成）
 
