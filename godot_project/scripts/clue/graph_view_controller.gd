@@ -1894,12 +1894,10 @@ func _pulse_highlight(node_ids: Array) -> void:
 	# 做两次脉冲（放大→还原→放大→还原）
 	_chain_pulse_tween = create_tween()
 	_chain_pulse_tween.set_loops(2)
-	_chain_pulse_tween.tween_method(
-		_func(_pulse_apply_progress.bind(1.0)),
-		0.0, 1.0, 0.4, Tween.TRANS_SINE, Tween.EASE_IN_OUT)
-	_chain_pulse_tween.tween_method(
-		_func(_pulse_apply_progress.bind(0.0)),
-		1.0, 0.0, 0.4, Tween.TRANS_SINE, Tween.EASE_IN_OUT)
+	_chain_pulse_tween.set_trans(Tween.TRANS_SINE)
+	_chain_pulse_tween.set_ease(Tween.EASE_IN_OUT)
+	_chain_pulse_tween.tween_method(_pulse_apply_progress.bind(1.0), 0.0, 1.0, 0.4)
+	_chain_pulse_tween.tween_method(_pulse_apply_progress.bind(0.0), 1.0, 0.0, 0.4)
 	_chain_pulse_tween.finished.connect(_restore_pulse)
 
 
