@@ -53,6 +53,11 @@ func _initialize() -> void:
 		ok = false; print("FAIL B1) _add_edge 未反转 person→infer：得到 %s→%s" % [last.get("from",""), last.get("to","")])
 	else:
 		log.append("B1) _add_edge(person,infer) 自动反转为 infer→person ✓")
+	# 玩家同时把结论 C-A1 拖给人物归属（person→conclusion 边，同样自动反转为 conclusion→person），
+	# 使「人物→结论→推断」放射链闭环。这是 person 子树的构成前提：人物只经「人物↔节点」拖拽边
+	# 语义挂子（与 2034 行「preset target 不参与布局」一致，人物归属靠玩家边而非 target）。
+	gv._edge._add_edge("NPC_WT", "conclusion_C-A1", "support", "green", false)
+	await process_frame
 	var pfB: Dictionary = gv._layout._build_parent_of()
 	if pfB.has("NPC_WT"):
 		ok = false; print("FAIL B2) 反向后 person 仍有父(失根)")

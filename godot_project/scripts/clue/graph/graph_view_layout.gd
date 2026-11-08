@@ -1974,6 +1974,9 @@ func _build_parent_of() -> Dictionary:
 	# 人物驱动的案件墙（设计文档 07：以 focus_person 为画布中心锚点）：
 	# 玩家尚未把结论拖归属（尚无 person 边）时，人物仍是本墙的语义锚点，不应触发
 	# 线索当根的阅读反转向，否则人物会被推到最右（与 L01「人物最左」冲突）。
+	# ⚠️ build 对无人物案兜底：_focus_person 落 "__case__"、_persons=[{id:"__case__"}]。
+	#    故锚点判据必须排除该兜底 id——否则场景二~七无人物单链恒判为有锚点，
+	#    _reverse_mode 永不触发，L02「线索最左→推断→结论最右」被改写死。
 	var _has_anchor := false
 	for _r2 in owner._relations:
 		var _f2 := str(_r2.get("from", "")); var _t2 := str(_r2.get("to", ""))
@@ -1981,10 +1984,20 @@ func _build_parent_of() -> Dictionary:
 		if _fk2 == "person" or _fk2 == "event" or _tk2 == "person" or _tk2 == "event":
 			_has_anchor = true
 			break
-	var _fp_any = owner.get("_focus_person")
-	var _ps_any = owner.get("_persons")
-	if not _has_anchor and (str(_fp_any) != "" or (typeof(_ps_any) == TYPE_ARRAY and not (_ps_any as Array).is_empty())):
-		_has_anchor = true
+	if not _has_anchor:
+		var _fp_any = owner.get("_focus_person")
+		var _ps_any = owner.get("_persons")
+		var _fp := str(_fp_any)
+		# 真聚焦 id：非空且非兜底 "__case__"（build 无人物时才造它）
+		if _fp != "" and _fp != "__case__":
+			_has_anchor = true
+		elif typeof(_ps_any) == TYPE_ARRAY:
+			for _p in (_ps_any as Array):
+				if typeof(_p) == TYPE_DICTIONARY:
+					var _pid := str((_p as Dictionary).get("id", ""))
+					if _pid != "" and _pid != "__case__":
+						_has_anchor = true
+						break
 	var _reverse_mode := not _has_anchor
 	for r in owner._relations:
 		var k: String = r.get("kind", "")
@@ -2075,13 +2088,6 @@ func _build_parent_of() -> Dictionary:
 		var _tgt2: String = _cdef2.get("target", "")
 		if _tgt2.begins_with("person:"):
 			person_anchored["conclusion_" + _cid2] = true
-			# 2026-11-L01 收尾：带 target 的结论必须同时把 target 人物登记为父候选，
-			# 否则放射链「person→结论→推断→线索」在玩家拖 person 归属（person→infer 边）后会撕裂：
-			# 推断因平局被选到结论下、而结论自身无人父候选 → 结论成孤立锚定根、person 子树为空
-			# （test_person_root_fix B3/B4d：desc(NPC_WT)=[]）。与 person_anchored 标记同语义。
-			var _tgt_id: String = _tgt2.trim_prefix("person:")
-			if _tgt_id != "" and _tgt_id != "conclusion_" + _cid2:
-				add_parent.call("conclusion_" + _cid2, _tgt_id)
 	for _pass in range(8):
 		var _changed := false
 		for _ch2 in parent_cand.keys():
