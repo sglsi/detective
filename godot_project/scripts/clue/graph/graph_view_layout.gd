@@ -1970,6 +1970,10 @@ func _build_parent_of() -> Dictionary:
 		if not (parent in parent_cand[child]): parent_cand[child].append(parent)
 	# 预扫描：图中是否有人物/事件锚点？无锚点时线索→推断→结论的自然阅读方向
 	# （左→右）更符合直觉，需反转默认父子方向，让线索当根（depth=0 最左）。
+	# 锚点不只来自 relations 边——build 确定了 _focus_person/_persons 即代表这是
+	# 人物驱动的案件墙（设计文档 07：以 focus_person 为画布中心锚点）：
+	# 玩家尚未把结论拖归属（尚无 person 边）时，人物仍是本墙的语义锚点，不应触发
+	# 线索当根的阅读反转向，否则人物会被推到最右（与 L01「人物最左」冲突）。
 	var _has_anchor := false
 	for _r2 in owner._relations:
 		var _f2 := str(_r2.get("from", "")); var _t2 := str(_r2.get("to", ""))
@@ -1977,6 +1981,10 @@ func _build_parent_of() -> Dictionary:
 		if _fk2 == "person" or _fk2 == "event" or _tk2 == "person" or _tk2 == "event":
 			_has_anchor = true
 			break
+	var _fp_any = owner.get("_focus_person")
+	var _ps_any = owner.get("_persons")
+	if not _has_anchor and (str(_fp_any) != "" or (typeof(_ps_any) == TYPE_ARRAY and not (_ps_any as Array).is_empty())):
+		_has_anchor = true
 	var _reverse_mode := not _has_anchor
 	for r in owner._relations:
 		var k: String = r.get("kind", "")
@@ -2067,6 +2075,13 @@ func _build_parent_of() -> Dictionary:
 		var _tgt2: String = _cdef2.get("target", "")
 		if _tgt2.begins_with("person:"):
 			person_anchored["conclusion_" + _cid2] = true
+			# 2026-11-L01 收尾：带 target 的结论必须同时把 target 人物登记为父候选，
+			# 否则放射链「person→结论→推断→线索」在玩家拖 person 归属（person→infer 边）后会撕裂：
+			# 推断因平局被选到结论下、而结论自身无人父候选 → 结论成孤立锚定根、person 子树为空
+			# （test_person_root_fix B3/B4d：desc(NPC_WT)=[]）。与 person_anchored 标记同语义。
+			var _tgt_id: String = _tgt2.trim_prefix("person:")
+			if _tgt_id != "" and _tgt_id != "conclusion_" + _cid2:
+				add_parent.call("conclusion_" + _cid2, _tgt_id)
 	for _pass in range(8):
 		var _changed := false
 		for _ch2 in parent_cand.keys():

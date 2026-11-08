@@ -76,10 +76,21 @@ func _initialize() -> void:
 		log.append("B4) 重排后 person 钉在手动位(640,920) ✓")
 	if not gv._node_center.has("W-A1"):
 		ok = false; print("FAIL B4c) W-A1 未落位")
-	elif abs(gv._node_center["W-A1"].x - 640.0) > 700.0 or abs(gv._node_center["W-A1"].y - 920.0) > 500.0:
+	elif abs(gv._node_center["W-A1"].x - 640.0) > 8.0 * 380.0 or abs(gv._node_center["W-A1"].y - 920.0) > 500.0:
 		ok = false; print("FAIL B4d) W-A1 脱离 person 子树(偏离过远)：%s" % str(gv._node_center["W-A1"]))
 	else:
-		log.append("B4) 下游 W-A1 围绕 person 手动位衍生 ✓")
+		log.append("B4) 下游 W-A1 沿 person 放射链衍生 ✓")
+	# B4e) W-A1 在人物手动位正右侧（放射链 person→conclusion→W-A1→clue 逐列右移，L01「人物最左」）
+	var b4e_ok: bool = (gv._node_center["W-A1"].x > gv._node_center["NPC_WT"].x and
+		gv._node_center["conclusion_C-A1"].x > gv._node_center["NPC_WT"].x and
+		gv._node_center["W-A1"].x > gv._node_center["conclusion_C-A1"].x)
+	if not b4e_ok:
+		ok = false
+		print("FAIL B4e) 放射链未逐列右移 person(%.0f)→conclusion(%s)→W-A1(%.0f)"
+			% [gv._node_center["NPC_WT"].x, gv._node_center.get("conclusion_C-A1", Vector2(-9,0)).x, gv._node_center["W-A1"].x])
+	else:
+		log.append("B4e) 放射链逐列右移 person(%.0f)→conclusion(%.0f)→W-A1(%.0f) ✓"
+			% [gv._node_center["NPC_WT"].x, gv._node_center["conclusion_C-A1"].x, gv._node_center["W-A1"].x])
 
 	for l in log: print("  - " + l)
 	print("PERSON_ROOT_RESULT: %s" % ("PASS" if ok else "FAIL"))

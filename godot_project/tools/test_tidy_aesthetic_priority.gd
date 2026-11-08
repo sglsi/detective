@@ -138,16 +138,32 @@ func _initialize() -> void:
 	_chk(frozen.is_empty(), "T1 未钉节点全部取纯整洁树位（与无钉位参考只差一个整体刚性平移；未冻结在 stale 位）"
 		+ ("" if frozen.is_empty() else "；仍冻结：" + ", ".join(frozen.slice(0, 6))))
 
-	# T2 钉位根停在锚点，其子树刚性平移（树内相对结构不变）
-	_chk(out["TC2"].distance_to(anchor) < 0.5, "T2a 钉位根 TC2 停在玩家锚点 (%.0f,%.0f)" % [anchor.x, anchor.y])
+	# T2 钉位（dab2975「钉位只对真根生效——美学为纲根治」定案）
+	# 无人物场景下 _reverse_mode=true，结论 TC2 的父为 TH2（非真根），其钉位会被 _compute_layout 顶部
+	# purge 清除（root_anchor/manual_nodes 一并删除），落回整洁树位——即 T2a 旧断言「TC2 停锚点」前提
+	# 已被 dab2975 推翻（结论类在真实人物墙里永非根，本就不该作为钉位根）。改为验证 purge 语义 + 真根停锚点。
+	# T2a：非真根结论钉位被清除 → 现场 TC2 落回与参考一致的整洁树位
+	_chk(out["TC2"].distance_to(out_ref["TC2"]) < 0.5,
+		"T2a 非真根结论 TC2 钉位按定案被清除、落回整洁树位（out=%.0f,%.0f ref=%.0f,%.0f）"
+		% [out["TC2"].x, out["TC2"].y, out_ref["TC2"].x, out_ref["TC2"].y])
+	_chk(not gv._root_anchor_pos.has("TC2") and not ("TC2" in gv._manual_nodes),
+		"T2a2 非真根结论 TC2 的 root_anchor 与 manual_nodes 已被 purge 清除")
+	# T2b：真根（reverse 下链根 TL2_1）钉位停锚点，其子树刚性平移（树内相对结构不变）
+	var root2 := "TL2_1"
+	var anchor2 := Vector2(420.0, 120.0)
+	gv._root_anchor_pos = {root2: anchor2, "TC2": anchor}
+	gv._manual_nodes = [root2]
+	var out2: Dictionary = gv._layout._compute_layout(nodes, {})
+	var root_ok: bool = (out2.has(root2) and out2[root2].distance_to(anchor2) < 0.5)
+	_chk(root_ok, "T2b 真根 %s 钉位停在玩家锚点 (%.0f,%.0f)" % [root2, anchor2.x, anchor2.y])
 	var rigid := true
-	for c in ["TH2", "TL2_0", "TL2_1"]:
-		if not out.has(c) or not out_ref.has(c):
+	for c in ["TH2", "TC2"]:
+		if not out2.has(c) or not out_ref.has(c):
 			rigid = false
 			break
-		if (out[c] - out["TC2"]).distance_to(out_ref[c] - out_ref["TC2"]) > 0.5:
+		if (out2[c] - out2[root2]).distance_to(out_ref[c] - out_ref[root2]) > 0.5:
 			rigid = false
-	_chk(rigid, "T2b 钉位子树整棵刚性平移（相对根偏移与参考一致，树形不被破坏）")
+	_chk(rigid, "T2c 真根钉位子树整棵刚性平移（相对根偏移与参考一致，树形不被破坏）")
 
 	# T3 未钉的两棵树带互不交错（整洁森林带状堆叠，图1 交错禁令）
 	# 稳健判定：树0 全部节点最大 y < 树1 全部节点最小 y（严格垂直分离，不依赖固定高度近似）

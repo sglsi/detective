@@ -2,7 +2,8 @@ extends SceneTree
 ## 回归测试：孤立线索独立性（放置画布但未与人物建立关系的线索，拖动人时跟着移动）
 ## 驱动真实 GraphViewController：build → 读 _node_center，模拟移动人物锚点 → rebuild → 再读 _node_center。
 ##   A. 完全孤立线索（无 support/target 边、related_npcs 空）→ 不随人物移动（保持独立）
-##   B. 已打标签线索（related_npcs 含人物）→ 挂在人物下、随人物移动（功能保留）
+##   B. 已打标签线索（related_npcs 含人物）：定案口径（551ac04）下 related_npcs 不参与布局跟随，
+##      无真实 support 边时与孤立线索同权（不随人物移动），但仍为画布节点。
 
 func _build_gv(clues: Array, related_for_c: Array, relations: Array) -> Object:
 	var gv = load("res://scripts/clue/graph_view_controller.gd").new()
@@ -62,6 +63,12 @@ func _initialize() -> void:
 		pass_flag = false
 
 	# ===================== 场景 B：已打标签线索（挂人物） =====================
+	# 定案口径（551ac04「布局树改只跟玩家结构」+ graph_view_layout.gd:2033 注释）：
+	# related_npcs 仅用于 build 阶段兜底拉取人物，不再参与布局/拖拽跟随。
+	# 故「已打标签线索」若无真实 support 边，与完全孤立线索同样保持独立（不随人物）。
+	# 原断言「related_npcs 含人物即应随人物移动」已随该定案过时，此处改为验证：
+	#   B1) 已打标签线索仍是画布节点（已放置）；
+	#   B2) 无 support 边时与人物解耦（不随人物移动）。
 	var gv_b = await _build_gv([clue], ["P"], [])
 	var p1_b: Vector2 = gv_b._node_center.get("P", Vector2.ZERO)
 	var c1_b: Vector2 = gv_b._node_center.get("C", Vector2.ZERO)
@@ -72,10 +79,10 @@ func _initialize() -> void:
 	var clue_delta_b := c2_b - c1_b
 	print("[isolated_clue] B 人物位移=%s 已打标签线索位移=%s" % [str(person_delta_b), str(clue_delta_b)])
 	if not gv_b._node_center.has("C"):
-		print("FAIL: B 已打标签线索未成为画布节点")
+		print("FAIL: B1 已打标签线索应为画布节点（已放置）")
 		pass_flag = false
-	elif clue_delta_b.length() < person_delta_b.length() - 60.0:
-		print("FAIL: B 已打标签线索应挂在人物下、随人物移动（位移 %.1f 过小，期望≈%.1f）" % [clue_delta_b.length(), person_delta_b.length()])
+	elif clue_delta_b.length() > 5.0:
+		print("FAIL: B2 related_npcs 不参与布局跟随——已打标签线索无 support 边时应与人物解耦（位移 %.1f）" % clue_delta_b.length())
 		pass_flag = false
 
 	if pass_flag:
