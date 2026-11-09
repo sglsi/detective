@@ -147,6 +147,12 @@ func _initialize() -> void:
 	await process_frame
 	gv._derive.derive_hypo("c201", "H2-01")
 	gv._derive.derive_conclusion("H2-01", "CL2-1")
+	# 归属锚点（2026-11-20）：段2 是社会二单链但给了 persons=[KILLER]。布局锚点判据
+	# 只看 relations 里是否有 person 端点边（L02 语义：链无锚点=reverse，链有锚点=L01 正向）。
+	# 不补 person→结论 归属边则本段无反转→默认走 reverse→结论反而最右，
+	# 违反本段「结论为父(左)/推断为子(右)」意图。补 KILLER→conclusion 归属边为其语义锚点
+	# （与 test_person_root_fix 同类：测试数据缺归属边，非实现缺陷）。
+	gv._edge._add_edge("KILLER", "conclusion_CL2-1", "support", "green", false)
 	await process_frame
 	var _pc := "conclusion_CL2-1"
 	var _ph := "H2-01"

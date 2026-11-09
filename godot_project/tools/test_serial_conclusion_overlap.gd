@@ -41,6 +41,12 @@ func _initialize() -> void:
 	gv._derive.derive_conclusion("conclusion_C0", "C1"); await process_frame
 	gv._derive.derive_conclusion("conclusion_C1", "C2"); await process_frame
 	gv._derive.derive_conclusion("H1", "C3"); await process_frame
+	# 归属锚点（2026-11-20）：本测试给了 persons=[P] 且 C2/C3 带 target:person:P，但没有真实
+	# person 边。布局锚点判据只看 relations 里是否有 person 端点边（L02 语义：链无锚点=reverse）。
+	# 不补 person→结论 归属边则整链走 reverse→串行链方向反转、C2 反成最右，违反本测试
+	# 「C2(父) 在 C1(子) 左侧」意图。补 P→conclusion_C2 归属边为锚点（与 test_logic_layout 段2
+	# /test_person_root_fix 同类：测试数据缺归属边，非实现缺陷）。
+	gv._edge._add_edge("P", "conclusion_C2", "support", "green", false)
 	gv._rebuild_graph()
 	await process_frame
 

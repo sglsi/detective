@@ -1968,15 +1968,15 @@ func _build_parent_of() -> Dictionary:
 		if child == "" or parent == "" or child == parent: return
 		if not parent_cand.has(child): parent_cand[child] = []
 		if not (parent in parent_cand[child]): parent_cand[child].append(parent)
-	# 预扫描：图中是否有人物/事件锚点？无锚点时线索→推断→结论的自然阅读方向
+	# 预扫描：图中是否有「人物/事件锚点边」？无锚点时线索→推断→结论的自然阅读方向
 	# （左→右）更符合直觉，需反转默认父子方向，让线索当根（depth=0 最左）。
-	# 锚点不只来自 relations 边——build 确定了 _focus_person/_persons 即代表这是
-	# 人物驱动的案件墙（设计文档 07：以 focus_person 为画布中心锚点）：
-	# 玩家尚未把结论拖归属（尚无 person 边）时，人物仍是本墙的语义锚点，不应触发
-	# 线索当根的阅读反转向，否则人物会被推到最右（与 L01「人物最左」冲突）。
-	# ⚠️ build 对无人物案兜底：_focus_person 落 "__case__"、_persons=[{id:"__case__"}]。
-	#    故锚点判据必须排除该兜底 id——否则场景二~七无人物单链恒判为有锚点，
-	#    _reverse_mode 永不触发，L02「线索最左→推断→结论最右」被改写死。
+	# ⚠️ 锚点判据只认 owner._relations 是否存在 person/event 端点的边，绝不能用
+	#    _focus_person/_persons 的存在性：人物由线索 related_npcs 自动派生（build
+	#    兜底 handles KILLER 等），人物存在 ≠ 这条链有锚点。L02 语义是「链」无锚点
+	#    （场景二~七单链：玩家未把结论拖给人物，无 person 边→reverse）而非「墙」无
+	#    人物。玩家把结论拖给人物（建立 person 边）后才是 L01 正向布局。
+	#    若按 persons 存在判锚点，场景二~七恒判有锚点 → _reverse_mode 永不触发 →
+	#    L02 被改写死（结论最左/线索最右，2026-11-20 实测证实）。
 	var _has_anchor := false
 	for _r2 in owner._relations:
 		var _f2 := str(_r2.get("from", "")); var _t2 := str(_r2.get("to", ""))
@@ -1984,20 +1984,6 @@ func _build_parent_of() -> Dictionary:
 		if _fk2 == "person" or _fk2 == "event" or _tk2 == "person" or _tk2 == "event":
 			_has_anchor = true
 			break
-	if not _has_anchor:
-		var _fp_any = owner.get("_focus_person")
-		var _ps_any = owner.get("_persons")
-		var _fp := str(_fp_any)
-		# 真聚焦 id：非空且非兜底 "__case__"（build 无人物时才造它）
-		if _fp != "" and _fp != "__case__":
-			_has_anchor = true
-		elif typeof(_ps_any) == TYPE_ARRAY:
-			for _p in (_ps_any as Array):
-				if typeof(_p) == TYPE_DICTIONARY:
-					var _pid := str((_p as Dictionary).get("id", ""))
-					if _pid != "" and _pid != "__case__":
-						_has_anchor = true
-						break
 	var _reverse_mode := not _has_anchor
 	for r in owner._relations:
 		var k: String = r.get("kind", "")
