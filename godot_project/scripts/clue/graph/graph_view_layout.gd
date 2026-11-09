@@ -1619,8 +1619,12 @@ func _pack_components(out: Dictionary) -> void:
 	# 反转墙（无 person/event 端点锚点边）的布局本就是「线索为根的竖直森林」：
 	# 每条线索根带在 _logic_tree_layout 已按工作带上下堆叠（多线索共享推断时同列堆叠）。
 	# 装箱的水平压缩（R3 shelf）会把竖直分离的链带横向摊平成同一行，破坏「未钉树带互不
-	# 交错」（tidy T3）。lv 反转墙不做树/带合并压缩，仅对多人物的正向墙装箱避让钉位 ——
-	# 语义与 _merge_component_forest 的反转短路同源，同一判定。
+	# 交错」（tidy T3）；且 L02-c 要求共享推断的多条线索严格同列（col_x[0]），装箱会把它们
+	# 摊到不同列。故小规模反转墙不做箱压缩 —— 语义与 _merge_component_forest 的反转短路同源。
+	# 但规模一旦放大（完整场景 28 节点、仅 3 列宽而纵向绵延近 6 倍屏高），跳过装箱会得到
+	# 「窄长条」：fit_view 受 0.25 下限保护后宽度仅剩约 190px，不可读。故超过阈值的大反转墙
+	# 仍装箱（横向摊开成近方形、fit 后布满视口），节点数门槛与小墙的 tidy 树带分离互不冲突。
+	const _REV_PACK_MIN := 20
 	var _pack_rev := true
 	for _rr in owner._relations:
 		var _rk1: String = owner._fold._kind_of(str(_rr.get("from", "")))
@@ -1629,7 +1633,8 @@ func _pack_components(out: Dictionary) -> void:
 			_pack_rev = false
 			break
 	if _pack_rev:
-		return
+		if out.size() <= _REV_PACK_MIN:
+			return
 	var comp: Dictionary = _relation_components()
 	var groups := {}          # 可动分量（无钉位）
 	var order: Array = []
@@ -2232,10 +2237,14 @@ func _build_parent_of() -> Dictionary:
 			if bv == "" or vn > bv_n or (vn == bv_n and (vd < depth_of.get(bv, 1 << 30) or (vd == depth_of.get(bv, 1 << 30) and str(v) < bv))):
 				bv = str(v)
 				bv_n = vn
-		# 反向墙「线索为根」语义（L02-c）：共享同一推断的多条线索都应保持独立根同列，
-		# 不允许孤儿线索被吸收挂到兄弟线索下串成链（c201->c202 破坏同列）。
-		# 仅在 bv 本身为线索时豁免；偏差到推断/结论/人物仍按深U根治吸收，避免误伤 tidy/L01。
-		if _reverse_mode and owner._fold._kind_of(bv) == "clue":
+		# 反向墙「线索为根」语义（L02-c + 完整场景二扩展）：共享同一推断的多条线索都应保持
+		# 独立根同列，绝不把线索孤儿吸收挂到其它节点下串链。
+		# ① bv 是线索：c201->c202 兄弟串链（L02-c 已修）；② rs 自身是线索：完整场景二里线索
+		# 也撑多推断（c204 撑 H2-03、c205 撑 H2-04/H2-06/H2-08），其子树被其它结论（CL2-4 经
+		# H2-03、CL2 经 H2-04）外部入边命中 → 被吸收入边最多的推断（H2-01/H2-04）下，线索丢掉
+		# 根位、掉进结论列破坏同列。二者同属「反转墙线索恒为根」语义，一并豁免。
+		# 偏差到推断/结论/人物仍是吸收对象（深U根治），不误伤 tidy/L01（正向墙 _reverse_mode=false 不触发）。
+		if _reverse_mode and (owner._fold._kind_of(bv) == "clue" or owner._fold._kind_of(rs) == "clue"):
 			continue
 		parent_of[rs] = bv
 	return parent_of
