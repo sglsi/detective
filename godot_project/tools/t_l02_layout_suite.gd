@@ -89,33 +89,44 @@ func _empty_b(gv) -> void:
 	_check_left(gv, "e1", "conclusion_CLE", "b")
 
 ## 一条推断支撑多条线索：多线索同列(d0)、推断 d1、结论 d2
-func _multi_clue_c(gv) -> void:
-	var clues := []
-	for i in range(3):
-		clues.append({"id":"mc%d" % i,"name":"线索%d"%i,"correct":true,"relation_tags":["MH"]})
+## L02-c（2026-11-20 第二轮，改为真实场景二前置）：真实 c201/c202 都撑 H2-01（scene2.gd
+## gate_clue_ids），persons 由 related_npcs 派生（含 KILLER），边为玩家真实操作。
+## 此前 reverse 多线索共享推断会被孤儿吸收串成 c202→c201→H2-01 四列链（c202 与结论同列），
+## 修复（graph_view_layout.gd 孤儿吸收反转模式跳过线索根）后两线索同列 d0。
+func _real_scene2_multi(gv) -> void:
+	var clues := [
+		{"id":"c201","name":"碾轧的花草","correct":true,"relation_tags":["H2-01"],"related_npcs":["KILLER"]},
+		{"id":"c202","name":"平行车轮印","correct":true,"relation_tags":["H2-01"]},
+	]
+	var persons := []
+	var seen := {}
+	for c in clues:
+		for p in c.get("related_npcs", []):
+			if not seen.has(p): seen[p]=true; persons.append({"id":p,"name":p})
 	var hypo := {"battlefield":{"hypotheses":[
-		{"id":"MH","text":"推断","correct":true,"gate_clue_ids":["mc0","mc1","mc2"]}],
+		{"id":"H2-01","text":"推断","correct":true,"gate_clue_ids":["c201","c202"]}],
 		"conclusions":[
-		{"id":"MCL","text":"结论","correct":true,"gate_hypo_ids":["MH"]}]}}
-	gv.build({"clues":clues,"hypo":hypo,"persons":[],"focus_person":"",
+		{"id":"CL2-1","text":"结论","correct":true,"gate_hypo_ids":["H2-01"]}]}}
+	gv.build({"clues":clues,"hypo":hypo,"persons":persons,"focus_person":"",
 		"difficulty":gv.Diff.NORMAL,"editable":true,"state_store":{},"auto_fold":false})
 	await gv.get_tree().process_frame
-	for i in range(3):
-		gv._derive.derive_hypo("mc%d"%i,"MH"); await gv.get_tree().process_frame
-	gv._derive.derive_conclusion("MH","MCL"); await gv.get_tree().process_frame
+	gv._derive.derive_hypo("c201","H2-01"); await gv.get_tree().process_frame
+	gv._derive.derive_hypo("c202","H2-01"); await gv.get_tree().process_frame
+	gv._derive.derive_conclusion("H2-01","CL2-1"); await gv.get_tree().process_frame
 	gv._rebuild_graph(); await gv.get_tree().process_frame
-	var xs: Array[float] = []
-	var all_root: bool = gv._node_center.has("MH")
-	for i in range(3):
-		if gv._node_center.has("mc%d"%i):
-			xs.append(gv._node_center["mc%d"%i].x)
-			# reverse 下线索同为根(d0)，均位于推断左侧
-			all_root = all_root and gv._node_center["mc%d"%i].x < gv._node_center["MH"].x
-	_chk(all_root and xs.size() == 3, "c 三条线索同为 d0 根、均位于推断左侧：x=%s" % str(xs))
-	if xs.size() == 3 and gv._node_center.has("MH") and gv._node_center.has("conclusion_MCL"):
-		var hx: float = gv._node_center["MH"].x
-		var clx: float = gv._node_center["conclusion_MCL"].x
-		_chk(hx > xs[0] + 1.0 and clx > hx + 1.0, "c 推断d1<x=%s 结论d2<x=%s（线索d0→推断d1→结论d2）" % [hx, clx])
+	_chk(gv._persons.size() == 1 and gv._persons[0].get("id","") == "KILLER",
+		"c 真实场景二：persons 由 related_npcs 派生 size=%d id=%s" % [gv._persons.size(), (gv._persons[0].get("id","") if gv._persons.size()>0 else "")])
+	_chk(not _has_anchor_edge(gv), "c 无 person 端点边 → reverse")
+	if not gv._node_center.has("c201") or not gv._node_center.has("c202") \
+			or not gv._node_center.has("H2-01") or not gv._node_center.has("conclusion_CL2-1"):
+		_chk(false, "c 节点缺失"); return
+	var xa: float = gv._node_center["c201"].x
+	var xb: float = gv._node_center["c202"].x
+	var xh: float = gv._node_center["H2-01"].x
+	var xcl: float = gv._node_center["conclusion_CL2-1"].x
+	_chk(absf(xa - xb) < 0.5,
+		"c 多线索同列 d0：c201.x=%s c202.x=%s（同列 x≈%.0f）" % [xa, xb, xa])
+	_chk(xa < xh and xh < xcl, "c 线索d0(x=%.0f) < 推断d1(x=%.0f) < 结论d2(x=%.0f)" % [xa, xh, xcl])
 
 ## 结论→结论连续推导（SC0→SC1→SC2）在反转模式下方向正确
 func _serial_d(gv) -> void:
@@ -182,7 +193,7 @@ func _initialize() -> void:
 
 	await _scene2_a(await _make_gv())
 	await _empty_b(await _make_gv())
-	await _multi_clue_c(await _make_gv())
+	await _real_scene2_multi(await _make_gv())
 	await _serial_d(await _make_gv())
 	await _mixed_e(await _make_gv())
 

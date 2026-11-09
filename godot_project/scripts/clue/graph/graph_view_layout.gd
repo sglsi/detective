@@ -844,6 +844,21 @@ func _group_roots_by_component(roots: Array) -> Array:
 ## （与 _build_parent_of 的人物保护、孤儿吸收的钉位豁免同哲学）。
 ## 就地修改 child_map（追加合并子边），返回被吸收的根 id 数组（调用方从 roots 中移除）。
 func _merge_component_forest(roots: Array, child_map: Dictionary) -> Array:
+	# 反转墙（无 person/event 端点边）短路：此时 _build_parent_of 已把边反转、让线索当根，
+	# 多根同列正是期望形态（L02 场景二~七）。合并会把「共享同一推断的多份线索」从根
+	# 降为推断之子、串成深链（真实场景二 c201+c202 都撑 H2-01：c202 被挂到 H2-01 下、
+	# depth 0→2、x 从 col_x[0] 变到结论列，且 c201/c202 不同列）。反转墙本就是「线索为根的
+	# 森林」，relate/oppose/contradict 连线照画、只是不做树合并。
+	# 正向墙（存在 person/event 锚点边）照常走下方合并，行为零变化。
+	var _rev := true
+	for _rr in owner._relations:
+		var _rk1: String = owner._fold._kind_of(str(_rr.get("from", "")))
+		var _rk2: String = owner._fold._kind_of(str(_rr.get("to", "")))
+		if _rk1 == "person" or _rk1 == "event" or _rk2 == "person" or _rk2 == "event":
+			_rev = false
+			break
+	if _rev:
+		return []
 	var comp := _relation_components()
 	var rank_of := {"person": 0, "event": 0, "conclusion": 1, "chain": 2, "hypo": 2, "clue": 3}
 	var merged_nodes := {}    # cid -> Dictionary{node_id: true}：该分量已合并结构的节点全集
@@ -1601,6 +1616,20 @@ func _rect_at(id: String, center: Vector2) -> Rect2:
 func _pack_components(out: Dictionary) -> void:
 	if out.size() < 2:
 		return
+	# 反转墙（无 person/event 端点锚点边）的布局本就是「线索为根的竖直森林」：
+	# 每条线索根带在 _logic_tree_layout 已按工作带上下堆叠（多线索共享推断时同列堆叠）。
+	# 装箱的水平压缩（R3 shelf）会把竖直分离的链带横向摊平成同一行，破坏「未钉树带互不
+	# 交错」（tidy T3）。lv 反转墙不做树/带合并压缩，仅对多人物的正向墙装箱避让钉位 ——
+	# 语义与 _merge_component_forest 的反转短路同源，同一判定。
+	var _pack_rev := true
+	for _rr in owner._relations:
+		var _rk1: String = owner._fold._kind_of(str(_rr.get("from", "")))
+		var _rk2: String = owner._fold._kind_of(str(_rr.get("to", "")))
+		if _rk1 == "person" or _rk1 == "event" or _rk2 == "person" or _rk2 == "event":
+			_pack_rev = false
+			break
+	if _pack_rev:
+		return
 	var comp: Dictionary = _relation_components()
 	var groups := {}          # 可动分量（无钉位）
 	var order: Array = []
@@ -2132,6 +2161,13 @@ func _build_parent_of() -> Dictionary:
 			var _anc: int = 1 if person_anchored.has(_p) else 0
 			var _depth_ok: int = 1 if depth_of.get(_p, 0) == _target else 0
 			var _score: int = _depth_ok * 100000 + _anc * 1000 + depth_of.get(_p, 0)
+			# 反转墙（线索为根）多线索共享同一推断时，父选择 tie-break 偏好更大的线索 id 作
+			# 「推断的父」：让链条上唯一的代表根成为「带承载者」（其子树承载推断+结论），
+			# 其余线索保持并列根同列。否则选到较小 id 线索时，较大 id 线索成为孤立空根
+			# （tidy T2b/T2c：真根 TL2_1 应承载 TH2/TC2 整棵子树并随钉位刚性平移）。
+			if _score == _best_score and _reverse_mode and str(_p) > _best:
+				_best_score = _score
+				_best = _p
 			if _score > _best_score:
 				_best_score = _score
 				_best = _p
@@ -2196,6 +2232,11 @@ func _build_parent_of() -> Dictionary:
 			if bv == "" or vn > bv_n or (vn == bv_n and (vd < depth_of.get(bv, 1 << 30) or (vd == depth_of.get(bv, 1 << 30) and str(v) < bv))):
 				bv = str(v)
 				bv_n = vn
+		# 反向墙「线索为根」语义（L02-c）：共享同一推断的多条线索都应保持独立根同列，
+		# 不允许孤儿线索被吸收挂到兄弟线索下串成链（c201->c202 破坏同列）。
+		# 仅在 bv 本身为线索时豁免；偏差到推断/结论/人物仍按深U根治吸收，避免误伤 tidy/L01。
+		if _reverse_mode and owner._fold._kind_of(bv) == "clue":
+			continue
 		parent_of[rs] = bv
 	return parent_of
 
