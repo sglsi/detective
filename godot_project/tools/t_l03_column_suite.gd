@@ -3,10 +3,10 @@ extends SceneTree
 ## 判定基准（清单 L03）：同列节点 y差 ≥ (h1+h2)/2 + 15；同列中心 x 差 ≤ 1.0px。
 ## 高度口径：与布局同源，统一用 _real_node_height（布局 _compute_layout 的 est_h 即由其产出）。
 ## headless 局限：沙箱无字体，_real_node_height 走兜底 ⇒ 全部节点等高（~400）。
-##   因此本套件验证的是「等高真实 build 输出」下的同列间距；不同文本高度的真实差异需在
-##   浏览器（真实字体渲染）预览里复测（布局据此 _REAL 高度推进带间，数学上恒 ≥ 半高和+80）。
-## 曾尝试注入差异化 size.y 复测高矮差异，但 headless 下布局不消费注入高（等回 400），
-##   _analyze 却用注入高判 need ⇒ 系统性伪 FAIL，已移除该无效实验。
+##   因此本套件验证的是「等高真实 build 输出」下的同列间距；混合高度差异由文末 U1/U2
+##   （绕开视图，直接调 _pack_contour/_band_next 并传自定义 est_h/带高）单元级覆盖。
+## 曾尝试注入差异化 size.y 复测高矮差异，但视图 size 会被 Control 的 minimum_size 拉回
+##   （注入根本不生效），而 _analyze 用注入高判 need ⇒ 系统性伪 FAIL，该注入法已废弃。
 
 var _pass := 0
 var _fail := 0
@@ -156,6 +156,10 @@ func _proc():
 	# ---------- 形态5：含钉位 + 折叠 ----------
 	print("\n########## 形态5 钉位+折叠 ##########")
 	await _m5()
+	# ---------- U1/U2：单元级（绕开视图，直接调 _pack_contour/_band_next，覆盖混合高度）----------
+	print("\n########## U1/U2 单元级混合高度 ##########")
+	await _u1_pack()
+	await _u2_band()
 	print("\n########## L03 汇总 ##########")
 	print("L03_RESULT: %s (%d PASS / %d FAIL)" % ["PASS" if _fail == 0 else "FAIL", _pass, _fail])
 	quit()
@@ -308,6 +312,108 @@ func _m5() -> void:
 	gv._rebuild_graph(); await process_frame
 	_analyze(gv, "形态5 钉位+折叠(H5-01钉到同列附近, CL5-1链折叠)")
 	
+
+## U1：直接调 _pack_contour，自定义 est_h 混入 120/412/840 三档高度，验证任意高度组合下
+##   同 depth（同列）节点中心距 ≥ (h1+h2)/2+15，并报告最严边到边(≥期望 _CONTOUR_SEP=80)。
+##   绕开 _node_views / 字体 — headless 下视图高度注入会被 Control minimum_size 拉回，无效。
+func _u1_pack() -> void:
+	var gv = await _make_gv()
+	var L: Object = gv._layout
+	var groups := {}
+	groups["a 单根4直接子 120/840交错"] = {
+		"root":"A",
+		"child_map":{"A":["B","C","D","E"]},
+		"depth_of":{"A":0,"B":1,"C":1,"D":1,"E":1},
+		"est_h":{"A":120.0,"B":120.0,"C":840.0,"D":120.0,"E":840.0},
+	}
+	groups["b 根+3子各带2孙 堂兄弟高度混搭"] = {
+		"root":"A",
+		"child_map":{"A":["B1","B2","B3"],"B1":["K1","K2"],"B2":["K3","K4"],"B3":["K5","K6"]},
+		"depth_of":{"A":0,"B1":1,"B2":1,"B3":1,"K1":2,"K2":2,"K3":2,"K4":2,"K5":2,"K6":2},
+		"est_h":{"A":168.0,"B1":120.0,"B2":412.0,"B3":840.0,"K1":840.0,"K2":120.0,"K3":412.0,"K4":840.0,"K5":120.0,"K6":412.0},
+	}
+	groups["c 深层链+侧枝 同depth≥3个不同父"] = {
+		"root":"A",
+		"child_map":{"A":["B","C"],"B":["D1","D2"],"C":["E1","E2"],
+			"D1":["M1"],"D2":["M2"],"E1":["M3"],"E2":["M6"],"M6":["N"]},
+		"depth_of":{"A":0,"B":1,"C":1,"D1":2,"D2":2,"E1":2,"E2":2,
+			"M1":3,"M2":3,"M3":3,"M6":3,"N":4},
+		"est_h":{"A":120.0,"B":840.0,"C":120.0,"D1":412.0,"D2":120.0,"E1":840.0,"E2":412.0,
+			"M1":120.0,"M2":840.0,"M3":412.0,"M6":120.0,"N":840.0},
+	}
+	var worst_edge: float = 1e18
+	var worst_desc := ""
+	for gname in groups:
+		var G: Dictionary = groups[gname]
+		var out: Dictionary = L._pack_contour(G["root"], G["child_map"], G["depth_of"], G["est_h"], G)
+		var rel: Dictionary = out["rel"]
+		var est_h: Dictionary = G["est_h"]
+		var by_depth := {}
+		for nid in rel:
+			var d: int = G["depth_of"].get(nid, -1)
+			if d < 1: continue
+			if not by_depth.has(d): by_depth[d] = []
+			by_depth[d].append(String(nid))
+		var g_fail := 0
+		var g_min_edge := 1e18; var g_min_desc := ""
+		for d in by_depth:
+			var ms: Array = by_depth[d]
+			ms.sort_custom(func(a,b): return rel[a] < rel[b])
+			for i in range(ms.size()-1):
+				var a: String = ms[i]; var b: String = ms[i+1]
+				var diff: float = rel[b] - rel[a]
+				var halfsum: float = (est_h.get(a,140.0) + est_h.get(b,140.0)) * 0.5
+				var edge: float = diff - halfsum
+				if edge < g_min_edge:
+					g_min_edge = edge
+					g_min_desc = "%s(H=%d)-%s(H=%d) depth=%d" % [a, int(est_h.get(a,0)), b, int(est_h.get(b,0)), int(d)]
+				if diff < halfsum + 15.0:
+					g_fail += 1
+					print("  U1-FAIL %s: %s-%s diff=%.1f need=%.1f" % [gname, a, b, diff, halfsum+15.0])
+		if worst_edge > g_min_edge: worst_edge = g_min_edge; worst_desc = g_min_desc
+		var strict_ok: bool = g_min_edge >= 80.0 - 1e-6
+		if g_fail == 0: _pass += 1
+		else: _fail += 1
+		print("  U1-[%s]: %s  同列min边到边=%.1fpx (%s)  期望80档:%s" % [gname, "PASS" if g_fail==0 else "FAIL", g_min_edge, g_min_desc, "满足" if strict_ok else "未达80(仅报)"])
+	print("  U1 三组合并 min同列边到边=%.1fpx (%s)" % [worst_edge, worst_desc])
+
+
+## U2：直接调 _band_next，用不同带高(120/840/300…)连续推进，断言相邻带绘制区间间隙 ≥ gap(40)
+##   且带不交错（后一带顶 ≥ 前一带底 + 15）。
+func _u2_band() -> void:
+	var gv = await _make_gv()
+	var L: Object = gv._layout
+	var runs := [
+		{"heights":[120.0,840.0,300.0], "grid":0.0, "step":80.0},
+		{"heights":[120.0,840.0,840.0,120.0], "grid":0.0, "step":900.0},
+		{"heights":[100.0,48.0,840.0,412.0], "grid":120.0, "step":840.0},
+		{"heights":[412.0,412.0,412.0], "grid":0.0, "step":412.0},
+	]
+	var gap: float = 40.0
+	var worst_gap := 1e18
+	var fail := 0
+	for ri in range(runs.size()):
+		var run: Dictionary = runs[ri]
+		var H: Array = run["heights"]
+		var grid: float = run["grid"]; var step: float = run["step"]
+		var prev_bottom: float = 0.0
+		var min_gap := 1e18; var min_desc := ""
+		for hi in range(H.size()):
+			var res: Array = L._band_next(prev_bottom, H[hi], grid, step, gap)
+			var top: float = res[0]; var bottom: float = res[1]
+			var band_gap: float = top - prev_bottom
+			if band_gap < min_gap: min_gap = band_gap; min_desc = "带%d→%d" % [hi, hi+1]
+			if top < prev_bottom + gap - 1e-6 or top < prev_bottom + 15.0 - 1e-6:
+				fail += 1
+				print("  U2-FAIL run%d: prev=%.0f top=%.0f < prev+gap(%.0f) 高=%.0f" % [ri, prev_bottom, top, gap, H[hi]])
+			prev_bottom = bottom
+		if min_gap < worst_gap: worst_gap = min_gap
+		if fail == 0 and min_gap < 40.0 - 1e-6: fail += 1
+		print("  U2-[run%d heights=%s grid=%.0f step=%.0f]: 最小带间隙=%.1fpx (%s)" % [ri, str(H), grid, step, min_gap, min_desc])
+	if fail == 0: _pass += 1
+	else: _fail += 1
+	print("  U2 全run最小带间隙=%.1fpx  (期望>=%.1f, 且>=15)" % [worst_gap, gap])
+
 
 func _initialize() -> void:
 	await process_frame
