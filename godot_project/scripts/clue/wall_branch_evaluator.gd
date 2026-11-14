@@ -342,29 +342,19 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 	# 引入 display_ratio = clamp(ratio × correction, 0, 1)
 	# 作为显示用的统一 R 轴，星级 / 档位 / 进程条全部基于 display_ratio。
 	# raw ratio 保留用于存档、结算竞技分等真实数据用途。
-	# DifficultyManager 是 autoload，无主循环/工具脚本环境下不可用，走 Engine.has_singleton 安全访问
+	# 难度校正：只补偿 HARD 的干扰项稀释（方案一定案 2026-11-14）
+	# 分母 denom = max(built, truth)，misleads 不进 truth：
+	#   HARD 下玩家连错干扰边会撑大 built，raw 被结构性稀释 → ×1.25 补偿；
+	#   EASY 下 mislead_chance=0、墙内无干扰项，raw 不被稀释 → 系数 1.0，不做反向惩罚。
 	# difficulty_override >= 0 时强制使用指定难度（用于探针/测试），-1 表示读 autoload
 	var correction: float = 1.0
 	if difficulty_override >= 0:
-		match difficulty_override:
-			0:  # EASY
-				correction = 0.8
-			2:  # HARD
-				correction = 1.25
-			_:
-				correction = 1.0
+		if difficulty_override == 2:  # HARD
+			correction = 1.25
 	else:
-		var dm: Object = null
-		if Engine.has_singleton("DifficultyManager"):
-			dm = Engine.get_singleton("DifficultyManager")
-		if dm != null:
-			match int(dm.get("current_difficulty")):
-				0:  # EASY
-					correction = 0.8
-				2:  # HARD
-					correction = 1.25
-				_:
-					correction = 1.0
+		var dm: Node = AutoloadUtil.get_autoload("DifficultyManager")
+		if dm != null and int(dm.get("current_difficulty")) == 2:  # HARD
+			correction = 1.25
 	var display_ratio: float = clamp(ratio * correction, 0.0, 1.0)
 
 	var stars := _stars_of(display_ratio)

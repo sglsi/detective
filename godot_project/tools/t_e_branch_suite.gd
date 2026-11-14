@@ -190,16 +190,36 @@ func _e07_cross_scene_crop():
 		"part=%d full=%d" % [up, uf], ok,
 		"ratio_part=%.4f ratio_full=%.4f" % [res_part.ratio, res_full.ratio])
 
-# ── E08 display_ratio 难度修正 ──────────────────────────────────
+# ── E08 display_ratio 难度修正（方案一：EASY/NORMAL=1.0，HARD=1.25）────
 func _e08_display_diff():
 	var data = _build_ch2_full()
+	# ① 参数分支：三档系数
 	var re = WBE.evaluate(data.rels, data.nodes, data.concls, "scene2", false, [], 0)
 	var rn = WBE.evaluate(data.rels, data.nodes, data.concls, "scene2", false, [], 1)
 	var rh = WBE.evaluate(data.rels, data.nodes, data.concls, "scene2", false, [], 2)
-	var ok = re.display_ratio < rn.display_ratio and rn.display_ratio <= rh.display_ratio
-	_rec("E08", "display 难度修正", "EASY<NORMAL<=HARD",
-		"E=%.3f N=%.3f H=%.3f" % [re.display_ratio, rn.display_ratio, rh.display_ratio], ok,
-		"raw=%.4f" % re.ratio)
+	var ok1 = absf(re.difficulty_correction - 1.0) < 0.001 \
+			and absf(rn.difficulty_correction - 1.0) < 0.001 \
+			and absf(rh.difficulty_correction - 1.25) < 0.001
+	_rec("E08.1", "override 系数 E/N=1.0 H=1.25", "1.0/1.0/1.25",
+		"E=%.2f N=%.2f H=%.2f" % [re.difficulty_correction, rn.difficulty_correction, rh.difficulty_correction], ok1)
+
+	# ② 生产路径：设真实难度后不传 override，必须读到 autoload
+	var dm = AutoloadUtil.get_autoload("DifficultyManager")
+	if dm == null:
+		_rec("E08.2", "生产路径读 autoload", "DM 存在", "null", false, "autoload 未加载")
+		return
+	var orig_difficulty: int = int(dm.get("current_difficulty"))
+	dm.set_difficulty(2)  # HARD → 系数 1.25
+	var rp = WBE.evaluate(data.rels, data.nodes, data.concls, "scene2", false, [])
+	var ok2 = absf(rp.difficulty_correction - 1.25) < 0.001
+	_rec("E08.2", "生产路径 HARD 校正", "1.25",
+		"H=%.3f" % rp.difficulty_correction, ok2, "autoload 读到 HARD")
+	dm.set_difficulty(0)  # EASY → 系数 1.0
+	var re2 = WBE.evaluate(data.rels, data.nodes, data.concls, "scene2", false, [])
+	var ok3 = absf(re2.difficulty_correction - 1.0) < 0.001
+	_rec("E08.3", "生产路径 EASY 校正", "1.0",
+		"E=%.3f" % re2.difficulty_correction, ok3, "autoload 读到 EASY")
+	dm.set_difficulty(orig_difficulty)  # 复位，避免污染后续用例
 
 # ── E09 raw_ratio 存档真实性 ────────────────────────────────────
 func _e09_raw_stable():
@@ -317,11 +337,11 @@ func _doubt_d_difficulty_override():
 	var rd = WBE.evaluate(data.rels, data.nodes, data.concls, "scene2", false, [])  # 默认
 	var re = WBE.evaluate(data.rels, data.nodes, data.concls, "scene2", false, [], 0)
 	var rh = WBE.evaluate(data.rels, data.nodes, data.concls, "scene2", false, [], 2)
-	var ok1 = re.display_ratio < rd.display_ratio  # EASY 拉低
+	var ok1 = absf(re.difficulty_correction - 1.0) < 0.001  # 方案一：EASY 系数=1.0，不再拉低
 	var ok2 = rh.display_ratio >= rd.display_ratio  # HARD 不低于
 	var ok3 = re.ratio == rd.ratio and rd.ratio == rh.ratio  # raw 不变
-	_rec("D.1", "EASY override 拉低display", "EASY < DEFAULT",
-		"E=%.3f D=%.3f" % [re.display_ratio, rd.display_ratio], ok1)
+	_rec("D.1", "EASY override 系数=1.0", "EASY corr=1.0",
+		"E=%.3f" % re.difficulty_correction, ok1)
 	_rec("D.2", "HARD override 不低于default", "HARD >= DEFAULT",
 		"H=%.3f D=%.3f" % [rh.display_ratio, rd.display_ratio], ok2)
 	_rec("D.3", "override 不影响 raw", "三难度一致",
