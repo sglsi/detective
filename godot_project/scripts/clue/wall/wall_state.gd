@@ -134,10 +134,10 @@ func _derive_persons() -> Array:
 	var out := []
 	# 兜底（修根因 2026-08-19 v4）：如果调用方传入的 _clues 为空但 ClueSystem 实际有已收集线索，
 	# 实时拉一次（在 easy 模式下对话可能提前结束导致 _clues 没被填到；这层兜底保证人物中心至少能渲染）。
-	# 用 Engine.has_singleton 先判存在：headless --script 与 web 旧包下 ClueSystem 可能未注册，
-	# 避免 "Failed to retrieve non-existent singleton 'ClueSystem'" 报错（仅静默跳过兜底）。
-	if owner._clues.is_empty() and Engine.has_singleton("ClueSystem"):
-		var _cs := Engine.get_singleton("ClueSystem")
+	# autoload 是场景树节点（/root/ClueSystem），不是 Engine singleton：
+	# Engine.has_singleton() 对它恒 false，用它判断会让兜底永久静默跳过（历史 bug，2026-11-16 修）。
+	if owner._clues.is_empty():
+		var _cs: Node = AutoloadUtil.get_autoload("ClueSystem")
 		if _cs != null and _cs.has_method("get_collected"):
 			var live: Array = _cs.get_collected("")
 			if not live.is_empty():

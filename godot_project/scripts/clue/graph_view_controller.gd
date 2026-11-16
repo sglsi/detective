@@ -387,12 +387,10 @@ func build(data: Dictionary) -> void:
 	# 兜底（修根因 2026-08-19 v4）：如果调用方给的 _persons 是空但 ClueSystem 实际有相关线索，
 	# 实时从 Autoload 拉并组装一次（避免 reasoning_wall 提前 _derive 之后又被另一层兜底覆盖，
 	# 此处是最后一道）。
-	# 用 Engine.get_singleton 取 Autoload，但先以 Engine.has_singleton 判存在：
-	# - headless --script 下 autoload 不注册 → has_singleton 为 false，静默跳过（不编译报错、不运行报错）；
-	# - web 运行时若单例缺失（旧包/缓存）也不打 "non-existent singleton" 错误，仅跳过兜底。
-	var _cs: Object = null
-	if Engine.has_singleton("ClueSystem"):
-		_cs = Engine.get_singleton("ClueSystem")
+	# autoload 是场景树节点（/root/ClueSystem），不是 Engine singleton：
+	# Engine.has_singleton() 对它恒 false，用它判断会让兜底永久静默跳过（历史 bug，2026-11-16 修）。
+	# 统一走 AutoloadUtil.get_autoload；取不到（无主循环/无 root）时返回 null，兜底自然跳过。
+	var _cs: Node = AutoloadUtil.get_autoload("ClueSystem")
 	if _persons.is_empty() and _cs != null and _cs.has_method("get_collected"):
 		var live: Array = _cs.get_collected("")
 		if not live.is_empty():
