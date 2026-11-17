@@ -11,8 +11,10 @@ const HME := preload("res://scripts/clue/hard_mode_evaluator.gd")
 
 var _ok: int = 0
 var _fail: int = 0
+var _total: int = 0
 
 func _check(cond: bool, msg: String, actual: Variant, expect: String) -> void:
+	_total += 1
 	if cond:
 		_ok += 1
 	else:
@@ -36,6 +38,14 @@ func _initialize() -> void:
 			else:
 				if ratio >= 0.80:
 					_check(wv == 3, tag + " 无矛盾高分=VERIFIED", wv, "3")
-	var rounded := "%d" % _ok
-	print("总计: %s 通过 / %d 失败 / 共 %d" % [rounded, _fail, 202])
+	## H12 收尾 A：HARD 下 grade 与 stars/verdict 同轴（grade 判据 = display_ratio），
+	## 内心 band 必须完全一致 —— 若 grade 回落 raw 而 stars 用 display，band 会在此处崩开。
+	var band_grade := {3: "优秀", 2: "良好", 1: "合格", 0: "待加强"}
+	for i in range(101):
+		var x: float = float(i) / 100.0
+		var hs2: int = HME._stars_of(x)
+		var eg: String = band_grade[hs2]
+		var g: String = HME._grade_of(x)
+		_check(g == eg, "HME grade band==stars band r=%.2f" % x, g, eg)
+	print("总计: %d 通过 / %d 失败 / 共 %d" % [_ok, _fail, _total])
 	quit(0 if _fail == 0 else 1)

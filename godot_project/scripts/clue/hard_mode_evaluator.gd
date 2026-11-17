@@ -174,8 +174,8 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 	# 校准策略：以结论命中率为主轴，证据/结构/步骤三维作质量乘数（最高+40%），落同一 R 轴：
 	#   display_ratio = clamp(conclusion_score * (0.6 + 0.4 * quality_factor), 0, 1)
 	#   quality_factor = avg(证据, 结构, 步骤)
-	# stars/verdict 用 display_ratio（与 WBE 同源，消除「进度条显示 display 但星级看 raw」的矛盾）；
-	# grade/summary 仍以 raw ratio 描述四维原始分。
+	# stars/verdict/grade/summary 统一用 display_ratio（与 WBE 同源，消除「进度条/文字显示 display、
+	# 判定却看 raw」的错配）；raw ratio 仅入返回体 ratio 字段留档、供审计。
 	var quality_factor: float = 0.0
 	if total_prod > 0:
 		quality_factor = (evidence_score + structure_score + step_score) / 3.0
@@ -188,10 +188,10 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 	var contradicted: bool = (contra_ratio > 0.5) or (contra > 0 and not conclusion_correct)
 	var verdict: int = _verdict_of(display_ratio, contradicted)
 
-	var grade: String = _grade_of(ratio)
+	var grade: String = _grade_of(display_ratio)
 	var reasons: Array = _build_reasons(conclusion_correct, target_hit, evidence_score,
 		isolated, contra, total_prod)
-	var summary: String = _summary(grade, conclusion_correct, ratio)
+	var summary: String = _summary(grade, conclusion_correct, display_ratio)
 
 	return {
 		"four_dim": true,
