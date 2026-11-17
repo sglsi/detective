@@ -660,35 +660,16 @@ static func _allowed_scenes(scene_id: String) -> Dictionary:
 	return allowed
 
 
-## 星级：80 / 55 / 25（思傅裁定）
+## 星级：80 / 55 / 25（思傅裁定）。统一实现见 VerdictRules（H12 单一事实源）。
 static func _stars_of(ratio: float) -> int:
-	if ratio >= Truth.STAR_3:
-		return 3
-	if ratio >= Truth.STAR_2:
-		return 2
-	if ratio >= Truth.STAR_1:
-		return 1
-	return 0
+	return VerdictRules.stars_of(ratio)
 
 
-## 四档 verdict 与星级同源（裁定 3：统一评分源）。
+## 四档 verdict，与星级同源（裁定 3：统一评分源）。统一实现见 VerdictRules（H12）。
 ## 注：CONTRADICTORY 保留独立语义——存在矛盾/采纳误导项时，即使正确率不低也判矛盾。
-## 采纳误导项(hard_fail) 或有矛盾边(has_contradict) 时，最高只能到 SUPPORTED，
-## 不能判 VERIFIED（与三星硬条件一致）。
+## 采纳误导项(hard_fail) 或有矛盾边(has_contradict) 时，最高只能到 SUPPORTED，不能判 VERIFIED。
 static func _verdict_of(ratio: float, contradicted: bool) -> int:
-	if contradicted:
-		if ratio < Truth.STAR_1:
-			return 1  # INSUFFICIENT（有矛盾但连基本结构都没有，归入证据不足）
-		if ratio < Truth.STAR_3:
-			return 0  # CONTRADICTORY（有矛盾且正确率不高）
-		return 2      # SUPPORTED（方向大致正确，但存在硬伤<采纳误导/矛盾边>，未达验证标准）
-	if ratio >= Truth.STAR_3:
-		return 3      # VERIFIED
-	if ratio >= Truth.STAR_2:
-		return 2      # SUPPORTED
-	if ratio >= Truth.STAR_1:
-		return 1      # INSUFFICIENT
-	return 1          # 低于 25% 仍归 INSUFFICIENT（无星，但保持四档闭合）
+	return VerdictRules.verdict_of(ratio, contradicted)
 
 
 ## 验证窗口给玩家看的一句话（裁定 4：侦查中不告诉错在哪）。

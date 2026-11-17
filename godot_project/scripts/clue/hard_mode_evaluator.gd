@@ -34,11 +34,6 @@ const W_EVIDENCE := 0.25
 const W_STRUCTURE := 0.20
 const W_STEP := 0.20
 
-# 星级阈值（与 CaseBranchTruth.STAR_* 同源）
-const STAR_3 := 0.80
-const STAR_2 := 0.55
-const STAR_1 := 0.25
-
 const CONCL_MATCH_THRESHOLD := CM.MATCH_THRESHOLD   # 与宽容匹配器同源（0.45）
 
 
@@ -174,28 +169,29 @@ static func evaluate(relations: Array, graph_nodes: Array, derived_conclusions: 
 	var ratio: float = W_CONCLUSION * conclusion_score + W_EVIDENCE * evidence_score \
 		+ W_STRUCTURE * structure_score + W_STEP * step_score
 
-	var stars: int = _stars_of(ratio)
+	# L2 · 三难度统一 R 轴校准（display_ratio 提前，H12 2026-11-16）：
+	# 困难模式四维评分与 EASY/NORMAL 硬比对分布完全不同（中间区间偏高、方向错也有分）。
+	# 校准策略：以结论命中率为主轴，证据/结构/步骤三维作质量乘数（最高+40%），落同一 R 轴：
+	#   display_ratio = clamp(conclusion_score * (0.6 + 0.4 * quality_factor), 0, 1)
+	#   quality_factor = avg(证据, 结构, 步骤)
+	# stars/verdict 用 display_ratio（与 WBE 同源，消除「进度条显示 display 但星级看 raw」的矛盾）；
+	# grade/summary 仍以 raw ratio 描述四维原始分。
+	var quality_factor: float = 0.0
+	if total_prod > 0:
+		quality_factor = (evidence_score + structure_score + step_score) / 3.0
+	var display_ratio: float = clamp(conclusion_score * (0.6 + 0.4 * quality_factor), 0.0, 1.0)
+
+	var stars: int = _stars_of(display_ratio)
 	if not conclusion_correct:
 		stars = mini(stars, 2)   # 结论错 → 封顶 2 星
 
 	var contradicted: bool = (contra_ratio > 0.5) or (contra > 0 and not conclusion_correct)
-	var verdict: int = _verdict_of(ratio, contradicted)
+	var verdict: int = _verdict_of(display_ratio, contradicted)
 
 	var grade: String = _grade_of(ratio)
 	var reasons: Array = _build_reasons(conclusion_correct, target_hit, evidence_score,
 		isolated, contra, total_prod)
 	var summary: String = _summary(grade, conclusion_correct, ratio)
-
-	# L2 · 三难度统一 R 轴校准
-	# 困难模式四维评分与 EASY/NORMAL 的硬比对评分分布完全不同（中间区间偏高、方向错也有分）。
-	# 校准策略：以结论命中率为主轴，证据/结构/步骤三维作质量乘数（最高+40%），使三难度落在同一 R 轴上。
-	#   display_ratio = clamp(conclusion_score * (0.6 + 0.4 * quality_factor), 0, 1)
-	#   quality_factor = avg(证据, 结构, 步骤)
-	# 直觉：方向对了才有分；推理质量越高分越多；方向错了零分。
-	var quality_factor: float = 0.0
-	if total_prod > 0:
-		quality_factor = (evidence_score + structure_score + step_score) / 3.0
-	var display_ratio: float = clamp(conclusion_score * (0.6 + 0.4 * quality_factor), 0.0, 1.0)
 
 	return {
 		"four_dim": true,
@@ -341,26 +337,13 @@ static func _layer_of(nid: String, player_node_ids: Dictionary) -> int:
 
 
 # ===================== 评分派生 =====================
+# 星级 / 档位统一实现见 VerdictRules（H12 单一事实源，与 WBE 完全一致）。
 static func _stars_of(ratio: float) -> int:
-	if ratio >= STAR_3:
-		return 3
-	if ratio >= STAR_2:
-		return 2
-	if ratio >= STAR_1:
-		return 1
-	return 0
+	return VerdictRules.stars_of(ratio)
 
 
 static func _verdict_of(ratio: float, contradicted: bool) -> int:
-	if contradicted and ratio < STAR_3:
-		return 0
-	if ratio >= STAR_3:
-		return 3
-	if ratio >= STAR_2:
-		return 2
-	if ratio >= STAR_1:
-		return 1
-	return 1
+	return VerdictRules.verdict_of(ratio, contradicted)
 
 
 static func _grade_of(ratio: float) -> String:
