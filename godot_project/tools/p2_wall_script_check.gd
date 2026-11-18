@@ -34,23 +34,21 @@ func _process(_delta: float) -> bool:
 	_check("Verdict.SUPPORTED=2", V.SUPPORTED == 2)
 	_check("Verdict.VERIFIED=3", V.VERIFIED == 3)
 
-	# 2. 判定逻辑：无关联 → INSUFFICIENT
-	rw._associated = 0
-	rw._contradicting = 0
-	_check("无关联→INSUFFICIENT", rw.get_verdict() == V.INSUFFICIENT, "实得 %d" % rw.get_verdict())
-
-	# 3. ≥1 关联 → SUPPORTED
-	rw._associated = 1
-	_check("1关联→SUPPORTED", rw.get_verdict() == V.SUPPORTED, "实得 %d" % rw.get_verdict())
-
-	# 4. ≥3 关联 → VERIFIED
-	rw._associated = 3
-	_check("3关联→VERIFIED", rw.get_verdict() == V.VERIFIED, "实得 %d" % rw.get_verdict())
-
-	# 5. 矛盾红线优先级最高（即便关联满也判 CONTRADICTORY）
-	rw._associated = 5
-	rw._contradicting = 1
-	_check("矛盾优先→CONTRADICTORY", rw.get_verdict() == V.CONTRADICTORY, "实得 %d" % rw.get_verdict())
+	# 2. 判定逻辑：收敛到 VerdictRules 单一事实源（H12 裁定 3）
+	#    旧实现 set _associated/_contradicting 后调 get_verdict()。这两字段是「裁定 3」重构前的
+	#    死字段，无人消费；直实例化(_state_ctl==null)时 get_verdict() 命中 null 兜底恒返回
+	#    INSUFFICIENT → 无关联(期望1)假绿、其余假红，皆不可信。改为直测 VerdictRules.verdict_of。
+	var VR = load("res://scripts/clue/verdict_rules.gd")
+	# 无矛盾：3 / 2 / 1 / 1
+	_check("无矛盾 0.90→VERIFIED", VR.verdict_of(0.90, false) == V.VERIFIED, "实得 %d" % VR.verdict_of(0.90, false))
+	_check("无矛盾 0.60→SUPPORTED", VR.verdict_of(0.60, false) == V.SUPPORTED, "实得 %d" % VR.verdict_of(0.60, false))
+	_check("无矛盾 0.30→INSUFFICIENT", VR.verdict_of(0.30, false) == V.INSUFFICIENT, "实得 %d" % VR.verdict_of(0.30, false))
+	_check("无矛盾 0.10→INSUFFICIENT", VR.verdict_of(0.10, false) == V.INSUFFICIENT, "实得 %d" % VR.verdict_of(0.10, false))
+	# 有矛盾：铁律——0.25≤r<0.80→CONTRADICTORY(0)、r≥0.80→SUPPORTED(2)、r<0.25→INSUFFICIENT(1)，永不判 VERIFIED
+	_check("有矛盾 0.90→SUPPORTED(不判VERIFIED)", VR.verdict_of(0.90, true) == V.SUPPORTED, "实得 %d" % VR.verdict_of(0.90, true))
+	_check("有矛盾 0.60→CONTRADICTORY", VR.verdict_of(0.60, true) == V.CONTRADICTORY, "实得 %d" % VR.verdict_of(0.60, true))
+	_check("有矛盾 0.30→CONTRADICTORY", VR.verdict_of(0.30, true) == V.CONTRADICTORY, "实得 %d" % VR.verdict_of(0.30, true))
+	_check("有矛盾 0.10→INSUFFICIENT", VR.verdict_of(0.10, true) == V.INSUFFICIENT, "实得 %d" % VR.verdict_of(0.10, true))
 
 	if failures.is_empty():
 		print("推理墙校验通过")

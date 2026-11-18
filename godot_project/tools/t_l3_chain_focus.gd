@@ -1,5 +1,6 @@
 extends SceneTree
 ## L3 链聚焦功能探针：验证 ReasoningChains.get_chain_node_ids 返回正确
+const Truth := preload("res://data/case_branch_truth.gd")
 
 func _init():
 	call_deferred("_run")
@@ -25,16 +26,53 @@ func _run():
 	var no_ids: Array = ReasoningChains.get_chain_node_ids("NO_SUCH_CHAIN")
 	_p("不存在的链返回空", no_ids.is_empty(), "", st)
 
-	# Test 4: evaluator display_ratio 字段存在（无 DM 环境下 NORMAL 校正=1.0 → display==ratio）
-	# 2026-11-18 修：原 `ev.evaluate_branch("CH01W", t)` 调用不存在的实例方法（WBE 仅有静态 evaluate）
-	# 致 SCRIPT ERROR 后引擎挂起 exit=124。改为真实静态签名：scene_id 传真实场景 id，空图调用。
-	# 意图保留：验证 evaluate 返回 display_ratio，且 headless（无 DM，current_difficulty≠2）下 correction=1.0。
-	var res: Dictionary = WallBranchEvaluator.evaluate([], [], [], "scene1")
-	_p("evaluator 有 display_ratio", res.has("display_ratio"), "", st)
-	var dr: float = float(res.get("display_ratio", -1))
-	var r: float = float(res.get("ratio", -1))
-	_p("display_ratio == ratio (NORMAL=1.0)", abs(dr - r) < 0.001,
-		"dr=%.3f r=%.3f" % [dr, r], st)
+	# Test 4: evaluator display_ratio 字段存在 + 难度校正随 override 生效（EASY×1.0 / HARD×1.25）
+	# 2026-11-18(a)：原 `ev.evaluate_branch("CH01W", t)` 调不存在方法 → SCRIPT ERROR 挂起；改真实静态签名。
+	# 2026-11-18(b)：上一版空图调用 ratio=0 → display=0，断言恒真（假绿），完全没验证校正。
+	#   现改为：从 scene2 取第一条正式核心链(CH02)构造非空图（hypo→graph_nodes / concl→derived_conclusions /
+	#   support/weak→relations），完美构建唯一链 → 得确定性 ratio≈0.5（另一 core 链 CH03 贡献分母但不致 0）。
+	#   断言对实际 ratio 求期望，EASY/HARD 可区分；ratio>0.1 防退化前置是本探针防止再次假绿的唯一保险。
+	var orig: Dictionary = WallBranchEvaluator.evaluate([], [], [], "scene1")
+	_p("evaluator 有 display_ratio", orig.has("display_ratio"), "", st)
+	var chain := _first_scene2_core_chain()
+	if chain.is_empty():
+		_p("构造到 scene2 正式核心链", false, "Truth.branches() 无 scene2 非练习核心链", st)
+	else:
+		var gn: Array = []
+		var dc: Array = []
+		var rel: Array = []
+		var mid := {}
+		for m in chain.get("misleads", []):
+			mid[WallBranchEvaluator.norm(str(m.get("id", "")))] = true
+		for n in chain.get("nodes", []):
+			var l: String = str(n.get("layer", ""))
+			if l in ["hypo", "concl"] and not mid.has(WallBranchEvaluator.norm(str(n.get("id", "")))):
+				var nd := {"id": str(n.get("id", "")), "text": str(n.get("text", ""))}
+				if l == "hypo":
+					nd["kind"] = "hypo"
+					gn.append(nd)
+				else:
+					dc.append(nd)
+		for e in chain.get("edges", []):
+			var ek: String = str(e.get("kind", ""))
+			if ek in ["support", "weak"]:
+				var ef: String = WallBranchEvaluator.norm(str(e.get("from", "")))
+				var et: String = WallBranchEvaluator.norm(str(e.get("to", "")))
+				if mid.has(ef) or mid.has(et):
+					continue
+				rel.append({"from": str(e.get("from", "")), "to": str(e.get("to", "")), "kind": ek})
+		var base: Dictionary = WallBranchEvaluator.evaluate(rel, gn, dc, "scene2")
+		var ratio: float = float(base.get("ratio", -1.0))
+		_p("防退化：ratio>0.1", ratio > 0.1, "ratio=%.3f（构造失败则无法验证校正）" % ratio, st)
+		var e0: Dictionary = WallBranchEvaluator.evaluate(rel, gn, dc, "scene2", false, [], 0)   # EASY ×1.0
+		var d0: float = float(e0.get("display_ratio", -1.0))
+		_p("EASY override=0: display==ratio", abs(d0 - ratio) < 0.001,
+			"ratio=%.3f display=%.3f 期望=%.3f" % [ratio, d0, ratio], st)
+		var e2: Dictionary = WallBranchEvaluator.evaluate(rel, gn, dc, "scene2", false, [], 2)   # HARD ×1.25
+		var d2: float = float(e2.get("display_ratio", -1.0))
+		var exp2: float = minf(ratio * 1.25, 1.0)
+		_p("HARD override=2: display==min(1.25r,1)", abs(d2 - exp2) < 0.001,
+			"ratio=%.3f display=%.3f 期望=%.3f" % [ratio, d2, exp2], st)
 
 	print("\n===== RESULT: %d passed, %d failed =====" % [st[0], st[1]])
 	quit(0 if st[1] == 0 else 1)
@@ -46,3 +84,15 @@ func _p(name: String, cond: bool, detail: String, st: Array):
 	else:
 		print("❌ %s — %s" % [name, detail])
 		st[1] += 1
+
+## 取 scene2 第一条正式（非练习）核心链，用于 Test4 构造真实图。
+func _first_scene2_core_chain() -> Dictionary:
+	for b in Truth.branches():
+		if str(b.get("scene", "")) != "scene2":
+			continue
+		if bool(b.get("practice", false)):
+			continue
+		if not bool(b.get("core", false)):
+			continue
+		return b
+	return {}
