@@ -41,6 +41,9 @@ func _run():
 	_print_header("D10: 链库与 legacy 表共存无重复")
 	_test_d10()
 	
+	_print_header("D11: build_wall_dict 幂等（连续两次深度相等）")
+	_test_d11()
+	
 	print("\n" + "============================================================")
 	print("  D 数据层测试结果：%d / %d 通过  %d 失败" % [_ok, _ok+_fail, _fail])
 	print("=============================================================")
@@ -388,3 +391,94 @@ func _set_normal_mode():
 func _restore_difficulty(val: float):
 	# 探针环境不恢复无所谓
 	pass
+
+# ============================================================
+# D11: build_wall_dict 幂等
+#   文档称「仅 mislead_chance 触发的干扰抽样需固定 seed」——已核实该抽样不在本函数内
+#   （实际位于 graph/graph_view_dock.gd _open_conclusion_popup，UI 候选窗）。
+#   本用例覆盖 build_wall_dict 本身的纯函数幂等性：
+#   深拷贝隔离 + 难度过滤确定性（EASY 剔除 correct:false）。
+# ============================================================
+func _test_d11():
+	# 前置：DifficultyManager 必须经 autoload 正确可达
+	# （Engine.has_singleton 对 autoload 恒 false，本套件 D06/D07 旧辅助即因此失效，不沿用）
+	var dm: Node = AutoloadUtil.get_autoload("DifficultyManager")
+	if dm == null:
+		_p("D11.0 前置：DifficultyManager autoload 可达", false,
+			"AutoloadUtil.get_autoload 返回 null，D11 无法验证难度过滤")
+		return
+	var orig_diff: int = int(dm.current_difficulty)
+
+	# D11.1 同一链（CH01W）连续两次调用深度相等
+	var d1: Dictionary = Chains.build_wall_dict("CH01W")
+	var d2: Dictionary = Chains.build_wall_dict("CH01W")
+	_p("D11.1 CH01W 连续两次 build 深度相等", d1 == d2, "")
+
+	# D11.2 遍历全部链逐条两次调用相等
+	var ids: Array = Chains.ids()
+	var bad_ids: Array = []
+	for cid in ids:
+		if Chains.build_wall_dict(str(cid)) != Chains.build_wall_dict(str(cid)):
+			bad_ids.append(str(cid))
+	_p("D11.2 全部 %d 条链两次调用相等" % ids.size(), bad_ids.is_empty(),
+		"不一致: %s" % str(bad_ids))
+
+	# D11.3 EASY：切换生效 + 两次相等 + 无 correct:false
+	dm.set_difficulty(dm.Difficulty.EASY)
+	var easy_ok := is_equal_approx(float(dm.mislead_chance), 0.0)
+	_p("D11.3a 切 EASY 生效 mislead_chance==0.0", easy_ok,
+		"chance=%.2f" % float(dm.mislead_chance))
+	var e1: Dictionary = Chains.build_wall_dict("CH01M")
+	var e2: Dictionary = Chains.build_wall_dict("CH01M")
+	_p("D11.3b EASY 下 CH01M 两次相等", e1 == e2, "")
+	var easy_false := _count_false_hypos(e1)
+	_p("D11.3c EASY 下 hypotheses 无 correct:false", easy_false == 0,
+		"干扰项数: %d / 总数 %d" % [easy_false, _total_hypos(e1)])
+
+	# D11.4 NORMAL：切换生效 + 两次相等 + 干扰项数量与 EASY 不同（证明难度过滤真实生效）
+	dm.set_difficulty(dm.Difficulty.NORMAL)
+	var normal_ok := is_equal_approx(float(dm.mislead_chance), 0.3)
+	_p("D11.4a 切 NORMAL 生效 mislead_chance==0.3", normal_ok,
+		"chance=%.2f" % float(dm.mislead_chance))
+	var n1: Dictionary = Chains.build_wall_dict("CH01M")
+	var n2: Dictionary = Chains.build_wall_dict("CH01M")
+	_p("D11.4b NORMAL 下 CH01M 两次相等", n1 == n2, "")
+	var normal_false := _count_false_hypos(n1)
+	_p("D11.4c NORMAL 干扰项数与 EASY 不同", normal_false != easy_false,
+		"EASY %d / NORMAL %d" % [easy_false, normal_false])
+
+	# D11.5 源数据未被污染：调用前后源 hypotheses.size() 不变
+	var src_bf: Dictionary = Chains.CHAINS["CH01W"]["wall"]["battlefield"]
+	var src_before: int = src_bf.get("hypotheses", []).size()
+	Chains.build_wall_dict("CH01W")
+	var src_after: int = src_bf.get("hypotheses", []).size()
+	_p("D11.5 源数据 hypotheses.size() 调用前后不变", src_before == src_after,
+		"前后 %d / %d" % [src_before, src_after])
+
+	# D11.6 深拷贝隔离：清空返回值后再次调用仍返回完整数据
+	var dd: Dictionary = Chains.build_wall_dict("CH01W")
+	var dd_bf: Dictionary = dd.get("battlefield", {})
+	dd_bf["hypotheses"] = []
+	var dd2: Dictionary = Chains.build_wall_dict("CH01W")
+	var total2: int = dd2.get("battlefield", {}).get("hypotheses", []).size()
+	_p("D11.6 清空返回值后再次调用仍返回完整假设集", total2 > 0,
+		"再次调用返回 %d 条" % total2)
+
+	# D11.7 不存在链连续两次均空且相等
+	var x1: Dictionary = Chains.build_wall_dict("__NO_SUCH_CHAIN__")
+	var x2: Dictionary = Chains.build_wall_dict("__NO_SUCH_CHAIN__")
+	_p("D11.7 不存在链两次均空且相等", x1 == x2 and x1.is_empty(), "")
+
+	# 复位难度到进入前的值
+	dm.set_difficulty(orig_diff)
+	print("    难度已复位: current_difficulty=", dm.current_difficulty)
+
+func _count_false_hypos(d: Dictionary) -> int:
+	var n := 0
+	for h in d.get("battlefield", {}).get("hypotheses", []):
+		if not bool(h.get("correct", true)):
+			n += 1
+	return n
+
+func _total_hypos(d: Dictionary) -> int:
+	return d.get("battlefield", {}).get("hypotheses", []).size()
